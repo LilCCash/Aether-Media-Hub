@@ -291,3 +291,34 @@ final class SubtitleParserTests: XCTestCase {
         XCTAssertEqual(timeline.active(at: 6).map { $0.text }, ["long"])
     }
 }
+
+final class PlaybackErrorMapperTests: XCTestCase {
+    func testNetworkErrors() {
+        XCTAssertEqual(PlaybackErrorMapper.map(domain: "NSURLErrorDomain", code: -1009).kind, .offline)
+        XCTAssertEqual(PlaybackErrorMapper.map(domain: "NSURLErrorDomain", code: -1001).kind, .timeout)
+        XCTAssertEqual(PlaybackErrorMapper.map(domain: "NSURLErrorDomain", code: -1004).kind, .unreachable)
+        XCTAssertEqual(PlaybackErrorMapper.map(domain: "NSURLErrorDomain", code: -1022).kind, .atsBlocked)
+        XCTAssertEqual(PlaybackErrorMapper.map(domain: "NSURLErrorDomain", code: -1202).kind, .tlsFailure)
+        XCTAssertTrue(PlaybackErrorMapper.map(domain: "NSURLErrorDomain", code: -1009).isNetworkRelated)
+        XCTAssertFalse(PlaybackErrorMapper.map(domain: "NSURLErrorDomain", code: -1009).suggestsAnotherSource)
+    }
+
+    func testHTTPAndFormatErrors() {
+        XCTAssertEqual(PlaybackErrorMapper.map(domain: "CoreMediaErrorDomain", code: -12660).kind, .forbidden)
+        XCTAssertEqual(PlaybackErrorMapper.map(domain: "CoreMediaErrorDomain", code: -12938).kind, .notFound)
+        XCTAssertEqual(PlaybackErrorMapper.map(domain: "AVFoundationErrorDomain", code: -11828).kind, .formatUnsupported)
+        XCTAssertEqual(PlaybackErrorMapper.map(domain: "AVFoundationErrorDomain", code: -11833).kind, .codecUnsupported)
+        XCTAssertEqual(PlaybackErrorMapper.map(domain: "AVFoundationErrorDomain", code: -11850).kind, .serverMisconfigured)
+        XCTAssertTrue(PlaybackErrorMapper.map(domain: "CoreMediaErrorDomain", code: -12660).suggestsAnotherSource)
+    }
+
+    func testUnderlyingErrorWinsOverAGenericWrapper() {
+        let failure = PlaybackErrorMapper.map(domain: "AVFoundationErrorDomain", code: -11800, description: "The operation could not be completed",
+                                              underlying: [(domain: "NSURLErrorDomain", code: -1009)])
+        XCTAssertEqual(failure.kind, .offline)
+        let unknown = PlaybackErrorMapper.map(domain: "SomethingElse", code: 7, description: "boom")
+        XCTAssertEqual(unknown.kind, .unknown)
+        XCTAssertTrue(unknown.message.contains("boom"))
+        XCTAssertFalse(PlaybackFailure(kind: .formatUnsupported, detail: "").message.isEmpty)
+    }
+}

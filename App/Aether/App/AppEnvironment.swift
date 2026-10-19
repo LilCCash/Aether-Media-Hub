@@ -1,0 +1,148 @@
+import SwiftUI
+import AetherCore
+
+/// Composition root: builds the engine (AetherCore) and wires user settings into its behaviour.
+@MainActor
+final class AppEnvironment: ObservableObject {
+    let isUITesting: Bool
+    let paths: AppPaths
+    let settings: SettingsStore
+    let network: NetworkMonitor
+    let diagnostics: DiagnosticLog
+    let secrets: SecretStore
+    let responseCache: ResponseCache
+    let http: URLSessionHTTPClient
+    let imageHTTP: URLSessionHTTPClient
+    let addonClient: AddonClient
+    let registry: AddonRegistry
+    let service: AddonService
+    let searchService: SearchService
+    let libraryStore: LibraryStore
+    let images: ImageLoader
+    let addons: AddonStore
+    let library: LibraryModel
+    let router: AppRouter
+    let downloads: DownloadManager
+    let casting: CastCoordinator
+
+    init() {
+        let arguments = ProcessInfo.processInfo.arguments
+        let testing = arguments.contains("-AETHER_UITEST")
+        isUITesting = testing
+        paths = testing ? AppPaths.ephemeral() : AppPaths.standard()
+        if testing {
+            // UI tests start from a clean slate every time.
+            UserDefaults.standard.removeObject(forKey: "aether.settings.v1")
+        }
+        let settings = SettingsStore()
+        self.settings = settings
+        network = NetworkMonitor()
+        diagnostics = DiagnosticLog(enabled: settings.value.privacy.keepDiagnosticLog)
+        secrets = testing ? InMemorySecretStore() : KeychainSecretStore()
+
+        let snapshot = settings.snapshot
+        let allowLoopback = testing
+        let policyProvider: @Sendable () -> NetworkPolicy = {
+            snapshot.get().networkPolicy(allowLoopback: allowLoopback)
+        }
+        http = URLSessionHTTPClient(policyProvider: policyProvider)
+        imageHTTP = URLSessionHTTPClient(policyProvider: policyProvider)
+        responseCache = ResponseCache(directory: paths.responseCacheDirectory)
+        addonClient = AddonClient(
+            http: http, cache: responseCache,
+            cacheEnabled: { snapshot.get().storage.cacheMetadata },
+            maxAgeOverride: { kind in
+                kind == .catalog ? snapshot.get().content.catalogRefreshMinutes * 60 : nil
+            })
+        registry = AddonRegistry(store: JSONFileStore<AddonRegistryState>(url: paths.addonsFile),
+                                 secrets: secrets, client: addonClient, policyProvider: policyProvider)
+        service = AddonService(registry: registry, client: addonClient)
+        searchService = SearchService(service: service)
+        libraryStore = LibraryStore(store: JSONFileStore<LibraryState>(url: paths.libraryFile),
+                                    policy: settings.value.libraryPolicy)
+        images = ImageLoader(http: imageHTTP, directory: paths.imageCacheDirectory,
+                             diskLimitMB: settings.value.storage.imageCacheLimitMB)
+        addons = AddonStore(registry: registry)
+        library = LibraryModel(store: libraryStore)
+        router = AppRouter()
+        downloads = DownloadManager(paths: paths, snapshot: snapshot)
+        casting = CastCoordinator(settings: settings)
+
+        settings.onChange = { [weak self] new, old in
+            self?.settingsDidChange(new: new, old: old)
+        }
+    }
+
+    /// Async start-up work (disk reads). Safe to call more than once.
+    func bootstrap() async {
+        await addons.reload()
+        await libraryStore.load()
+        library.start()
+        await library.refresh()
+        await downloads.restore()
+        await diagnostics.configure(enabled: settings.value.privacy.keepDiagnosticLog,
+                                    verbose: settings.value.advanced.verboseLogging)
+        await diagnostics.log(.info, "app", "Avvio completato: \(addons.addons.count) addon, rete \(network.interfaceName)")
+        casting.start()
+    }
+
+    private func settingsDidChange(new: AppSettings, old: AppSettings) {
+        if new.libraryPolicy != old.libraryPolicy {
+            let policy = new.libraryPolicy
+            Task { await libraryStore.setPolicy(policy) }
+        }
+        if new.privacy.keepDiagnosticLog != old.privacy.keepDiagnosticLog || new.advanced.verboseLogging != old.advanced.verboseLogging {
+            Task { await diagnostics.configure(enabled: new.privacy.keepDiagnosticLog, verbose: new.advanced.verboseLogging) }
+        }
+        if new.storage.imageCacheLimitMB != old.storage.imageCacheLimitMB {
+            let limit = new.storage.imageCacheLimitMB
+            Task { await images.setDiskLimit(megabytes: limit) }
+        }
+        if new.content.catalogRefreshMinutes != old.content.catalogRefreshMinutes || new.storage.cacheMetadata != old.storage.cacheMetadata {
+            addons.bumpRevision()
+        }
+        if new.privacy.allowLocalNetwork != old.privacy.allowLocalNetwork {
+            addons.bumpRevision()
+        }
+        casting.settingsDidChange(new.casting)
+        downloads.settingsDidChange()
+    }
+
+    // MARK: Data management (Settings → Archiviazione / Account e dati)
+
+    func clearMetadataCache() async {
+        await responseCache.clear()
+        addons.bumpRevision()
+    }
+
+    func clearImageCache() async {
+        await images.clearDisk()
+    }
+
+    struct StorageReport {
+        var images: Int64
+        var metadata: Int64
+        var downloads: Int64
+    }
+
+    func storageReport() async -> StorageReport {
+        async let imagesBytes = images.diskUsage()
+        async let metadataBytes = responseCache.diskUsage()
+        let downloadsBytes = AppPaths.directorySize(paths.downloadsDirectory)
+        return StorageReport(images: await imagesBytes, metadata: await metadataBytes, downloads: downloadsBytes)
+    }
+
+    /// Removes everything the app stores locally: library, addons (and their Keychain URLs), downloads, caches, settings.
+    func deleteAllLocalData() async {
+        await registry.removeAll()
+        await libraryStore.deleteAll()
+        await downloads.removeAll()
+        await responseCache.clear()
+        await images.clearDisk()
+        await diagnostics.clear()
+        (secrets as? KeychainSecretStore)?.removeAll()
+        settings.resetToDefaults()
+        await addons.reload()
+        await library.refresh()
+    }
+}

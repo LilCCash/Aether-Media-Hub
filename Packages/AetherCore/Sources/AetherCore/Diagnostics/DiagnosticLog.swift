@@ -106,3 +106,10 @@ public actor DiagnosticLog {
         return lines.joined(separator: "\n")
     }
 }
+
+public extension DiagnosticLog {
+    /// Fire-and-forget logging from synchronous contexts (UI callbacks).
+    nonisolated func logDetached(_ level: LogLevel, _ category: String, _ message: String) {
+        Task { await self.log(level, category, message) }
+    }
+}

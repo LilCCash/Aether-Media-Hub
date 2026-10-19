@@ -30,3 +30,52 @@ jobs:
         run: |
           set -o pipefail
           swift test 2>&1 | tee "$RUNNER_TEMP/core-test.log"
+
+  app:
+    name: App (XcodeGen, build, unit tests)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain info
+        run: |
+          xcodebuild -version
+          swift --version
+          xcrun simctl list runtimes
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          NAME=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          names = sorted({d["name"] for runtime, items in devices.items() if "iOS" in runtime for d in items if d["name"].startswith("iPhone") and d.get("isAvailable", True)})
+          pick = next((n for n in reversed(names) if "Pro Max" in n), None) or next((n for n in reversed(names) if "Pro" in n), None) or names[-1]
+          print(pick)')
+          echo "Using simulator: $NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build and run unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Aether.xcodeproj -scheme Aether \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -only-testing:AetherTests \
+            -resultBundlePath "$RUNNER_TEMP/unit.xcresult" \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/app-build.log"
+
+      - name: Errors and warnings summary
+        if: always()
+        run: |
+          echo "=== errors ==="
+          grep -E "error:" "$RUNNER_TEMP/app-build.log" | sort -u | head -80 || true
+          echo "=== warnings (first 60) ==="
+          grep -E "warning:" "$RUNNER_TEMP/app-build.log" | sort -u | head -60 || true

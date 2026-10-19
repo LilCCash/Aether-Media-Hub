@@ -123,7 +123,7 @@ public enum CastCompatibility {
                 warnings.append("Sorgente non cifrata (HTTP): alcuni ricevitori la bloccano.")
             }
             if hasExternalSubtitles {
-                warnings.append("I sottotitoli esterni sono inviati come tracce WebVTT (richiedono CORS).")
+                warnings.append("I sottotitoli esterni di Aether non vengono inviati a Google Cast in questa versione: sul televisore compaiono solo le tracce già incorporate nel file.")
             }
         case .dlna:
             if !headers.isEmpty {
