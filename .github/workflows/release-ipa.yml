@@ -1,0 +1,129 @@
+name: Signed IPA (manual, needs your Apple credentials)
+
+# NOT VERIFIED: this workflow has never run, because it needs an Apple Developer certificate and provisioning
+# profile that only the project owner has. It never asks for an Apple ID password. It stops with a clear error
+# when a secret is missing, and it checks the signature of the IPA it produces before uploading it.
+#
+# Repository secrets to create (Settings > Secrets and variables > Actions):
+#   APPLE_TEAM_ID                 10-character team id
+#   APP_BUNDLE_ID                 bundle id registered in your profile, e.g. com.yourname.aether
+#   BUILD_CERTIFICATE_BASE64      base64 of the exported .p12 (Apple Development or Apple Distribution)
+#   P12_PASSWORD                  password you chose when exporting the .p12
+#   PROVISIONING_PROFILE_BASE64   base64 of the .mobileprovision for APP_BUNDLE_ID
+on:
+  workflow_dispatch:
+    inputs:
+      export_method:
+        description: development | ad-hoc | app-store-connect (must match the certificate and profile)
+        required: true
+        default: development
+
+jobs:
+  ipa:
+    name: Archive, export and verify the IPA
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APP_BUNDLE_ID: ${{ secrets.APP_BUNDLE_ID }}
+      BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+      P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+      PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the signing secrets exist
+        run: |
+          missing=0
+          for name in APPLE_TEAM_ID APP_BUNDLE_ID BUILD_CERTIFICATE_BASE64 P12_PASSWORD PROVISIONING_PROFILE_BASE64; do
+            if [ -z "${!name}" ]; then echo "::error::Missing repository secret $name"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Import the certificate and the provisioning profile
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/aether-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychain -d user -s "$KEYCHAIN" login.keychain-db
+          PROFILE_PLIST="$RUNNER_TEMP/profile.plist"
+          security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" > "$PROFILE_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$PROFILE_PLIST")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' "$PROFILE_PLIST")
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          SIGNING_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | head -1 | sed -E 's/.*"(.+)"/\1/')
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo "Signing identity: $SIGNING_IDENTITY / profile: $PROFILE_NAME"
+
+      - name: Generate the project with your team and bundle id
+        run: |
+          printf 'DEVELOPMENT_TEAM = %s\nAPP_BUNDLE_ID = %s\n' "$APPLE_TEAM_ID" "$APP_BUNDLE_ID" > Config/Signing.local.xcconfig
+          xcodegen generate
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Aether.xcodeproj -scheme Aether \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Aether.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" 2>&1 | tee "$RUNNER_TEMP/archive.log" | tail -40
+
+      - name: Export the IPA
+        env:
+          EXPORT_METHOD: ${{ github.event.inputs.export_method }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>$EXPORT_METHOD</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key><dict><key>$APP_BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Aether.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/ipa"
+          ls -lh "$RUNNER_TEMP/ipa"
+
+      - name: Verify what was produced
+        run: |
+          IPA=$(ls "$RUNNER_TEMP"/ipa/*.ipa | head -1)
+          test -f "$IPA" || { echo "::error::No IPA was produced"; exit 1; }
+          rm -rf "$RUNNER_TEMP/unpacked" && mkdir "$RUNNER_TEMP/unpacked"
+          unzip -q "$IPA" -d "$RUNNER_TEMP/unpacked"
+          APP="$RUNNER_TEMP/unpacked/Payload/Aether.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv --verbose=2 "$APP" 2>&1 | grep -E "Identifier|TeamIdentifier|Authority" || true
+          test -f "$APP/embedded.mobileprovision" || { echo "::error::The IPA has no provisioning profile"; exit 1; }
+          echo "IPA verified: signature valid and profile embedded."
+
+      - name: Upload the IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aether-ipa
+          path: ${{ runner.temp }}/ipa/*.ipa
+          retention-days: 7
+
+      - name: Remove the signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/aether-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision
