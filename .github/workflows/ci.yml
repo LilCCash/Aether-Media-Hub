@@ -31,6 +31,12 @@ jobs:
           set -o pipefail
           swift test 2>&1 | tee "$RUNNER_TEMP/core-test.log"
 
+      - name: Core results summary
+        if: always()
+        run: |
+          grep -E "Executed [0-9]+ tests?" "$RUNNER_TEMP/core-test.log" | tail -2 || true
+          grep -E "error:|failed \(" "$RUNNER_TEMP/core-test.log" | sort -u | head -20 || true
+
   app:
     name: App (build, unit tests, UI tests)
     runs-on: macos-latest
