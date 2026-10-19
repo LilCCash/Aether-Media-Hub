@@ -32,6 +32,13 @@ public enum IPAddress: Hashable, Sendable {
         if let percent = host.firstIndex(of: "%") {
             host = String(host[host.startIndex..<percent])
         }
+        if host.contains(":") {
+            var buffer = [UInt8](repeating: 0, count: 16)
+            let ok = host.withCString { pointer -> Bool in
+                return inet_pton(AF_INET6, pointer, &buffer) == 1
+            }
+            return ok ? .v6(buffer) : nil
+        }
         let parts = host.split(separator: ".", omittingEmptySubsequences: false)
         if parts.count == 4 {
             var bytes: [UInt8] = []
@@ -43,13 +50,6 @@ public enum IPAddress: Hashable, Sendable {
                 bytes.append(value)
             }
             return .v4(bytes[0], bytes[1], bytes[2], bytes[3])
-        }
-        if host.contains(":") {
-            var buffer = [UInt8](repeating: 0, count: 16)
-            let ok = host.withCString { pointer -> Bool in
-                return inet_pton(AF_INET6, pointer, &buffer) == 1
-            }
-            return ok ? .v6(buffer) : nil
         }
         return nil
     }

@@ -30,3 +30,121 @@ jobs:
         run: |
           set -o pipefail
           swift test 2>&1 | tee "$RUNNER_TEMP/core-test.log"
+
+      - name: Core results summary
+        if: always()
+        run: |
+          grep -E "Executed [0-9]+ tests?" "$RUNNER_TEMP/core-test.log" | tail -2 || true
+          grep -E "error:|failed \(" "$RUNNER_TEMP/core-test.log" | sort -u | head -20 || true
+
+  app:
+    name: App (build, unit tests, UI tests)
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain info
+        run: |
+          xcodebuild -version
+          swift --version
+          node --version
+          xcrun simctl list runtimes
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          NAME=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          names = sorted({d["name"] for runtime, items in devices.items() if "iOS" in runtime for d in items if d["name"].startswith("iPhone") and d.get("isAvailable", True)})
+          pick = next((n for n in reversed(names) if "Pro Max" in n), None) or next((n for n in reversed(names) if "Pro" in n), None) or names[-1]
+          print(pick)')
+          echo "Using simulator: $NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      # The simulator keychain needs a (ad-hoc) code signature, so signing is not disabled here.
+      - name: Build for testing
+        id: build
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project Aether.xcodeproj -scheme Aether \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGN_IDENTITY="-" 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Unit tests
+        id: unit
+        if: steps.build.outcome == 'success'
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project Aether.xcodeproj -scheme Aether \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -only-testing:AetherTests \
+            -resultBundlePath "$RUNNER_TEMP/unit.xcresult" 2>&1 | tee "$RUNNER_TEMP/unit.log"
+
+      - name: Start the fixture addon server
+        id: fixture
+        if: steps.build.outcome == 'success'
+        run: |
+          swiftc -O Tools/MakeFixtureVideo.swift -o "$RUNNER_TEMP/makevideo"
+          "$RUNNER_TEMP/makevideo" "$RUNNER_TEMP/sample.mp4" 150
+          # Listen on every interface: the download test reaches the server through the machine's LAN address.
+          nohup node Tools/FixtureAddonServer/server.js --port 7777 --host 0.0.0.0 --video "$RUNNER_TEMP/sample.mp4" > "$RUNNER_TEMP/fixture.log" 2>&1 &
+          sleep 2
+          LAN_IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || true)
+          echo "LAN address: ${LAN_IP:-none}"
+          echo "lan_ip=$LAN_IP" >> "$GITHUB_OUTPUT"
+          curl -fsS http://127.0.0.1:7777/manifest.json | head -c 200
+          curl -fsSI -H "Range: bytes=0-99" http://127.0.0.1:7777/media/sample.mp4 | head -5
+
+      - name: UI tests
+        id: ui
+        if: steps.fixture.outcome == 'success'
+        run: |
+          set -o pipefail
+          TEST_RUNNER_AETHER_FIXTURE_LAN_HOST="${{ steps.fixture.outputs.lan_ip }}" \
+          xcodebuild test-without-building \
+            -project Aether.xcodeproj -scheme Aether \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -only-testing:AetherUITests \
+            -resultBundlePath "$RUNNER_TEMP/ui.xcresult" 2>&1 | tee "$RUNNER_TEMP/ui.log"
+
+      - name: Upload result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresult-bundles
+          path: |
+            ${{ runner.temp }}/unit.xcresult
+            ${{ runner.temp }}/ui.xcresult
+            ${{ runner.temp }}/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Results summary
+        if: always()
+        run: |
+          echo "=== compiler errors ==="
+          grep -E "error:" "$RUNNER_TEMP/build.log" | grep -v "^note" | sort -u | head -40 || true
+          echo "=== unit tests ==="
+          grep -E "Executed [0-9]+ tests?" "$RUNNER_TEMP/unit.log" | tail -2 || true
+          grep -E "error: -\[|Test Case .* failed" "$RUNNER_TEMP/unit.log" | sort -u | head -40 || true
+          echo "=== UI tests ==="
+          grep -E "Executed [0-9]+ tests?" "$RUNNER_TEMP/ui.log" | tail -2 || true
+          grep -E "Test Case .* (passed|failed)" "$RUNNER_TEMP/ui.log" | sed -E 's/.*Test Case .-\[AetherUITests\.//' | head -60 || true
+          grep -E "error: -\[" "$RUNNER_TEMP/ui.log" | sort -u | head -40 || true
+          echo "=== accessibility audit notes ==="
+          grep -h "A11Y-ISSUE" "$RUNNER_TEMP/ui.log" | sort -u | head -30 || true
+          echo "=== fixture server ==="
+          tail -5 "$RUNNER_TEMP/fixture.log" || true

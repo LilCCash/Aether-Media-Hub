@@ -4,10 +4,18 @@ import Foundation
 public final class AddonClient: Sendable {
     public let http: HTTPClient
     public let cache: ResponseCache?
+    /// Settings hooks: whether the cache may be used at all, and the freshness (seconds) to apply to responses
+    /// where the addon did not declare `cacheMaxAge`.
+    private let cacheEnabled: @Sendable () -> Bool
+    private let maxAgeOverride: @Sendable (CacheKind) -> Int?
 
-    public init(http: HTTPClient, cache: ResponseCache? = nil) {
+    public init(http: HTTPClient, cache: ResponseCache? = nil,
+                cacheEnabled: @escaping @Sendable () -> Bool = { true },
+                maxAgeOverride: @escaping @Sendable (CacheKind) -> Int? = { _ in nil }) {
         self.http = http
         self.cache = cache
+        self.cacheEnabled = cacheEnabled
+        self.maxAgeOverride = maxAgeOverride
     }
 
     // MARK: Manifest
@@ -42,8 +50,9 @@ public final class AddonClient: Sendable {
     }
 
     /// Fetches `{resource}/{type}/{id}[/{extra}].json` from the addon at `transport`.
-    public func fetch(transport: URL, path: ResourcePath, mode: LoadMode = .normal,
+    public func fetch(transport: URL, path: ResourcePath, mode requestedMode: LoadMode = .normal,
                       timeout: TimeInterval = 15) async throws -> AddonResponse {
+        let mode: LoadMode = cacheEnabled() ? requestedMode : .noCache
         guard let url = ResourceURLBuilder.url(transport: transport, path: path) else {
             throw AddonError.invalidURL("impossibile costruire l'URL della risorsa «\(path.resource)»")
         }
@@ -76,7 +85,9 @@ public final class AddonClient: Sendable {
                 }
             }
             if mode != .noCache, let cache = cache {
-                await cache.store(key: key, data: response.data, kind: kind, hints: decoded.cache)
+                var hints = decoded.cache
+                if hints.maxAge == nil, let override = maxAgeOverride(kind) { hints.maxAge = override }
+                await cache.store(key: key, data: response.data, kind: kind, hints: hints)
             }
             return decoded
         } catch {

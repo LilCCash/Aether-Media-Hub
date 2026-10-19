@@ -399,6 +399,31 @@ public actor AddonRegistry {
         persist()
     }
 
+    /// Adds backed-up addons that are not installed yet (matched by endpoint fingerprint); existing ones are untouched.
+    /// Entries without a URL are skipped: without the secret URL they could never be queried.
+    @discardableResult
+    public func mergeRestore(entries: [(addon: InstalledAddon, url: URL?)]) -> Int {
+        load()
+        var added = 0
+        for entry in entries {
+            guard let url = entry.url else { continue }
+            if addons.contains(where: { $0.fingerprint == entry.addon.fingerprint }) { continue }
+            var addon = entry.addon
+            addon.id = UUID()
+            do {
+                try secrets.set(url.absoluteString, for: addon.secretKey)
+            } catch {
+                continue
+            }
+            addon.needsReinstall = false
+            urls[addon.id] = url
+            addons.append(addon)
+            added += 1
+        }
+        if added > 0 { persist() }
+        return added
+    }
+
     private func persist() {
         try? store.save(AddonRegistryState(schemaVersion: 1, addons: addons))
     }

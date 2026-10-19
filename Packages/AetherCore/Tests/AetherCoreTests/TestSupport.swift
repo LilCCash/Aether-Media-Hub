@@ -59,11 +59,14 @@ final class FakeServer: HTTPClient, @unchecked Sendable {
         log.removeAll()
     }
 
-    func send(_ request: HTTPRequest) async throws -> HTTPResponse {
-        lock.lock()
+    private func record(_ request: HTTPRequest) -> Route? {
+        lock.lock(); defer { lock.unlock() }
         log.append(request)
-        let route = routes[request.url.absoluteString]
-        lock.unlock()
+        return routes[request.url.absoluteString]
+    }
+
+    func send(_ request: HTTPRequest) async throws -> HTTPResponse {
+        let route = record(request)
         guard let route = route else {
             return HTTPResponse(data: Data("{\"err\":\"not found\"}".utf8), statusCode: 404, url: request.url)
         }
