@@ -1,0 +1,24 @@
+{
+  "id": "org.aether.fixture.search",
+  "version": "1.0.0",
+  "name": "Search Only",
+  "types": [
+    "movie"
+  ],
+  "resources": [
+    "catalog"
+  ],
+  "catalogs": [
+    {
+      "type": "movie",
+      "id": "s",
+      "name": "Cerca",
+      "extra": [
+        {
+          "name": "search",
+          "isRequired": true
+        }
+      ]
+    }
+  ]
+}

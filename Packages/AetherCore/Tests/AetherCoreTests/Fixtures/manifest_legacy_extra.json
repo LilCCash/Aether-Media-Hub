@@ -1,0 +1,25 @@
+{
+  "id": "org.aether.fixture.legacy",
+  "version": "2.0.0",
+  "name": "Legacy Extra",
+  "types": [
+    "movie"
+  ],
+  "resources": [
+    "catalog"
+  ],
+  "catalogs": [
+    {
+      "type": "movie",
+      "id": "l",
+      "name": "Legacy",
+      "extraSupported": [
+        "search",
+        "skip"
+      ],
+      "extraRequired": [
+        "search"
+      ]
+    }
+  ]
+}
