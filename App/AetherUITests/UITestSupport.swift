@@ -7,6 +7,13 @@ enum Fixture {
     static var badManifestURL: String { base + "/bad/manifest.json" }
     static var htmlManifestURL: String { base + "/html/manifest.json" }
 
+    /// The CI machine's LAN address (passed as TEST_RUNNER_AETHER_FIXTURE_LAN_HOST). Downloads refuse loopback
+    /// addresses by design, so the download test reaches the same server through this address.
+    static var lanManifestURL: String? {
+        guard let host = ProcessInfo.processInfo.environment["AETHER_FIXTURE_LAN_HOST"], !host.isEmpty else { return nil }
+        return "http://\(host):7777/manifest.json"
+    }
+
     @discardableResult
     static func control(_ path: String) -> Bool {
         guard let url = URL(string: base + path) else { return false }
@@ -64,8 +71,8 @@ class AetherUITestCase: XCTestCase {
     }
 
     /// Launches and installs the fixture addon through the `aether://install` deep link (no keyboard needed).
-    func launchWithFixtureAddon(settings: String? = AetherUITestCase.defaultSettings) {
-        let encoded = Fixture.manifestURL.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? Fixture.manifestURL
+    func launchWithFixtureAddon(settings: String? = AetherUITestCase.defaultSettings, manifestURL: String = Fixture.manifestURL) {
+        let encoded = manifestURL.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? manifestURL
         launch(settings: settings, openURL: "aether://install?url=\(encoded)")
         let confirm = element("addon.install.confirm")
         XCTAssertTrue(confirm.waitForExistence(timeout: 30), "the install preview did not appear")

@@ -62,6 +62,23 @@ final class SettingsAndAccessibilityUITests: AetherUITestCase {
         try app.performAccessibilityAudit(for: [.sufficientElementDescription, .hitRegion, .trait])
     }
 
+    // 20b. Informational: contrast, Dynamic Type and clipped text. Issues are listed in the log (A11Y-ISSUE …) and
+    // attached to the result bundle instead of failing the run, so they can be reviewed and fixed deliberately.
+    func testAuditReportForContrastAndDynamicType() throws {
+        launchWithFixtureAddon()
+        XCTAssertTrue(button(labelContaining: "Aether Fixture One").waitForExistence(timeout: 30))
+        var found: [String] = []
+        try app.performAccessibilityAudit(for: [.contrast, .dynamicType, .textClipped]) { issue in
+            found.append("type=\(issue.auditType.rawValue) element=\(issue.element?.label ?? "?") — \(issue.compactDescription)")
+            return true
+        }
+        for line in found { print("A11Y-ISSUE \(line)") }
+        let attachment = XCTAttachment(string: found.isEmpty ? "no issues" : found.joined(separator: "\n"))
+        attachment.name = "accessibility-audit-home"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testPlayerControlsHaveAccessibilityLabels() {
         launchWithFixtureAddon()
         openFixtureMovie()

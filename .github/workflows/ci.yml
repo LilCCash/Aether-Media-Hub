@@ -92,8 +92,12 @@ jobs:
         run: |
           swiftc -O Tools/MakeFixtureVideo.swift -o "$RUNNER_TEMP/makevideo"
           "$RUNNER_TEMP/makevideo" "$RUNNER_TEMP/sample.mp4" 150
-          nohup node Tools/FixtureAddonServer/server.js --port 7777 --video "$RUNNER_TEMP/sample.mp4" > "$RUNNER_TEMP/fixture.log" 2>&1 &
+          # Listen on every interface: the download test reaches the server through the machine's LAN address.
+          nohup node Tools/FixtureAddonServer/server.js --port 7777 --host 0.0.0.0 --video "$RUNNER_TEMP/sample.mp4" > "$RUNNER_TEMP/fixture.log" 2>&1 &
           sleep 2
+          LAN_IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || true)
+          echo "LAN address: ${LAN_IP:-none}"
+          echo "lan_ip=$LAN_IP" >> "$GITHUB_OUTPUT"
           curl -fsS http://127.0.0.1:7777/manifest.json | head -c 200
           curl -fsSI -H "Range: bytes=0-99" http://127.0.0.1:7777/media/sample.mp4 | head -5
 
@@ -102,6 +106,7 @@ jobs:
         if: steps.fixture.outcome == 'success'
         run: |
           set -o pipefail
+          TEST_RUNNER_AETHER_FIXTURE_LAN_HOST="${{ steps.fixture.outputs.lan_ip }}" \
           xcodebuild test-without-building \
             -project Aether.xcodeproj -scheme Aether \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
@@ -133,5 +138,7 @@ jobs:
           grep -E "Executed [0-9]+ tests?" "$RUNNER_TEMP/ui.log" | tail -2 || true
           grep -E "Test Case .* (passed|failed)" "$RUNNER_TEMP/ui.log" | sed -E 's/.*Test Case .-\[AetherUITests\.//' | head -60 || true
           grep -E "error: -\[" "$RUNNER_TEMP/ui.log" | sort -u | head -40 || true
+          echo "=== accessibility audit notes ==="
+          grep -h "A11Y-ISSUE" "$RUNNER_TEMP/ui.log" | sort -u | head -30 || true
           echo "=== fixture server ==="
           tail -5 "$RUNNER_TEMP/fixture.log" || true

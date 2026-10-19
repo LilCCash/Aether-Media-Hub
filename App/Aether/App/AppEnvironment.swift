@@ -117,6 +117,22 @@ final class AppEnvironment: ObservableObject {
         downloads.settingsDidChange()
     }
 
+    /// Called when the app leaves the foreground: pending (debounced) writes must reach the disk before iOS may
+    /// suspend or terminate the process. A background task buys the few hundred milliseconds the write needs.
+    func persistForBackground() {
+        var task = UIBackgroundTaskIdentifier.invalid
+        task = UIApplication.shared.beginBackgroundTask(withName: "aether.persist") {
+            UIApplication.shared.endBackgroundTask(task)
+        }
+        let store = libraryStore
+        Task {
+            await store.flush()
+            await MainActor.run {
+                if task != .invalid { UIApplication.shared.endBackgroundTask(task) }
+            }
+        }
+    }
+
     // MARK: Data management (Settings → Archiviazione / Account e dati)
 
     func clearMetadataCache() async {

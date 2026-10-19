@@ -43,6 +43,7 @@ struct RootView: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var router: AppRouter
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         TabView(selection: $router.tab) {
@@ -64,6 +65,9 @@ struct RootView: View {
         }
         .tint(settings.accentColor)
         .preferredColorScheme(settings.colorScheme)
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { env.persistForBackground() }
+        }
         .fullScreenCover(item: $router.player) { request in
             PlayerView(request: request, env: env)
         }

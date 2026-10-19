@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // Controlled Stremio-protocol addon used by the UI tests. Zero dependencies (Node >= 18).
 //
-//   node server.js --port 7777 --video /path/to/sample.mp4
+//   node server.js --port 7777 --video /path/to/sample.mp4 [--host 0.0.0.0]
 //
+// URLs inside the JSON (posters, streams, subtitles) are built from the Host header of each request, so an addon
+// installed through http://127.0.0.1:7777 and one installed through the machine's LAN address both stay consistent.
+
 // Endpoints (all JSON unless noted):
 //   /manifest.json                       valid manifest (catalogs movie+series with search, meta, stream, subtitles)
 //   /bad/manifest.json                   JSON that is not a manifest (missing required fields)
@@ -15,6 +18,7 @@
 //   /subs/it.srt, /subs/en.vtt           subtitle files
 //   /poster/{n}.png                      generated posters
 //   /__control/offline?on=1|0            make every addon endpoint answer 503 (tests the "addon offline" path)
+//   /__control/media?on=0|1              make /media/* answer 503 (tests offline playback of a downloaded file)
 //   /__control/requests                  JSON array of the paths requested so far (for assertions)
 const http = require('http');
 const fs = require('fs');
@@ -28,9 +32,11 @@ function arg(name, fallback) {
 }
 const PORT = parseInt(arg('port', '7777'), 10);
 const VIDEO = arg('video', path.join(__dirname, 'sample.mp4'));
-const BASE = `http://127.0.0.1:${PORT}`;
+const HOST = arg('host', '127.0.0.1');
+let BASE = `http://127.0.0.1:${PORT}`;   // rebound per request from the Host header
 
 let offline = false;
+let mediaOffline = false;
 const requests = [];
 
 const movies = [
@@ -187,17 +193,20 @@ function decodeExtra(segment) {
 }
 
 const server = http.createServer((req, res) => {
+  BASE = `http://${req.headers.host || `127.0.0.1:${PORT}`}`;
   const url = new URL(req.url, BASE);
   const p = decodeURIComponent(url.pathname);
   if (!p.startsWith('/__control/')) requests.push(p);
 
   if (p === '/__control/offline') { offline = url.searchParams.get('on') === '1'; return send(res, 200, { offline }); }
+  if (p === '/__control/media') { mediaOffline = url.searchParams.get('on') === '0'; return send(res, 200, { mediaOffline }); }
   if (p === '/__control/requests') return send(res, 200, requests);
-  if (p === '/__control/reset') { requests.length = 0; offline = false; return send(res, 200, { ok: true }); }
+  if (p === '/__control/reset') { requests.length = 0; offline = false; mediaOffline = false; return send(res, 200, { ok: true }); }
 
   if (p.startsWith('/poster/')) return send(res, 200, poster(parseInt(p.split('/')[2], 10) || 0), 'image/png');
   if (p === '/subs/it.srt') return send(res, 200, SRT, 'application/x-subrip');
   if (p === '/subs/en.vtt') return send(res, 200, VTT, 'text/vtt');
+  if (p.startsWith('/media/') && mediaOffline) { res.writeHead(503); return res.end('media offline'); }
   if (p.startsWith('/media/')) return p === '/media/sample.mp4' ? serveVideo(req, res) : send(res, 404, { error: 'not here' });
 
   if (offline) { res.writeHead(503); return res.end('offline'); }
@@ -239,4 +248,4 @@ const server = http.createServer((req, res) => {
   return send(res, 404, { error: 'unknown route', path: p });
 });
 
-server.listen(PORT, '127.0.0.1', () => console.log(`Aether fixture addon listening on ${BASE}`));
+server.listen(PORT, HOST, () => console.log(`Aether fixture addon listening on ${HOST}:${PORT}`));

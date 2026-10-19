@@ -125,7 +125,10 @@ final class PlayerViewModel: ObservableObject {
     func teardown() {
         guard !tornDown else { return }
         tornDown = true
-        recordProgress(force: true)
+        // Record the final position and write it to disk in one ordered step: a separate flush could run first.
+        if !recordProgress(force: true, flushAfter: true) {
+            Task { await env.libraryStore.flush() }
+        }
         subtitleTask?.cancel()
         sleepTask?.cancel()
         countdownTask?.cancel()
@@ -135,7 +138,6 @@ final class PlayerViewModel: ObservableObject {
         nowPlaying.clear()
         audioSession.deactivate()
         UIApplication.shared.isIdleTimerDisabled = false
-        Task { await env.libraryStore.flush() }
     }
 
     // MARK: Loading
@@ -229,17 +231,23 @@ final class PlayerViewModel: ObservableObject {
         evaluateNextEpisodePrompt()
     }
 
-    private func recordProgress(force: Bool) {
-        guard snapshot.duration > 0 || force, snapshot.position > 0 else { return }
-        if !force && abs(snapshot.position - lastRecordedPosition) < 5 { return }
+    /// Returns true when a write was scheduled.
+    @discardableResult
+    private func recordProgress(force: Bool, flushAfter: Bool = false) -> Bool {
+        guard snapshot.duration > 0 || force, snapshot.position > 0 else { return false }
+        if !force && abs(snapshot.position - lastRecordedPosition) < 5 { return false }
+        if snapshot.isLive { return false }
         lastRecordedPosition = snapshot.position
         let store = env.libraryStore
         let meta = self.meta
         let video = currentVideo
         let position = snapshot.position
         let duration = snapshot.duration
-        if snapshot.isLive { return }
-        Task { _ = await store.recordProgress(meta: meta, video: video, position: position, duration: duration) }
+        Task {
+            _ = await store.recordProgress(meta: meta, video: video, position: position, duration: duration)
+            if flushAfter { await store.flush() }
+        }
+        return true
     }
 
     private func handleEnded() {
