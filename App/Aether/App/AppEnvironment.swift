@@ -5,6 +5,7 @@ import AetherCore
 @MainActor
 final class AppEnvironment: ObservableObject {
     let isUITesting: Bool
+    private let uiHooks: UITestHooks
     let paths: AppPaths
     let settings: SettingsStore
     let network: NetworkMonitor
@@ -26,19 +27,23 @@ final class AppEnvironment: ObservableObject {
     let casting: CastCoordinator
 
     init() {
-        let arguments = ProcessInfo.processInfo.arguments
-        let testing = arguments.contains("-AETHER_UITEST")
+        let hooks = UITestHooks(arguments: ProcessInfo.processInfo.arguments)
+        let testing = hooks.isActive
+        uiHooks = hooks
         isUITesting = testing
-        paths = testing ? AppPaths.ephemeral() : AppPaths.standard()
-        if testing {
-            // UI tests start from a clean slate every time.
-            UserDefaults.standard.removeObject(forKey: "aether.settings.v1")
-        }
+        paths = testing ? AppPaths.uiTest(session: hooks.session, reset: hooks.reset) : AppPaths.standard()
+        if testing { hooks.prepareDefaults() }
         let settings = SettingsStore()
         self.settings = settings
         network = NetworkMonitor()
         diagnostics = DiagnosticLog(enabled: settings.value.privacy.keepDiagnosticLog)
-        secrets = testing ? InMemorySecretStore() : KeychainSecretStore()
+        if testing {
+            let store = KeychainSecretStore(service: "app.aether.uitest.\(hooks.session)")
+            if hooks.reset { store.removeAll() }
+            secrets = store
+        } else {
+            secrets = KeychainSecretStore()
+        }
 
         let snapshot = settings.snapshot
         let allowLoopback = testing
@@ -84,6 +89,9 @@ final class AppEnvironment: ObservableObject {
                                     verbose: settings.value.advanced.verboseLogging)
         await diagnostics.log(.info, "app", "Avvio completato: \(addons.addons.count) addon, rete \(network.interfaceName)")
         casting.start()
+        if uiHooks.isActive, let link = uiHooks.openURL, let url = URL(string: link) {
+            router.handle(url: url)
+        }
     }
 
     private func settingsDidChange(new: AppSettings, old: AppSettings) {
@@ -144,5 +152,43 @@ final class AppEnvironment: ObservableObject {
         settings.resetToDefaults()
         await addons.reload()
         await library.refresh()
+    }
+}
+
+
+/// Launch arguments honoured only when the app is started by the UI tests (`-AETHER_UITEST`).
+///   -AETHER_UITEST_SESSION <id>   storage namespace; reuse the id to test persistence across launches
+///   -AETHER_UITEST_RESET          wipe that namespace (and stored settings) before starting
+///   -AETHER_UITEST_SETTINGS <json> partial AppSettings JSON applied on top of the defaults
+///   -AETHER_UITEST_OPENURL <url>  handled like a deep link once the app has started
+/// In this mode loopback addresses are allowed so the tests can talk to the fixture server.
+struct UITestHooks {
+    let isActive: Bool
+    let session: String
+    let reset: Bool
+    let settingsJSON: String?
+    let openURL: String?
+
+    init(arguments: [String]) {
+        isActive = arguments.contains("-AETHER_UITEST")
+        reset = arguments.contains("-AETHER_UITEST_RESET")
+        func value(after flag: String) -> String? {
+            guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
+            return arguments[index + 1]
+        }
+        session = value(after: "-AETHER_UITEST_SESSION") ?? UUID().uuidString
+        settingsJSON = value(after: "-AETHER_UITEST_SETTINGS")
+        openURL = value(after: "-AETHER_UITEST_OPENURL")
+    }
+
+    func prepareDefaults() {
+        let key = "aether.settings.v1"
+        let defaults = UserDefaults.standard
+        if reset { defaults.removeObject(forKey: key) }
+        if let json = settingsJSON, let data = json.data(using: .utf8),
+           let settings = try? JSONDecoder.aether().decode(AppSettings.self, from: data),
+           let encoded = try? JSONEncoder.aether().encode(settings) {
+            defaults.set(encoded, forKey: key)
+        }
     }
 }

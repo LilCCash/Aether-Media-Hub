@@ -110,6 +110,7 @@ struct PlayerScrubber: View {
         }
         .frame(height: 30)
         .accessibilityElement()
+        .accessibilityIdentifier("player.scrubber")
         .accessibilityLabel("Barra di avanzamento")
         .accessibilityValue("\(Format.duration(position)) di \(Format.duration(duration))")
         .accessibilityAdjustableAction { direction in

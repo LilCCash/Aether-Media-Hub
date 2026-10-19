@@ -22,9 +22,11 @@ struct AppPaths {
         return paths
     }
 
-    /// Isolated, empty storage used by UI tests so runs never see each other's state.
-    static func ephemeral() -> AppPaths {
-        let base = FileManager.default.temporaryDirectory.appendingPathComponent("aether-uitest-\(UUID().uuidString)", isDirectory: true)
+    /// Storage used by UI tests: one folder per test session, so a relaunch with the same session id sees the data
+    /// written before (persistence tests) while different tests never see each other's state.
+    static func uiTest(session: String, reset: Bool) -> AppPaths {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent("aether-uitest-\(session)", isDirectory: true)
+        if reset { try? FileManager.default.removeItem(at: base) }
         let paths = AppPaths(root: base.appendingPathComponent("support", isDirectory: true),
                              cachesRoot: base.appendingPathComponent("caches", isDirectory: true))
         paths.prepare()
