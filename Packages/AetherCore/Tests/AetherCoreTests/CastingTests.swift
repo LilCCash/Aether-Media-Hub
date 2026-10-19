@@ -87,7 +87,7 @@ final class CastCompatibilityTests: XCTestCase {
 }
 
 final class UPnPTests: XCTestCase {
-    private let description = """
+    private let rendererXML = """
     <?xml version="1.0"?>
     <root xmlns="urn:schemas-upnp-org:device-1-0">
       <specVersion><major>1</major><minor>0</minor></specVersion>
@@ -121,7 +121,7 @@ final class UPnPTests: XCTestCase {
     private let location = URL(string: "http://192.168.1.50:8080/description.xml")!
 
     func testParsesRendererDescription() throws {
-        let device = try UPnPDescriptionParser.parse(Data(description.utf8), location: location)
+        let device = try UPnPDescriptionParser.parse(Data(rendererXML.utf8), location: location)
         XCTAssertEqual(device.friendlyName, "Salotto TV", "embedded devices must not override the root device")
         XCTAssertEqual(device.udn, "uuid:1234-abcd")
         XCTAssertEqual(device.manufacturer, "Acme")
@@ -133,7 +133,7 @@ final class UPnPTests: XCTestCase {
     }
 
     func testURLBaseOverridesTheLocation() throws {
-        let xml = description.replacingOccurrences(of: "<specVersion>", with: "<URLBase>http://10.0.0.9:9000/</URLBase><specVersion>")
+        let xml = rendererXML.replacingOccurrences(of: "<specVersion>", with: "<URLBase>http://10.0.0.9:9000/</URLBase><specVersion>")
         let device = try UPnPDescriptionParser.parse(Data(xml.utf8), location: location)
         XCTAssertEqual(device.avTransport?.controlURL.absoluteString, "http://10.0.0.9:9000/upnp/control/AVTransport")
     }
@@ -195,7 +195,7 @@ final class UPnPTests: XCTestCase {
 
     func testClientIssuesTheExpectedSOAPCalls() async throws {
         let server = FakeServer()
-        server.set(location.absoluteString, body: Data(description.utf8))
+        server.set(location.absoluteString, body: Data(rendererXML.utf8))
         let control = "http://192.168.1.50:8080/upnp/control/AVTransport"
         let okResponse = "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><u:Response xmlns:u=\"x\"/></s:Body></s:Envelope>"
         server.set(control, body: Data(okResponse.utf8))
@@ -219,7 +219,7 @@ final class UPnPTests: XCTestCase {
 
     func testClientParsesStateAndPosition() async throws {
         let server = FakeServer()
-        server.set(location.absoluteString, body: Data(description.utf8))
+        server.set(location.absoluteString, body: Data(rendererXML.utf8))
         let control = "http://192.168.1.50:8080/upnp/control/AVTransport"
         let envelope = { (inner: String) -> Data in
             Data("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body>\(inner)</s:Body></s:Envelope>".utf8)
@@ -238,7 +238,7 @@ final class UPnPTests: XCTestCase {
 
     func testSOAPFaultsAreSurfaced() async throws {
         let server = FakeServer()
-        server.set(location.absoluteString, body: Data(description.utf8))
+        server.set(location.absoluteString, body: Data(rendererXML.utf8))
         let fault = "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><s:Fault><faultcode>s:Client</faultcode><faultstring>UPnPError</faultstring><detail><UPnPError xmlns=\"urn:schemas-upnp-org:control-1-0\"><errorCode>714</errorCode><errorDescription>Illegal MIME-type</errorDescription></UPnPError></detail></s:Fault></s:Body></s:Envelope>"
         server.set("http://192.168.1.50:8080/upnp/control/AVTransport", status: 500, body: Data(fault.utf8))
         let client = UPnPClient(http: server)
