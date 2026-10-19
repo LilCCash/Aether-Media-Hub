@@ -28,17 +28,20 @@ final class CastCoordinator: ObservableObject {
     var onRemoteSessionEnded: ((_ position: Double, _ reason: String?) -> Void)?
 
     private let settings: SettingsStore
-    private let googleCast: GoogleCastBackend
-    private let dlna: DLNABackend
+    private let googleCast: CastBackend
+    private let dlna: CastBackend
     private var backends: [CastTarget: CastBackend]
     private var started = false
     private var stopScanTask: Task<Void, Never>?
 
-    init(settings: SettingsStore) {
+    /// The real backends are created lazily-cheap (no discovery until asked); tests inject fakes.
+    init(settings: SettingsStore, googleCast: CastBackend? = nil, dlna: CastBackend? = nil) {
         self.settings = settings
-        googleCast = GoogleCastBackend()
-        dlna = DLNABackend()
-        backends = [.googleCast: googleCast, .dlna: dlna]
+        let google = googleCast ?? GoogleCastBackend()
+        let upnp = dlna ?? DLNABackend()
+        self.googleCast = google
+        self.dlna = upnp
+        backends = [.googleCast: google, .dlna: upnp]
         for backend in backends.values { wire(backend) }
     }
 
@@ -61,8 +64,10 @@ final class CastCoordinator: ObservableObject {
     }
 
     private func applySettings(_ casting: CastingSettings) {
-        dlna.manualHosts = casting.manualDLNAHosts
-        dlna.ssdpEnabled = casting.ssdpDiscoveryEnabled
+        if let upnp = dlna as? DLNABackend {
+            upnp.manualHosts = casting.manualDLNAHosts
+            upnp.ssdpEnabled = casting.ssdpDiscoveryEnabled
+        }
         devicesChanged()
     }
 
@@ -86,7 +91,7 @@ final class CastCoordinator: ObservableObject {
         return enabled.isEmpty ? "Disattivato" : enabled.map { $0.title }.joined(separator: ", ")
     }
 
-    var dlnaScanNote: String? { dlna.lastScanNote }
+    var dlnaScanNote: String? { (dlna as? DLNABackend)?.lastScanNote }
 
     // MARK: Discovery
 
@@ -118,7 +123,7 @@ final class CastCoordinator: ObservableObject {
         if casting.dlnaEnabled { list += dlna.devices }
         devices = list
         isScanning = googleCast.isDiscovering || dlna.isDiscovering
-        scanNotes = [dlna.lastScanNote].compactMap { $0 }
+        scanNotes = [dlnaScanNote].compactMap { $0 }
     }
 
     // MARK: Session

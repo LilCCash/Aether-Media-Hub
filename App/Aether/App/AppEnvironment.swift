@@ -26,8 +26,9 @@ final class AppEnvironment: ObservableObject {
     let downloads: DownloadManager
     let casting: CastCoordinator
 
-    init() {
-        let hooks = UITestHooks(arguments: ProcessInfo.processInfo.arguments)
+    /// `arguments` exist so unit tests can build an isolated environment (see `UITestHooks`).
+    init(arguments: [String] = ProcessInfo.processInfo.arguments) {
+        let hooks = UITestHooks(arguments: arguments)
         let testing = hooks.isActive
         uiHooks = hooks
         isUITesting = testing
