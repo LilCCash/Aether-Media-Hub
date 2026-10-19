@@ -115,7 +115,7 @@ final class HTTPClientTests: XCTestCase {
             return .respond(status: 200, headers: [:], chunks: [Data("secret".utf8)])
         }
         do {
-            _ = try await makeClient().send(HTTPRequest(url: URL(string: "https://addon.test/manifest.json")!))
+            _ = try await makeClient().send(HTTPRequest(url: URL(string: "https://addon.test/manifest.json")!, timeout: 1))
             XCTFail("expected redirectBlocked")
         } catch let error as AddonError {
             XCTAssertEqual(error, .redirectBlocked(.privateAddress("192.168.1.1")))
@@ -131,7 +131,7 @@ final class HTTPClientTests: XCTestCase {
             return .respond(status: 200, headers: [:], chunks: [Data("{}".utf8)])
         }
         do {
-            _ = try await makeClient().send(HTTPRequest(url: URL(string: "https://addon.test/manifest.json")!))
+            _ = try await makeClient().send(HTTPRequest(url: URL(string: "https://addon.test/manifest.json")!, timeout: 1))
             XCTFail("expected redirectBlocked")
         } catch let error as AddonError {
             guard case .redirectBlocked = error else { return XCTFail("unexpected \(error)") }
@@ -155,7 +155,7 @@ final class HTTPClientTests: XCTestCase {
             return .redirect(to: "https://addon.test/hop/\(n + 1)", status: 302)
         }
         do {
-            _ = try await makeClient().send(HTTPRequest(url: URL(string: "https://addon.test/hop/0")!))
+            _ = try await makeClient().send(HTTPRequest(url: URL(string: "https://addon.test/hop/0")!, timeout: 1))
             XCTFail("expected tooManyRedirects")
         } catch let error as AddonError {
             XCTAssertEqual(error, .tooManyRedirects)

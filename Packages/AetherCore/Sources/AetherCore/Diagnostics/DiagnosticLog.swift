@@ -7,6 +7,8 @@ public enum Redactor {
         pattern: "(?i)\\b(https?|stremio|ftp|rtmp)://(\\[[^\\]]+\\]|[^/\\s:?#\"'<>]+)(:\\d+)?[^\\s\"'<>]*", options: [])
     private static let secretPairPattern = try! NSRegularExpression(
         pattern: "(?i)\\b(api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|pwd|authorization|bearer|auth|session|cookie|key)\\b\\s*[=:]\\s*[^\\s&,;\"']+", options: [])
+    private static let bearerPattern = try! NSRegularExpression(
+        pattern: "(?i)\\b(bearer|basic)\\s+[A-Za-z0-9._~+/=\\-]+", options: [])
     private static let emailPattern = try! NSRegularExpression(
         pattern: "[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", options: [.caseInsensitive])
     private static let longTokenPattern = try! NSRegularExpression(
@@ -15,6 +17,7 @@ public enum Redactor {
     public static func redact(_ text: String) -> String {
         var result = text
         result = replace(urlPattern, in: result, template: "$1://$2$3/…")
+        result = replace(bearerPattern, in: result, template: "$1 «redatto»")
         result = replace(secretPairPattern, in: result, template: "$1=«redatto»")
         result = replace(emailPattern, in: result, template: "«email»")
         result = replace(longTokenPattern, in: result, template: "«token»")
