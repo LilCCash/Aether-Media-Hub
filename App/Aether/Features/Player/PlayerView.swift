@@ -56,25 +56,49 @@ struct PlayerView: View {
     private var isCasting: Bool { casting.session != nil }
 
     var body: some View {
+        reactions
+            .onChange(of: sheet) { _, value in sheetChanged(value) }
+            .onChange(of: remotePosition) { _, value in remotePositionChanged(value) }
+            .accessibilityAction(.escape) { close() }
+    }
+
+    private var reactions: some View {
+        lifecycle
+            .onChange(of: network.reconnectToken) { _, _ in networkChanged() }
+            .onChange(of: model.snapshot.isPlaying) { _, value in playingChanged(value) }
+            .onChange(of: model.didFinish) { _, value in finishedChanged(value) }
+    }
+
+    private var lifecycle: some View {
         presented
             .onAppear(perform: appear)
             .onDisappear(perform: disappear)
-            .onChange(of: scenePhase) { _, phase in model.scenePhaseChanged(isActive: phase == .active) }
-            .onChange(of: network.reconnectToken) { _, _ in model.networkChanged(isOnline: network.isOnline) }
-            .onChange(of: model.snapshot.isPlaying) { _, playing in
-                if playing { scheduleHide() } else { showControls() }
-            }
-            .onChange(of: model.didFinish) { _, finished in
-                if finished { close() }
-            }
-            .onChange(of: sheet) { _, value in
-                if value == nil { scheduleHide() } else { hideTask?.cancel() }
-            }
-            .onChange(of: remotePosition) { _, position in
-                guard let position = position, let session = casting.session else { return }
-                model.remoteProgress(position: position, duration: session.status.duration)
-            }
-            .accessibilityAction(.escape) { close() }
+            .onChange(of: scenePhase) { _, phase in scenePhaseChanged(phase) }
+    }
+
+    private func scenePhaseChanged(_ phase: ScenePhase) {
+        model.scenePhaseChanged(isActive: phase == .active)
+    }
+
+    private func networkChanged() {
+        model.networkChanged(isOnline: network.isOnline)
+    }
+
+    private func playingChanged(_ playing: Bool) {
+        if playing { scheduleHide() } else { showControls() }
+    }
+
+    private func finishedChanged(_ finished: Bool) {
+        if finished { close() }
+    }
+
+    private func sheetChanged(_ value: PlayerSheet?) {
+        if value == nil { scheduleHide() } else { hideTask?.cancel() }
+    }
+
+    private func remotePositionChanged(_ position: Double?) {
+        guard let position = position, let session = casting.session else { return }
+        model.remoteProgress(position: position, duration: session.status.duration)
     }
 
     private var remotePosition: Double? { casting.session?.status.position }
