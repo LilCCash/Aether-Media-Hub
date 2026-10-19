@@ -1,0 +1,15 @@
+{
+  "id": "org.aether.fixture.config",
+  "version": "1.0.0",
+  "name": "Needs Config",
+  "types": [
+    "movie"
+  ],
+  "resources": [
+    "stream"
+  ],
+  "behaviorHints": {
+    "configurable": true,
+    "configurationRequired": true
+  }
+}

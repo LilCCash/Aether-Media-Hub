@@ -1,0 +1,22 @@
+{
+  "subtitles": [
+    {
+      "id": "sub-it",
+      "url": "https://subs.fixture.test/it.srt",
+      "lang": "ita"
+    },
+    {
+      "id": "sub-en",
+      "url": "https://subs.fixture.test/en.vtt",
+      "lang": "eng",
+      "label": "English [CC]"
+    },
+    {
+      "url": "https://subs.fixture.test/fr.srt",
+      "lang": "fre"
+    },
+    {
+      "id": "broken"
+    }
+  ]
+}

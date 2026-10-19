@@ -1,0 +1,10 @@
+{
+  "id": "org.aether.bad",
+  "version": "1.0.0",
+  "name": "Bad",
+  "types": [
+    "movie"
+  ],
+  "resources": [],
+  "catalogs": []
+}

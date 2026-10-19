@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "id": "fx1",
+    "type": "movie",
+    "name": "Big Buck Bunny",
+    "description": "Un coniglio.",
+    "runtime": "10 min",
+    "releaseInfo": "2008",
+    "released": "2008-04-10T00:00:00.000Z"
+  }
+}

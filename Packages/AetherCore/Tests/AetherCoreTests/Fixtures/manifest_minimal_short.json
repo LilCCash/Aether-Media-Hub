@@ -1,0 +1,18 @@
+{
+  "id": "org.aether.fixture.min",
+  "version": "0.0.1",
+  "name": "Minimal",
+  "types": [
+    "movie"
+  ],
+  "resources": [
+    "catalog",
+    "stream"
+  ],
+  "catalogs": [
+    {
+      "type": "movie",
+      "id": "bbb"
+    }
+  ]
+}

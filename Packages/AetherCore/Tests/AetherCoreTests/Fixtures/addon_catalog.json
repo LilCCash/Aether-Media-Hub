@@ -1,0 +1,28 @@
+{
+  "addons": [
+    {
+      "transportName": "http",
+      "transportUrl": "https://other.fixture.test/manifest.json",
+      "manifest": {
+        "id": "org.other",
+        "version": "1.0.0",
+        "name": "Altro",
+        "types": [
+          "movie"
+        ],
+        "resources": [
+          "catalog"
+        ],
+        "catalogs": [
+          {
+            "type": "movie",
+            "id": "o"
+          }
+        ]
+      }
+    },
+    {
+      "transportName": "http"
+    }
+  ]
+}

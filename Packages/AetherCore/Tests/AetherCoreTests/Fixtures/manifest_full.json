@@ -1,0 +1,95 @@
+{
+  "id": "org.aether.fixture.full",
+  "version": "1.2.0",
+  "name": "Fixture Full",
+  "description": "Addon di prova con cataloghi, meta, stream e sottotitoli",
+  "logo": "https://fixture.test/logo.png",
+  "background": "https://fixture.test/bg.jpg",
+  "types": [
+    "movie",
+    "series"
+  ],
+  "resources": [
+    "catalog",
+    {
+      "name": "meta",
+      "types": [
+        "movie",
+        "series"
+      ],
+      "idPrefixes": [
+        "fx"
+      ]
+    },
+    {
+      "name": "stream",
+      "types": [
+        "movie",
+        "series"
+      ],
+      "idPrefixes": [
+        "fx",
+        "tt"
+      ]
+    },
+    {
+      "name": "subtitles",
+      "types": [
+        "movie",
+        "series"
+      ]
+    }
+  ],
+  "idPrefixes": [
+    "fx",
+    "tt"
+  ],
+  "catalogs": [
+    {
+      "type": "movie",
+      "id": "top",
+      "name": "Film popolari",
+      "extra": [
+        {
+          "name": "genre",
+          "options": [
+            "Azione",
+            "Commedia"
+          ]
+        },
+        {
+          "name": "skip"
+        },
+        {
+          "name": "search"
+        }
+      ]
+    },
+    {
+      "type": "series",
+      "id": "top",
+      "name": "Serie popolari",
+      "extra": [
+        {
+          "name": "skip"
+        }
+      ]
+    },
+    {
+      "type": "movie",
+      "id": "search-only",
+      "name": "Solo ricerca",
+      "extra": [
+        {
+          "name": "search",
+          "isRequired": true
+        }
+      ]
+    }
+  ],
+  "behaviorHints": {
+    "adult": false,
+    "p2p": false,
+    "configurable": false
+  }
+}

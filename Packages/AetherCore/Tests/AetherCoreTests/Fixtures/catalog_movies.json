@@ -1,0 +1,41 @@
+{
+  "metas": [
+    {
+      "id": "fx1",
+      "type": "movie",
+      "name": "Big Buck Bunny",
+      "poster": "https://fixture.test/p1.jpg",
+      "releaseInfo": "2008",
+      "imdbRating": "7.6",
+      "genres": [
+        "Animazione"
+      ]
+    },
+    {
+      "id": "fx2",
+      "type": "movie",
+      "name": "Sintel",
+      "poster": "https://fixture.test/p2.jpg",
+      "releaseInfo": 2010,
+      "imdbRating": 7.4
+    },
+    {
+      "id": "tt0000003",
+      "type": "movie",
+      "name": "Tears of Steel",
+      "poster": "https://fixture.test/p3.jpg",
+      "posterShape": "landscape"
+    },
+    {
+      "type": "movie",
+      "name": "Elemento senza id"
+    },
+    {
+      "id": "fx5",
+      "type": "movie",
+      "name": "Cosmos Laundromat",
+      "releaseInfo": "2015"
+    }
+  ],
+  "cacheMaxAge": 120
+}

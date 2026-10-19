@@ -1,0 +1,67 @@
+{
+  "streams": [
+    {
+      "name": "Fixture 1080p",
+      "title": "Movie.2008.1080p.BluRay.x264.AAC ITA ENG 1.4 GB\nfile.mp4",
+      "url": "https://cdn.fixture.test/movie.mp4",
+      "behaviorHints": {
+        "bingeGroup": "fixture-1080p",
+        "videoSize": 1503238553,
+        "filename": "movie.mp4"
+      }
+    },
+    {
+      "name": "Fixture 4K HDR",
+      "description": "2160p HEVC HDR10 Atmos",
+      "url": "https://cdn.fixture.test/movie-4k.mp4"
+    },
+    {
+      "name": "Fixture MKV",
+      "description": "1080p x265 mkv",
+      "url": "https://cdn.fixture.test/movie.mkv"
+    },
+    {
+      "name": "HLS",
+      "description": "720p adaptive",
+      "url": "https://cdn.fixture.test/master.m3u8"
+    },
+    {
+      "name": "Torrent",
+      "infoHash": "0123456789abcdef0123456789abcdef01234567",
+      "fileIdx": 1,
+      "sources": [
+        "tracker:udp://tracker.fixture.test:80"
+      ]
+    },
+    {
+      "name": "YouTube",
+      "ytId": "dQw4w9WgXcQ"
+    },
+    {
+      "name": "Usenet",
+      "nzbUrl": "https://nzb.fixture.test/a.nzb"
+    },
+    {
+      "name": "Pagina",
+      "externalUrl": "https://www.fixture.test/watch"
+    },
+    {
+      "name": "Headers",
+      "url": "https://cdn.fixture.test/h.mp4",
+      "behaviorHints": {
+        "notWebReady": true,
+        "proxyHeaders": {
+          "request": {
+            "User-Agent": "Fixture/1.0",
+            "Referer": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "Senza sorgente"
+    },
+    "not an object"
+  ],
+  "cacheMaxAge": 30
+}

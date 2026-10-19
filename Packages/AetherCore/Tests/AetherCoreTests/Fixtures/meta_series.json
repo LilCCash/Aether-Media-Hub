@@ -1,0 +1,76 @@
+{
+  "meta": {
+    "id": "fx-series",
+    "type": "series",
+    "name": "Serie di Prova",
+    "poster": "https://fixture.test/s.jpg",
+    "background": "https://fixture.test/sbg.jpg",
+    "description": "Una serie usata nei test.",
+    "releaseInfo": "2020-",
+    "imdbRating": "8.3",
+    "genres": [
+      "Drammatico"
+    ],
+    "cast": [
+      "A. Attore",
+      "B. Attrice"
+    ],
+    "director": [
+      "R. Regista"
+    ],
+    "runtime": "45 min",
+    "trailers": [
+      {
+        "source": "dQw4w9WgXcQ",
+        "type": "Trailer"
+      }
+    ],
+    "links": [
+      {
+        "name": "Drammatico",
+        "category": "Genres",
+        "url": "stremio:///discover/x/series/top?genre=Drammatico"
+      }
+    ],
+    "videos": [
+      {
+        "id": "fx-series:2:1",
+        "title": "S2E1",
+        "season": 2,
+        "episode": 1,
+        "released": "2021-03-01T00:00:00.000Z"
+      },
+      {
+        "id": "fx-series:1:2",
+        "title": "S1E2",
+        "season": 1,
+        "episode": 2,
+        "released": "2020-01-08T00:00:00.000Z"
+      },
+      {
+        "id": "fx-series:0:1",
+        "title": "Speciale",
+        "season": 0,
+        "episode": 1,
+        "released": "2019-12-01T00:00:00.000Z"
+      },
+      {
+        "id": "fx-series:1:1",
+        "title": "S1E1",
+        "season": 1,
+        "episode": 1,
+        "released": "2020-01-01T00:00:00.000Z"
+      },
+      {
+        "id": "fx-series:9:9",
+        "title": "Futuro",
+        "season": 9,
+        "episode": 9,
+        "released": "2999-01-01T00:00:00.000Z"
+      },
+      {
+        "title": "senza id"
+      }
+    ]
+  }
+}

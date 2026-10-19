@@ -1,0 +1,15 @@
+{
+  "id": "org.aether.fixture.p2p",
+  "version": "1.0.0",
+  "name": "P2P Adult",
+  "types": [
+    "movie"
+  ],
+  "resources": [
+    "stream"
+  ],
+  "behaviorHints": {
+    "p2p": true,
+    "adult": true
+  }
+}
