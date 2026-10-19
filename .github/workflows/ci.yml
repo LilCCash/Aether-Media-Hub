@@ -109,6 +109,18 @@ jobs:
             -only-testing:AetherUITests \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" 2>&1 | tee "$RUNNER_TEMP/ui.log"
 
+      - name: Upload result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresult-bundles
+          path: |
+            ${{ runner.temp }}/unit.xcresult
+            ${{ runner.temp }}/ui.xcresult
+            ${{ runner.temp }}/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Results summary
         if: always()
         run: |
@@ -123,15 +135,3 @@ jobs:
           grep -E "error: -\[" "$RUNNER_TEMP/ui.log" | sort -u | head -40 || true
           echo "=== fixture server ==="
           tail -5 "$RUNNER_TEMP/fixture.log" || true
-
-      - name: Upload result bundles
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: xcresult-bundles
-          path: |
-            ${{ runner.temp }}/unit.xcresult
-            ${{ runner.temp }}/ui.xcresult
-            ${{ runner.temp }}/*.log
-          if-no-files-found: ignore
-          retention-days: 7

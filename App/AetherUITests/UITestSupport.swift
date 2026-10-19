@@ -115,6 +115,19 @@ class AetherUITestCase: XCTestCase {
         XCTAssertTrue(element("detail.title").waitForExistence(timeout: 20), "detail screen did not open")
     }
 
+    /// Opens a title through the search tab, which (unlike a horizontally scrolling Home row) always shows the match on screen.
+    func openTitleViaSearch(_ query: String, expecting name: String) {
+        openTab("Cerca")
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText(query)
+        let result = button(labelContaining: name)
+        XCTAssertTrue(result.waitForExistence(timeout: 30), "search did not return \(name)")
+        result.tap()
+        XCTAssertTrue(element("detail.title").waitForExistence(timeout: 20), "detail screen did not open")
+    }
+
     func openStreamPicker() {
         let play = element("detail.play")
         XCTAssertTrue(play.waitForExistence(timeout: 10))

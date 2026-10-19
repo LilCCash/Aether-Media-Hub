@@ -108,9 +108,9 @@ final class PlaybackUITests: AetherUITestCase {
         launch(reset: false)
         openTab("Libreria")
         app.buttons["Cronologia"].tap()
-        XCTAssertTrue(button(labelContaining: "Aether Fixture One").waitForExistence(timeout: 20), "history is restored after relaunch")
+        XCTAssertTrue(element(labelContaining: "Aether Fixture One").waitForExistence(timeout: 20), "history is restored after relaunch")
         app.buttons["Continua"].tap()
-        XCTAssertTrue(button(labelContaining: "Aether Fixture One").waitForExistence(timeout: 20), "the resume point is restored after relaunch")
+        XCTAssertTrue(element(labelContaining: "Aether Fixture One").waitForExistence(timeout: 20), "the resume point is restored after relaunch")
     }
 
     // Privacy switch: nothing is recorded when history is off

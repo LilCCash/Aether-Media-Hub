@@ -89,11 +89,12 @@ final class AddonFlowUITests: AetherUITestCase {
         XCTAssertTrue(Fixture.control("/__control/offline?on=1"))
         launch(reset: false, settings: #"{"playback":{"controlsAutoHideSeconds":15},"storage":{"cacheMetadata":false}}"#)
         openTab("Home")
-        XCTAssertTrue(app.buttons["Riprova"].waitForExistence(timeout: 40), "a failed catalog should offer a retry button")
+        let retry = app.buttons.matching(identifier: "Riprova").firstMatch
+        XCTAssertTrue(retry.waitForExistence(timeout: 40), "a failed catalog should offer a retry button")
         XCTAssertTrue(app.tabBars.firstMatch.exists)
 
         XCTAssertTrue(Fixture.control("/__control/offline?on=0"))
-        app.buttons["Riprova"].tap()
+        retry.tap()
         XCTAssertTrue(button(labelContaining: "Aether Fixture One").waitForExistence(timeout: 30), "retrying after recovery should load the catalog")
     }
 }

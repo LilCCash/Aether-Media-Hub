@@ -189,7 +189,7 @@ function decodeExtra(segment) {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, BASE);
   const p = decodeURIComponent(url.pathname);
-  requests.push(p);
+  if (!p.startsWith('/__control/')) requests.push(p);
 
   if (p === '/__control/offline') { offline = url.searchParams.get('on') === '1'; return send(res, 200, { offline }); }
   if (p === '/__control/requests') return send(res, 200, requests);

@@ -58,10 +58,7 @@ final class BrowseUITests: AetherUITestCase {
 
     // 14. A source the engine cannot play is flagged before playback, never started
     func testUnsupportedSourcesAreFlaggedInsteadOfPlayed() {
-        openTab("Home")
-        let card = button(labelContaining: "Unsupported Format")
-        XCTAssertTrue(card.waitForExistence(timeout: 30))
-        card.tap()
+        openTitleViaSearch("Unsupported", expecting: "Unsupported Format")
         XCTAssertTrue(element("detail.play").waitForExistence(timeout: 20))
         element("detail.play").tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS 'Non riproducibili'")).firstMatch.waitForExistence(timeout: 30)
@@ -72,10 +69,7 @@ final class BrowseUITests: AetherUITestCase {
 
     // 6b. A title without sources says so
     func testTitleWithoutSourcesShowsEmptyState() {
-        openTab("Home")
-        let card = button(labelContaining: "Nothing To Watch")
-        XCTAssertTrue(card.waitForExistence(timeout: 30))
-        card.tap()
+        openTitleViaSearch("Nothing", expecting: "Nothing To Watch")
         XCTAssertTrue(element("detail.play").waitForExistence(timeout: 20))
         element("detail.play").tap()
         XCTAssertTrue(element("stream.empty").waitForExistence(timeout: 30))
