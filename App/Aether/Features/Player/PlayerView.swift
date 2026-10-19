@@ -56,6 +56,73 @@ struct PlayerView: View {
     private var isCasting: Bool { casting.session != nil }
 
     var body: some View {
+        presented
+            .onAppear(perform: appear)
+            .onDisappear(perform: disappear)
+            .onChange(of: scenePhase) { _, phase in model.scenePhaseChanged(isActive: phase == .active) }
+            .onChange(of: network.reconnectToken) { _, _ in model.networkChanged(isOnline: network.isOnline) }
+            .onChange(of: model.snapshot.isPlaying) { _, playing in
+                if playing { scheduleHide() } else { showControls() }
+            }
+            .onChange(of: model.didFinish) { _, finished in
+                if finished { close() }
+            }
+            .onChange(of: sheet) { _, value in
+                if value == nil { scheduleHide() } else { hideTask?.cancel() }
+            }
+            .onChange(of: remotePosition) { _, position in
+                guard let position = position, let session = casting.session else { return }
+                model.remoteProgress(position: position, duration: session.status.duration)
+            }
+            .accessibilityAction(.escape) { close() }
+    }
+
+    private var remotePosition: Double? { casting.session?.status.position }
+
+    private var presented: some View {
+        stage
+            .background(Color.black)
+            .statusBarHidden(!controlsVisible || isLocked)
+            .persistentSystemOverlays(.hidden)
+            .preferredColorScheme(.dark)
+            .sheet(item: $sheet) { sheet in sheetContent(sheet) }
+            .fileImporter(isPresented: $importingSubtitle, allowedContentTypes: SubtitleFileTypes.all) { result in
+                if case .success(let url) = result { model.importLocalSubtitle(url) }
+            }
+            .alert(castNotice?.title ?? "", isPresented: castNoticeBinding, presenting: castNotice) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { notice in
+                Text(notice.message)
+            }
+            .confirmationDialog(pendingCast.map { "Trasmettere a «\($0.device.name)»?" } ?? "",
+                                isPresented: pendingCastBinding, titleVisibility: .visible, presenting: pendingCast) { pending in
+                Button("Invia comunque") { performCast(to: pending.device) }
+                Button("Annulla", role: .cancel) {}
+            } message: { pending in
+                Text(pending.warnings.joined(separator: "\n\n"))
+            }
+    }
+
+    private var castNoticeBinding: Binding<Bool> {
+        Binding(get: { castNotice != nil }, set: { if !$0 { castNotice = nil } })
+    }
+
+    private var pendingCastBinding: Binding<Bool> {
+        Binding(get: { pendingCast != nil }, set: { if !$0 { pendingCast = nil } })
+    }
+
+    @ViewBuilder
+    private func sheetContent(_ sheet: PlayerSheet) -> some View {
+        switch sheet {
+        case .tracks: PlayerTracksSheet(model: model, onImport: { importingSubtitle = true })
+        case .episodes: PlayerEpisodesSheet(model: model)
+        case .info: PlayerInfoSheet(model: model)
+        case .sources: PlayerSourcesSheet(model: model)
+        case .cast: PlayerCastSheet(onSelect: { prepareCast(to: $0) })
+        }
+    }
+
+    private var stage: some View {
         GeometryReader { proxy in
             ZStack {
                 Color.black.ignoresSafeArea()
@@ -73,56 +140,19 @@ struct PlayerView: View {
                         .transition(.opacity)
                 }
                 if isLocked { lockOverlay }
-                if model.snapshot.isBuffering && !isCasting && model.failure == nil && (!controlsVisible || isLocked) {
+                if showsCenterSpinner {
                     ProgressView().controlSize(.large).tint(.white)
                 }
                 overlays(size: proxy.size)
             }
-            .animation(reduceMotion || !settings.animationsEnabled ? nil : .easeInOut(duration: 0.2), value: controlsVisible)
+            .animation(animationsAllowed ? .easeInOut(duration: 0.2) : nil, value: controlsVisible)
         }
-        .background(Color.black)
-        .statusBarHidden(!controlsVisible || isLocked)
-        .persistentSystemOverlays(.hidden)
-        .preferredColorScheme(.dark)
-        .sheet(item: $sheet) { sheet in
-            switch sheet {
-            case .tracks: PlayerTracksSheet(model: model, onImport: { importingSubtitle = true })
-            case .episodes: PlayerEpisodesSheet(model: model)
-            case .info: PlayerInfoSheet(model: model)
-            case .sources: PlayerSourcesSheet(model: model)
-            case .cast: PlayerCastSheet(onSelect: { prepareCast(to: $0) })
-            }
-        }
-        .fileImporter(isPresented: $importingSubtitle, allowedContentTypes: SubtitleFileTypes.all) { result in
-            if case .success(let url) = result { model.importLocalSubtitle(url) }
-        }
-        .alert(castNotice?.title ?? "", isPresented: Binding(get: { castNotice != nil }, set: { if !$0 { castNotice = nil } }),
-               presenting: castNotice) { _ in
-            Button("OK", role: .cancel) {}
-        } message: { notice in
-            Text(notice.message)
-        }
-        .confirmationDialog(pendingCast.map { "Trasmettere a «\($0.device.name)»?" } ?? "",
-                            isPresented: Binding(get: { pendingCast != nil }, set: { if !$0 { pendingCast = nil } }),
-                            titleVisibility: .visible, presenting: pendingCast) { pending in
-            Button("Invia comunque") { performCast(to: pending.device) }
-            Button("Annulla", role: .cancel) {}
-        } message: { pending in
-            Text(pending.warnings.joined(separator: "\n\n"))
-        }
-        .onAppear(perform: appear)
-        .onDisappear(perform: disappear)
-        .onChange(of: scenePhase) { _, phase in model.scenePhaseChanged(isActive: phase == .active) }
-        .onChange(of: network.reconnectToken) { _, _ in model.networkChanged(isOnline: network.isOnline) }
-        .onChange(of: model.snapshot.isPlaying) { _, playing in if playing { scheduleHide() } else { showControls() } }
-        .onChange(of: model.didFinish) { _, finished in if finished { close() } }
-        .onChange(of: sheet) { _, value in if value == nil { scheduleHide() } else { hideTask?.cancel() } }
-        .onChange(of: casting.session?.status.position) { _, position in
-            if let position = position, let session = casting.session {
-                model.remoteProgress(position: position, duration: session.status.duration)
-            }
-        }
-        .accessibilityAction(.escape) { close() }
+    }
+
+    private var animationsAllowed: Bool { !reduceMotion && settings.animationsEnabled }
+
+    private var showsCenterSpinner: Bool {
+        model.snapshot.isBuffering && !isCasting && model.failure == nil && (!controlsVisible || isLocked)
     }
 
     // MARK: Lifecycle

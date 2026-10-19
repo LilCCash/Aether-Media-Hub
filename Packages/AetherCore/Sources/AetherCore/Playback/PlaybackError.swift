@@ -91,7 +91,9 @@ public enum PlaybackErrorMapper {
             }
         case "AVFoundationErrorDomain":
             switch code {
-            case -11828, -11829, -11800 where text.localizedCaseInsensitiveContains("cannot open"):
+            case -11828, -11829:
+                return PlaybackFailure(kind: .formatUnsupported, detail: text)
+            case -11800 where text.localizedCaseInsensitiveContains("cannot open"):
                 return PlaybackFailure(kind: .formatUnsupported, detail: text)
             case -11833, -11839, -11821:
                 return PlaybackFailure(kind: .codecUnsupported, detail: text)

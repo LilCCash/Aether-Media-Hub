@@ -1,0 +1,30 @@
+Aether
+Copyright (c) 2026 Aether contributors. Licensed under the MIT License (see LICENSE).
+
+Aether is an independent application. It is not affiliated with, endorsed by or derived from
+Stremio or Nuvio. No source code, artwork, name or icon from those projects is included.
+
+Third-party components that ship inside the app
+-----------------------------------------------
+Google Cast SDK for iOS (https://github.com/googlecast/google-cast-ios-sdk, version 4.8.6)
+  The Swift Package manifest is distributed under the Apache License 2.0.
+  The framework binary is proprietary software of Google LLC, distributed under the
+  Google Cast SDK Additional Developer Distribution Terms
+  (https://developers.google.com/cast/docs/terms).
+  It pulls in google/gtm-session-fetcher (Apache License 2.0).
+
+Apple system frameworks (SwiftUI, AVFoundation, AVKit, Network, MediaPlayer, Security, CryptoKit)
+  Used under the terms of the Apple SDK / Apple Developer Program License Agreement.
+
+Specifications and behaviour used as reference (no code copied)
+---------------------------------------------------------------
+Stremio Addon SDK / protocol documentation (MIT License) -
+  https://github.com/Stremio/stremio-addon-sdk
+Stremio core (MIT License) - https://github.com/Stremio/stremio-core
+  Studied to reproduce documented behaviour (URL construction, extras, caching hints, deduplication).
+Stremio Web (GPL-2.0) and NuvioMobile (GPL-3.0) were read only to understand which features exist.
+  Nothing from them was copied, translated or adapted.
+
+Build tools (not distributed)
+-----------------------------
+XcodeGen (MIT License) - https://github.com/yonaskolb/XcodeGen
