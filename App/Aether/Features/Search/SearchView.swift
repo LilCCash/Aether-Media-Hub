@@ -99,7 +99,7 @@ struct SearchView: View {
                         HStack(spacing: 8) {
                             ProgressView()
                             Text("Cerco in \(model.progress.total > 0 ? "\(model.progress.done)/\(model.progress.total)" : "…") cataloghi")
-                                .font(.footnote).foregroundStyle(.secondary)
+                                .font(.footnote).foregroundStyle(Color.aetherSecondary)
                         }
                         .padding(.horizontal, Theme.pageMargin)
                         .accessibilityIdentifier("search.progress")
@@ -166,7 +166,7 @@ struct SearchView: View {
                 ForEach(library.searchHistory) { item in
                     Button { model.query = item.query } label: {
                         HStack {
-                            Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary)
+                            Image(systemName: "clock.arrow.circlepath").foregroundStyle(Color.aetherSecondary)
                             Text(item.query)
                             Spacer()
                         }

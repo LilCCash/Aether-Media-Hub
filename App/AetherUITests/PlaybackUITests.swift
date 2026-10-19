@@ -24,19 +24,23 @@ final class PlaybackUITests: AetherUITestCase {
         XCTAssertEqual(playbackSeconds() ?? -1, paused, accuracy: 1.0, "the clock should be frozen while paused")
     }
 
+    /// Progress below this many seconds is deliberately not recorded (LibraryPolicy.minimumRecordedSeconds = 10).
+    private let recordedThreshold: Double = 13
+
     // 8. Resume from the saved point
     func testResumeFromSavedPosition() {
         launchWithFixtureAddon()
         openFixtureMovie()
         startPlayback()
-        waitUntil(45, "playback did not reach 7 s") { (playbackSeconds() ?? 0) >= 7 }
-        element("player.close").tap()
+        waitUntil(60, "playback did not reach the recording threshold") { (playbackSeconds() ?? 0) >= recordedThreshold }
+        closePlayer()
         XCTAssertTrue(element("detail.play").waitForExistence(timeout: 15))
 
         openStreamPicker()
         element("stream.row.0").tap()
         XCTAssertTrue(element("player.playPause").waitForExistence(timeout: 30))
-        waitUntil(30, "playback should restart near the saved position, not at 0") { (playbackSeconds() ?? 0) >= 5 }
+        // Playing from 0 could not reach 10 s this quickly: only a real resume gets here.
+        waitUntil(8, "playback should restart near the saved position, not at 0") { (playbackSeconds() ?? 0) >= 10 }
     }
 
     // 9. Choosing a subtitle shows its text on screen
@@ -100,9 +104,14 @@ final class PlaybackUITests: AetherUITestCase {
         launchWithFixtureAddon()
         openFixtureMovie()
         startPlayback()
-        waitUntil(45, "playback did not reach 6 s") { (playbackSeconds() ?? 0) >= 6 }
-        element("player.close").tap()
+        waitUntil(60, "playback did not reach the recording threshold") { (playbackSeconds() ?? 0) >= recordedThreshold }
+        closePlayer()
         XCTAssertTrue(element("detail.play").waitForExistence(timeout: 15))
+
+        // Same session first: the library screen lists it right away.
+        openTab("Libreria")
+        app.buttons["Cronologia"].tap()
+        XCTAssertTrue(element(labelContaining: "Aether Fixture One").waitForExistence(timeout: 20), "history shows the title in the same session")
         app.terminate()
 
         launch(reset: false)
@@ -118,8 +127,8 @@ final class PlaybackUITests: AetherUITestCase {
         launchWithFixtureAddon(settings: #"{"playback":{"controlsAutoHideSeconds":15},"privacy":{"recordHistory":false}}"#)
         openFixtureMovie()
         startPlayback()
-        waitUntil(45, "playback did not reach 6 s") { (playbackSeconds() ?? 0) >= 6 }
-        element("player.close").tap()
+        waitUntil(60, "playback did not reach the recording threshold") { (playbackSeconds() ?? 0) >= recordedThreshold }
+        closePlayer()
         openTab("Libreria")
         app.buttons["Cronologia"].tap()
         XCTAssertTrue(element("library.empty").waitForExistence(timeout: 15), "no history should exist")

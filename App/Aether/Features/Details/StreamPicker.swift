@@ -242,7 +242,7 @@ struct StreamPickerSheet: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(playable.isEmpty ? "Cerco sorgenti…" : "Altre sorgenti in arrivo…").font(.subheadline.weight(.medium))
                                 if !model.pendingAddons.isEmpty {
-                                    Text("In attesa di: \(model.pendingAddons.joined(separator: ", "))").font(.caption).foregroundStyle(.secondary)
+                                    Text("In attesa di: \(model.pendingAddons.joined(separator: ", "))").font(.caption).foregroundStyle(Color.aetherSecondary)
                                 }
                             }
                         }
@@ -266,7 +266,7 @@ struct StreamPickerSheet: View {
                         ForEach(model.errors.keys.sorted(), id: \.self) { name in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(name).font(.subheadline.weight(.semibold))
-                                Text(model.errors[name]?.message ?? "").font(.caption).foregroundStyle(.secondary)
+                                Text(model.errors[name]?.message ?? "").font(.caption).foregroundStyle(Color.aetherSecondary)
                             }
                         }
                     }
@@ -319,7 +319,7 @@ struct StreamPickerSheet: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(model.request.meta.name).font(.headline).lineLimit(2)
                     if let video = model.request.video, let label = video.episodeLabel {
-                        Text("\(label) · \(video.title)").font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                        Text("\(label) · \(video.title)").font(.subheadline).foregroundStyle(Color.aetherSecondary).lineLimit(2)
                     }
                     if let resume = model.request.resumeAt, resume > 0 {
                         Text("Riprende da \(Format.duration(resume))").font(.caption).foregroundStyle(settings.accentColor)
@@ -346,10 +346,10 @@ struct StreamPickerSheet: View {
     private var emptyState: some View {
         let handles = env.addons.enabledAddons
         VStack(spacing: 8) {
-            Image(systemName: "film.stack").font(.largeTitle).foregroundStyle(.secondary)
+            Image(systemName: "film.stack").font(.largeTitle).foregroundStyle(Color.aetherSecondary)
             Text("Nessuna sorgente trovata").font(.headline)
             Text(handles.isEmpty ? "Non c'è nessun addon attivo." : "Gli addon attivi non hanno restituito sorgenti per questo titolo. Prova un altro addon o riprova più tardi.")
-                .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .font(.footnote).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.center)
             Button("Riprova") { model.start(env: env) { _ in } }.buttonStyle(SecondaryActionButtonStyle())
         }
         .frame(maxWidth: .infinity)
@@ -386,7 +386,7 @@ struct StreamRow: View {
                     }
                     Spacer()
                     if let addon = item.stream.addonName {
-                        Text(addon).font(.caption2).foregroundStyle(.secondary)
+                        Text(addon).font(.caption2).foregroundStyle(Color.aetherSecondary)
                     }
                 }
                 Text(item.stream.name ?? "Sorgente")
@@ -394,7 +394,7 @@ struct StreamRow: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                 if let details = item.stream.details, !details.isEmpty {
-                    Text(details).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                    Text(details).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(3)
                 }
                 FlowBadges(info: item.info)
                 if case .unsupported(let reason) = item.info.support {
@@ -402,7 +402,7 @@ struct StreamRow: View {
                         .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                 }
                 ForEach(item.info.warnings, id: \.self) { warning in
-                    Label(warning, systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
+                    Label(warning, systemImage: "info.circle").font(.caption).foregroundStyle(Color.aetherSecondary)
                 }
             }
             .padding(.vertical, 4)

@@ -16,7 +16,7 @@ struct SectionHeader: View {
                     .font(.aetherTitle(22))
                     .accessibilityAddTraits(.isHeader)
                 if let subtitle = subtitle {
-                    Text(subtitle).font(.aetherCaption()).foregroundStyle(.secondary)
+                    Text(subtitle).font(.aetherCaption()).foregroundStyle(Color.aetherSecondary)
                 }
             }
             Spacer()
@@ -89,7 +89,7 @@ struct PosterCard: View {
                     .multilineTextAlignment(.leading)
                     .frame(width: width, alignment: .leading)
                 if let year = meta.releaseInfo, !year.isEmpty {
-                    Text(year).font(.aetherCaption()).foregroundStyle(.secondary).lineLimit(1)
+                    Text(year).font(.aetherCaption()).foregroundStyle(Color.aetherSecondary).lineLimit(1)
                         .frame(width: width, alignment: .leading)
                 }
             }
@@ -200,11 +200,11 @@ struct EmptyStateView: View {
         VStack(spacing: 14) {
             Image(systemName: systemImage)
                 .font(.system(size: 44, weight: .light))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.aetherSecondary)
                 .padding(.bottom, 4)
             Text(title).font(.aetherTitle(20)).multilineTextAlignment(.center)
             if let message = message {
-                Text(message).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Text(message).font(.subheadline).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.center)
             }
             if let actionTitle = actionTitle, let action = action {
                 Button(actionTitle, action: action).buttonStyle(PrimaryActionButtonStyle()).padding(.top, 6)
@@ -224,7 +224,7 @@ struct InlineErrorView: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-            Text(message).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
+            Text(message).font(.footnote).foregroundStyle(Color.aetherSecondary).lineLimit(3)
             Spacer(minLength: 0)
             if let retry = retry {
                 Button(retryTitle, action: retry).font(.footnote.weight(.semibold))

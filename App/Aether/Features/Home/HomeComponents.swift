@@ -53,7 +53,7 @@ struct HeroCard: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 410)
                     .clipped()
-                LinearGradient(colors: [.clear, .black.opacity(0.35), .black.opacity(0.85)], startPoint: .top, endPoint: .bottom)
+                LinearGradient(colors: [.clear, .black.opacity(0.55), .black.opacity(0.92)], startPoint: .top, endPoint: .bottom)
                 VStack(alignment: .leading, spacing: 8) {
                     if let logo = meta.logo, !logo.isEmpty {
                         RemoteImage(urlString: logo, width: 400, contentMode: .fit)
@@ -67,9 +67,9 @@ struct HeroCard: View {
                         if let rating = meta.imdbRating { Text("· ★ \(rating)") }
                     }
                     .font(.system(.footnote, design: .rounded).weight(.medium))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(.white.opacity(0.94))
                     if let description = meta.description, !description.isEmpty {
-                        Text(description).font(.footnote).foregroundStyle(.white.opacity(0.8)).lineLimit(2)
+                        Text(description).font(.footnote).foregroundStyle(.white.opacity(0.9)).lineLimit(2)
                     }
                     HStack(spacing: 10) {
                         Label("Dettagli", systemImage: "play.fill")
@@ -141,7 +141,7 @@ struct ContinueCard: View {
                 }
                 .frame(width: 240, height: 135)
                 Text(progress.title).font(.system(.footnote, design: .rounded).weight(.semibold)).lineLimit(1).frame(width: 240, alignment: .leading)
-                Text(subtitle).font(.aetherCaption()).foregroundStyle(.secondary).lineLimit(1).frame(width: 240, alignment: .leading)
+                Text(subtitle).font(.aetherCaption()).foregroundStyle(Color.aetherSecondary).lineLimit(1).frame(width: 240, alignment: .leading)
             }
         }
         .buttonStyle(.plain)
@@ -213,7 +213,7 @@ struct NextUpCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.meta.name).font(.system(.footnote, design: .rounded).weight(.semibold)).lineLimit(1)
                     Text([item.video.episodeLabel, item.video.title].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
-                        .font(.aetherCaption()).foregroundStyle(.secondary).lineLimit(2)
+                        .font(.aetherCaption()).foregroundStyle(Color.aetherSecondary).lineLimit(2)
                 }
                 .frame(width: 130, alignment: .leading)
             }

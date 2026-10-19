@@ -62,7 +62,7 @@ struct HomeView: View {
                     Button("Aggiungi un addon da URL") { router.tab = .more }
                         .buttonStyle(SecondaryActionButtonStyle())
                     Text("Aether non fornisce contenuti né addon preinstallati. Cinemeta è il catalogo di metadati ufficiale di Stremio.")
-                        .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        .font(.footnote).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
                 }
                 .padding(.top, 40)

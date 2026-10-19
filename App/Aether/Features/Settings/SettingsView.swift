@@ -60,7 +60,7 @@ struct MoreView: View {
                 .background(color.gradient, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             Text(title)
             Spacer()
-            if let detail = detail { Text(detail).font(.footnote).foregroundStyle(.secondary) }
+            if let detail = detail { Text(detail).font(.footnote).foregroundStyle(Color.aetherSecondary) }
         }
         .accessibilityElement(children: .combine)
     }
@@ -378,7 +378,7 @@ struct StorageSettingsView: View {
                 Toggle("Salva in cache metadati e cataloghi", isOn: settings.binding(\.storage.cacheMetadata))
                 Button("Svuota cache immagini") { Task { await env.clearImageCache(); await refresh(); message = "Cache immagini svuotata." } }
                 Button("Svuota cache di cataloghi e metadati") { Task { await env.clearMetadataCache(); await refresh(); message = "Cache dei metadati svuotata." } }
-                if let message = message { Text(message).font(.footnote).foregroundStyle(.secondary) }
+                if let message = message { Text(message).font(.footnote).foregroundStyle(Color.aetherSecondary) }
             }
             Section(header: Text("Download")) {
                 Toggle("Scarica anche con dati mobili", isOn: settings.binding(\.storage.downloadOverCellular))
@@ -459,7 +459,7 @@ struct AccountDataSettingsView: View {
             Section(header: Text("Account e sincronizzazione")) {
                 Label("Nessun account", systemImage: "person.crop.circle.badge.xmark")
                 Text("Aether non usa account cloud e non sincronizza tra dispositivi: le API di Stremio e Nuvio non sono pubbliche per client di terze parti. Per spostare i dati usa il backup qui sotto.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(Color.aetherSecondary)
             }
             Section(header: Text("Privacy")) {
                 Toggle("Registra cronologia e punti di ripresa", isOn: settings.binding(\.privacy.recordHistory))
@@ -468,7 +468,7 @@ struct AccountDataSettingsView: View {
                     .accessibilityIdentifier("settings.allowLocal")
                 Toggle("Conserva il log diagnostico (solo su questo dispositivo)", isOn: settings.binding(\.privacy.keepDiagnosticLog))
                 Text("Aether non invia nessun dato a server propri: niente analytics, niente crash reporting. Le richieste partono solo verso gli addon che installi e verso gli indirizzi delle immagini e dei video che questi restituiscono.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(Color.aetherSecondary)
             }
             Section(header: Text("Backup e ripristino"), footer: Text("Il backup contiene libreria, cronologia, impostazioni e l'elenco degli addon. Gli indirizzi degli addon possono contenere chiavi personali: inclusi solo se lo scegli, e il file non è cifrato.")) {
                 Toggle("Includi gli indirizzi degli addon", isOn: $includeURLs)

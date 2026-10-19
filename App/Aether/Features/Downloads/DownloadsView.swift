@@ -41,7 +41,7 @@ struct DownloadsView: View {
                 .font(.footnote)
             Spacer()
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.aetherSecondary)
         .padding(.horizontal, Theme.pageMargin)
         .padding(.vertical, 6)
     }
@@ -60,7 +60,7 @@ struct DownloadRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title).font(.system(.subheadline, design: .rounded).weight(.semibold)).lineLimit(1)
                 if let subtitle = item.subtitle, !subtitle.isEmpty {
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(subtitle).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(1)
                 }
                 statusLine
                 if item.state == .downloading || item.state == .paused {
@@ -77,11 +77,11 @@ struct DownloadRow: View {
     @ViewBuilder
     private var statusLine: some View {
         switch item.state {
-        case .queued: Label("In coda", systemImage: "clock").font(.caption2).foregroundStyle(.secondary)
+        case .queued: Label("In coda", systemImage: "clock").font(.caption2).foregroundStyle(Color.aetherSecondary)
         case .downloading:
             Text("\(Int(item.fraction * 100))% · \(Format.bytes(item.bytesWritten)) di \(item.totalBytes > 0 ? Format.bytes(item.totalBytes) : "?")")
-                .font(.caption2).foregroundStyle(.secondary)
-        case .paused: Label("In pausa", systemImage: "pause.circle").font(.caption2).foregroundStyle(.secondary)
+                .font(.caption2).foregroundStyle(Color.aetherSecondary)
+        case .paused: Label("In pausa", systemImage: "pause.circle").font(.caption2).foregroundStyle(Color.aetherSecondary)
         case .completed: Label(Format.bytes(item.totalBytes), systemImage: "checkmark.circle.fill").font(.caption2).foregroundStyle(.green)
         case .failed:
             Label(item.errorMessage ?? "Errore", systemImage: "exclamationmark.triangle.fill")

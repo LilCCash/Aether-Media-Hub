@@ -178,7 +178,7 @@ struct DetailView: View {
             if let rating = model.meta.imdbRating { Label(rating, systemImage: "star.fill").labelStyle(.titleAndIcon).foregroundStyle(.yellow) }
         }
         .font(.system(.footnote, design: .rounded).weight(.medium))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.aetherSecondary)
     }
 
     // MARK: Actions
@@ -222,7 +222,7 @@ struct DetailView: View {
             }
             if !model.canPlay && !model.isLoading {
                 Label("Nessun addon attivo fornisce sorgenti per questo titolo.", systemImage: "info.circle")
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(Color.aetherSecondary)
             }
         }
         .padding(.horizontal, Theme.pageMargin)
@@ -257,7 +257,7 @@ struct DetailView: View {
 
     private func infoPill(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.caption2).foregroundStyle(.secondary)
+            Text(title).font(.caption2).foregroundStyle(Color.aetherSecondary)
             Text(value).font(.caption.weight(.semibold)).lineLimit(2)
         }
     }
@@ -277,7 +277,7 @@ struct DetailView: View {
     private func creditLine(_ title: String, _ names: [String]) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.aetherHeadline())
-            Text(names.joined(separator: ", ")).font(.subheadline).foregroundStyle(.secondary)
+            Text(names.joined(separator: ", ")).font(.subheadline).foregroundStyle(Color.aetherSecondary)
         }
     }
 
@@ -355,10 +355,10 @@ struct DetailView: View {
     private var footer: some View {
         Group {
             if let provider = model.providerName {
-                Text("Metadati forniti da \(provider)").font(.caption).foregroundStyle(.secondary)
+                Text("Metadati forniti da \(provider)").font(.caption).foregroundStyle(Color.aetherSecondary)
             } else if !model.hadDetailProvider && !model.isLoading {
                 Text("Nessun addon fornisce i dettagli di questo titolo: mostro solo le informazioni del catalogo.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.aetherSecondary)
             }
         }
         .padding(.horizontal, Theme.pageMargin)
@@ -386,12 +386,12 @@ struct EpisodeRow: View {
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        if let episode = video.episode { Text("\(episode).").foregroundStyle(.secondary) }
+                        if let episode = video.episode { Text("\(episode).").foregroundStyle(Color.aetherSecondary) }
                         Text(video.title.isEmpty ? "Episodio" : video.title).lineLimit(2)
                     }
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     if let overview = video.overview, !overview.isEmpty {
-                        Text(overview).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        Text(overview).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(2)
                     }
                     if isFuture, let released = video.released {
                         Text("Esce il \(released.formatted(date: .abbreviated, time: .omitted))").font(.caption2).foregroundStyle(.orange)

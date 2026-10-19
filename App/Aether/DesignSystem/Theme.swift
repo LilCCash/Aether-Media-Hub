@@ -32,8 +32,25 @@ enum Theme {
     }
 }
 
+extension Color {
+    /// Secondary text with enough contrast on the app's light and dark backdrops (the system `.secondary` label
+    /// colour stays under 4.5:1 on tinted light backgrounds, which Apple's accessibility audit flags).
+    static var aetherSecondary: Color { Color.primary.opacity(0.72) }
+}
+
 extension Font {
-    static func aetherTitle(_ size: CGFloat = 28) -> Font { .system(size: size, weight: .bold, design: .rounded) }
+    /// Rounded bold title that follows Dynamic Type: the point size only picks the closest text style.
+    static func aetherTitle(_ size: CGFloat = 28) -> Font {
+        let style: Font.TextStyle
+        switch size {
+        case 32...: style = .largeTitle
+        case 26..<32: style = .title
+        case 21..<26: style = .title2
+        case 18..<21: style = .title3
+        default: style = .headline
+        }
+        return .system(style, design: .rounded).weight(.bold)
+    }
     static func aetherHeadline() -> Font { .system(.headline, design: .rounded).weight(.semibold) }
     static func aetherCaption() -> Font { .system(.caption, design: .rounded) }
 }

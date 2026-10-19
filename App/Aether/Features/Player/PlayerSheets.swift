@@ -14,14 +14,14 @@ struct PlayerTracksSheet: View {
                 Section(header: Text("Audio")) {
                     if model.audioTracks.count < 2 {
                         Text(model.audioTracks.first.map { "Una sola traccia: \($0.title)" } ?? "Nessuna traccia audio alternativa in questo file.")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.aetherSecondary)
                     }
                     ForEach(model.audioTracks) { track in
                         Button { model.selectAudio(track) } label: {
                             HStack {
                                 Text(track.title)
                                 if let language = track.language, !language.isEmpty {
-                                    Text(LanguageCodes.displayName(language)).font(.caption).foregroundStyle(.secondary)
+                                    Text(LanguageCodes.displayName(language)).font(.caption).foregroundStyle(Color.aetherSecondary)
                                 }
                                 Spacer()
                                 if track.isSelected { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
@@ -45,7 +45,7 @@ struct PlayerTracksSheet: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(option.title)
                                     if let detail = option.detail, !detail.isEmpty {
-                                        Text(detail).font(.caption).foregroundStyle(.secondary)
+                                        Text(detail).font(.caption).foregroundStyle(Color.aetherSecondary)
                                     }
                                 }
                                 Spacer()
@@ -56,7 +56,7 @@ struct PlayerTracksSheet: View {
                     }
                     if model.subtitleOptions.isEmpty {
                         Text("Nessun sottotitolo trovato. Installa un addon di sottotitoli o importa un file.")
-                            .font(.footnote).foregroundStyle(.secondary)
+                            .font(.footnote).foregroundStyle(Color.aetherSecondary)
                     }
                     if let error = model.subtitleError {
                         Label(error, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.orange)
@@ -118,7 +118,7 @@ struct PlayerEpisodesSheet: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(video.title).lineLimit(2)
                                 if let released = video.released {
-                                    Text(released.formatted(date: .abbreviated, time: .omitted)).font(.caption).foregroundStyle(.secondary)
+                                    Text(released.formatted(date: .abbreviated, time: .omitted)).font(.caption).foregroundStyle(Color.aetherSecondary)
                                 }
                             }
                             Spacer()
@@ -145,7 +145,7 @@ struct PlayerSourcesSheet: View {
         NavigationStack {
             List {
                 if model.alternatives.isEmpty {
-                    Text("Nessuna altra sorgente disponibile per questo titolo.").foregroundStyle(.secondary)
+                    Text("Nessuna altra sorgente disponibile per questo titolo.").foregroundStyle(Color.aetherSecondary)
                 }
                 ForEach(model.alternatives.filter { $0.info.support.isPlayable }) { item in
                     StreamRow(item: item, isBest: false) {
@@ -208,7 +208,7 @@ struct PlayerInfoSheet: View {
         HStack {
             Text(title)
             Spacer()
-            Text(value).foregroundStyle(.secondary).multilineTextAlignment(.trailing)
+            Text(value).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.trailing)
         }
         .accessibilityElement(children: .combine)
     }

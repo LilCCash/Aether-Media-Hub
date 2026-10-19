@@ -150,7 +150,7 @@ struct DiscoverView: View {
                     }
                     .accessibilityIdentifier("discover.catalogMenu")
                 } else if let catalog = model.selectedCatalog {
-                    Text("\(catalog.title) · \(catalog.addonName)").font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                    Text("\(catalog.title) · \(catalog.addonName)").font(.footnote).foregroundStyle(Color.aetherSecondary).lineLimit(1)
                 }
                 if !model.genres.isEmpty {
                     Menu {
@@ -198,7 +198,7 @@ struct DiscoverView: View {
                 }
                 if model.isStale {
                     Label("Contenuti salvati: l'addon non risponde.", systemImage: "clock.arrow.circlepath")
-                        .font(.footnote).foregroundStyle(.secondary).padding(.top, 6)
+                        .font(.footnote).foregroundStyle(Color.aetherSecondary).padding(.top, 6)
                 }
                 let width = CGFloat(settings.value.appearance.posterSize.rowWidth)
                 let spacing: CGFloat = settings.value.appearance.density == .compact ? 8 : 14

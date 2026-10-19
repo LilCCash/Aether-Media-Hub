@@ -148,6 +148,17 @@ class AetherUITestCase: XCTestCase {
         XCTAssertTrue(element("player.playPause").waitForExistence(timeout: 30), "the player did not open")
     }
 
+    /// The overlay auto-hides after at most 15 s; bring it back (a tap toggles it) before using its buttons.
+    func closePlayer() {
+        let close = element("player.close")
+        if !close.exists {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            _ = close.waitForExistence(timeout: 5)
+        }
+        XCTAssertTrue(close.exists, "the player's close button is not reachable")
+        close.tap()
+    }
+
     /// "0:07 di 2:30" → 7
     func playbackSeconds() -> Double? {
         let scrubber = element("player.scrubber")

@@ -45,7 +45,7 @@ struct CastDeviceSections: View {
         let devices = casting.devices.filter { $0.target == target }
         Section(header: Text(target.title), footer: footer(for: target, emptyHint: devices.isEmpty ? empty : nil)) {
             if case .unavailable(let reason) = casting.availability(of: target) {
-                Label(reason, systemImage: "slash.circle").foregroundStyle(.secondary)
+                Label(reason, systemImage: "slash.circle").foregroundStyle(Color.aetherSecondary)
             } else {
                 ForEach(devices) { device in
                     row(for: device)
@@ -53,7 +53,7 @@ struct CastDeviceSections: View {
                 if devices.isEmpty && casting.isScanning {
                     HStack(spacing: 10) {
                         ProgressView()
-                        Text("Ricerca in corso…").foregroundStyle(.secondary)
+                        Text("Ricerca in corso…").foregroundStyle(Color.aetherSecondary)
                     }
                 }
             }
@@ -79,7 +79,7 @@ struct CastDeviceSections: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(device.name)
                 if let detail = device.detail, !detail.isEmpty {
-                    Text(detail).font(.caption).foregroundStyle(.secondary)
+                    Text(detail).font(.caption).foregroundStyle(Color.aetherSecondary)
                 }
             }
             Spacer()
@@ -106,7 +106,7 @@ struct CastSessionControls: View {
                     VStack(alignment: .leading) {
                         Text(session.title).font(.headline).lineLimit(1)
                         Text("\(session.device.target.title) · \(session.device.name)")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(Color.aetherSecondary)
                     }
                 }
                 Text(stateText(session.status))
@@ -119,7 +119,7 @@ struct CastSessionControls: View {
                         Spacer()
                         Text(Format.duration(duration))
                     }
-                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    .font(.caption.monospacedDigit()).foregroundStyle(Color.aetherSecondary)
                 }
                 HStack(spacing: 18) {
                     Button { casting.seek(by: -10) } label: { Image(systemName: "gobackward.10") }
@@ -182,7 +182,7 @@ struct CastView: View {
                     }
                     .accessibilityElement(children: .contain)
                 } else {
-                    Label("Disattivato nelle impostazioni.", systemImage: "slash.circle").foregroundStyle(.secondary)
+                    Label("Disattivato nelle impostazioni.", systemImage: "slash.circle").foregroundStyle(Color.aetherSecondary)
                 }
             }
             CastDeviceSections(onSelect: nil)

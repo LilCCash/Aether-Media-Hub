@@ -44,7 +44,7 @@ struct AddonsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Cinemeta").font(.headline)
                                 Text("Metadati ufficiali di Stremio (poster, trame, episodi). Non fornisce sorgenti video.")
-                                    .font(.caption).foregroundStyle(.secondary)
+                                    .font(.caption).foregroundStyle(Color.aetherSecondary)
                             }
                         }
                     }
@@ -118,14 +118,14 @@ struct AddonRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(addon.displayName).font(.system(.body, design: .rounded).weight(.semibold)).lineLimit(1)
-                    Text("v\(addon.manifest.version)").font(.caption2).foregroundStyle(.secondary)
+                    Text("v\(addon.manifest.version)").font(.caption2).foregroundStyle(Color.aetherSecondary)
                     if addon.isOfficial { Image(systemName: "checkmark.seal.fill").font(.caption).foregroundStyle(.blue).accessibilityLabel("Ufficiale") }
                 }
-                Text(addon.manifest.capabilitySummary.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(addon.manifest.capabilitySummary.joined(separator: " · ")).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(1)
                 HStack(spacing: 6) {
                     statusDot
-                    Text(statusText).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                    if addon.isLocalNetwork { Image(systemName: "wifi.router").font(.caption2).foregroundStyle(.secondary).accessibilityLabel("Rete locale") }
+                    Text(statusText).font(.caption2).foregroundStyle(Color.aetherSecondary).lineLimit(1)
+                    if addon.isLocalNetwork { Image(systemName: "wifi.router").font(.caption2).foregroundStyle(Color.aetherSecondary).accessibilityLabel("Rete locale") }
                 }
             }
         }
@@ -235,13 +235,13 @@ struct AddonInstallSheet: View {
                     Task { await verify() }
                 }
                 Text("Consenti ad Aether di contattare addon e sorgenti nella tua rete (es. un NAS). Resta disattivato per impostazione predefinita: un addon malevolo potrebbe altrimenti puntare ai dispositivi della tua LAN.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.aetherSecondary)
             case .configurationRequired:
                 Button("Apri la pagina di configurazione") {
                     if let url = configureURL() { openURL(url) }
                 }
                 Text("Questo addon va configurato prima dell'uso: completa la configurazione e incolla qui il link di installazione che ti viene fornito.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.aetherSecondary)
             default:
                 EmptyView()
             }
@@ -265,7 +265,7 @@ struct AddonInstallSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(preview.manifest.name).font(.headline)
-                    Text("v\(preview.manifest.version) · \(AddonURL.displayHost(preview.transportURL))").font(.caption).foregroundStyle(.secondary)
+                    Text("v\(preview.manifest.version) · \(AddonURL.displayHost(preview.transportURL))").font(.caption).foregroundStyle(Color.aetherSecondary)
                 }
             }
             if let description = preview.manifest.description, !description.isEmpty {
@@ -276,7 +276,7 @@ struct AddonInstallSheet: View {
             LabeledContent("Cataloghi", value: "\(preview.manifest.catalogs.count)")
             if let existing = preview.existing {
                 Label("Già installato (\(existing.displayName)): verrà aggiornato mantenendo le tue impostazioni.", systemImage: "arrow.triangle.2.circlepath")
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(Color.aetherSecondary)
             }
         }
         if !preview.warnings.isEmpty {
@@ -374,7 +374,7 @@ struct AddonDetailView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(addon.displayName).font(.title3.weight(.bold))
-                                Text("Versione \(addon.manifest.version)").font(.footnote).foregroundStyle(.secondary)
+                                Text("Versione \(addon.manifest.version)").font(.footnote).foregroundStyle(Color.aetherSecondary)
                             }
                         }
                         if let description = addon.manifest.description, !description.isEmpty { Text(description).font(.subheadline) }
@@ -397,7 +397,7 @@ struct AddonDetailView: View {
                             HStack { Text("Aggiorna manifest"); if isRefreshing { Spacer(); ProgressView() } }
                         }
                         .disabled(isRefreshing || addon.needsReinstall)
-                        if let message = refreshMessage { Text(message).font(.footnote).foregroundStyle(.secondary) }
+                        if let message = refreshMessage { Text(message).font(.footnote).foregroundStyle(Color.aetherSecondary) }
                     }
                     Section(header: Text("Cosa offre")) {
                         LabeledContent("Tipi", value: addon.manifest.types.map { RequestPlanner.friendlyTypeName($0) }.joined(separator: ", "))
@@ -415,7 +415,7 @@ struct AddonDetailView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(catalog.name)
                                         Text("\(RequestPlanner.friendlyTypeName(catalog.type))\(catalog.supportsSearch ? " · ricerca" : "")\(catalog.isPlainFeed ? "" : " · richiede filtri")")
-                                            .font(.caption).foregroundStyle(.secondary)
+                                            .font(.caption).foregroundStyle(Color.aetherSecondary)
                                     }
                                 }
                                 .disabled(!catalog.isPlainFeed)

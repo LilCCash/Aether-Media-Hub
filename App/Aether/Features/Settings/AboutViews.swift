@@ -39,7 +39,7 @@ struct AdvancedSettingsView: View {
             }
             Section(header: Text("Rete")) {
                 LabeledContent("Connessione", value: env.network.isOnline ? env.network.interfaceName : "Offline")
-                if env.network.isExpensive { Text("Connessione a consumo: i download usano la rete mobile solo se consentito.").font(.footnote).foregroundStyle(.secondary) }
+                if env.network.isExpensive { Text("Connessione a consumo: i download usano la rete mobile solo se consentito.").font(.footnote).foregroundStyle(Color.aetherSecondary) }
             }
         }
         .navigationTitle("Avanzate")
@@ -90,7 +90,7 @@ struct PlayerStatusView: View {
             Circle().fill(color).frame(width: 9, height: 9).accessibilityHidden(true)
             Text(title)
             Spacer()
-            Text(value).font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.trailing)
+            Text(value).font(.footnote).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.trailing)
         }
         .accessibilityElement(children: .combine)
     }
@@ -117,7 +117,7 @@ struct AboutView: View {
                     Image("LaunchLogo").resizable().scaledToFit().frame(width: 84, height: 84)
                         .accessibilityHidden(true)
                     Text("Aether").font(.aetherTitle(26))
-                    Text("Versione \(version)").font(.footnote).foregroundStyle(.secondary)
+                    Text("Versione \(version)").font(.footnote).foregroundStyle(Color.aetherSecondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
@@ -135,7 +135,7 @@ struct AboutView: View {
             }
             Section(header: Text("Cosa non c'è")) {
                 ForEach(AboutView.notImplemented, id: \.self) { line in
-                    Label(line, systemImage: "minus.circle").font(.footnote).foregroundStyle(.secondary)
+                    Label(line, systemImage: "minus.circle").font(.footnote).foregroundStyle(Color.aetherSecondary)
                 }
             }
             Section(header: Text("Componenti di terze parti")) {

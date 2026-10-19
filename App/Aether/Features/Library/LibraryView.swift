@@ -159,14 +159,14 @@ struct HistoryRow: View {
                 Text(item.title).font(.system(.subheadline, design: .rounded).weight(.semibold)).lineLimit(1)
                 if let label = item.episodeLabel {
                     Text([label, item.episodeTitle].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        .font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(1)
                 }
                 HStack(spacing: 6) {
                     Text(Format.relativeDate(item.updatedAt))
                     if item.isCompleted { Label("Visto", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
                     else if item.duration > 0 { Text("· \(Int(item.fraction * 100))%") }
                 }
-                .font(.caption2).foregroundStyle(.secondary)
+                .font(.caption2).foregroundStyle(Color.aetherSecondary)
             }
         }
         .accessibilityElement(children: .combine)
