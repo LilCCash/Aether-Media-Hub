@@ -125,7 +125,15 @@ Solo `http`/`https`; niente credenziali negli URL; blocco di loopback/reti priva
 
 ## Test
 
-Vedi [`docs/04-TESTING.md`](docs/04-TESTING.md) per l'elenco dei 20 scenari richiesti, le fixture e l'esito reale di ogni esecuzione.
+Ultima esecuzione completa in CI (macOS, Xcode 26.6, simulatore iPhone, iOS SDK 26.5) sul commit unito in `main`:
+
+| Suite | Test | Falliti |
+|---|---|---|
+| AetherCore (`swift test`) | 172 | 0 |
+| Unit dell'app | 42 | 0 |
+| UI contro addon di fixture (riproduzione reale di un MP4 H.264 nel simulatore) | 30 | 0 |
+
+[`docs/04-TESTING.md`](docs/04-TESTING.md) mappa ciascuno dei 20 scenari richiesti sul test che lo verifica e dice quali **non** sono stati eseguiti su hardware reale (AirPlay, Google Cast su Chromecast/Android TV, VoiceOver su dispositivo, DLNA su televisori, rete mobile).
 
 ## Contribuire / licenza
 

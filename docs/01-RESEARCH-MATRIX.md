@@ -132,7 +132,7 @@ Legenda: ✅ verificato nel codice · ◐ parziale/dipende dalla build · ✖ no
 | XcodeGen | MIT | Solo strumento di build | Non distribuito nell'IPA |
 
 **Obblighi di attribuzione**: `NOTICE` e `docs/03-LICENSES.md` elencano Google Cast SDK, gtm-session-fetcher e il riferimento al protocollo MIT; l'app
-espone la pagina "Informazioni sulle dipendenze" (Impostazioni → Avanzate).
+espone la pagina «Informazioni e licenze» (Altro → Informazioni e licenze).
 
 ## 4. Limiti tecnici iOS rilevanti (verificati/dichiarati)
 

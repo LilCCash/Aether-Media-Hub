@@ -28,26 +28,26 @@ Legenda: ✅ eseguito in CI con esito positivo · 🟡 coperto solo in parte (co
 
 | # | Scenario | Test | Esito |
 |---|---|---|---|
-| 1 | Installazione di un addon valido | `AddonFlowUITests.testInstallValidAddonByTypingItsURL`, `testInstallThroughDeepLink`; core: `AddonRegistryTests` | RISULTATI_1 |
-| 2 | Rifiuto di un manifest non valido | `AddonFlowUITests.testRejectsInvalidManifests`, `testRejectsNonHTTPSchemes`; core: `ModelTests`, `NetworkTests`, `AddonRegistryTests` | RISULTATI_2 |
-| 3 | Caricamento di cataloghi | `BrowseUITests.testCatalogsLoadOnHomeAndDiscover`; core: `ServiceTests` (catalogo, paginazione, cache) | RISULTATI_3 |
-| 4 | Ricerca | `BrowseUITests.testSearchFindsTitlesAndShowsEmptyState`; core: `ServiceTests` (ricerca concorrente, debounce lato UI, dedupe) | RISULTATI_4 |
-| 5 | Apertura dei dettagli | `BrowseUITests.testDetailsShowMetadata`, `testSeriesShowsEpisodes` | RISULTATI_5 |
-| 6 | Più sorgenti | `BrowseUITests.testSourcesFromTheAddonAreListed`; core: `ServiceTests`, `PlaybackTests` (ordinamento) | RISULTATI_6 |
-| 7 | Avvio della riproduzione | `PlaybackUITests.testPlaybackStartsAndTimeAdvances`, `testPauseStopsTheClock` | RISULTATI_7 |
-| 8 | Ripresa dal punto salvato | `PlaybackUITests.testResumeFromSavedPosition`; core: `LibraryTests` | RISULTATI_8 |
-| 9 | Selezione dei sottotitoli | `PlaybackUITests.testSelectingASubtitleShowsItsText`; core: parser SRT/VTT/ASS in `PlaybackTests` | RISULTATI_9 |
-| 10 | Episodio successivo | `PlaybackUITests.testNextEpisodeStartsAutomatically`; core: `NextEpisodeResolver` in `PlaybackTests` | RISULTATI_10 |
-| 11 | Watchlist | `PlaybackUITests.testWatchlistAddsAndRemoves`; core: `LibraryTests` | RISULTATI_11 |
-| 12 | Ripristino della cronologia | `PlaybackUITests.testHistoryIsRestoredAfterRelaunch`; app: `BackupServiceTests`; core: `BackupMerge` in `LibraryTests` | RISULTATI_12 |
-| 13 | Addon offline | `AddonFlowUITests.testInstallingWhileAddonIsOfflineShowsAnError`, `testInstalledAddonGoingOfflineShowsRetryNotACrash`; `SettingsAndAccessibilityUITests.testCachedCatalogsSurviveAnOfflineAddon` | RISULTATI_13 |
-| 14 | Sorgente non supportata | `BrowseUITests.testUnsupportedSourcesAreFlaggedInsteadOfPlayed`; core: `StreamAnalyzer`/`PlaybackErrorMapper` in `PlaybackTests` | RISULTATI_14 |
+| 1 | Installazione di un addon valido | `AddonFlowUITests.testInstallValidAddonByTypingItsURL`, `testInstallThroughDeepLink`; core: `AddonRegistryTests` | ✅ |
+| 2 | Rifiuto di un manifest non valido | `AddonFlowUITests.testRejectsInvalidManifests`, `testRejectsNonHTTPSchemes`; core: `ModelTests`, `NetworkTests`, `AddonRegistryTests` | ✅ |
+| 3 | Caricamento di cataloghi | `BrowseUITests.testCatalogsLoadOnHomeAndDiscover`; core: `ServiceTests` (catalogo, paginazione, cache) | ✅ |
+| 4 | Ricerca | `BrowseUITests.testSearchFindsTitlesAndShowsEmptyState`; core: `ServiceTests` (ricerca concorrente, debounce lato UI, dedupe) | ✅ |
+| 5 | Apertura dei dettagli | `BrowseUITests.testDetailsShowMetadata`, `testSeriesShowsEpisodes` | ✅ |
+| 6 | Più sorgenti | `BrowseUITests.testSourcesFromTheAddonAreListed`; core: `ServiceTests`, `PlaybackTests` (ordinamento) | ✅ |
+| 7 | Avvio della riproduzione | `PlaybackUITests.testPlaybackStartsAndTimeAdvances`, `testPauseStopsTheClock` | ✅ |
+| 8 | Ripresa dal punto salvato | `PlaybackUITests.testResumeFromSavedPosition`; core: `LibraryTests` | ✅ |
+| 9 | Selezione dei sottotitoli | `PlaybackUITests.testSelectingASubtitleShowsItsText`; core: parser SRT/VTT/ASS in `PlaybackTests` | ✅ |
+| 10 | Episodio successivo | `PlaybackUITests.testNextEpisodeStartsAutomatically`; core: `NextEpisodeResolver` in `PlaybackTests` | ✅ |
+| 11 | Watchlist | `PlaybackUITests.testWatchlistAddsAndRemoves`; core: `LibraryTests` | ✅ |
+| 12 | Ripristino della cronologia | `PlaybackUITests.testHistoryIsRestoredAfterRelaunch`; app: `BackupServiceTests`; core: `BackupMerge` in `LibraryTests` | ✅ |
+| 13 | Addon offline | `AddonFlowUITests.testInstallingWhileAddonIsOfflineShowsAnError`, `testInstalledAddonGoingOfflineShowsRetryNotACrash`; `SettingsAndAccessibilityUITests.testCachedCatalogsSurviveAnOfflineAddon` | ✅ |
+| 14 | Sorgente non supportata | `BrowseUITests.testUnsupportedSourcesAreFlaggedInsteadOfPlayed`; core: `StreamAnalyzer`/`PlaybackErrorMapper` in `PlaybackTests` | ✅ |
 | 15 | Connessione/disconnessione AirPlay | `testPlayerExposesCastAndAirPlayControls` verifica solo che il selettore di sistema sia raggiungibile. La connessione a un ricevitore AirPlay reale **non è stata provata** | ⛔ (hardware) |
 | 16 | Google Cast su dispositivo reale | Nessun test su un Chromecast/Android TV reale. Compilazione con l'SDK ufficiale verificata in CI; logica di sessione provata con ricevitori finti (`CastCoordinatorTests`) | ⛔ (hardware) |
-| 17 | Errori di rete durante il casting | `CastCoordinatorTests` (connessione fallita, ricevitore che rifiuta, perdita di connessione, fine sessione, cambio protocollo); core: `UPnPTests` (fault SOAP, HTTP). Con un televisore reale: **non provato** | RISULTATI_17 |
-| 18 | Persistenza delle impostazioni | `SettingsAndAccessibilityUITests.testSettingsPersistAcrossRelaunch`; app: `SettingsStoreTests`; core: `MiscTests` (decodifica tollerante) | RISULTATI_18 |
-| 19 | Cache e memoria | `ImageLoaderTests` (coalescing, disco, ridimensionamento, limite), core: `MiscTests`/`ServiceTests` (ResponseCache, stale-on-error) | RISULTATI_19 |
-| 20 | VoiceOver e accessibilità | `testMainScreensPassTheAccessibilityAudit` (audit automatico di Apple su Home, Altro, Cerca), `testPlayerControlsHaveAccessibilityLabels`. **La navigazione con VoiceOver su un dispositivo non è stata eseguita** | RISULTATI_20 |
+| 17 | Errori di rete durante il casting | `CastCoordinatorTests` (connessione fallita, ricevitore che rifiuta, perdita di connessione, fine sessione, cambio protocollo); core: `UPnPTests` (fault SOAP, HTTP). Con un televisore reale: **non provato** | 🟡 solo con ricevitori simulati; nessun televisore reale |
+| 18 | Persistenza delle impostazioni | `SettingsAndAccessibilityUITests.testSettingsPersistAcrossRelaunch`; app: `SettingsStoreTests`; core: `MiscTests` (decodifica tollerante) | ✅ |
+| 19 | Cache e memoria | `ImageLoaderTests` (coalescing, disco, ridimensionamento, limite), core: `MiscTests`/`ServiceTests` (ResponseCache, stale-on-error) | ✅ |
+| 20 | VoiceOver e accessibilità | `testMainScreensPassTheAccessibilityAudit` (audit automatico di Apple su Home, Altro, Cerca), `testPlayerControlsHaveAccessibilityLabels`. **La navigazione con VoiceOver su un dispositivo non è stata eseguita** | 🟡 audit automatico superato per descrizioni, aree di tocco e trait; restano note sul contrasto (sotto); VoiceOver su dispositivo non eseguito |
 
 ## Cosa i test non possono dire
 
@@ -58,4 +58,22 @@ Legenda: ✅ eseguito in CI con esito positivo · 🟡 coperto solo in parte (co
 
 ## Esiti dell'ultima esecuzione
 
-RISULTATI_RUN
+Ultima esecuzione completa (GitHub Actions, `macos-latest`, Xcode 26.6, SDK iOS 26.5, simulatore iPhone più recente della serie Pro Max disponibile sul runner):
+
+| Suite | Test eseguiti | Falliti |
+|---|---|---|
+| AetherCore (`swift test`) | 172 | 0 |
+| Unit dell'app (`AetherTests`) | 42 | 0 |
+| UI (`AetherUITests`, ~13 minuti) | 30 | 0 |
+
+Ogni esecuzione completa è nel registro di GitHub Actions (job «App (build, unit tests, UI tests)» e «AetherCore (swift test)»); i bundle `.xcresult` con screenshot e allegati sono salvati come artefatto per 7 giorni.
+
+### Problemi trovati dai test e corretti
+
+* **Perdita della cronologia.** Il test «cronologia dopo il riavvio» ha mostrato che, chiudendo il player e terminando l'app subito dopo, l'ultimo punto di ripresa non arrivava su disco: la scrittura è ritardata (debounce) e il `flush` poteva partire prima della registrazione. Ora la chiusura del player registra e scrive in un passo ordinato e l'app scrive anche quando la scena smette di essere attiva (con un background task).
+* **Test che passavano a vuoto.** Le prime versioni dei test di ripresa e cronologia riproducevano meno di 10 s, sotto la soglia con cui l'app decide di registrare: il test di ripresa passava anche senza ripresa. Ora superano la soglia e la ripresa è verificata in modo che solo un vero salto al punto salvato possa soddisfarla.
+* **Tipografia fissa.** L'audit di Apple ha segnalato titoli che non seguivano Dynamic Type; ora usano gli stili di testo di sistema. Il contrasto del testo secondario è stato aumentato.
+
+### Note ancora aperte (audit di accessibilità, informativo)
+
+`testAuditReportForContrastAndDynamicType` non fa fallire la build: elenca nel log le voci `A11Y-ISSUE`. Dopo le correzioni restano segnalazioni di contrasto su didascalie (anni) e su titoli delle locandine dei cataloghi di fixture e sul banner in evidenza. Non ho confermato la causa (possibile sovrapposizione con la barra delle schede traslucida di iOS 26 o con le locandine sintetiche); va riesaminata su dispositivo con copertine reali e VoiceOver.
