@@ -17,8 +17,9 @@ name: Build IPA
 #         P12_PASSWORD                  password chosen when exporting the .p12
 #         PROVISIONING_PROFILE_BASE64   base64 of the .mobileprovision for APP_BUNDLE_ID
 #
-# Triggers: manual run (Actions > Build IPA > Run workflow), a pushed tag "v*" (the unsigned IPA is also attached to a
-# GitHub release), and any change to this file (so the workflow is exercised whenever it is edited).
+# Triggers: manual run (Actions > Build IPA > Run workflow; tick "publish_release" and give a tag to also publish the
+# unsigned IPA as a GitHub pre-release), a pushed tag "v*" (same release), and any change to this file (so the workflow
+# is exercised whenever it is edited).
 on:
   workflow_dispatch:
     inputs:
@@ -26,6 +27,14 @@ on:
         description: Also build a signed IPA with your own certificate (needs the secrets listed in the header)
         type: boolean
         default: false
+      publish_release:
+        description: Publish the unsigned IPA as a GitHub pre-release (needs release_tag)
+        type: boolean
+        default: false
+      release_tag:
+        description: "Tag of the release, for example v1.0.0-alpha.1 (created on the built commit if it does not exist yet)"
+        type: string
+        default: ''
       export_method:
         description: "Signed build only: development | ad-hoc | app-store-connect (must match the certificate and profile)"
         type: choice
@@ -144,7 +153,7 @@ jobs:
   release:
     name: Attach the unsigned IPA to a GitHub release
     needs: unsigned
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -157,15 +166,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+          SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then TAG="$INPUT_TAG"; else TAG="$REF_NAME"; fi
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9A-Za-z._-]+$'; then
+            echo "::error::The release tag must look like v1.0.0 or v1.0.0-alpha.1 (got '$TAG')"
+            exit 1
+          fi
           ls -lh Aether-unsigned.ipa
-          NOTES="Unsigned IPA built by GitHub Actions from this tag. iOS will not install it as it is: re-sign it with your own Apple ID (AltStore, Sideloadly) or certificate. Build number ${{ github.run_number }}."
+          NOTES="Unsigned IPA built by GitHub Actions from commit ${SHA} (build number ${RUN_NUMBER}). iOS will not install it as it is: re-sign it with your own Apple ID (AltStore, Sideloadly) or your own certificate. Not tested on a physical iPhone; AirPlay, Google Cast, DLNA and VoiceOver are implemented but unverified on hardware. See the README for the real status of every feature."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" Aether-unsigned.ipa --clobber
           else
-            gh release create "$TAG" Aether-unsigned.ipa --title "Aether $TAG (unsigned IPA)" --notes "$NOTES" --prerelease
+            gh release create "$TAG" Aether-unsigned.ipa --target "$SHA" --title "Aether $TAG (unsigned IPA)" --notes "$NOTES" --prerelease
           fi
+          gh release view "$TAG" --json url,tagName,isPrerelease,assets --jq '{url, tagName, isPrerelease, assets: [.assets[] | {name, size}]}'
 
   signed:
     name: Signed IPA (your credentials)
