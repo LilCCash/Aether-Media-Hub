@@ -25,6 +25,8 @@ final class AppEnvironment: ObservableObject {
     let router: AppRouter
     let downloads: DownloadManager
     let casting: CastCoordinator
+    /// Keys of the optional services (TorBox, TMDB, TheTVDB), kept in the Keychain.
+    let credentials: ServiceCredentials
 
     /// `arguments` exist so unit tests can build an isolated environment (see `UITestHooks`).
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
@@ -73,6 +75,7 @@ final class AppEnvironment: ObservableObject {
         router = AppRouter()
         downloads = DownloadManager(paths: paths, snapshot: snapshot)
         casting = CastCoordinator(settings: settings)
+        credentials = ServiceCredentials(secrets: secrets)
 
         settings.onChange = { [weak self] new, old in
             self?.settingsDidChange(new: new, old: old)

@@ -63,7 +63,7 @@ final class BrowseUITests: AetherUITestCase {
         element("detail.play").tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS 'Non riproducibili'")).firstMatch.waitForExistence(timeout: 30)
                       || element(labelContaining: "Non riproducibili su iOS").waitForExistence(timeout: 30),
-                      "MKV / torrent sources should be listed as not playable")
+                      "DASH / torrent sources should be listed as not playable")
         XCTAssertFalse(element("stream.row.0").exists, "there is nothing playable to start")
     }
 

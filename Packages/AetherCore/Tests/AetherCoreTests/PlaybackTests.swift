@@ -17,7 +17,7 @@ final class StreamAnalyzerTests: XCTestCase {
         XCTAssertEqual(info.languages, ["en", "it"])
         XCTAssertEqual(info.sizeBytes, Int64(12.5 * 1_073_741_824))
         XCTAssertEqual(info.sizeLabel, "12.5 GB")
-        XCTAssertEqual(info.badges.prefix(3), ["4K", "HEVC", "Dolby Vision"])
+        XCTAssertEqual(info.badges.prefix(3), ["4K", "HEVC", "Dolby Vision (nel nome)"], "name-derived HDR must be labelled as unverified")
     }
 
     func testDolbyVisionDoesNotImplyDolbyDigitalAudio() {
@@ -49,6 +49,21 @@ final class StreamAnalyzerTests: XCTestCase {
             XCTAssertFalse(info.support.isPlayable)
         }
         XCTAssertEqual(StreamAnalyzer.analyze(stream("https://cdn.test/manifest.mpd")).support, .unsupported(.dash))
+    }
+
+    func testMatroskaAndFriendsArePlayableWhenTheMPVEngineIsPresent() {
+        let withMPV = PlaybackCapabilities(mpvAvailable: true)
+        for ext in ["mkv", "avi", "webm", "wmv", "flv", "ts", "m2ts"] {
+            let info = StreamAnalyzer.analyze(stream("https://cdn.test/file.\(ext)"), capabilities: withMPV)
+            XCTAssertEqual(info.support, .supported, ext)
+            XCTAssertEqual(info.requiredEngine, .mpv, ext)
+        }
+        let mp4 = StreamAnalyzer.analyze(stream("https://cdn.test/file.mp4"), capabilities: withMPV)
+        XCTAssertNil(mp4.requiredEngine, "native containers keep the default engine")
+        XCTAssertEqual(StreamAnalyzer.analyze(stream("https://cdn.test/manifest.mpd"), capabilities: withMPV).support, .unsupported(.dash),
+                       "DASH stays unsupported until it has been tested")
+        XCTAssertEqual(StreamAnalyzer.analyze(AddonStream(source: .torrent(infoHash: "0123456789abcdef0123456789abcdef01234567", fileIndex: nil, trackers: [])), capabilities: withMPV).support,
+                       .unsupported(.torrent), "MPV does not resolve torrents")
     }
 
     func testFilenameHintDecidesWhenTheURLHasNoExtension() {

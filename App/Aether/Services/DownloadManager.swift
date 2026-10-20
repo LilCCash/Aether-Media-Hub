@@ -75,7 +75,7 @@ final class DownloadManager: NSObject, ObservableObject {
     /// Queues a download after checking eligibility; returns an error message when refused.
     @discardableResult
     func enqueue(meta: MetaItem, video: Video?, stream: AddonStream, allowLocalNetwork: Bool) async -> String? {
-        let info = StreamAnalyzer.analyze(stream)
+        let info = StreamAnalyzer.analyze(stream, capabilities: PlaybackEngineFactory.capabilities)
         switch DownloadPlanner.evaluate(stream: stream, info: info, allowLocalNetwork: allowLocalNetwork) {
         case .notAllowed(let reason):
             return reason
@@ -90,7 +90,8 @@ final class DownloadManager: NSObject, ObservableObject {
             var subtitle: String?
             if let video = video { subtitle = [video.episodeLabel, video.title].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") }
             let item = DownloadItem(metaID: meta.id, videoID: video?.id, type: meta.type, title: meta.name,
-                                    subtitle: subtitle, poster: meta.poster, sourceURL: url.absoluteString,
+                                    subtitle: subtitle, poster: meta.poster,
+                                    sourceURL: DownloadManager.sourceURLString(url, container: info.container),
                                     headers: stream.behaviorHints.proxyRequestHeaders,
                                     totalBytes: stream.behaviorHints.videoSize ?? info.sizeBytes ?? 0)
             await store.add(item)
@@ -98,6 +99,40 @@ final class DownloadManager: NSObject, ObservableObject {
             scheduleQueue()
             return nil
         }
+    }
+
+    // MARK: File names
+
+    /// Containers a downloaded file may keep. The extension decides which engine opens the file offline, so a
+    /// Matroska download must stay `.mkv` (AVPlayer cannot open it, MPV can).
+    nonisolated static let keptExtensions: Set<String> = ["mp4", "m4v", "mov", "mp3", "m4a", "aac", "mkv", "avi", "webm", "ts", "m2ts", "wmv", "flv", "mpg", "mpeg"]
+
+    /// The URL to remember for a download. When its path has no recognisable extension (debrid links often do not) the
+    /// container derived from the stream's hints is appended as a fragment, which is never sent to the server.
+    nonisolated static func sourceURLString(_ url: URL, container: String?) -> String {
+        let current = url.pathExtension.lowercased()
+        guard !keptExtensions.contains(current), let container = container?.lowercased(), keptExtensions.contains(container) else {
+            return url.absoluteString
+        }
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.fragment = "aether-container=\(container)"
+        return components?.string ?? url.absoluteString
+    }
+
+    nonisolated static func fileExtension(forURL url: URL?, mime: String) -> String {
+        let fromPath = url?.pathExtension.lowercased() ?? ""
+        if keptExtensions.contains(fromPath) { return fromPath }
+        if let fragment = url?.fragment, fragment.hasPrefix("aether-container=") {
+            let hinted = String(fragment.dropFirst("aether-container=".count)).lowercased()
+            if keptExtensions.contains(hinted) { return hinted }
+        }
+        let type = mime.lowercased()
+        if type.contains("matroska") { return "mkv" }
+        if type.contains("webm") { return "webm" }
+        if type.contains("msvideo") || type.contains("avi") { return "avi" }
+        if type.contains("mp2t") { return "ts" }
+        if type.contains("quicktime") { return "mov" }
+        return "mp4"
     }
 
     func pause(_ id: UUID) {
@@ -278,9 +313,7 @@ extension DownloadManager: URLSessionDownloadDelegate, URLSessionTaskDelegate {
             return
         }
         // The temporary file disappears when this method returns: move it synchronously.
-        let originalExtension = downloadTask.originalRequest?.url?.pathExtension.lowercased() ?? ""
-        let known = ["mp4", "m4v", "mov", "mp3", "m4a", "aac"]
-        let ext = known.contains(originalExtension) ? originalExtension : (mime.contains("quicktime") ? "mov" : "mp4")
+        let ext = DownloadManager.fileExtension(forURL: downloadTask.originalRequest?.url, mime: mime)
         let fileName = "\(id.uuidString).\(ext)"
         let destinationDirectory = self.downloadsDirectory
         let destination = destinationDirectory.appendingPathComponent(fileName)
