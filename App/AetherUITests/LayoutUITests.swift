@@ -6,12 +6,12 @@ import XCTest
 final class LayoutUITests: AetherUITestCase {
     private var windowFrame: CGRect { app.windows.firstMatch.frame }
 
-    private func assertFitsHorizontally(_ element: XCUIElement, _ name: String, file: StaticString = #filePath, line: UInt = #line) {
+    private func assertFitsHorizontally(_ element: XCUIElement, _ name: String, context: String = "", file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(element.waitForExistence(timeout: 30), "\(name) does not exist", file: file, line: line)
         let frame = element.frame
         let window = windowFrame
-        XCTAssertGreaterThanOrEqual(frame.minX, window.minX - 0.5, "\(name) starts left of the screen (minX=\(frame.minX))", file: file, line: line)
-        XCTAssertLessThanOrEqual(frame.maxX, window.maxX + 0.5, "\(name) ends right of the screen (maxX=\(frame.maxX), width=\(window.width))", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(frame.minX, window.minX - 0.5, "\(name) starts left of the screen (minX=\(frame.minX), width=\(frame.width), window=\(window)) \(context)", file: file, line: line)
+        XCTAssertLessThanOrEqual(frame.maxX, window.maxX + 0.5, "\(name) ends right of the screen (maxX=\(frame.maxX), width=\(window.width)) \(context)", file: file, line: line)
     }
 
     /// Animations off: the Home carousel advances by itself every few seconds, which would move the card under measurement.
@@ -54,7 +54,14 @@ final class LayoutUITests: AetherUITestCase {
         XCTAssertFalse(cards.isEmpty)
         let window = windowFrame
         let visible = cards.max { $0.frame.intersection(window).width < $1.frame.intersection(window).width }!
-        assertFitsHorizontally(visible, "featured card")
+        let report = cards.map { "[x=\($0.frame.minX) w=\($0.frame.width) h=\($0.frame.height) y=\($0.frame.minY)]" }.joined(separator: " ")
+        let hero = element("home.hero").frame
+        let context = "cards=\(report) home.hero=\(hero)"
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "home-carousel"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        assertFitsHorizontally(visible, "featured card", context: context)
         XCTAssertGreaterThan(visible.frame.width, window.width * 0.8, "featured card is too narrow (\(visible.frame.width))")
         XCTAssertLessThanOrEqual(visible.frame.width, window.width + 0.5, "featured card is wider than the screen (\(visible.frame.width))")
         for card in cards {

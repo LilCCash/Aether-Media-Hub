@@ -57,7 +57,7 @@ struct HeroCard: View {
                 VStack(alignment: .leading, spacing: 8) {
                     if let logo = meta.logo, !logo.isEmpty {
                         RemoteImage(urlString: logo, width: 400, contentMode: .fit, alignment: .leading)
-                            .frame(maxWidth: 240, maxHeight: 72, alignment: .leading)
+                            .frame(width: 240, height: 72, alignment: .leading)
                     } else {
                         Text(meta.name).font(.aetherTitle(30)).foregroundStyle(.white).lineLimit(2)
                     }

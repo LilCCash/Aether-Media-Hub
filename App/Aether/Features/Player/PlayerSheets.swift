@@ -162,7 +162,8 @@ struct PlayerSourcesSheet: View {
     }
 }
 
-/// What is actually playing: no guessing, only what the addon declared and the engine reports.
+/// What is actually playing. Three kinds of information are kept apart on purpose:
+/// what the addon / release name *claims*, what the decoder *measured*, and what the app *expects* to reach the screen.
 struct PlayerInfoSheet: View {
     @ObservedObject var model: PlayerViewModel
     @EnvironmentObject private var network: NetworkMonitor
@@ -171,20 +172,20 @@ struct PlayerInfoSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section(header: Text("Sorgente")) {
+                Section(header: Text("Sorgente (dichiarato dall'addon o dal nome)")) {
                     row("Nome", model.sourceName)
                     if let addon = model.addonSourceName { row("Addon", addon) }
                     if let info = model.currentStreamInfo {
                         row("Qualità dichiarata", info.quality.label)
-                        if let codec = info.codec { row("Codec video", codec.label) }
-                        if !info.hdr.isEmpty { row("HDR", info.hdr.map { $0.label }.joined(separator: ", ")) }
-                        if !info.audio.isEmpty { row("Audio", info.audio.map { $0.label }.joined(separator: ", ")) }
+                        if let codec = info.codec { row("Codec nel nome", codec.label) }
+                        if !info.hdr.isEmpty { row("HDR nel nome", info.hdr.map { $0.label }.joined(separator: ", "), id: "info.hdr.claimed") }
+                        if !info.audio.isEmpty { row("Audio nel nome", info.audio.map { $0.label }.joined(separator: ", ")) }
                         if let container = info.container { row("Contenitore", container.uppercased()) }
                         if let size = info.sizeLabel { row("Dimensione", size) }
                     }
                 }
                 Section(header: Text("Riproduzione")) {
-                    row("Motore", model.engine.displayName)
+                    row("Motore", model.engine.displayName, id: "info.engine")
                     if model.snapshot.videoSize != .zero {
                         row("Risoluzione video", "\(Int(model.snapshot.videoSize.width))×\(Int(model.snapshot.videoSize.height))")
                     }
@@ -193,7 +194,9 @@ struct PlayerInfoSheet: View {
                     row("Rete", network.isOnline ? network.interfaceName + (network.isExpensive ? " (a consumo)" : "") : "Offline")
                     if let route = model.airPlayRoute { row("AirPlay", route) }
                 }
-                Section(footer: Text("La risoluzione reale può essere inferiore a quella dichiarata dall'addon: gli stream adattivi (HLS) cambiano qualità in base alla rete.")) {
+                detectedSection
+                expectationSection
+                Section(footer: Text("«Rilevato» viene dal decoder del motore in uso; «atteso» è una stima basata sul formato e sullo schermo, non una misura. La risoluzione reale può essere inferiore a quella dichiarata: gli stream adattivi (HLS) cambiano qualità in base alla rete.")) {
                     EmptyView()
                 }
             }
@@ -204,13 +207,74 @@ struct PlayerInfoSheet: View {
         .presentationDetents([.medium, .large])
     }
 
-    private func row(_ title: String, _ value: String) -> some View {
+    @ViewBuilder
+    private var detectedSection: some View {
+        if let info = model.mediaInfo {
+            Section(header: Text("Formato rilevato dal decoder")) {
+                if let container = info.container, !container.isEmpty { row("Contenitore", container.uppercased(), id: "info.container") }
+                if let video = info.primaryVideo {
+                    row("Video", videoDescription(video), id: "info.video")
+                    row("Gamma dinamica", video.verifiedHDRLabel ?? "Non rilevata", id: "info.range")
+                    if let primaries = video.primaries, let transfer = video.transfer {
+                        row("Colore", "\(primaries) · \(transfer)")
+                    }
+                    if let dv = video.dolbyVision {
+                        row("Dolby Vision", dv.profile == 0 ? "Presente (profilo non leggibile)" : "Profilo \(dv.profileLabel), livello \(dv.level)", id: "info.dv")
+                    }
+                    if let decodable = video.isDecodable { row("Decodificabile da iOS", decodable ? "Sì" : "No") }
+                } else if info.source == .avFoundation {
+                    row("Video", "Nessuna traccia video letta")
+                }
+                if let decoder = info.hardwareDecoder { row("Decodifica", decoder == "software" ? "Software" : "Hardware (\(decoder))") }
+                if let active = info.videoOutputActive { row("Uscita video", active ? "Attiva" : "Non attiva", id: "info.vo") }
+                ForEach(Array(info.audio.enumerated()), id: \.offset) { index, track in
+                    row(index == 0 ? "Audio" : " ", audioDescription(track))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var expectationSection: some View {
+        if let plan = model.playbackPlan {
+            Section(header: Text("Uscita attesa")) {
+                row("Sullo schermo", plan.output.label, id: "info.expected")
+                ForEach(Array(plan.notes.enumerated()), id: \.offset) { _, note in
+                    Label(note.text, systemImage: note.severity == .blocking ? "xmark.octagon.fill" : (note.severity == .warning ? "exclamationmark.triangle.fill" : "info.circle"))
+                        .font(.footnote)
+                        .foregroundStyle(note.severity == .info ? Color.aetherSecondary : Color.orange)
+                }
+            }
+        }
+    }
+
+    private func videoDescription(_ video: VideoTrackFacts) -> String {
+        var parts: [String] = []
+        if let name = video.codecName, !name.isEmpty { parts.append(name.uppercased()) }
+        else if let tag = video.codecTag { parts.append(tag) }
+        if video.width > 0 && video.height > 0 { parts.append("\(video.width)×\(video.height)") }
+        if let fps = video.frameRate, fps > 0 { parts.append(String(format: "%.3g fps", fps)) }
+        if let depth = video.bitDepth { parts.append("\(depth) bit") }
+        return parts.isEmpty ? "—" : parts.joined(separator: " · ")
+    }
+
+    private func audioDescription(_ track: AudioTrackFacts) -> String {
+        var parts: [String] = []
+        if let name = track.codecName, !name.isEmpty { parts.append(name.uppercased()) }
+        else if let tag = track.codecTag { parts.append(tag) }
+        if let channels = track.channels, channels > 0 { parts.append("\(channels) canali") }
+        if let language = track.language, !language.isEmpty { parts.append(language) }
+        return parts.isEmpty ? "—" : parts.joined(separator: " · ")
+    }
+
+    private func row(_ title: String, _ value: String, id: String? = nil) -> some View {
         HStack {
             Text(title)
             Spacer()
             Text(value).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.trailing)
         }
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(id ?? "info.row")
     }
 }
 

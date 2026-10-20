@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: "torbox | tmdb | tvdb | opensubtitles | cinemeta | mpvkit | all"
+        description: "torbox | tmdb | tvdb | opensubtitles | cinemeta | mpvkit | players | all"
         default: all
   push:
     paths: ['.github/workflows/api-probe.yml']
@@ -131,6 +131,19 @@ jobs:
           fetch mpv_license https://api.github.com/repos/mpvkit/MPVKit/license; jq -c '{license: .license.spdx_id, name: .license.name}' "$RUNNER_TEMP/probe/mpv_license"; end
           fetch mpv_readme https://raw.githubusercontent.com/mpvkit/MPVKit/main/README.md; head -c 5000 "$RUNNER_TEMP/probe/mpv_readme"; echo; end
           fetch mpv_tree "https://api.github.com/repos/mpvkit/MPVKit/git/trees/main?recursive=1"; jq -r '.tree[].path' "$RUNNER_TEMP/probe/mpv_tree" 2>/dev/null | grep -i -E 'demo|example|\.swift$' | head -40; end
+
+      - name: Alternative playback engines (licence and scope only)
+        if: env.SVC == 'players' || env.SVC == 'all'
+        run: |
+          . "$RUNNER_TEMP/probe/lib.sh"
+          for repo in superuser404notfound/AetherEngine kingslay/KSPlayer videolan/vlc-ios; do
+            n=$(echo "$repo" | tr '/' '_')
+            fetch "lic_$n" "https://api.github.com/repos/$repo/license"; jq -c '{license: .license.spdx_id, name: .license.name}' "$RUNNER_TEMP/probe/lic_$n" 2>/dev/null | head -c 300; echo; end
+            fetch "info_$n" "https://api.github.com/repos/$repo"; jq -c '{full_name, description, archived, pushed_at, stargazers_count, default_branch}' "$RUNNER_TEMP/probe/info_$n" 2>/dev/null | head -c 600; echo; end
+            fetch "readme_$n" "https://api.github.com/repos/$repo/readme" -H "Accept: application/vnd.github.raw"; head -c 5500 "$RUNNER_TEMP/probe/readme_$n"; echo; end
+          done
+          fetch ae_package https://raw.githubusercontent.com/superuser404notfound/AetherEngine/main/Package.swift; head -c 4000 "$RUNNER_TEMP/probe/ae_package"; echo; end
+          fetch ae_tree "https://api.github.com/repos/superuser404notfound/AetherEngine/git/trees/main?recursive=1"; jq -r '.tree[].path' "$RUNNER_TEMP/probe/ae_tree" 2>/dev/null | head -80; end
 
       - name: Keep the raw responses
         if: always()

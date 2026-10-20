@@ -14,17 +14,22 @@ enum Fixture {
         return "http://\(host):7777/manifest.json"
     }
 
+    /// Calls a control endpoint of the fixture server; retried because a busy CI machine occasionally drops the first request.
     @discardableResult
     static func control(_ path: String) -> Bool {
         guard let url = URL(string: base + path) else { return false }
-        let done = DispatchSemaphore(value: 0)
-        var ok = false
-        URLSession.shared.dataTask(with: url) { _, response, _ in
-            ok = (response as? HTTPURLResponse)?.statusCode == 200
-            done.signal()
-        }.resume()
-        _ = done.wait(timeout: .now() + 5)
-        return ok
+        for attempt in 0..<4 {
+            let done = DispatchSemaphore(value: 0)
+            var ok = false
+            URLSession.shared.dataTask(with: url) { _, response, _ in
+                ok = (response as? HTTPURLResponse)?.statusCode == 200
+                done.signal()
+            }.resume()
+            _ = done.wait(timeout: .now() + 8)
+            if ok { return true }
+            Thread.sleep(forTimeInterval: Double(attempt + 1) * 0.5)
+        }
+        return false
     }
 
     static func requestedPaths() -> [String] {

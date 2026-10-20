@@ -17,14 +17,17 @@ public struct StreamPreferences: Sendable, Equatable {
     /// Addon ids in user order: earlier addons are mildly preferred on ties.
     public var addonOrder: [String]
     public var streamingServer: URL?
+    /// Engines present in this build: decides whether MKV & co. count as playable.
+    public var capabilities: PlaybackCapabilities
 
     public init(qualityCap: VideoQualityCap = .auto, preferredLanguage: String? = nil, preferLanguage: Bool = true,
-                addonOrder: [String] = [], streamingServer: URL? = nil) {
+                addonOrder: [String] = [], streamingServer: URL? = nil, capabilities: PlaybackCapabilities = .avPlayerOnly) {
         self.qualityCap = qualityCap
         self.preferredLanguage = preferredLanguage
         self.preferLanguage = preferLanguage
         self.addonOrder = addonOrder
         self.streamingServer = streamingServer
+        self.capabilities = capabilities
     }
 }
 
@@ -34,7 +37,7 @@ public enum StreamSelector {
     public static func rank(_ streams: [AddonStream], preferences: StreamPreferences) -> [RankedStream] {
         var ranked: [RankedStream] = []
         for (position, stream) in streams.enumerated() {
-            let info = StreamAnalyzer.analyze(stream, streamingServer: preferences.streamingServer)
+            let info = StreamAnalyzer.analyze(stream, streamingServer: preferences.streamingServer, capabilities: preferences.capabilities)
             var score = 0
             switch info.support {
             case .supported: score += 10_000

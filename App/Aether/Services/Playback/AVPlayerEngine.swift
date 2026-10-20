@@ -21,8 +21,7 @@ final class PlayerLayerView: UIView {
 
 @MainActor
 final class AVPlayerEngine: NSObject, PlaybackEngine {
-    let identifier = "avplayer"
-    let displayName = "AVPlayer (Apple)"
+    let kind: PlaybackEngineKind = .avPlayer
 
     private(set) var snapshot = EngineSnapshot() {
         didSet { if snapshot != oldValue { onSnapshot?(snapshot) } }
@@ -31,6 +30,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     var onEnded: (() -> Void)?
     var onFailure: ((PlaybackFailure) -> Void)?
     var onTracksChanged: (() -> Void)?
+    private(set) var mediaInfo: MediaFormatInfo?
+    var onMediaInfo: ((MediaFormatInfo) -> Void)?
 
     private let view = PlayerLayerView()
     var videoView: UIView { view }
@@ -46,8 +47,12 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private var pendingStart: Double?
     private var autoplay = true
     private var desiredRate: Float = 1
+    private let bufferSeconds: Int
+    private var containerExtension: String?
 
-    override init() {
+    /// - Parameter bufferSeconds: forward buffer target; 0 lets AVFoundation decide.
+    init(bufferSeconds: Int = 0) {
+        self.bufferSeconds = bufferSeconds
         super.init()
         player.allowsExternalPlayback = true
         player.usesExternalPlaybackWhileExternalScreenIsActive = true
@@ -94,7 +99,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         }
         let asset = AVURLAsset(url: url, options: options)
         let newItem = AVPlayerItem(asset: asset)
-        newItem.preferredForwardBufferDuration = 0
+        newItem.preferredForwardBufferDuration = TimeInterval(bufferSeconds)
+        containerExtension = url.pathExtension.isEmpty ? nil : url.pathExtension.lowercased()
+        mediaInfo = nil
         newItem.canUseNetworkResourcesForLiveStreamingWhilePaused = false
         item = newItem
         snapshot = EngineSnapshot(rate: desiredRate)
@@ -251,6 +258,11 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         audioGroup = audio
         legibleGroup = legible
         onTracksChanged?()
+        let facts = await MediaProbe.facts(for: asset, container: containerExtension,
+                                           subtitleTrackCount: legible?.options.count ?? 0)
+        guard item?.asset === asset else { return }
+        mediaInfo = facts
+        onMediaInfo?(facts)
     }
 
     private func tracks(in group: AVMediaSelectionGroup?) -> [EngineTrack] {
@@ -332,6 +344,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         onEnded = nil
         onFailure = nil
         onTracksChanged = nil
+        onMediaInfo = nil
     }
 }
 

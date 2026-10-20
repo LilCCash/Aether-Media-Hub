@@ -38,6 +38,9 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var nextCountdown: Int?
     @Published private(set) var isResolvingNext = false
     @Published private(set) var alternatives: [RankedStream]
+    @Published private(set) var engine: PlaybackEngine
+    @Published private(set) var mediaInfo: MediaFormatInfo?
+    @Published private(set) var playbackPlan: PlaybackPlan?
     @Published private(set) var airPlayRoute: String?
     @Published private(set) var didFinish = false
     @Published var isFill = false
@@ -46,7 +49,8 @@ final class PlayerViewModel: ObservableObject {
     // MARK: Collaborators
     private let env: AppEnvironment
     private var request: PlayerRequest
-    let engine: PlaybackEngine
+    private let device: DeviceVideoCapabilities
+    private var engineSwitches = 0
     private let nowPlaying = NowPlayingService()
     private let audioSession = AudioSessionController()
 
@@ -76,7 +80,14 @@ final class PlayerViewModel: ObservableObject {
         self.meta = request.meta
         self.currentVideo = request.video
         self.alternatives = request.alternatives
-        self.engine = AVPlayerEngine()
+        let settings = env.settings.value.playback
+        let device = DeviceCapabilitiesReader.current()
+        self.device = device
+        let plan = PlaybackPlanner.plan(container: PlayerViewModel.container(of: request, env: env), facts: nil, device: device,
+                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: settings.engine,
+                                        forceSDR: settings.video.hdrMode == .sdr)
+        self.playbackPlan = plan
+        self.engine = PlaybackEngineFactory.make(plan.engine ?? .avPlayer, settings: settings, device: device)
         self.subtitleDelay = env.settings.value.playback.subtitleDelaySeconds
         switch request.source {
         case .stream(let stream):
@@ -91,11 +102,7 @@ final class PlayerViewModel: ObservableObject {
 
     func start() {
         guard !tornDown else { return }
-        engine.onSnapshot = { [weak self] snapshot in self?.handle(snapshot) }
-        engine.onEnded = { [weak self] in self?.handleEnded() }
-        engine.onFailure = { [weak self] failure in self?.handleFailure(failure) }
-        engine.onTracksChanged = { [weak self] in self?.refreshTracks() }
-        engine.setAutoPictureInPicture(playback.autoPictureInPicture)
+        bindEngine()
 
         audioSession.onInterruptionBegan = { [weak self] in
             guard let self = self else { return }
@@ -122,6 +129,32 @@ final class PlayerViewModel: ObservableObject {
         startCueTimer()
     }
 
+    /// Connects the current engine to this model. Called again whenever the engine is replaced.
+    private func bindEngine() {
+        engine.onSnapshot = { [weak self] snapshot in self?.handle(snapshot) }
+        engine.onEnded = { [weak self] in self?.handleEnded() }
+        engine.onFailure = { [weak self] failure in self?.handleFailure(failure) }
+        engine.onTracksChanged = { [weak self] in self?.refreshTracks() }
+        engine.onMediaInfo = { [weak self] info in self?.handleMediaInfo(info) }
+        engine.setAutoPictureInPicture(playback.autoPictureInPicture)
+        engine.setRate(playbackRate)
+        engine.setFillScreen(isFill)
+        engine.setEmbeddedSubtitleDelay(subtitleDelay)
+    }
+
+    /// The container of what is about to play, from the stream's own URL / hints or the downloaded file.
+    private static func container(of request: PlayerRequest, env: AppEnvironment) -> String? {
+        switch request.source {
+        case .stream(let stream):
+            return StreamAnalyzer.analyze(stream, streamingServer: env.streamPreferences().streamingServer).container
+        case .download(let item):
+            let ext = env.downloads.localURL(for: item)?.pathExtension.lowercased() ?? ""
+            return ext.isEmpty ? nil : ext
+        }
+    }
+
+    private var currentContainer: String? { PlayerViewModel.container(of: request, env: env) }
+
     func teardown() {
         guard !tornDown else { return }
         tornDown = true
@@ -146,6 +179,10 @@ final class PlayerViewModel: ObservableObject {
         failure = nil
         statusMessage = nil
         retriedAfterNetworkLoss = false
+        if let plan = playbackPlan, !plan.canPlay, let message = plan.blockingMessage {
+            handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: message))
+            return
+        }
         let url: URL
         var headers: [String: String] = [:]
         switch request.source {
@@ -271,9 +308,65 @@ final class PlayerViewModel: ObservableObject {
     }
 
     private func handleFailure(_ new: PlaybackFailure) {
+        if tryEngineFallback(after: new) { return }
         failure = new
         env.diagnostics.logDetached(.error, "player", "Errore di riproduzione (\(new.kind.rawValue)): \(new.detail)")
         engine.pause()
+    }
+
+    // MARK: Engine selection
+
+    private func canUse(_ kind: PlaybackEngineKind) -> Bool {
+        switch kind {
+        case .avPlayer: return true
+        case .mpv: return PlaybackEngineFactory.mpvAvailable
+        }
+    }
+
+    /// Facts measured by the engine arrive after loading: show them, and if they show that the other engine is the
+    /// right one for this file (for example an HEVC track tagged hev1, or Dolby Vision profile 7), switch once.
+    private func handleMediaInfo(_ info: MediaFormatInfo) {
+        mediaInfo = info
+        let plan = PlaybackPlanner.plan(container: info.container ?? currentContainer, facts: info, device: device,
+                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: playback.engine,
+                                        forceSDR: playback.video.hdrMode == .sdr)
+        playbackPlan = plan
+        guard playback.engine == .automatic, info.source == .avFoundation, engineSwitches == 0,
+              let wanted = plan.engine, wanted != engine.kind, canUse(wanted) else { return }
+        switchEngine(to: wanted, reason: plan.notes.first(where: { $0.severity != .warning })?.text ?? "Cambio motore di riproduzione…")
+    }
+
+    /// An engine that cannot open the file is replaced by the other one, once, resuming at the same position.
+    /// Network problems never trigger a switch.
+    private func tryEngineFallback(after failure: PlaybackFailure) -> Bool {
+        guard playback.engine == .automatic, engineSwitches < 2, !tornDown else { return false }
+        let target: PlaybackEngineKind = engine.kind == .avPlayer ? .mpv : .avPlayer
+        guard canUse(target) else { return false }
+        switch failure.kind {
+        case .formatUnsupported, .codecUnsupported:
+            break
+        case .unknown where engine.kind == .mpv && failure.detail.contains("uscita video"):
+            break
+        default:
+            return false
+        }
+        if target == .avPlayer && !PlaybackPlanner.isNativeToAVFoundation(container: currentContainer) { return false }
+        env.diagnostics.logDetached(.warning, "player", "Motore \(engine.kind.rawValue) non riesce ad aprire la sorgente (\(failure.kind.rawValue)): provo \(target.rawValue)")
+        switchEngine(to: target, reason: "Questo motore non riesce a riprodurre il file: provo \(target.displayName)…")
+        return true
+    }
+
+    private func switchEngine(to kind: PlaybackEngineKind, reason: String) {
+        guard !tornDown, kind != engine.kind else { return }
+        engineSwitches += 1
+        let position = max(snapshot.position, lastRetryPosition)
+        engine.teardown()
+        engine = PlaybackEngineFactory.make(kind, settings: playback, device: device)
+        mediaInfo = nil
+        failure = nil
+        bindEngine()
+        statusMessage = reason
+        Task { await beginPlayback(startOverride: position > 5 ? position : nil) }
     }
 
     // MARK: Transport commands
@@ -602,6 +695,7 @@ final class PlayerViewModel: ObservableObject {
 
     func adjustSubtitleDelay(by amount: Double) {
         subtitleDelay = min(60, max(-60, subtitleDelay + amount))
+        engine.setEmbeddedSubtitleDelay(subtitleDelay)
         updateCues()
     }
 
@@ -697,7 +791,8 @@ final class PlayerViewModel: ObservableObject {
 
     var currentStreamInfo: StreamInfo? {
         guard let stream = currentStream else { return nil }
-        return StreamAnalyzer.analyze(stream, streamingServer: env.streamPreferences().streamingServer)
+        return StreamAnalyzer.analyze(stream, streamingServer: env.streamPreferences().streamingServer,
+                                      capabilities: PlaybackEngineFactory.capabilities)
     }
 
     var addonSourceName: String? { currentStream?.addonName }
