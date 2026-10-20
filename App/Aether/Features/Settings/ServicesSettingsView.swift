@@ -10,7 +10,7 @@ struct ServicesSettingsView: View {
         Form {
             TorBoxServiceSections(debrid: env.debrid, credentials: env.credentials)
             // MARK: - Metadata services
-            // The TMDB and TheTVDB sections (MetadataServicesSections) are added below this line by the metadata work.
+            MetadataServicesSections()
         }
         .navigationTitle("Servizi")
         .task { await env.debrid.verifyIfNeeded() }
