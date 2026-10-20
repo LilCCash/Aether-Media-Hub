@@ -1,0 +1,138 @@
+name: API probe
+
+# Manual, read-only. Fetches the PUBLIC documentation / OpenAPI files / error responses of the services Aether integrates
+# (TorBox, TMDB, TheTVDB, the OpenSubtitles Stremio addon, Cinemeta, MPVKit) from a GitHub runner, whose network is not
+# restricted like the development sandbox, and prints the load-bearing parts to the log so the implementation can be
+# checked against primary sources. No credential is used: authenticated endpoints are only called with a deliberately
+# invalid key to observe the documented error shape.
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "torbox | tmdb | tvdb | opensubtitles | cinemeta | mpvkit | all"
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Helpers
+        run: |
+          mkdir -p "$RUNNER_TEMP/probe"
+          cat > "$RUNNER_TEMP/probe/lib.sh" <<'LIB'
+          fetch() { # fetch NAME URL [curl args...]
+            name="$1"; url="$2"; shift 2
+            code=$(curl -sS -L -m 40 -A "Aether-api-probe/1.0" -o "$RUNNER_TEMP/probe/$name" -w '%{http_code} %{content_type} %{size_download}B' "$@" "$url" 2>&1) || code="curl-error: $code"
+            echo "::group::$name  <-  $url"
+            echo "HTTP $code"
+          }
+          end() { echo "::endgroup::"; }
+          LIB
+
+      - name: TorBox
+        if: inputs.service == 'torbox' || inputs.service == 'all'
+        run: |
+          . "$RUNNER_TEMP/probe/lib.sh"
+          fetch health https://api.torbox.app/; head -c 600 "$RUNNER_TEMP/probe/health"; echo; end
+          for u in https://api.torbox.app/openapi.json https://api.torbox.app/docs https://api-docs.torbox.app/ ; do
+            fetch spec "$u"; head -c 300 "$RUNNER_TEMP/probe/spec"; echo; end
+          done
+          fetch openapi https://api.torbox.app/openapi.json
+          if jq -e .paths "$RUNNER_TEMP/probe/openapi" >/dev/null 2>&1; then
+            echo "-- version/info"; jq -c '.info' "$RUNNER_TEMP/probe/openapi"
+            echo "-- torrent + user paths"; jq -r '.paths | keys[]' "$RUNNER_TEMP/probe/openapi" | grep -E '/(torrents|user|queued|notifications)/' | head -60
+            for p in /v1/api/torrents/checkcached /v1/api/torrents/createtorrent /v1/api/torrents/mylist /v1/api/torrents/requestdl /v1/api/user/me /v1/api/torrents/controltorrent; do
+              echo "-- $p"; jq -c --arg p "$p" '.paths[$p] // "ABSENT" | with_entries(.value |= {summary, description: (.description // "" | .[0:700]), parameters: [.parameters[]? | {name, in, required, description: (.description // "" | .[0:160]), schema}], requestBody: (.requestBody // null | tostring | .[0:900]), responses: (.responses // {} | keys)})' "$RUNNER_TEMP/probe/openapi" | head -c 5000; echo
+            done
+            echo "-- rate-limit / limit mentions in the whole spec"; grep -o -i -E '.{80}(rate.?limit|requests per|per minute).{120}' "$RUNNER_TEMP/probe/openapi" | head -12
+          fi
+          end
+          fetch badtoken_me https://api.torbox.app/v1/api/user/me -H "Authorization: Bearer 00000000-0000-0000-0000-000000000000"; cat "$RUNNER_TEMP/probe/badtoken_me" | head -c 800; echo; end
+          fetch badtoken_cached "https://api.torbox.app/v1/api/torrents/checkcached?hash=0000000000000000000000000000000000000000&format=list" -H "Authorization: Bearer 00000000-0000-0000-0000-000000000000"; head -c 800 "$RUNNER_TEMP/probe/badtoken_cached"; echo; end
+          fetch badtoken_post "https://api.torbox.app/v1/api/torrents/checkcached?format=list&list_files=true" -X POST -H "Content-Type: application/json" -H "Authorization: Bearer 00000000-0000-0000-0000-000000000000" -d '{"hashes":["0000000000000000000000000000000000000000"]}'; head -c 800 "$RUNNER_TEMP/probe/badtoken_post"; echo; end
+          fetch noauth_mylist https://api.torbox.app/v1/api/torrents/mylist; head -c 600 "$RUNNER_TEMP/probe/noauth_mylist"; echo; end
+          fetch badtoken_requestdl "https://api.torbox.app/v1/api/torrents/requestdl?token=00000000-0000-0000-0000-000000000000&torrent_id=1&file_id=1"; head -c 600 "$RUNNER_TEMP/probe/badtoken_requestdl"; echo; end
+          echo "-- response headers of a rejected call (rate-limit headers?)"; curl -sS -m 30 -D - -o /dev/null -H "Authorization: Bearer 00000000-0000-0000-0000-000000000000" https://api.torbox.app/v1/api/user/me | head -25
+          fetch terms https://torbox.app/terms; sed -e 's/<[^>]*>/ /g' "$RUNNER_TEMP/probe/terms" | tr -s ' \n' | grep -o -i -E '.{200}(third.party|api key|automated|scrap|rate|abuse|resell|share).{300}' | head -14; end
+
+      - name: TMDB
+        if: inputs.service == 'tmdb' || inputs.service == 'all'
+        run: |
+          . "$RUNNER_TEMP/probe/lib.sh"
+          fetch tmdb_spec https://developer.themoviedb.org/openapi/tmdb-api.json
+          if jq -e .paths "$RUNNER_TEMP/probe/tmdb_spec" >/dev/null 2>&1; then
+            jq -c '.info, .servers' "$RUNNER_TEMP/probe/tmdb_spec"
+            jq -c '.components.securitySchemes' "$RUNNER_TEMP/probe/tmdb_spec"
+            for p in /3/configuration /3/find/{external_id} /3/movie/{movie_id} /3/tv/{series_id} /3/tv/{series_id}/season/{season_number} /3/search/multi; do
+              echo "-- $p"; jq -c --arg p "$p" '.paths[$p].get // "ABSENT" | {summary, parameters: [.parameters[]? | {name, in, required, schema: (.schema | {type, default, enum})}]}' "$RUNNER_TEMP/probe/tmdb_spec" | head -c 2500; echo
+            done
+          fi
+          end
+          fetch tmdb_badkey "https://api.themoviedb.org/3/configuration?api_key=invalid"; head -c 500 "$RUNNER_TEMP/probe/tmdb_badkey"; echo; end
+          fetch tmdb_terms https://www.themoviedb.org/api-terms-of-use; sed -e 's/<[^>]*>/ /g' "$RUNNER_TEMP/probe/tmdb_terms" | tr -s ' \n' | grep -o -i -E '.{250}(attribution|commercial|endorsed|cache|rate limit|50 requests).{350}' | head -12; end
+
+      - name: TheTVDB
+        if: inputs.service == 'tvdb' || inputs.service == 'all'
+        run: |
+          . "$RUNNER_TEMP/probe/lib.sh"
+          fetch tvdb_spec https://thetvdb.github.io/v4-api/swagger.yml
+          python3 - <<'PY'
+          import os, re
+          text = open(os.path.join(os.environ["RUNNER_TEMP"], "probe", "tvdb_spec"), encoding="utf-8", errors="replace").read()
+          print("size", len(text))
+          for path in ["/login", "/search/remoteid/{id}", "/series/{id}/extended", "/series/{id}/episodes/{season-type}", "/series/{id}/translations/{language}", "/episodes/{id}/translations/{language}"]:
+              i = text.find("\n  " + path + ":")
+              print("--", path, "FOUND" if i >= 0 else "ABSENT")
+              if i >= 0:
+                  print(text[i:i+900])
+          PY
+          end
+          fetch tvdb_badlogin https://api4.thetvdb.com/v4/login -X POST -H "Content-Type: application/json" -d '{"apikey":"invalid"}'; head -c 500 "$RUNNER_TEMP/probe/tvdb_badlogin"; echo; end
+          fetch tvdb_attr https://thetvdb.com/api-information; sed -e 's/<[^>]*>/ /g' "$RUNNER_TEMP/probe/tvdb_attr" | tr -s ' \n' | grep -o -i -E '.{200}(attribution|free|subscri|open source|commercial|user.supported).{300}' | head -12; end
+
+      - name: OpenSubtitles (Stremio addon)
+        if: inputs.service == 'opensubtitles' || inputs.service == 'all'
+        run: |
+          . "$RUNNER_TEMP/probe/lib.sh"
+          fetch os_manifest https://opensubtitles-v3.strem.io/manifest.json; head -c 1800 "$RUNNER_TEMP/probe/os_manifest"; echo; end
+          fetch os_movie https://opensubtitles-v3.strem.io/subtitles/movie/tt0111161.json; jq -c '{count: (.subtitles | length), first: .subtitles[0:3]}' "$RUNNER_TEMP/probe/os_movie" 2>/dev/null || head -c 600 "$RUNNER_TEMP/probe/os_movie"; echo
+          jq -r '[.subtitles[].lang] | group_by(.) | map({(.[0]): length}) | add' "$RUNNER_TEMP/probe/os_movie" 2>/dev/null | head -c 800; echo; end
+          fetch os_extra "https://opensubtitles-v3.strem.io/subtitles/movie/tt0111161/videoHash=8e245d9679d31e12&videoSize=12909756.json"; jq -c '{count: (.subtitles | length), first: .subtitles[0:2]}' "$RUNNER_TEMP/probe/os_extra" 2>/dev/null || head -c 500 "$RUNNER_TEMP/probe/os_extra"; echo; end
+          fetch os_episode "https://opensubtitles-v3.strem.io/subtitles/series/tt0944947:1:1.json"; jq -c '{count: (.subtitles | length), first: .subtitles[0:2]}' "$RUNNER_TEMP/probe/os_episode" 2>/dev/null || head -c 500 "$RUNNER_TEMP/probe/os_episode"; echo; end
+          url=$(jq -r '.subtitles[0].url' "$RUNNER_TEMP/probe/os_movie" 2>/dev/null)
+          if [ -n "$url" ] && [ "$url" != null ]; then fetch os_file "$url"; head -c 500 "$RUNNER_TEMP/probe/os_file"; echo; end; fi
+          fetch os_rest https://api.opensubtitles.com/api/v1/infos/languages -H "Api-Key: invalid"; head -c 400 "$RUNNER_TEMP/probe/os_rest"; echo; end
+
+      - name: Cinemeta (catalog extras)
+        if: inputs.service == 'cinemeta' || inputs.service == 'all'
+        run: |
+          . "$RUNNER_TEMP/probe/lib.sh"
+          fetch cm https://v3-cinemeta.strem.io/manifest.json
+          jq -c '{version, resources, types, idPrefixes, catalogs: [.catalogs[] | {type, id, name, extra: [.extra[]? | {name, isRequired, optionsCount: (.options | length), options: (.options[0:6])}], extraSupported, extraRequired}]}' "$RUNNER_TEMP/probe/cm" | head -c 4000; echo; end
+          fetch cm_meta https://v3-cinemeta.strem.io/meta/series/tt0944947.json; jq -c '.meta | {id, name, imdb_id, moviedb_id, tvdb_id, year, releaseInfo, runtime, genres: .genres[0:3], logo, background, videos: (.videos | length), video0: .videos[0] }' "$RUNNER_TEMP/probe/cm_meta" | head -c 1500; echo; end
+          fetch cm_search "https://v3-cinemeta.strem.io/catalog/movie/top/search=matrix.json"; jq -c '[.metas[0:3][] | {id, name, year, releaseInfo, genres}]' "$RUNNER_TEMP/probe/cm_search" | head -c 900; echo; end
+          fetch cm_genre "https://v3-cinemeta.strem.io/catalog/movie/top/genre=Action.json"; jq -c '{count: (.metas | length), first: .metas[0] | {name, genres, releaseInfo}}' "$RUNNER_TEMP/probe/cm_genre" | head -c 600; echo; end
+
+      - name: MPVKit
+        if: inputs.service == 'mpvkit' || inputs.service == 'all'
+        run: |
+          . "$RUNNER_TEMP/probe/lib.sh"
+          fetch mpv_releases "https://api.github.com/repos/mpvkit/MPVKit/releases?per_page=6"
+          jq -r '.[] | "\(.tag_name)  \(.published_at)  prerelease=\(.prerelease)  assets=\(.assets | length)"' "$RUNNER_TEMP/probe/mpv_releases" 2>/dev/null | head; end
+          fetch mpv_package https://raw.githubusercontent.com/mpvkit/MPVKit/main/Package.swift; head -c 6000 "$RUNNER_TEMP/probe/mpv_package"; echo; end
+          fetch mpv_license https://api.github.com/repos/mpvkit/MPVKit/license; jq -c '{license: .license.spdx_id, name: .license.name}' "$RUNNER_TEMP/probe/mpv_license"; end
+          fetch mpv_readme https://raw.githubusercontent.com/mpvkit/MPVKit/main/README.md; head -c 5000 "$RUNNER_TEMP/probe/mpv_readme"; echo; end
+          fetch mpv_tree "https://api.github.com/repos/mpvkit/MPVKit/git/trees/main?recursive=1"; jq -r '.tree[].path' "$RUNNER_TEMP/probe/mpv_tree" 2>/dev/null | grep -i -E 'demo|example|\.swift$' | head -40; end
+
+      - name: Keep the raw responses
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-probe-responses
+          path: ${{ runner.temp }}/probe
+          retention-days: 7
+          if-no-files-found: ignore
