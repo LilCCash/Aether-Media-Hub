@@ -16,7 +16,7 @@
 //   /subtitles/{type}/{id}.json          Italian SRT and English VTT
 //   /media/sample.mp4                    the sample video, with HTTP Range support
 //   /subs/it.srt, /subs/en.vtt           subtitle files
-//   /poster/{n}.png                      generated posters
+//   /poster/{n}.png, /backdrop/{n}.png, /logo/{n}.png   generated portrait posters, 16:9 backdrops, wide RGBA logos
 //   /__control/offline?on=1|0            make every addon endpoint answer 503 (tests the "addon offline" path)
 //   /__control/media?on=0|1              make /media/* answer 503 (tests offline playback of a downloaded file)
 //   /__control/requests                  JSON array of the paths requested so far (for assertions)
@@ -56,6 +56,7 @@ const episodes = [
 function metaPreview(item, type, index) {
   return {
     id: item.id, type, name: item.name, poster: `${BASE}/poster/${index}.png`,
+    background: `${BASE}/backdrop/${index}.png`, logo: `${BASE}/logo/${index}.png`,
     releaseInfo: String(item.year), imdbRating: item.rating, genres: item.genres,
   };
 }
@@ -63,7 +64,6 @@ function metaPreview(item, type, index) {
 function metaFull(item, type, index) {
   const meta = {
     ...metaPreview(item, type, index),
-    background: `${BASE}/poster/${index}.png`,
     description: `${item.name} is a controlled fixture title used by Aether's automated tests.`,
     runtime: item.runtime, cast: ['Test Actor One', 'Test Actor Two'], director: ['Test Director'],
   };
@@ -138,6 +138,49 @@ function chunk(type, data) {
   const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
   return Buffer.concat([length, body, crc]);
 }
+// Wide backdrops (16:9) are what real catalogs return in `background`; they overflow a narrow container when
+// an image is laid out with "fill", which is exactly the layout bug the UI tests guard against.
+function backdrop(n) {
+  const w = 640, h = 360;
+  const raw = Buffer.alloc((w * 3 + 1) * h);
+  const hue = (n * 41) % 360;
+  for (let y = 0; y < h; y++) {
+    raw[y * (w * 3 + 1)] = 0;
+    for (let x = 0; x < w; x++) {
+      const o = y * (w * 3 + 1) + 1 + x * 3;
+      raw[o] = Math.round(30 + 100 * Math.abs(Math.sin((hue / 360 + x / w) * Math.PI)));
+      raw[o + 1] = Math.round(40 + 80 * (y / h));
+      raw[o + 2] = Math.round(70 + 120 * Math.abs(Math.cos((hue / 180 + y / h) * Math.PI)));
+    }
+  }
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(w, 0); header.writeUInt32BE(h, 4); header[8] = 8; header[9] = 2;
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+// Wide transparent title logo (RGBA), like the `logo` Cinemeta returns.
+function logo() {
+  const w = 480, h = 120;
+  const raw = Buffer.alloc((w * 4 + 1) * h);
+  for (let y = 0; y < h; y++) {
+    raw[y * (w * 4 + 1)] = 0;
+    for (let x = 0; x < w; x++) {
+      const o = y * (w * 4 + 1) + 1 + x * 4;
+      const inside = y > 30 && y < 90 && x > 20 && x < w - 20;
+      raw[o] = 255; raw[o + 1] = 255; raw[o + 2] = 255; raw[o + 3] = inside ? 230 : 0;
+    }
+  }
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(w, 0); header.writeUInt32BE(h, 4); header[8] = 8; header[9] = 6;
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
 function poster(n) {
   const w = 120, h = 180;
   const raw = Buffer.alloc((w * 3 + 1) * h);
@@ -204,6 +247,8 @@ const server = http.createServer((req, res) => {
   if (p === '/__control/reset') { requests.length = 0; offline = false; mediaOffline = false; return send(res, 200, { ok: true }); }
 
   if (p.startsWith('/poster/')) return send(res, 200, poster(parseInt(p.split('/')[2], 10) || 0), 'image/png');
+  if (p.startsWith('/backdrop/')) return send(res, 200, backdrop(parseInt(p.split('/')[2], 10) || 0), 'image/png');
+  if (p.startsWith('/logo/')) return send(res, 200, logo(), 'image/png');
   if (p === '/subs/it.srt') return send(res, 200, SRT, 'application/x-subrip');
   if (p === '/subs/en.vtt') return send(res, 200, VTT, 'text/vtt');
   if (p.startsWith('/media/') && mediaOffline) { res.writeHead(503); return res.end('media offline'); }

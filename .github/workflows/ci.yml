@@ -10,6 +10,10 @@ on:
   pull_request:
     paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE']
   workflow_dispatch:
+    inputs:
+      ui_tests:
+        description: "UI tests to run, as an -only-testing target (for example AetherUITests/LayoutUITests)"
+        default: AetherUITests
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -115,6 +119,8 @@ jobs:
       - name: UI tests
         id: ui
         if: steps.fixture.outcome == 'success'
+        env:
+          UI_TESTS: ${{ inputs.ui_tests }}
         run: |
           set -o pipefail
           TEST_RUNNER_AETHER_FIXTURE_LAN_HOST="${{ steps.fixture.outputs.lan_ip }}" \
@@ -122,7 +128,7 @@ jobs:
             -project Aether.xcodeproj -scheme Aether \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            -only-testing:AetherUITests \
+            -only-testing:"${UI_TESTS:-AetherUITests}" \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" 2>&1 | tee "$RUNNER_TEMP/ui.log"
 
       - name: Upload result bundles
