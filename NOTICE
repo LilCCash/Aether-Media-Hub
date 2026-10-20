@@ -13,6 +13,18 @@ Google Cast SDK for iOS (https://github.com/googlecast/google-cast-ios-sdk, vers
   (https://developers.google.com/cast/docs/terms).
   It pulls in google/gtm-session-fetcher (Apache License 2.0).
 
+MPVKit (https://github.com/mpvkit/MPVKit, version 1.0.0, product "MPVKit" = the LGPL variant)
+  Licensed under the GNU Lesser General Public License v3.0. It bundles libmpv (mpv 0.41, LGPL-2.1+ as built there)
+  and FFmpeg (built without --enable-gpl), together with libass, FreeType, FriBidi, HarfBuzz, libplacebo, shaderc,
+  MoltenVK (Apache-2.0), lcms2, libdovi, libunibreak, dav1d, uavs3d, GnuTLS, Nettle/GMP, OpenSSL (Apache-2.0),
+  uchardet and libbluray, each under its own license. The libraries are linked statically; Aether's complete source
+  is public, so the app can be rebuilt against a modified MPVKit (change the package reference in project.yml).
+  Nothing from the GPL variant "MPVKit-GPL" is used.
+
+TMDB (https://www.themoviedb.org) - metadata is fetched with the user's own API key.
+  This product uses the TMDB API but is not endorsed or certified by TMDB.
+TheTVDB (https://thetvdb.com) - episode data is fetched with the user's own API key.
+
 Apple system frameworks (SwiftUI, AVFoundation, AVKit, Network, MediaPlayer, Security, CryptoKit)
   Used under the terms of the Apple SDK / Apple Developer Program License Agreement.
 

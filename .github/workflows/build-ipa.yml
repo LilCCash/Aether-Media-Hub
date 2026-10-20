@@ -120,6 +120,15 @@ jobs:
           # A device build must not contain the simulator slice.
           vtool -show-build "$APP/Aether" | grep -q "platform IOS$" && check ok "built for the iOS device platform" || check bad "binary is not a device (IOS) build"
 
+          # The label shown in Settings > Informazioni comes from the same configuration file.
+          WANT_LABEL=$(sed -nE 's/^AETHER_RELEASE_LABEL[[:space:]]*=[[:space:]]*//p' Config/Shared.xcconfig | head -1)
+          LABEL=$(/usr/libexec/PlistBuddy -c 'Print :AetherReleaseLabel' "$INFO" 2>/dev/null || true)
+          [ "$LABEL" = "$WANT_LABEL" ] && check ok "release label \"$WANT_LABEL\"" || check bad "release label is \"$LABEL\", expected \"$WANT_LABEL\""
+
+          # MPVKit (libmpv + FFmpeg) is linked statically; its presence shows as FFmpeg's version string. Information only.
+          if strings -a "$APP/Aether" | grep -q "Lavc"; then echo "  info  FFmpeg (libavcodec) is linked into the executable"; else echo "  info  no libavcodec version string found in the executable"; fi
+          echo "  info  executable size $(du -h "$APP/Aether" | cut -f1), package $(du -h Aether-unsigned.ipa | cut -f1)"
+
           [ -d "$APP/Frameworks/GoogleCast.framework" ] && check ok "Google Cast framework embedded" || check bad "GoogleCast.framework is missing from Frameworks/"
           [ -f "$APP/Assets.car" ] && check ok "asset catalog compiled" || check bad "Assets.car is missing"
           if xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep -q '"Name" : "AppIcon"' \
