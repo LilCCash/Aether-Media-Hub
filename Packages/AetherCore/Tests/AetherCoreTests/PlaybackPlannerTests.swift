@@ -59,7 +59,7 @@ final class PlaybackPlannerTests: XCTestCase {
 
     func testForcedMPVNeedsTheEngineToBePresent() {
         XCTAssertEqual(plan(choice: .mpv).engine, .mpv)
-        let missing = plan(choice: .mpv, mpv: false)
+        let missing = plan(mpv: false, choice: .mpv)
         XCTAssertNil(missing.engine)
         XCTAssertNotNil(missing.blockingMessage)
     }
