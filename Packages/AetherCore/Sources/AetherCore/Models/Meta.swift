@@ -272,9 +272,11 @@ public struct MetaItem: Codable, Hashable, Identifiable, Sendable {
                 DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "meta id"))
         }
         let declaredIMDb = container.flexString(.imdb_id).flatMap { ExternalIDs.imdbID(fromMetaID: $0) }
-        self.externalIDs = ExternalIDs(imdb: ExternalIDs.imdbID(fromMetaID: id) ?? declaredIMDb,
-                                       tmdb: container.flexInt(.moviedb_id) ?? container.flexInt(.tmdb_id),
-                                       tvdb: container.flexInt(.tvdb_id))
+        let declared = ExternalIDs(imdb: declaredIMDb,
+                                   tmdb: container.flexInt(.moviedb_id) ?? container.flexInt(.tmdb_id),
+                                   tvdb: container.flexInt(.tvdb_id))
+        // The id itself wins over what the body declares (an addon's `imdb_id` must not contradict its own `tt…` id).
+        self.externalIDs = ExternalIDs.fromMetaID(id).filling(from: declared)
         guard let name = container.flexString(.name) ?? container.flexString(.title) else {
             throw DecodingError.keyNotFound(CodingKeys.name,
                 DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "meta name"))

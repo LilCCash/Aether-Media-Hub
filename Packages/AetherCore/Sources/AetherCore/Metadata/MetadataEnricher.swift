@@ -60,8 +60,7 @@ public actor MetadataEnricher {
     /// - Returns: nil when there is nothing to add (no key, unsupported type, unknown title, failure).
     public func enrich(_ meta: MetaItem, language: String) async -> MetadataEnrichment? {
         guard let kind = MetadataEnricher.kind(forType: meta.type) else { return nil }
-        var ids = meta.externalIDs
-        if ids.imdb == nil { ids.imdb = ExternalIDs.imdbID(fromMetaID: meta.id) }
+        let ids = ExternalIDs.fromMetaID(meta.id).filling(from: meta.externalIDs)
         if ids.isEmpty { return nil }
 
         let useTMDB = tmdb?.isConfigured == true && !isPaused(.tmdb)

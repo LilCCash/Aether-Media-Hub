@@ -626,6 +626,27 @@ final class MetadataTests: XCTestCase {
         XCTAssertNil(ExternalIDs.imdbID(fromMetaID: "tt12ab"))
     }
 
+    func testOtherCatalogIDsCarryTheirOwnExternalIDs() {
+        XCTAssertEqual(ExternalIDs.fromMetaID("tt0944947:1:2"), ExternalIDs(imdb: "tt0944947", tmdb: nil, tvdb: nil))
+        XCTAssertEqual(ExternalIDs.fromMetaID("tmdb:603"), ExternalIDs(imdb: nil, tmdb: 603, tvdb: nil))
+        XCTAssertEqual(ExternalIDs.fromMetaID("tvdb:121361:1:2"), ExternalIDs(imdb: nil, tmdb: nil, tvdb: 121361))
+        XCTAssertTrue(ExternalIDs.fromMetaID("kitsu:7442").isEmpty)
+        XCTAssertTrue(ExternalIDs.fromMetaID("tmdb:abc").isEmpty)
+        XCTAssertTrue(ExternalIDs.fromMetaID("tmdb:0").isEmpty)
+        XCTAssertTrue(ExternalIDs.fromMetaID("").isEmpty)
+    }
+
+    func testATMDBIDInTheStremioIDIsEnoughToEnrich() async throws {
+        let http = MetaStubHTTP()
+        http.on("GET", "/configuration", .init(body: MetaFixtures.configuration))
+        http.on("GET", "/movie/603", .init(body: MetaFixtures.movie))
+        let meta = MetaItem(id: "tmdb:603", type: "movie", name: "The Matrix")
+        let result = await MetadataEnricher(tmdb: MetaFixtures.tmdbClient(http), tvdb: nil).enrich(meta, language: "it-IT")
+        let enrichment = try XCTUnwrap(result)
+        XCTAssertEqual(enrichment.overview, "Trama in italiano")
+        XCTAssertEqual(http.requests.filter { $0.url.path.contains("/find/") }.count, 0, "no lookup is needed when the id is known")
+    }
+
     func testLogoChoicePrefersTheUsersLanguageThenEnglishAndSkipsVectors() throws {
         func logo(_ path: String, _ language: String?, _ vote: Double) throws -> TMDBLogo {
             let lang = language.map { "\"\($0)\"" } ?? "null"
