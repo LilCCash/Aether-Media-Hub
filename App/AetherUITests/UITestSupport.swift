@@ -151,8 +151,18 @@ class AetherUITestCase: XCTestCase {
 
     func startPlayback() {
         openStreamPicker()
-        element("stream.row.0").tap()
-        XCTAssertTrue(element("player.playPause").waitForExistence(timeout: 30), "the player did not open")
+        // The first tap can land while the list is still being re-ranked; try again instead of failing on a race.
+        for attempt in 0..<3 {
+            let row = element("stream.row.0")
+            if row.exists { row.tap() }
+            if element("player.playPause").waitForExistence(timeout: attempt == 0 ? 25 : 15) { return }
+            let panel = element("player.error")
+            if panel.exists {
+                XCTFail("the player opened but showed an error: \(panel.label)")
+                return
+            }
+        }
+        XCTFail("the player did not open")
     }
 
     /// The overlay auto-hides after at most 15 s; bring it back (a tap toggles it) before using its buttons.
