@@ -148,3 +148,6 @@ jobs:
           grep -h "A11Y-ISSUE" "$RUNNER_TEMP/ui.log" | sort -u | head -30 || true
           echo "=== fixture server ==="
           tail -5 "$RUNNER_TEMP/fixture.log" || true
+          echo "=== TOTALS ==="
+          echo "unit: $(grep -E 'Executed [0-9]+ tests?' "$RUNNER_TEMP/unit.log" | tail -1 | sed -E 's/^[[:space:]]*//')"
+          echo "ui:   $(grep -E 'Executed [0-9]+ tests?' "$RUNNER_TEMP/ui.log" | tail -1 | sed -E 's/^[[:space:]]*//')"

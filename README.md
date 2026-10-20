@@ -44,7 +44,7 @@ xcodebuild test -project Aether.xcodeproj -scheme Aether \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:AetherTests CODE_SIGNING_ALLOWED=NO
 ```
 
-Solo il nucleo (anche su Linux):
+Solo il nucleo (testato su macOS in CI; non l'ho provato su Linux):
 
 ```bash
 cd Packages/AetherCore && swift test
@@ -62,7 +62,10 @@ Aether **non contiene** credenziali. Per installarlo sul tuo iPhone serve un acc
 2. `xcodegen generate`, apri il progetto, collega l'iPhone, scegli **Run**. Xcode gestisce certificato e profilo con la firma automatica.
 3. Alla prima apertura iOS chiede il permesso «Rete locale» (serve a Google Cast, DLNA e agli addon nella tua LAN).
 
-**Non è fornito nessun IPA.** Un IPA installabile richiede un certificato e un profilo di provisioning del tuo account: non vengono mai chiesti password Apple e non è possibile produrlo in modo verificabile senza di essi. Per distribuire fuori dall'App Store servono un account a pagamento (Ad Hoc / Enterprise) o TestFlight; la riga `xcodebuild archive` + `-exportArchive` con il tuo `ExportOptions.plist` produce l'IPA firmato sulla tua macchina.
+**Non è fornito nessun IPA.** Un IPA installabile richiede un certificato e un profilo di provisioning del tuo account: non vengono mai chiesti password Apple e non è possibile produrlo in modo verificabile senza di essi. Per distribuire fuori dall'App Store servono un account a pagamento (Ad Hoc / Enterprise) o TestFlight. Due strade, **entrambe non verificate** perché richiedono le tue credenziali:
+
+* in locale: `Scripts/archive.sh` (usa `Config/Signing.local.xcconfig` e `Config/ExportOptions.plist`, derivato da `Config/ExportOptions.plist.example`);
+* in GitHub Actions: il workflow manuale `.github/workflows/release-ipa.yml` (secret `APPLE_TEAM_ID`, `APP_BUNDLE_ID`, `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `PROVISIONING_PROFILE_BASE64`). Non chiede mai password Apple, verifica la firma dell'IPA prima di caricarlo come artefatto e si ferma con un errore chiaro se manca un secret.
 
 ### iOS 27 e SDK
 
@@ -122,7 +125,15 @@ Solo `http`/`https`; niente credenziali negli URL; blocco di loopback/reti priva
 
 ## Test
 
-Vedi [`docs/04-TESTING.md`](docs/04-TESTING.md) per l'elenco dei 20 scenari richiesti, le fixture e l'esito reale di ogni esecuzione.
+Ultima esecuzione completa in CI (macOS, Xcode 26.6, simulatore iPhone, iOS SDK 26.5) sul commit unito in `main`:
+
+| Suite | Test | Falliti |
+|---|---|---|
+| AetherCore (`swift test`) | 172 | 0 |
+| Unit dell'app | 42 | 0 |
+| UI contro addon di fixture (riproduzione reale di un MP4 H.264 nel simulatore) | 30 | 0 |
+
+[`docs/04-TESTING.md`](docs/04-TESTING.md) mappa ciascuno dei 20 scenari richiesti sul test che lo verifica e dice quali **non** sono stati eseguiti su hardware reale (AirPlay, Google Cast su Chromecast/Android TV, VoiceOver su dispositivo, DLNA su televisori, rete mobile).
 
 ## Contribuire / licenza
 
