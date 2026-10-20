@@ -1,0 +1,256 @@
+name: Build IPA
+
+# Composes Aether.ipa on a GitHub macOS runner.
+#
+#   unsigned  (default, no credentials needed)
+#       Builds a Release archive for real iPhones (arm64) with code signing disabled and packs it as
+#       Aether-unsigned.ipa. iOS refuses to install an unsigned IPA as it is: it has to be re-signed first, for example
+#       with your own Apple ID through AltStore / Sideloadly, or with a certificate of your own. The job checks the
+#       package it produced (bundle id, arm64 binary, embedded Google Cast framework, icon, no leftover signature).
+#
+#   signed    (only when you tick "sign" in the manual run; NOT VERIFIED, it has never run: it needs your credentials)
+#       Signs with your Apple certificate and provisioning profile and exports a ready-to-install IPA. It never asks
+#       for an Apple ID password. Repository secrets (Settings > Secrets and variables > Actions):
+#         APPLE_TEAM_ID                 10-character team id
+#         APP_BUNDLE_ID                 bundle id registered in your profile, e.g. com.yourname.aether
+#         BUILD_CERTIFICATE_BASE64      base64 of the exported .p12 (Apple Development / Distribution)
+#         P12_PASSWORD                  password chosen when exporting the .p12
+#         PROVISIONING_PROFILE_BASE64   base64 of the .mobileprovision for APP_BUNDLE_ID
+#
+# Triggers: manual run (Actions > Build IPA > Run workflow), a pushed tag "v*" (the unsigned IPA is also attached to a
+# GitHub release), and any change to this file (so the workflow is exercised whenever it is edited).
+on:
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: Also build a signed IPA with your own certificate (needs the secrets listed in the header)
+        type: boolean
+        default: false
+      export_method:
+        description: "Signed build only: development | ad-hoc | app-store-connect (must match the certificate and profile)"
+        type: choice
+        options: [development, ad-hoc, app-store-connect]
+        default: development
+  push:
+    tags: ['v*']
+    branches: ['**']
+    paths: ['.github/workflows/build-ipa.yml']
+
+concurrency:
+  group: build-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unsigned:
+    name: Unsigned IPA
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write   # attach the IPA to a GitHub release when a v* tag is pushed
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain info
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Install XcodeGen and generate the project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Archive for iPhone without signing
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Aether.xcodeproj -scheme Aether \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Aether.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" 2>&1 | tee "$RUNNER_TEMP/archive.log" | tail -25
+
+      - name: Pack Aether-unsigned.ipa
+        run: |
+          APP="$RUNNER_TEMP/Aether.xcarchive/Products/Applications/Aether.app"
+          test -d "$APP" || { echo "::error::The archive contains no Aether.app"; exit 1; }
+          rm -rf "$RUNNER_TEMP/ipa-staging" && mkdir -p "$RUNNER_TEMP/ipa-staging/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa-staging/Payload/Aether.app"
+          (cd "$RUNNER_TEMP/ipa-staging" && zip -qry "$GITHUB_WORKSPACE/Aether-unsigned.ipa" Payload)
+          ls -lh Aether-unsigned.ipa
+
+      - name: Verify the package
+        run: |
+          set -e
+          rm -rf "$RUNNER_TEMP/check" && mkdir "$RUNNER_TEMP/check"
+          unzip -q Aether-unsigned.ipa -d "$RUNNER_TEMP/check"
+          APP="$RUNNER_TEMP/check/Payload/Aether.app"
+          INFO="$APP/Info.plist"
+          fail=0
+          check() { if [ "$1" = ok ]; then echo "  ok   $2"; else echo "::error::$2"; fail=1; fi; }
+
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
+          BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO")
+          MINOS=$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$INFO")
+          echo "bundle id $BUNDLE_ID, version $VERSION ($BUILD), minimum iOS $MINOS"
+
+          [ "$BUNDLE_ID" = "app.aether.mediahub" ] && check ok "bundle identifier" || check bad "unexpected bundle identifier: $BUNDLE_ID"
+          [ "$MINOS" = "17.0" ] && check ok "deployment target 17.0" || check bad "unexpected minimum iOS: $MINOS"
+          [ "$BUILD" = "${{ github.run_number }}" ] && check ok "build number = run number" || check bad "unexpected build number: $BUILD"
+
+          ARCHS=$(lipo -archs "$APP/Aether")
+          [ "$ARCHS" = "arm64" ] && check ok "executable is arm64 only" || check bad "unexpected architectures: $ARCHS"
+          # A device build must not contain the simulator slice.
+          vtool -show-build "$APP/Aether" | grep -q "platform IOS$" && check ok "built for the iOS device platform" || check bad "binary is not a device (IOS) build"
+
+          [ -d "$APP/Frameworks/GoogleCast.framework" ] && check ok "Google Cast framework embedded" || check bad "GoogleCast.framework is missing from Frameworks/"
+          [ -f "$APP/Assets.car" ] && check ok "asset catalog (icon, colours) compiled" || check bad "Assets.car is missing"
+          [ -f "$APP/PrivacyInfo.xcprivacy" ] && check ok "privacy manifest present" || check bad "PrivacyInfo.xcprivacy is missing"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes' "$INFO" | grep -q "aether" && check ok "URL schemes registered" || check bad "URL schemes missing"
+          /usr/libexec/PlistBuddy -c 'Print :NSLocalNetworkUsageDescription' "$INFO" >/dev/null 2>&1 && check ok "local network usage description" || check bad "NSLocalNetworkUsageDescription missing"
+
+          if codesign -dv "$APP" 2>&1 | grep -q "not signed at all"; then
+            check ok "unsigned, as intended (re-sign before installing)"
+          else
+            echo "note: the bundle carries a signature"; codesign -dv "$APP" 2>&1 | head -5
+          fi
+          exit $fail
+
+      - name: Upload the IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aether-unsigned-ipa
+          path: Aether-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach the IPA to a GitHub release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          NOTES="Unsigned IPA built by GitHub Actions from this tag. iOS will not install it as it is: re-sign it with your own Apple ID (AltStore, Sideloadly) or certificate. Build number ${{ github.run_number }}."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" Aether-unsigned.ipa --clobber
+          else
+            gh release create "$TAG" Aether-unsigned.ipa --title "Aether $TAG (unsigned IPA)" --notes "$NOTES" --prerelease
+          fi
+
+  signed:
+    name: Signed IPA (your credentials)
+    if: github.event_name == 'workflow_dispatch' && inputs.sign
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APP_BUNDLE_ID: ${{ secrets.APP_BUNDLE_ID }}
+      BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+      P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+      PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the signing secrets exist
+        run: |
+          missing=0
+          for name in APPLE_TEAM_ID APP_BUNDLE_ID BUILD_CERTIFICATE_BASE64 P12_PASSWORD PROVISIONING_PROFILE_BASE64; do
+            if [ -z "${!name}" ]; then echo "::error::Missing repository secret $name"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Import the certificate and the provisioning profile
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/aether-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychain -d user -s "$KEYCHAIN" login.keychain-db
+          PROFILE_PLIST="$RUNNER_TEMP/profile.plist"
+          security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" > "$PROFILE_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$PROFILE_PLIST")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' "$PROFILE_PLIST")
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          SIGNING_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | head -1 | sed -E 's/.*"(.+)"/\1/')
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo "Signing identity: $SIGNING_IDENTITY / profile: $PROFILE_NAME"
+
+      - name: Generate the project with your team and bundle id
+        run: |
+          printf 'DEVELOPMENT_TEAM = %s\nAPP_BUNDLE_ID = %s\n' "$APPLE_TEAM_ID" "$APP_BUNDLE_ID" > Config/Signing.local.xcconfig
+          xcodegen generate
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Aether.xcodeproj -scheme Aether \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Aether.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" 2>&1 | tee "$RUNNER_TEMP/archive.log" | tail -40
+
+      - name: Export the IPA
+        env:
+          EXPORT_METHOD: ${{ inputs.export_method }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>$EXPORT_METHOD</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key><dict><key>$APP_BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Aether.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/ipa"
+          ls -lh "$RUNNER_TEMP/ipa"
+
+      - name: Verify what was produced
+        run: |
+          IPA=$(ls "$RUNNER_TEMP"/ipa/*.ipa | head -1)
+          test -f "$IPA" || { echo "::error::No IPA was produced"; exit 1; }
+          rm -rf "$RUNNER_TEMP/unpacked" && mkdir "$RUNNER_TEMP/unpacked"
+          unzip -q "$IPA" -d "$RUNNER_TEMP/unpacked"
+          APP="$RUNNER_TEMP/unpacked/Payload/Aether.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv --verbose=2 "$APP" 2>&1 | grep -E "Identifier|TeamIdentifier|Authority" || true
+          test -f "$APP/embedded.mobileprovision" || { echo "::error::The IPA has no provisioning profile"; exit 1; }
+          echo "IPA verified: signature valid and profile embedded."
+
+      - name: Upload the signed IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aether-signed-ipa
+          path: ${{ runner.temp }}/ipa/*.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove the signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/aether-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision
