@@ -159,13 +159,90 @@ public enum VideoQualityCap: String, Codable, CaseIterable, Sendable {
 }
 
 public enum PlayerEngineChoice: String, Codable, CaseIterable, Sendable {
-    case automatic, avPlayer
+    case automatic, avPlayer, mpv
 
     public var title: String {
         switch self {
-        case .automatic: return "Automatico"
+        case .automatic: return "Automatico (consigliato)"
         case .avPlayer: return "AVPlayer (Apple)"
+        case .mpv: return "MPV (libmpv)"
         }
+    }
+}
+
+/// How HDR sources are sent to the screen by the MPV engine. AVPlayer follows the system and has no such switch.
+public enum HDROutputMode: String, Codable, CaseIterable, Sendable {
+    case auto, sdr
+
+    public var title: String {
+        switch self {
+        case .auto: return "Automatico (HDR se lo schermo lo mostra)"
+        case .sdr: return "Sempre SDR (tone mapping)"
+        }
+    }
+}
+
+/// Tone-mapping curves of mpv/libplacebo used when HDR has to be reduced (names are mpv's `--tone-mapping` values).
+public enum ToneMappingChoice: String, Codable, CaseIterable, Sendable {
+    case auto, bt2390, spline, mobius, reinhard, hable
+
+    public var title: String {
+        switch self {
+        case .auto: return "Automatico"
+        case .bt2390: return "BT.2390"
+        case .spline: return "Spline"
+        case .mobius: return "Mobius"
+        case .reinhard: return "Reinhard"
+        case .hable: return "Hable"
+        }
+    }
+
+    public var mpvValue: String {
+        switch self {
+        case .auto: return "auto"
+        case .bt2390: return "bt.2390"
+        case .spline: return "spline"
+        case .mobius: return "mobius"
+        case .reinhard: return "reinhard"
+        case .hable: return "hable"
+        }
+    }
+}
+
+/// Video output options. Items marked "MPV" only act on the MPV engine; the buffer applies to both engines.
+public struct VideoOutputSettings: Codable, Equatable, Sendable {
+    public var hdrMode: HDROutputMode = .auto
+    public var toneMapping: ToneMappingChoice = .auto
+    public var computeHDRPeak: Bool = true
+    public var hardwareDecoding: Bool = true
+    public var deband: Bool = false
+    /// -100...100, mpv's picture controls (0 = untouched).
+    public var brightness: Int = 0
+    public var contrast: Int = 0
+    public var saturation: Int = 0
+    public var gamma: Int = 0
+    /// Forward buffer in seconds; 0 lets the engine decide.
+    public var bufferSeconds: Int = 0
+
+    public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case hdrMode, toneMapping, computeHDRPeak, hardwareDecoding, deband, brightness, contrast, saturation, gamma, bufferSeconds
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        hdrMode = c.value(.hdrMode, default: .auto)
+        toneMapping = c.value(.toneMapping, default: .auto)
+        computeHDRPeak = c.value(.computeHDRPeak, default: true)
+        hardwareDecoding = c.value(.hardwareDecoding, default: true)
+        deband = c.value(.deband, default: false)
+        brightness = min(100, max(-100, c.value(.brightness, default: 0)))
+        contrast = min(100, max(-100, c.value(.contrast, default: 0)))
+        saturation = min(100, max(-100, c.value(.saturation, default: 0)))
+        gamma = min(100, max(-100, c.value(.gamma, default: 0)))
+        let buffer: Int = c.value(.bufferSeconds, default: 0)
+        bufferSeconds = buffer <= 0 ? 0 : min(120, max(5, buffer))
     }
 }
 
@@ -227,10 +304,20 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var landscapeOnly: Bool = true
     public var gesturesEnabled: Bool = true
     public var watchedThreshold: Double = 0.9
+    public var video: VideoOutputSettings = VideoOutputSettings()
+    /// Tried when the preferred language is not available ("off" = none).
+    public var secondaryAudioLanguage: String = "off"
+    public var secondarySubtitleLanguage: String = "off"
+    /// Removes hearing-impaired annotations ("[music]", "(sighs)", "♪ …") from subtitles Aether renders itself.
+    public var stripHearingImpairedTags: Bool = false
+    /// Press and hold on the picture to play at `holdSpeed`, release to go back.
+    public var holdToSpeed: Bool = true
+    public var holdSpeed: Double = 2
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
+        case video, secondaryAudioLanguage, secondarySubtitleLanguage, stripHearingImpairedTags, holdToSpeed, holdSpeed
         case engine, autoResume, resumeRewindSeconds, skipBackSeconds, skipForwardSeconds, autoplayNextEpisode
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
@@ -261,6 +348,12 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         landscapeOnly = c.value(.landscapeOnly, default: true)
         gesturesEnabled = c.value(.gesturesEnabled, default: true)
         watchedThreshold = min(0.99, max(0.5, c.value(.watchedThreshold, default: 0.9)))
+        video = c.value(.video, default: VideoOutputSettings())
+        secondaryAudioLanguage = c.value(.secondaryAudioLanguage, default: "off")
+        secondarySubtitleLanguage = c.value(.secondarySubtitleLanguage, default: "off")
+        stripHearingImpairedTags = c.value(.stripHearingImpairedTags, default: false)
+        holdToSpeed = c.value(.holdToSpeed, default: true)
+        holdSpeed = min(4, max(1.25, c.value(.holdSpeed, default: 2.0)))
     }
 }
 

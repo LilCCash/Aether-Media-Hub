@@ -35,9 +35,10 @@ public enum SubtitleError: Error, Equatable, Sendable {
 public enum SubtitleParser {
     // MARK: Entry points
 
-    public static func parse(_ data: Data, languageHint: String? = nil) throws -> [SubtitleCue] {
+    /// `encodingHint` is the charset an addon announced (`?senc=cp1250` in the subtitle URL, see `SubtitleCatalog.encodingHint(forURL:)`).
+    public static func parse(_ data: Data, languageHint: String? = nil, encodingHint: String? = nil) throws -> [SubtitleCue] {
         guard !data.isEmpty else { throw SubtitleError.empty }
-        let text = decode(data, languageHint: languageHint)
+        let text = decode(data, languageHint: languageHint, encodingHint: encodingHint)
         return try parse(text: text)
     }
 
@@ -69,8 +70,10 @@ public enum SubtitleParser {
 
     // MARK: Encoding
 
-    /// BOMs first, then strict UTF-8, then legacy code pages guessed from the language hint.
-    public static func decode(_ data: Data, languageHint: String?) -> String {
+    /// BOMs first, then strict UTF-8, then the charset the addon announced (`encodingHint`), then legacy code pages
+    /// guessed from the language hint. A hint never overrides valid UTF-8: addons that re-encode (the official OpenSubtitles
+    /// one) keep announcing the original charset.
+    public static func decode(_ data: Data, languageHint: String?, encodingHint: String? = nil) -> String {
         if data.count >= 3, data[0] == 0xEF, data[1] == 0xBB, data[2] == 0xBF {
             return String(decoding: data.dropFirst(3), as: UTF8.self)
         }
@@ -79,19 +82,48 @@ public enum SubtitleParser {
             if data[0] == 0xFE && data[1] == 0xFF, let text = String(data: data, encoding: .utf16BigEndian) { return text }
         }
         if let text = String(data: data, encoding: .utf8) { return text }
-        let language = languageHint.map { LanguageCodes.normalise($0) } ?? ""
+        let language = languageHint.map { LanguageCodes.baseLanguage($0) } ?? ""
         var candidates: [String.Encoding] = []
-        switch language {
-        case "ru", "uk", "bg", "sr": candidates = [.windowsCP1251, .isoLatin1]
-        case "pl", "cs", "sk", "hu", "ro", "hr", "sl": candidates = [.windowsCP1250, .isoLatin2, .isoLatin1]
-        case "el": candidates = [.windowsCP1253, .isoLatin1]
-        case "tr": candidates = [.windowsCP1254, .isoLatin1]
-        default: candidates = [.windowsCP1252, .isoLatin1]
+        if let hint = encodingHint, let announced = encoding(forCharset: hint) {
+            candidates.append(announced)
         }
-        for encoding in candidates {
-            if let text = String(data: data, encoding: encoding) { return text }
+        var guessed: [String.Encoding] = []
+        switch language {
+        case "ru", "uk", "bg", "sr": guessed = [.windowsCP1251, .isoLatin1]
+        case "pl", "cs", "sk", "hu", "ro", "hr", "sl": guessed = [.windowsCP1250, .isoLatin2, .isoLatin1]
+        case "el": guessed = [.windowsCP1253, .isoLatin1]
+        case "tr": guessed = [.windowsCP1254, .isoLatin1]
+        default: guessed = [.windowsCP1252, .isoLatin1]
+        }
+        candidates.append(contentsOf: guessed)
+        for candidate in candidates {
+            if let text = String(data: data, encoding: candidate) { return text }
         }
         return String(decoding: data, as: UTF8.self)
+    }
+
+    /// Charset names found in `?senc=` and `Content-Type` parameters (case-insensitive, `-`/`_` interchangeable) mapped to
+    /// the encodings Foundation supports on every platform. Unknown names return nil and the heuristics apply.
+    static func encoding(forCharset charset: String) -> String.Encoding? {
+        let key = charset.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().replacingOccurrences(of: "_", with: "-")
+        switch key {
+        case "utf-8", "utf8": return .utf8
+        case "utf-16", "utf16": return .utf16
+        case "utf-16le", "utf16le": return .utf16LittleEndian
+        case "utf-16be", "utf16be": return .utf16BigEndian
+        case "ascii", "us-ascii": return .ascii
+        case "iso-8859-1", "iso8859-1", "latin1", "latin-1", "l1": return .isoLatin1
+        case "iso-8859-2", "iso8859-2", "latin2", "latin-2", "l2": return .isoLatin2
+        case "cp1250", "windows-1250", "win-1250", "x-cp1250": return .windowsCP1250
+        case "cp1251", "windows-1251", "win-1251", "x-cp1251": return .windowsCP1251
+        case "cp1252", "windows-1252", "win-1252", "x-cp1252": return .windowsCP1252
+        case "cp1253", "windows-1253", "win-1253", "x-cp1253": return .windowsCP1253
+        case "cp1254", "windows-1254", "win-1254", "x-cp1254": return .windowsCP1254
+        case "macroman", "mac-roman", "macintosh": return .macOSRoman
+        case "shift-jis", "shiftjis", "sjis", "x-sjis": return .shiftJIS
+        case "euc-jp", "eucjp": return .japaneseEUC
+        default: return nil
+        }
     }
 
     // MARK: Timestamps

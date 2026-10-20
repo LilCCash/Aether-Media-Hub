@@ -24,7 +24,8 @@ extension AppEnvironment {
             preferredLanguage: SettingsStore.resolvedLanguage(value.playback.preferredAudioLanguage),
             preferLanguage: value.playback.preferStreamsInPreferredAudioLanguage,
             addonOrder: addons.addons.map { $0.id.uuidString },
-            streamingServer: server)
+            streamingServer: server,
+            capabilities: PlaybackEngineFactory.capabilities)
     }
 
     func bingeGroup(forMeta metaID: String) -> String? {

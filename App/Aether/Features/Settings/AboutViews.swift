@@ -65,24 +65,52 @@ struct AdvancedSettingsView: View {
 
 // MARK: - Player status
 
+/// What the player can really do on this device, read from the system when the page opens.
+/// Nothing on this page is a promise about a particular file: see the info sheet in the player for that.
 struct PlayerStatusView: View {
     @EnvironmentObject private var settings: SettingsStore
+    @State private var device = DeviceVideoCapabilities.conservative
+    @State private var mpvReport: PlaybackEngineFactory.MPVReport?
 
     var body: some View {
         List {
-            Section(header: Text("In uso"), footer: Text("Aether riproduce con AVPlayer, il motore di Apple: HLS, MP4, MOV e M4V con codec H.264/HEVC e audio AAC/AC-3/E-AC-3.")) {
-                statusRow("AVPlayer (Apple)", "Attivo", color: .green)
-                statusRow("Picture in Picture", AVPictureInPictureSupport.isSupported ? "Disponibile" : "Non disponibile su questo dispositivo",
+            Section(header: Text("Motori"),
+                    footer: Text("AVPlayer è il player di Apple: HLS, MP4, MOV e M4V; è l'unico che può mostrare il vero Dolby Vision (profili 5 e 8.x). MPV (libmpv + FFmpeg, licenza LGPL-3.0) apre MKV, AVI, WebM, TS e altri; il Dolby Vision viene mappato su HDR10 o SDR, non mostrato come Dolby Vision.")) {
+                statusRow("AVPlayer (Apple)", "Disponibile", color: .green)
+                statusRow("MPV (libmpv)", PlaybackEngineFactory.mpvAvailable ? "Incluso in questa build" : "Non incluso in questa build",
+                          color: PlaybackEngineFactory.mpvAvailable ? .green : .gray)
+                if let report = mpvReport {
+                    statusRow("Versione libmpv", report.initStatus >= 0 ? (report.mpvVersion ?? "sconosciuta") : "non si avvia (\(report.initStatus))",
+                              color: report.initStatus >= 0 ? .green : .orange)
+                    if let ffmpeg = report.ffmpegVersion, !ffmpeg.isEmpty { statusRow("Versione FFmpeg", ffmpeg, color: .green) }
+                }
+                statusRow("Picture in Picture", AVPictureInPictureSupport.isSupported ? "Disponibile (solo AVPlayer)" : "Non disponibile su questo dispositivo",
                           color: AVPictureInPictureSupport.isSupported ? .green : .orange)
                 statusRow("AirPlay", settings.value.casting.airPlayEnabled ? "Disponibile" : "Disattivato", color: settings.value.casting.airPlayEnabled ? .green : .gray)
             }
-            Section(header: Text("Non inclusi"), footer: Text("MKV, AVI, WebM e DASH non sono riproducibili da AVPlayer. Un motore alternativo (MPV, VLC) richiederebbe una libreria LGPL di decine di megabyte: l'architettura lo prevede (protocollo PlaybackEngine), ma non è presente in questa versione. Le sorgenti di quei formati sono marcate come non riproducibili invece di fallire a metà.")) {
-                statusRow("MPV / VLC", "Non incluso", color: .gray)
+            Section(header: Text("Schermo (letto dal sistema)"),
+                    footer: Text("Valori forniti da iOS per questo schermo: indicano cosa il dispositivo può mostrare, non cosa contiene un file.")) {
+                statusRow("HDR10", device.supportsHDR10 ? "Sì" : "No", color: device.supportsHDR10 ? .green : .gray)
+                statusRow("HLG", device.supportsHLG ? "Sì" : "No", color: device.supportsHLG ? .green : .gray)
+                statusRow("Dolby Vision", device.supportsDolbyVision ? "Sì" : "No", color: device.supportsDolbyVision ? .green : .gray)
+                statusRow("Margine HDR (EDR)", String(format: "%.1f×", device.edrHeadroom), color: device.edrHeadroom > 1 ? .green : .gray)
+            }
+            Section(header: Text("Decodifica hardware (letta dal sistema)")) {
+                statusRow("HEVC / H.265", device.hardwareHEVC ? "Sì" : "No", color: device.hardwareHEVC ? .green : .orange)
+                statusRow("AV1", device.hardwareAV1 ? "Sì" : "No (solo software con MPV)", color: device.hardwareAV1 ? .green : .gray)
+                statusRow("VP9", device.hardwareVP9 ? "Sì" : "No (solo software con MPV)", color: device.hardwareVP9 ? .green : .gray)
+            }
+            Section(header: Text("Non inclusi"), footer: Text("Le sorgenti di questi tipi sono marcate come non riproducibili invece di fallire a metà.")) {
+                statusRow("DASH (.mpd)", "Non verificato: non abilitato", color: .gray)
                 statusRow("Torrent integrato", "Non incluso", color: .gray)
                 statusRow("YouTube (ytId)", "Non riproducibile nel player", color: .gray)
             }
         }
         .navigationTitle("Stato dei player")
+        .onAppear {
+            device = DeviceCapabilitiesReader.current()
+            mpvReport = PlaybackEngineFactory.mpvSelfTest()
+        }
     }
 
     private func statusRow(_ title: String, _ value: String, color: Color) -> some View {
@@ -107,7 +135,8 @@ struct AboutView: View {
         let info = Bundle.main.infoDictionary
         let short = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
-        return "\(short) (\(build))"
+        let label = info?["AetherReleaseLabel"] as? String ?? ""
+        return label.isEmpty ? "\(short) (\(build))" : "\(short) \(label) (\(build))"
     }
 
     var body: some View {
@@ -150,10 +179,10 @@ struct AboutView: View {
     static let notImplemented = [
         "Account e sincronizzazione cloud (le API di Stremio e Nuvio non sono documentate per terzi)",
         "Plugin di scraper di Nuvio e qualsiasi esecuzione di codice scaricato",
-        "Debrid e motore torrent integrato",
+        "Motore torrent integrato (i torrent si risolvono solo con un servizio debrid configurato)",
         "Trakt / Simkl",
         "Widget e notifiche di nuovi episodi",
-        "Motori MPV / VLC (MKV, AVI, WebM)"
+        "Dolby Vision nativo per MKV (MPV lo mappa su HDR10/SDR)"
     ]
 
     struct License: Identifiable {
@@ -167,6 +196,9 @@ struct AboutView: View {
         License(name: "Google Cast SDK per iOS", id: "gcast",
                 summary: "Binario proprietario di Google, incluso come dipendenza Swift Package.",
                 text: "Il Google Cast SDK per iOS è software proprietario di Google LLC, distribuito sotto i Termini di servizio del Google Cast SDK (https://developers.google.com/cast/docs/terms). Il pacchetto Swift che lo espone (googlecast/google-cast-ios-sdk) è rilasciato con licenza Apache-2.0. Aether lo usa esclusivamente per trovare dispositivi Google Cast e inviare loro un indirizzo multimediale tramite il Default Media Receiver."),
+        License(name: "MPV, FFmpeg e librerie collegate (MPVKit)", id: "mpvkit",
+                summary: "LGPL-3.0: motore di riproduzione per MKV, AVI, TS e altri formati.",
+                text: "Il motore MPV usa libmpv (LGPL-2.1 o successiva) e FFmpeg (LGPL-2.1 o successiva) tramite il pacchetto MPVKit (https://github.com/mpvkit/MPVKit, LGPL-3.0, prodotto «MPVKit», non quello GPL), che include anche libplacebo, libdovi, libass, dav1d, FreeType, HarfBuzz, FriBidi, uchardet, libbluray, lcms2, MoltenVK, GnuTLS/Nettle/GMP e OpenSSL con le rispettive licenze (LGPL, BSD, MIT, Apache-2.0, ISC, MPL). Le librerie sono collegate staticamente; il codice sorgente completo di Aether è pubblico (licenza MIT) e chiunque può ricompilare l'app con una versione modificata di quelle librerie, come richiesto dalla LGPL. Il testo delle licenze e le versioni esatte sono in docs/03-LICENSES.md del repository."),
         License(name: "Protocollo degli addon Stremio", id: "stremio",
                 summary: "Specifica consultata; nessun codice copiato.",
                 text: "Aether implementa il protocollo pubblico degli addon descritto in stremio-addon-sdk (MIT). Il codice di stremio-web (GPL-2.0), stremio-core e NuvioMobile (GPL-3.0) è stato studiato solo come riferimento di comportamento: nessun codice, grafica, nome o icona è stato copiato o tradotto."),

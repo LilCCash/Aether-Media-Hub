@@ -264,15 +264,31 @@ public final class AddonService: Sendable {
 
     // MARK: Subtitles
 
+    /// Subtitles for a video from every addon that declares `subtitles` for the type and the id prefix, in addon order,
+    /// de-duplicated by URL. Hash, size and file name come from the stream's `behaviorHints` first; `local` is a hash computed
+    /// on this device (`SubtitleHashProbe`) and `filename` a name the caller already knows. See `SubtitleVideoParams.resolve`.
+    public func subtitles(type: String, videoID: String, stream: AddonStream?, local: SubtitleHashResult? = nil,
+                          filename: String? = nil) async -> [AddonSubtitle] {
+        let params = SubtitleVideoParams.resolve(stream: stream, local: local, filename: filename)
+        return await subtitles(type: type, videoID: videoID, params: params)
+    }
+
+    /// Explicit values, sent exactly as given (the URL builder percent-encodes them).
     public func subtitles(type: String, videoID: String, videoHash: String? = nil, videoSize: Int64? = nil,
                           filename: String? = nil) async -> [AddonSubtitle] {
-        var extra: [ExtraValue] = []
-        if let hash = videoHash { extra.append(ExtraValue(name: "videoHash", value: hash)) }
-        if let size = videoSize { extra.append(ExtraValue(name: "videoSize", value: String(size))) }
-        if let filename = filename { extra.append(ExtraValue(name: "filename", value: filename)) }
-        let path = ResourcePath(resource: ResourceName.subtitles, type: type, id: videoID, extra: extra)
+        let params = SubtitleVideoParams(hash: videoHash, size: videoSize, filename: filename)
+        return await subtitles(type: type, videoID: videoID, params: params)
+    }
+
+    public func subtitles(type: String, videoID: String, params: SubtitleVideoParams) async -> [AddonSubtitle] {
+        let path = ResourcePath(resource: ResourceName.subtitles, type: type, id: videoID, extra: params.extras)
         let barePath = ResourcePath(resource: ResourceName.subtitles, type: type, id: videoID)
-        let candidates = RequestPlanner.addons(for: barePath, handles: await registry.handles())
+        let allHandles = await registry.handles()
+        // Only addons that declare this type AND this id prefix are asked (OpenSubtitles v3 declares `tt`: a `kitsu:` id never reaches it).
+        let planned = RequestPlanner.addons(for: barePath, handles: allHandles)
+        let candidates = planned.filter { (handle: AddonHandle) -> Bool in
+            return AddonService.declaresSubtitleID(handle.addon.manifest, id: videoID)
+        }
 
         var collected: [(Int, [AddonSubtitle])] = []
         await withTaskGroup(of: (Int, [AddonSubtitle]).self) { group in
@@ -296,5 +312,14 @@ public final class AddonService: Sendable {
             for sub in subs where seen.insert(sub.url).inserted { result.append(sub) }
         }
         return result
+    }
+
+    /// True when the id starts with one of the prefixes the addon declares for `subtitles`: the resource's own `idPrefixes`,
+    /// otherwise the manifest's (a resource object that lists only `types` inherits them). No prefixes at all means every id.
+    static func declaresSubtitleID(_ manifest: AddonManifest, id: String) -> Bool {
+        guard let resource = manifest.resource(named: ResourceName.subtitles) else { return false }
+        let declared: [String]? = resource.idPrefixes ?? manifest.idPrefixes
+        guard let prefixes = declared, !prefixes.isEmpty else { return true }
+        return prefixes.contains(where: { id.hasPrefix($0) })
     }
 }

@@ -17,14 +17,17 @@ public struct StreamPreferences: Sendable, Equatable {
     /// Addon ids in user order: earlier addons are mildly preferred on ties.
     public var addonOrder: [String]
     public var streamingServer: URL?
+    /// Engines present in this build: decides whether MKV & co. count as playable.
+    public var capabilities: PlaybackCapabilities
 
     public init(qualityCap: VideoQualityCap = .auto, preferredLanguage: String? = nil, preferLanguage: Bool = true,
-                addonOrder: [String] = [], streamingServer: URL? = nil) {
+                addonOrder: [String] = [], streamingServer: URL? = nil, capabilities: PlaybackCapabilities = .avPlayerOnly) {
         self.qualityCap = qualityCap
         self.preferredLanguage = preferredLanguage
         self.preferLanguage = preferLanguage
         self.addonOrder = addonOrder
         self.streamingServer = streamingServer
+        self.capabilities = capabilities
     }
 }
 
@@ -34,7 +37,7 @@ public enum StreamSelector {
     public static func rank(_ streams: [AddonStream], preferences: StreamPreferences) -> [RankedStream] {
         var ranked: [RankedStream] = []
         for (position, stream) in streams.enumerated() {
-            let info = StreamAnalyzer.analyze(stream, streamingServer: preferences.streamingServer)
+            let info = StreamAnalyzer.analyze(stream, streamingServer: preferences.streamingServer, capabilities: preferences.capabilities)
             var score = 0
             switch info.support {
             case .supported: score += 10_000
@@ -92,52 +95,5 @@ public enum StreamSelector {
         case "system": return systemLanguage
         default: return setting
         }
-    }
-}
-
-/// Maps ISO 639-2 / 639-1 / common names to a two-letter code for matching subtitles and audio tracks.
-public enum LanguageCodes {
-    private static let table: [String: String] = [
-        "ita": "it", "it": "it", "italian": "it", "italiano": "it",
-        "eng": "en", "en": "en", "english": "en", "inglese": "en",
-        "fra": "fr", "fre": "fr", "fr": "fr", "french": "fr", "francese": "fr",
-        "spa": "es", "es": "es", "spanish": "es", "spagnolo": "es",
-        "deu": "de", "ger": "de", "de": "de", "german": "de", "tedesco": "de",
-        "por": "pt", "pt": "pt", "portuguese": "pt", "pob": "pt",
-        "rus": "ru", "ru": "ru", "russian": "ru",
-        "jpn": "ja", "ja": "ja", "japanese": "ja",
-        "kor": "ko", "ko": "ko", "korean": "ko",
-        "zho": "zh", "chi": "zh", "zh": "zh", "chinese": "zh",
-        "ara": "ar", "ar": "ar", "arabic": "ar",
-        "hin": "hi", "hi": "hi", "hindi": "hi",
-        "tur": "tr", "tr": "tr", "turkish": "tr",
-        "pol": "pl", "pl": "pl", "polish": "pl",
-        "nld": "nl", "dut": "nl", "nl": "nl", "dutch": "nl",
-        "swe": "sv", "sv": "sv", "swedish": "sv",
-        "ron": "ro", "rum": "ro", "ro": "ro", "romanian": "ro",
-        "ell": "el", "gre": "el", "el": "el", "greek": "el",
-        "heb": "he", "he": "he", "hebrew": "he"
-    ]
-
-    /// Two-letter code when known; the lowercased input otherwise.
-    public static func normalise(_ raw: String) -> String {
-        var key = raw.lowercased().trimmingCharacters(in: .whitespaces)
-        if let dash = key.firstIndex(where: { $0 == "-" || $0 == "_" }) {
-            key = String(key[key.startIndex..<dash])
-        }
-        return table[key] ?? key
-    }
-
-    /// Localised language name (Italian UI) for a code, or the code itself.
-    public static func displayName(_ raw: String, locale: Locale = Locale(identifier: "it_IT")) -> String {
-        let code = normalise(raw)
-        if let name = locale.localizedString(forLanguageCode: code), !name.isEmpty {
-            return name.prefix(1).uppercased() + name.dropFirst()
-        }
-        return raw
-    }
-
-    public static func matches(_ lhs: String, _ rhs: String) -> Bool {
-        return normalise(lhs) == normalise(rhs)
     }
 }

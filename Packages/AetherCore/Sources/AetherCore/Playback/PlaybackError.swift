@@ -34,7 +34,7 @@ public struct PlaybackFailure: Equatable, Sendable {
         case .notFound: return "File non trovato sul server (404): il link non è più valido."
         case .tlsFailure: return "Connessione sicura non riuscita: certificato non valido."
         case .atsBlocked: return "iOS ha bloccato la connessione HTTP non cifrata verso questo server."
-        case .formatUnsupported: return "Formato non supportato da AVPlayer (iOS riproduce MP4, MOV, M4V e HLS)."
+        case .formatUnsupported: return "Formato non supportato dal motore di riproduzione. Prova un'altra sorgente o cambia motore in Impostazioni → Riproduzione."
         case .codecUnsupported: return "Il video o l'audio usa un codec che questo dispositivo non può decodificare."
         case .serverMisconfigured: return "Il server non è configurato correttamente per lo streaming (risposta HTTP non valida)."
         case .interrupted: return "La riproduzione è stata interrotta."

@@ -101,6 +101,35 @@ jobs:
             -only-testing:AetherTests \
             -resultBundlePath "$RUNNER_TEMP/unit.xcresult" 2>&1 | tee "$RUNNER_TEMP/unit.log"
 
+      # Real files for the playback matrix. The pictures are synthetic test patterns: only the container, the codec and the
+      # colour signalling (HDR10 / HLG metadata, hvc1 vs hev1 tags) are real, which is what the probe and the planner read.
+      # Dolby Vision cannot be produced here (no encoder), so it is not part of the matrix.
+      - name: Generate the media matrix
+        id: media
+        if: steps.build.outcome == 'success' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
+        run: |
+          set -euo pipefail
+          brew install ffmpeg > "$RUNNER_TEMP/brew-ffmpeg.log" 2>&1 || { tail -20 "$RUNNER_TEMP/brew-ffmpeg.log"; exit 1; }
+          ffmpeg -version | head -1
+          mkdir -p "$RUNNER_TEMP/media"
+          cd "$RUNNER_TEMP/media"
+          V="-f lavfi -i testsrc2=size=640x360:rate=24:duration=8"
+          A="-f lavfi -i sine=frequency=440:sample_rate=48000:duration=8"
+          F="ffmpeg -nostdin -loglevel error -y"
+          $F $V $A -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 96k -shortest h264.mkv
+          $F -i h264.mkv -c:v libx264 -pix_fmt yuv420p -c:a libmp3lame h264.avi
+          HDR10="colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1):max-cll=1000,400:repeat-headers=1:log-level=error"
+          $F $V $A -vf format=yuv420p10le -c:v libx265 -profile:v main10 -tag:v hvc1 -x265-params "$HDR10" -c:a aac -b:a 96k -shortest hdr10.mp4
+          $F -i hdr10.mp4 -c copy hdr10.mkv
+          $F -i hdr10.mp4 -c copy -tag:v hev1 hdr10-hev1.mp4
+          HLG="colorprim=bt2020:transfer=arib-std-b67:colormatrix=bt2020nc:repeat-headers=1:log-level=error"
+          $F $V $A -vf format=yuv420p10le -c:v libx265 -profile:v main10 -tag:v hvc1 -x265-params "$HLG" -c:a aac -b:a 96k -shortest hlg.mp4
+          $F $V $A -vf format=yuv420p -c:v libx265 -tag:v hvc1 -x265-params "log-level=error" -c:a aac -b:a 96k -shortest sdr-hevc.mp4
+          for f in *; do
+            echo "== $f ($(stat -f%z "$f") bytes)"
+            ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,codec_tag_string,profile,pix_fmt,color_space,color_transfer,color_primaries -of compact=p=0 "$f"
+          done
+
       - name: Start the fixture addon server
         id: fixture
         if: steps.build.outcome == 'success' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
@@ -108,7 +137,7 @@ jobs:
           swiftc -O Tools/MakeFixtureVideo.swift -o "$RUNNER_TEMP/makevideo"
           "$RUNNER_TEMP/makevideo" "$RUNNER_TEMP/sample.mp4" 150
           # Listen on every interface: the download test reaches the server through the machine's LAN address.
-          nohup node Tools/FixtureAddonServer/server.js --port 7777 --host 0.0.0.0 --video "$RUNNER_TEMP/sample.mp4" > "$RUNNER_TEMP/fixture.log" 2>&1 &
+          nohup node Tools/FixtureAddonServer/server.js --port 7777 --host 0.0.0.0 --video "$RUNNER_TEMP/sample.mp4" --media-dir "$RUNNER_TEMP/media" > "$RUNNER_TEMP/fixture.log" 2>&1 &
           sleep 2
           LAN_IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || true)
           echo "LAN address: ${LAN_IP:-none}"

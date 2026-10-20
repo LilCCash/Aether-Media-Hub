@@ -24,15 +24,19 @@ struct EngineSnapshot: Equatable {
     var isLive = false
 }
 
-/// Contract between the player UI and a concrete playback engine. `AVPlayerEngine` is the only implementation
-/// shipped; an MPV/VLC engine would conform to this protocol without changes to the UI
-/// (it is intentionally not bundled: see docs/01-RESEARCH-MATRIX.md §3 for licence and size analysis).
+/// Contract between the player UI and a concrete playback engine. Two implementations ship: `AVPlayerEngine`
+/// (system player: HLS, MP4/MOV, true Dolby Vision) and `MPVEngine` (libmpv through MPVKit: MKV, AVI, TS, …).
+/// See docs/06-PLAYBACK.md for how the engine is chosen and what each one can honestly promise.
 @MainActor
 protocol PlaybackEngine: AnyObject {
+    var kind: PlaybackEngineKind { get }
     var identifier: String { get }
     var displayName: String { get }
     var snapshot: EngineSnapshot { get }
     var videoView: UIView { get }
+    /// Facts the engine measured about the file (nil until it knows). Never derived from the file name.
+    var mediaInfo: MediaFormatInfo? { get }
+    var onMediaInfo: ((MediaFormatInfo) -> Void)? { get set }
 
     var onSnapshot: ((EngineSnapshot) -> Void)? { get set }
     var onEnded: (() -> Void)? { get set }
@@ -48,6 +52,8 @@ protocol PlaybackEngine: AnyObject {
     func seek(by delta: Double)
     func setRate(_ rate: Float)
     func setFillScreen(_ fill: Bool)
+    /// Delay of the subtitles the engine draws itself (embedded tracks). The app applies its own delay to external ones.
+    func setEmbeddedSubtitleDelay(_ seconds: Double)
 
     func audioTracks() -> [EngineTrack]
     func embeddedSubtitleTracks() -> [EngineTrack]
@@ -62,4 +68,10 @@ protocol PlaybackEngine: AnyObject {
     /// Detach video output while the app is in the background so audio keeps playing.
     func setVideoDetached(_ detached: Bool)
     func teardown()
+}
+
+extension PlaybackEngine {
+    var identifier: String { kind.rawValue }
+    var displayName: String { kind.displayName }
+    func setEmbeddedSubtitleDelay(_ seconds: Double) {}
 }

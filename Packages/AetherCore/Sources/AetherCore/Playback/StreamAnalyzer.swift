@@ -76,6 +76,18 @@ public enum AudioCodec: String, Codable, Sendable {
     }
 }
 
+/// Which playback engines and resolvers this build/configuration can use, so that "is this source playable?" is
+/// answered for the engines that are really present.
+public struct PlaybackCapabilities: Equatable, Sendable {
+    public var mpvAvailable: Bool
+
+    public init(mpvAvailable: Bool = false) {
+        self.mpvAvailable = mpvAvailable
+    }
+
+    public static let avPlayerOnly = PlaybackCapabilities()
+}
+
 public enum StreamKind: String, Codable, Sendable {
     case file, hls, dash, torrent, youtube, externalPage, playerFrame, archive, other
 }
@@ -96,7 +108,7 @@ public enum UnsupportedReason: Equatable, Sendable {
     public var message: String {
         switch self {
         case .container(let ext):
-            return "Il contenitore .\(ext) non è riproducibile da AVPlayer (iOS supporta MP4, MOV, M4V e HLS)."
+            return "Il contenitore .\(ext) non è riproducibile da AVPlayer (iOS supporta MP4, MOV, M4V e HLS) e il motore MPV non è incluso in questa build."
         case .dash:
             return "I flussi DASH (.mpd) non sono supportati da AVPlayer."
         case .torrent:
@@ -138,6 +150,8 @@ public enum PlaybackSupport: Equatable, Sendable {
 public struct StreamInfo: Sendable {
     public var quality: StreamQuality
     public var codec: VideoCodec?
+    /// HDR formats the *release name* claims ("DV", "HDR10", …). This is text found in a title, not a measurement:
+    /// it says nothing about what the file really contains or what this device will show.
     public var hdr: [HDRFormat]
     public var audio: [AudioCodec]
     public var languages: [String]
@@ -147,13 +161,16 @@ public struct StreamInfo: Sendable {
     public var support: PlaybackSupport
     public var warnings: [String]
     public var needsHeaders: Bool
+    /// The engine this source needs when it cannot use the default one (for example MKV needs MPV).
+    public var requiredEngine: PlaybackEngineKind?
 
-    /// One-line badge summary, e.g. "1080p · HEVC · HDR10 · Dolby Digital+".
+    /// One-line badge summary, e.g. "1080p · HEVC · HDR10 (nel nome) · Dolby Digital+".
+    /// HDR entries are marked as coming from the name because they have not been verified.
     public var badges: [String] {
         var parts: [String] = []
         if quality != .unknown { parts.append(quality.label) }
         if let codec = codec { parts.append(codec.label) }
-        parts.append(contentsOf: hdr.map { $0.label })
+        parts.append(contentsOf: hdr.map { "\($0.label) (nel nome)" })
         if let audio = audio.first { parts.append(audio.label) }
         return parts
     }
@@ -173,7 +190,8 @@ public enum StreamAnalyzer {
     /// Containers it does not.
     public static let unsupportedContainers: Set<String> = ["mkv", "avi", "webm", "wmv", "flv", "mpg", "mpeg", "divx", "ogv", "ogm", "ts", "m2ts", "vob", "rmvb", "3gp2", "asf", "mka"]
 
-    public static func analyze(_ stream: AddonStream, streamingServer: URL? = nil) -> StreamInfo {
+    public static func analyze(_ stream: AddonStream, streamingServer: URL? = nil,
+                               capabilities: PlaybackCapabilities = .avPlayerOnly) -> StreamInfo {
         let text = stream.searchableText
         let tokens = tokenize(text)
         var warnings: [String] = []
@@ -197,6 +215,7 @@ public enum StreamAnalyzer {
         var kind: StreamKind = .other
         var container: String?
         var support: PlaybackSupport = .unknown
+        var requiredEngine: PlaybackEngineKind?
 
         switch stream.source {
         case .url(let raw):
@@ -234,7 +253,12 @@ public enum StreamAnalyzer {
                     if supportedContainers.contains(ext) {
                         support = .supported
                     } else if unsupportedContainers.contains(ext) {
-                        support = .unsupported(.container(ext))
+                        if capabilities.mpvAvailable {
+                            support = .supported
+                            requiredEngine = .mpv
+                        } else {
+                            support = .unsupported(.container(ext))
+                        }
                     } else {
                         support = .unknown
                     }
@@ -269,7 +293,7 @@ public enum StreamAnalyzer {
 
         return StreamInfo(quality: quality, codec: codec, hdr: hdr, audio: audio, languages: languages,
                           sizeBytes: size, kind: kind, container: container, support: support,
-                          warnings: warnings, needsHeaders: needsHeaders)
+                          warnings: warnings, needsHeaders: needsHeaders, requiredEngine: requiredEngine)
     }
 
     // MARK: Detection

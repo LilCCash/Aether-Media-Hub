@@ -2,12 +2,39 @@ import SwiftUI
 import MediaPlayer
 import AVFoundation
 
-/// Hosts the engine's video view.
+/// Hosts the engine's video view. The engine can be replaced while the player is open (fallback to the other engine),
+/// so the hosted view is swapped when the model hands over a different one.
 struct PlayerSurface: UIViewRepresentable {
     let engine: PlaybackEngine
 
-    func makeUIView(context: Context) -> UIView { engine.videoView }
-    func updateUIView(_ uiView: UIView, context: Context) {}
+    func makeUIView(context: Context) -> PlayerHostView {
+        let host = PlayerHostView()
+        host.show(engine.videoView)
+        return host
+    }
+
+    func updateUIView(_ host: PlayerHostView, context: Context) {
+        host.show(engine.videoView)
+    }
+}
+
+final class PlayerHostView: UIView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .black
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    func show(_ video: UIView) {
+        guard video.superview !== self else { return }
+        subviews.forEach { $0.removeFromSuperview() }
+        video.frame = bounds
+        video.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        addSubview(video)
+    }
 }
 
 /// Screen brightness for the swipe gesture. Restored when the player closes.

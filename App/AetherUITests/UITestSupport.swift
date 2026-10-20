@@ -14,17 +14,22 @@ enum Fixture {
         return "http://\(host):7777/manifest.json"
     }
 
+    /// Calls a control endpoint of the fixture server; retried because a busy CI machine occasionally drops the first request.
     @discardableResult
     static func control(_ path: String) -> Bool {
         guard let url = URL(string: base + path) else { return false }
-        let done = DispatchSemaphore(value: 0)
-        var ok = false
-        URLSession.shared.dataTask(with: url) { _, response, _ in
-            ok = (response as? HTTPURLResponse)?.statusCode == 200
-            done.signal()
-        }.resume()
-        _ = done.wait(timeout: .now() + 5)
-        return ok
+        for attempt in 0..<4 {
+            let done = DispatchSemaphore(value: 0)
+            var ok = false
+            URLSession.shared.dataTask(with: url) { _, response, _ in
+                ok = (response as? HTTPURLResponse)?.statusCode == 200
+                done.signal()
+            }.resume()
+            _ = done.wait(timeout: .now() + 8)
+            if ok { return true }
+            Thread.sleep(forTimeInterval: Double(attempt + 1) * 0.5)
+        }
+        return false
     }
 
     static func requestedPaths() -> [String] {
@@ -59,9 +64,10 @@ class AetherUITestCase: XCTestCase {
     /// Settings used by every test unless it overrides them: controls stay up long enough to be tapped.
     static let defaultSettings = #"{"playback":{"controlsAutoHideSeconds":15}}"#
 
-    func launch(reset: Bool = true, settings: String? = AetherUITestCase.defaultSettings, openURL: String? = nil) {
+    func launch(reset: Bool = true, settings: String? = AetherUITestCase.defaultSettings, openURL: String? = nil,
+                extraArguments: [String] = []) {
         app = XCUIApplication()
-        var arguments = ["-AETHER_UITEST", "-AETHER_UITEST_SESSION", session]
+        var arguments = ["-AETHER_UITEST", "-AETHER_UITEST_SESSION", session] + extraArguments
         if reset { arguments.append("-AETHER_UITEST_RESET") }
         if let settings = settings { arguments += ["-AETHER_UITEST_SETTINGS", settings] }
         if let openURL = openURL { arguments += ["-AETHER_UITEST_OPENURL", openURL] }
@@ -71,9 +77,10 @@ class AetherUITestCase: XCTestCase {
     }
 
     /// Launches and installs the fixture addon through the `aether://install` deep link (no keyboard needed).
-    func launchWithFixtureAddon(settings: String? = AetherUITestCase.defaultSettings, manifestURL: String = Fixture.manifestURL) {
+    func launchWithFixtureAddon(settings: String? = AetherUITestCase.defaultSettings, manifestURL: String = Fixture.manifestURL,
+                                extraArguments: [String] = []) {
         let encoded = manifestURL.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? manifestURL
-        launch(settings: settings, openURL: "aether://install?url=\(encoded)")
+        launch(settings: settings, openURL: "aether://install?url=\(encoded)", extraArguments: extraArguments)
         let confirm = element("addon.install.confirm")
         XCTAssertTrue(confirm.waitForExistence(timeout: 30), "the install preview did not appear")
         confirm.tap()
