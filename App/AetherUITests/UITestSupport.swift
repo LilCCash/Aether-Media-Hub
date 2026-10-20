@@ -64,9 +64,10 @@ class AetherUITestCase: XCTestCase {
     /// Settings used by every test unless it overrides them: controls stay up long enough to be tapped.
     static let defaultSettings = #"{"playback":{"controlsAutoHideSeconds":15}}"#
 
-    func launch(reset: Bool = true, settings: String? = AetherUITestCase.defaultSettings, openURL: String? = nil) {
+    func launch(reset: Bool = true, settings: String? = AetherUITestCase.defaultSettings, openURL: String? = nil,
+                extraArguments: [String] = []) {
         app = XCUIApplication()
-        var arguments = ["-AETHER_UITEST", "-AETHER_UITEST_SESSION", session]
+        var arguments = ["-AETHER_UITEST", "-AETHER_UITEST_SESSION", session] + extraArguments
         if reset { arguments.append("-AETHER_UITEST_RESET") }
         if let settings = settings { arguments += ["-AETHER_UITEST_SETTINGS", settings] }
         if let openURL = openURL { arguments += ["-AETHER_UITEST_OPENURL", openURL] }
@@ -76,9 +77,10 @@ class AetherUITestCase: XCTestCase {
     }
 
     /// Launches and installs the fixture addon through the `aether://install` deep link (no keyboard needed).
-    func launchWithFixtureAddon(settings: String? = AetherUITestCase.defaultSettings, manifestURL: String = Fixture.manifestURL) {
+    func launchWithFixtureAddon(settings: String? = AetherUITestCase.defaultSettings, manifestURL: String = Fixture.manifestURL,
+                                extraArguments: [String] = []) {
         let encoded = manifestURL.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? manifestURL
-        launch(settings: settings, openURL: "aether://install?url=\(encoded)")
+        launch(settings: settings, openURL: "aether://install?url=\(encoded)", extraArguments: extraArguments)
         let confirm = element("addon.install.confirm")
         XCTAssertTrue(confirm.waitForExistence(timeout: 30), "the install preview did not appear")
         confirm.tap()

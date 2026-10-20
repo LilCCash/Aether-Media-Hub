@@ -172,18 +172,6 @@ struct PlayerInfoSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section(header: Text("Sorgente (dichiarato dall'addon o dal nome)")) {
-                    row("Nome", model.sourceName)
-                    if let addon = model.addonSourceName { row("Addon", addon) }
-                    if let info = model.currentStreamInfo {
-                        row("Qualità dichiarata", info.quality.label)
-                        if let codec = info.codec { row("Codec nel nome", codec.label) }
-                        if !info.hdr.isEmpty { row("HDR nel nome", info.hdr.map { $0.label }.joined(separator: ", "), id: "info.hdr.claimed") }
-                        if !info.audio.isEmpty { row("Audio nel nome", info.audio.map { $0.label }.joined(separator: ", ")) }
-                        if let container = info.container { row("Contenitore", container.uppercased()) }
-                        if let size = info.sizeLabel { row("Dimensione", size) }
-                    }
-                }
                 Section(header: Text("Riproduzione")) {
                     row("Motore", model.engine.displayName, id: "info.engine")
                     if model.snapshot.videoSize != .zero {
@@ -196,6 +184,18 @@ struct PlayerInfoSheet: View {
                 }
                 detectedSection
                 expectationSection
+                Section(header: Text("Sorgente (dichiarato dall'addon o dal nome)")) {
+                    row("Nome", model.sourceName)
+                    if let addon = model.addonSourceName { row("Addon", addon) }
+                    if let info = model.currentStreamInfo {
+                        row("Qualità dichiarata", info.quality.label)
+                        if let codec = info.codec { row("Codec nel nome", codec.label) }
+                        if !info.hdr.isEmpty { row("HDR nel nome", info.hdr.map { $0.label }.joined(separator: ", "), id: "info.hdr.claimed") }
+                        if !info.audio.isEmpty { row("Audio nel nome", info.audio.map { $0.label }.joined(separator: ", ")) }
+                        if let container = info.container { row("Contenitore", container.uppercased()) }
+                        if let size = info.sizeLabel { row("Dimensione", size) }
+                    }
+                }
                 Section(footer: Text("«Rilevato» viene dal decoder del motore in uso; «atteso» è una stima basata sul formato e sullo schermo, non una misura. La risoluzione reale può essere inferiore a quella dichiarata: gli stream adattivi (HLS) cambiano qualità in base alla rete.")) {
                     EmptyView()
                 }
@@ -204,7 +204,7 @@ struct PlayerInfoSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fine") { dismiss() } } }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
     }
 
     @ViewBuilder
@@ -221,7 +221,7 @@ struct PlayerInfoSheet: View {
                     if let dv = video.dolbyVision {
                         row("Dolby Vision", dv.profile == 0 ? "Presente (profilo non leggibile)" : "Profilo \(dv.profileLabel), livello \(dv.level)", id: "info.dv")
                     }
-                    if let decodable = video.isDecodable { row("Decodificabile da iOS", decodable ? "Sì" : "No") }
+                    if let decodable = video.isDecodable { row("Decodificabile da iOS", decodable ? "Sì" : "No", id: "info.decodable") }
                 } else if info.source == .avFoundation {
                     row("Video", "Nessuna traccia video letta")
                 }

@@ -3,20 +3,32 @@ import AetherCore
 
 // MARK: - Hero
 
+/// Paged carousel. Built on a paging `ScrollView` with `containerRelativeFrame` instead of `TabView(.page)`: every page is
+/// given exactly the width of the carousel, so a wide child can never make a page wider than the screen (and the
+/// page-style TabView, inside a lazy scrolling stack, could start offset from its container).
 struct HeroCarousel: View {
     let items: [MetaItem]
     @EnvironmentObject private var settings: SettingsStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var index = 0
+    @State private var position: Int? = 0
+
+    private var index: Int { min(max(position ?? 0, 0), max(items.count - 1, 0)) }
 
     var body: some View {
         VStack(spacing: 8) {
-            TabView(selection: $index) {
-                ForEach(Array(items.enumerated()), id: \.offset) { offset, item in
-                    HeroCard(meta: item).tag(offset)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { offset, item in
+                        HeroCard(meta: item)
+                            .containerRelativeFrame(.horizontal)
+                            .id(offset)
+                    }
                 }
+                .scrollTargetLayout()
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: $position)
+            .scrollClipDisabled()
             .frame(height: 430)
             if items.count > 1 {
                 HStack(spacing: 6) {
@@ -31,11 +43,12 @@ struct HeroCarousel: View {
             }
         }
         .task(id: items.count) {
+            position = 0
             guard items.count > 1, settings.animationsEnabled, !reduceMotion else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 7_000_000_000)
                 if Task.isCancelled { return }
-                withAnimation { index = (index + 1) % items.count }
+                withAnimation { position = (index + 1) % items.count }
             }
         }
         .accessibilityIdentifier("home.hero")

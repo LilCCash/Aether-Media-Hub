@@ -711,7 +711,13 @@ final class PlayerViewModel: ObservableObject {
             if !activeCues.isEmpty { activeCues = [] }
             return
         }
-        let cues = timeline.active(at: engine.currentTime(), delay: subtitleDelay)
+        var cues = timeline.active(at: engine.currentTime(), delay: subtitleDelay)
+        if playback.stripHearingImpairedTags {
+            cues = cues.compactMap { cue -> SubtitleCue? in
+                let text = SubtitleCleaner.stripHearingImpaired(cue.text)
+                return text.isEmpty ? nil : SubtitleCue(start: cue.start, end: cue.end, text: text)
+            }
+        }
         if cues != activeCues { activeCues = cues }
     }
 

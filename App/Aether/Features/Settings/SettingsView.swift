@@ -180,11 +180,32 @@ struct PlaybackSettingsView: View {
 
     var body: some View {
         Form {
-            Section(header: Text("Motore")) {
+            Section(header: Text("Motore"),
+                    footer: Text("Automatico usa AVPlayer (il player di Apple, l'unico che può mostrare il vero Dolby Vision) per MP4, MOV e HLS, e MPV per MKV, AVI, TS e i file che AVPlayer non sa decodificare. Se un motore non riesce ad aprire il file, Aether prova l'altro una volta.")) {
                 Picker("Player", selection: settings.binding(\.playback.engine)) {
                     ForEach(PlayerEngineChoice.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
-                NavigationLink("Stato dei player") { PlayerStatusView() }
+                .accessibilityIdentifier("settings.engine")
+                NavigationLink("Stato dei player e dello schermo") { PlayerStatusView() }
+            }
+            Section(header: Text("Video"),
+                    footer: Text(PlaybackEngineFactory.mpvAvailable
+                                 ? "Le voci marcate «MPV» agiscono solo quando il video passa dal motore MPV; AVPlayer segue le impostazioni di sistema (HDR automatico). Il buffer vale per entrambi."
+                                 : "Il motore MPV non è incluso in questa build: le voci marcate «MPV» non hanno effetto.")) {
+                Picker("Uscita HDR (MPV)", selection: settings.binding(\.playback.video.hdrMode)) {
+                    ForEach(HDROutputMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                Picker("Tone mapping (MPV)", selection: settings.binding(\.playback.video.toneMapping)) {
+                    ForEach(ToneMappingChoice.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                Toggle("Calcola il picco HDR per fotogramma (MPV)", isOn: settings.binding(\.playback.video.computeHDRPeak))
+                Toggle("Decodifica hardware (MPV)", isOn: settings.binding(\.playback.video.hardwareDecoding))
+                Toggle("Riduci le bande di colore (MPV)", isOn: settings.binding(\.playback.video.deband))
+                NavigationLink("Immagine (MPV)") { PictureControlsView() }
+                Picker("Buffer", selection: settings.binding(\.playback.video.bufferSeconds)) {
+                    Text("Automatico").tag(0)
+                    ForEach([10, 20, 30, 60, 120], id: \.self) { Text("\($0) s").tag($0) }
+                }
             }
             Section(header: Text("Ripresa")) {
                 Toggle("Riprendi dal punto salvato", isOn: settings.binding(\.playback.autoResume))
@@ -203,6 +224,11 @@ struct PlaybackSettingsView: View {
                 }
                 Stepper("Nascondi i controlli dopo \(settings.value.playback.controlsAutoHideSeconds) s", value: settings.binding(\.playback.controlsAutoHideSeconds), in: 2...10)
                 Toggle("Gesti (luminosità, volume, doppio tap)", isOn: settings.binding(\.playback.gesturesEnabled))
+                Toggle("Tieni premuto per accelerare", isOn: settings.binding(\.playback.holdToSpeed))
+                Picker("Velocità con pressione prolungata", selection: settings.binding(\.playback.holdSpeed)) {
+                    ForEach([1.5, 2.0, 3.0, 4.0], id: \.self) { Text(String(format: "%.2g×", $0)).tag($0) }
+                }
+                .disabled(!settings.value.playback.holdToSpeed)
                 Toggle("Riproduci sempre in orizzontale", isOn: settings.binding(\.playback.landscapeOnly))
             }
             Section(header: Text("Episodi")) {
@@ -216,11 +242,20 @@ struct PlaybackSettingsView: View {
                     Text("Lingua del sistema").tag("system")
                     ForEach(Self.languages, id: \.0) { Text($0.1).tag($0.0) }
                 }
+                Picker("Audio di riserva", selection: settings.binding(\.playback.secondaryAudioLanguage)) {
+                    Text("Nessuno").tag("off")
+                    ForEach(Self.languages, id: \.0) { Text($0.1).tag($0.0) }
+                }
                 Picker("Sottotitoli", selection: settings.binding(\.playback.preferredSubtitleLanguage)) {
                     Text("Disattivati").tag("off")
                     Text("Lingua del sistema").tag("system")
                     ForEach(Self.languages, id: \.0) { Text($0.1).tag($0.0) }
                 }
+                Picker("Sottotitoli di riserva", selection: settings.binding(\.playback.secondarySubtitleLanguage)) {
+                    Text("Nessuno").tag("off")
+                    ForEach(Self.languages, id: \.0) { Text($0.1).tag($0.0) }
+                }
+                Toggle("Rimuovi le annotazioni per non udenti", isOn: settings.binding(\.playback.stripHearingImpairedTags))
                 NavigationLink("Stile dei sottotitoli") { SubtitleStyleView() }
                 Stepper(value: settings.binding(\.playback.subtitleDelaySeconds), in: -30...30, step: 0.5) {
                     Text("Ritardo predefinito: \(String(format: "%+.1f", settings.value.playback.subtitleDelaySeconds)) s")
@@ -243,6 +278,39 @@ struct PlaybackSettingsView: View {
             }
         }
         .navigationTitle("Riproduzione")
+    }
+}
+
+struct PictureControlsView: View {
+    @EnvironmentObject private var settings: SettingsStore
+
+    var body: some View {
+        Form {
+            Section(footer: Text("Regolazioni del motore MPV (0 = nessuna modifica). Non agiscono su AVPlayer.")) {
+                control("Luminosità", \.playback.video.brightness)
+                control("Contrasto", \.playback.video.contrast)
+                control("Saturazione", \.playback.video.saturation)
+                control("Gamma", \.playback.video.gamma)
+            }
+            Section {
+                Button("Azzera") {
+                    settings.value.playback.video.brightness = 0
+                    settings.value.playback.video.contrast = 0
+                    settings.value.playback.video.saturation = 0
+                    settings.value.playback.video.gamma = 0
+                }
+            }
+        }
+        .navigationTitle("Immagine (MPV)")
+    }
+
+    private func control(_ title: String, _ keyPath: WritableKeyPath<AppSettings, Int>) -> some View {
+        VStack(alignment: .leading) {
+            Text("\(title): \(settings.value[keyPath: keyPath])")
+            Slider(value: Binding(get: { Double(settings.value[keyPath: keyPath]) },
+                                  set: { settings.value[keyPath: keyPath] = Int($0.rounded()) }),
+                   in: -100...100, step: 1)
+        }
     }
 }
 

@@ -15,6 +15,8 @@
 //   /stream/{type}/{id}.json             playable MP4 sources, an MKV-only title, a torrent-only title
 //   /subtitles/{type}/{id}.json          Italian SRT and English VTT
 //   /media/sample.mp4                    the sample video, with HTTP Range support
+//   /media/<file>                        any file of --media-dir (the CI "media matrix": MKV, HDR10, HLG, hev1, …), with Range support;
+//                                        each one that exists is also listed as a title in the "Fixture Matrix" catalog
 //   /subs/it.srt, /subs/en.vtt           subtitle files
 //   /poster/{n}.png, /backdrop/{n}.png, /logo/{n}.png   generated portrait posters, 16:9 backdrops, wide RGBA logos
 //   /__control/offline?on=1|0            make every addon endpoint answer 503 (tests the "addon offline" path)
@@ -33,6 +35,7 @@ function arg(name, fallback) {
 const PORT = parseInt(arg('port', '7777'), 10);
 const VIDEO = arg('video', path.join(__dirname, 'sample.mp4'));
 const HOST = arg('host', '127.0.0.1');
+const MEDIA_DIR = arg('media-dir', '');
 let BASE = `http://127.0.0.1:${PORT}`;   // rebound per request from the Host header
 
 let offline = false;
@@ -76,6 +79,23 @@ function metaFull(item, type, index) {
   return meta;
 }
 
+// Titles backed by real files in --media-dir; only the files that were generated are offered.
+const MATRIX_ALL = [
+  { id: 'tt9200001', file: 'h264.mkv', name: 'Matrix H264 MKV', year: 2024 },
+  { id: 'tt9200002', file: 'hdr10.mp4', name: 'Matrix HDR10 MP4', year: 2024 },
+  { id: 'tt9200003', file: 'hdr10.mkv', name: 'Matrix HDR10 MKV', year: 2024 },
+  { id: 'tt9200004', file: 'hlg.mp4', name: 'Matrix HLG MP4', year: 2024 },
+  { id: 'tt9200005', file: 'hdr10-hev1.mp4', name: 'Matrix HDR10 HEV1', year: 2024 },
+  { id: 'tt9200006', file: 'sdr-hevc.mp4', name: 'Matrix SDR HEVC MP4', year: 2024 },
+  { id: 'tt9200007', file: 'h264.avi', name: 'Matrix H264 AVI', year: 2024 },
+];
+const matrix = MATRIX_ALL
+  .filter((m) => MEDIA_DIR && fs.existsSync(path.join(MEDIA_DIR, m.file)))
+  .map((m) => ({ ...m, genres: ['Fixture', 'Matrix'], runtime: '8 sec', rating: '7.0' }));
+
+const MIME = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.mkv': 'video/x-matroska',
+  '.webm': 'video/webm', '.avi': 'video/x-msvideo', '.ts': 'video/mp2t' };
+
 const manifest = {
   id: 'org.aether.fixture', version: '1.0.0', name: 'Aether Fixture',
   description: 'Controlled addon for automated tests',
@@ -84,18 +104,23 @@ const manifest = {
   catalogs: [
     { type: 'movie', id: 'fixture-movies', name: 'Fixture Movies', extra: [{ name: 'search' }, { name: 'skip' }] },
     { type: 'series', id: 'fixture-series', name: 'Fixture Series', extra: [{ name: 'search' }, { name: 'skip' }] },
+    ...(matrix.length ? [{ type: 'movie', id: 'fixture-matrix', name: 'Fixture Matrix', extra: [{ name: 'search' }, { name: 'skip' }] }] : []),
   ],
   behaviorHints: { configurable: false },
 };
 
 function streamsFor(id) {
+  const m = matrix.find((entry) => entry.id === id);
+  if (m) {
+    return [{ name: 'Matrix source', title: `${m.name} ${m.file}`, url: `${BASE}/media/${m.file}`, behaviorHints: { filename: m.file } }];
+  }
   const sub = [
     { id: 'it', url: `${BASE}/subs/it.srt`, lang: 'ita' },
     { id: 'en', url: `${BASE}/subs/en.vtt`, lang: 'eng' },
   ];
   if (id === 'tt9000003') {
     return [
-      { name: 'Fixture MKV', title: 'Unsupported.Format.2020.2160p.HEVC.mkv', url: `${BASE}/media/unsupported.mkv` },
+      { name: 'Fixture DASH', title: 'Unsupported.Format.2020.2160p.HEVC.mpd', url: `${BASE}/media/unsupported.mpd` },
       { name: 'Fixture Torrent', title: 'Unsupported.Format.2020.1080p.torrent', infoHash: '0123456789abcdef0123456789abcdef01234567' },
     ];
   }
@@ -204,6 +229,30 @@ function poster(n) {
 }
 
 // ---- media with Range support --------------------------------------------------------------------------------
+function serveMediaFile(req, res, file, type) {
+  const size = fs.statSync(file).size;
+  const range = req.headers.range;
+  if (range) {
+    const m = /bytes=(\d*)-(\d*)/.exec(range);
+    let start = m && m[1] ? parseInt(m[1], 10) : 0;
+    let end = m && m[2] ? Math.min(parseInt(m[2], 10), size - 1) : size - 1;
+    if (m && !m[1] && m[2]) { start = Math.max(0, size - parseInt(m[2], 10)); end = size - 1; }   // suffix range: the last N bytes
+    if (start > end || start >= size) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); return res.end(); }
+    res.writeHead(206, { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1,
+      'Content-Range': `bytes ${start}-${end}/${size}` });
+    return fs.createReadStream(file, { start, end }).pipe(res);
+  }
+  res.writeHead(200, { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Content-Length': size });
+  return fs.createReadStream(file).pipe(res);
+}
+
+function serveMatrixFile(req, res, name) {
+  if (!MEDIA_DIR || !/^[A-Za-z0-9._-]+$/.test(name)) return send(res, 404, { error: 'not here' });
+  const file = path.join(MEDIA_DIR, name);
+  if (!fs.existsSync(file)) return send(res, 404, { error: 'not here' });
+  return serveMediaFile(req, res, file, MIME[path.extname(name).toLowerCase()] || 'application/octet-stream');
+}
+
 function serveVideo(req, res) {
   if (!fs.existsSync(VIDEO)) return send(res, 404, { error: 'sample video missing' });
   const size = fs.statSync(VIDEO).size;
@@ -252,7 +301,8 @@ const server = http.createServer((req, res) => {
   if (p === '/subs/it.srt') return send(res, 200, SRT, 'application/x-subrip');
   if (p === '/subs/en.vtt') return send(res, 200, VTT, 'text/vtt');
   if (p.startsWith('/media/') && mediaOffline) { res.writeHead(503); return res.end('media offline'); }
-  if (p.startsWith('/media/')) return p === '/media/sample.mp4' ? serveVideo(req, res) : send(res, 404, { error: 'not here' });
+  if (p === '/media/sample.mp4') return serveVideo(req, res);
+  if (p.startsWith('/media/')) return serveMatrixFile(req, res, p.slice('/media/'.length));
 
   if (offline) { res.writeHead(503); return res.end('offline'); }
 
@@ -264,7 +314,7 @@ const server = http.createServer((req, res) => {
   const [resource, type, id, extraSegment] = parts;
 
   if (resource === 'catalog') {
-    const list = type === 'movie' ? movies : series;
+    const list = id === 'fixture-matrix' ? matrix : (type === 'movie' ? movies : series);
     const extra = extraSegment ? decodeExtra(extraSegment) : {};
     if (extra.skip && parseInt(extra.skip, 10) > 0) return send(res, 200, { metas: [] });
     let items = list.map((item, i) => metaPreview(item, type, i + 1 + (type === 'series' ? 10 : 0)));
@@ -275,7 +325,7 @@ const server = http.createServer((req, res) => {
     return send(res, 200, { metas: items });
   }
   if (resource === 'meta') {
-    const list = type === 'movie' ? movies : series;
+    const list = type === 'movie' ? movies.concat(matrix) : series;
     const index = list.findIndex((m) => m.id === id);
     if (index < 0) return send(res, 200, { meta: null });
     return send(res, 200, { meta: metaFull(list[index], type, index + 1 + (type === 'series' ? 10 : 0)) });

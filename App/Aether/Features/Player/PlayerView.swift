@@ -24,6 +24,8 @@ struct PlayerView: View {
     @State private var dragMode: DragMode?
     @State private var dragStart: Double = 0
     @State private var seekPreview: Double?
+    @GestureState private var holdPressing = false
+    @State private var rateBeforeHold: Float?
     @State private var originalBrightness: Double = 0.5
     @State private var castNotice: CastNotice?
     @State private var pendingCast: PendingCast?
@@ -268,7 +270,29 @@ struct PlayerView: View {
                     .exclusively(before: SpatialTapGesture(count: 1).onEnded { _ in toggleControls() })
             )
             .simultaneousGesture(dragGesture(size: size))
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.45, maximumDistance: 30)
+                    .updating($holdPressing) { value, state, _ in state = value }
+            )
+            .onChange(of: holdPressing) { _, pressing in
+                if pressing { beginHoldSpeed() } else { endHoldSpeed() }
+            }
             .accessibilityHidden(true)
+    }
+
+    /// Press and hold plays at the configured speed; releasing restores the speed the user had.
+    private func beginHoldSpeed() {
+        guard playbackSettings.holdToSpeed, !isLocked, !isCasting, !model.snapshot.isLive, rateBeforeHold == nil else { return }
+        rateBeforeHold = model.playbackRate
+        model.setRate(Float(playbackSettings.holdSpeed))
+        hud = HUD(icon: "forward.fill", text: String(format: "%.3g×", playbackSettings.holdSpeed), fraction: nil)
+    }
+
+    private func endHoldSpeed() {
+        guard let previous = rateBeforeHold else { return }
+        rateBeforeHold = nil
+        model.setRate(previous)
+        hud = nil
     }
 
     private func doubleTap(at location: CGPoint, width: CGFloat) {

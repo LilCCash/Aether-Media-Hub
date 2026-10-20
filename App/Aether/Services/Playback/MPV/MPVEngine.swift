@@ -641,6 +641,38 @@ final class MPVEngine: NSObject, PlaybackEngine {
     }
 }
 
+// MARK: - Self test
+
+/// Creates a throw-away libmpv instance with null outputs and reads what the linked libraries report. Used by the unit
+/// tests (and the "Stato dei player" page could use it): it proves that libmpv really is in the app and works.
+struct MPVSelfTestResult: Equatable {
+    var initStatus: Int32
+    var mpvVersion: String?
+    var ffmpegVersion: String?
+    var decoders: String
+    var demuxers: String
+}
+
+enum MPVSelfTest {
+    static func run() -> MPVSelfTestResult? {
+        guard let core = MPVCore() else { return nil }
+        for (name, value) in [("config", "no"), ("terminal", "no"), ("idle", "yes"), ("vo", "null"), ("ao", "null"),
+                              ("load-scripts", "no"), ("ytdl", "no"), ("osc", "no")] {
+            core.setOption(name, value)
+        }
+        let status = core.initialize()
+        var result = MPVSelfTestResult(initStatus: status, mpvVersion: nil, ffmpegVersion: nil, decoders: "", demuxers: "")
+        if status >= 0 {
+            result.mpvVersion = core.string("mpv-version")
+            result.ffmpegVersion = core.string("ffmpeg-version")
+            result.decoders = core.string("decoder-list") ?? ""
+            result.demuxers = core.string("demuxer-lavf-list") ?? ""
+        }
+        core.shutdown()
+        return result
+    }
+}
+
 // MARK: - Facts from mpv
 
 enum MPVFactsReader {

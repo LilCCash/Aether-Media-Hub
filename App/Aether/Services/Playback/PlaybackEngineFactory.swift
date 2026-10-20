@@ -22,6 +22,25 @@ enum PlaybackEngineFactory {
         return arguments.contains("-AETHER_UITEST") && arguments.contains("-AETHER_UITEST_MPV_HEADLESS")
     }
 
+    /// nil when MPV is not part of this build. Plain Swift values only, so test targets need not import libmpv.
+    struct MPVReport: Equatable {
+        var initStatus: Int32
+        var mpvVersion: String?
+        var ffmpegVersion: String?
+        var decoders: String
+        var demuxers: String
+    }
+
+    static func mpvSelfTest() -> MPVReport? {
+        #if canImport(Libmpv)
+        guard let result = MPVSelfTest.run() else { return nil }
+        return MPVReport(initStatus: result.initStatus, mpvVersion: result.mpvVersion, ffmpegVersion: result.ffmpegVersion,
+                         decoders: result.decoders, demuxers: result.demuxers)
+        #else
+        return nil
+        #endif
+    }
+
     static func make(_ kind: PlaybackEngineKind, settings: PlaybackSettings, device: DeviceVideoCapabilities) -> PlaybackEngine {
         switch kind {
         case .avPlayer:
