@@ -56,7 +56,7 @@ struct HeroCard: View {
                 LinearGradient(colors: [.clear, .black.opacity(0.55), .black.opacity(0.92)], startPoint: .top, endPoint: .bottom)
                 VStack(alignment: .leading, spacing: 8) {
                     if let logo = meta.logo, !logo.isEmpty {
-                        RemoteImage(urlString: logo, width: 400, contentMode: .fit)
+                        RemoteImage(urlString: logo, width: 400, contentMode: .fit, alignment: .leading)
                             .frame(maxWidth: 240, maxHeight: 72, alignment: .leading)
                     } else {
                         Text(meta.name).font(.aetherTitle(30)).foregroundStyle(.white).lineLimit(2)

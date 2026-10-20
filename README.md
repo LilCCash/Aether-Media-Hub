@@ -4,7 +4,7 @@ Aether è un media center nativo (Swift / SwiftUI) per iPhone che parla il **pro
 È un progetto indipendente: codice, nome, interfaccia e icona sono originali (vedi [`NOTICE`](NOTICE) e [`docs/03-LICENSES.md`](docs/03-LICENSES.md)).
 Non fornisce contenuti: mostra e riproduce ciò che gli addon installati dall'utente restituiscono.
 
-> **Stato in una riga:** il codice compila e i test automatici girano su macOS in CI; **non è stato provato su un iPhone fisico**, non c'è un IPA firmato, e alcune funzioni (AirPlay, Google Cast, DLNA, VoiceOver, Picture in Picture) sono implementate ma **non verificate con hardware reale**. Il dettaglio è in [Stato reale](#stato-reale).
+> **Stato in una riga:** il codice compila e i test automatici girano su macOS in CI; **non è stato provato su un iPhone fisico**, non esiste un IPA firmato (il workflow *Build IPA* compone un IPA **non firmato**, da firmare con il tuo Apple ID), e alcune funzioni (AirPlay, Google Cast, DLNA, VoiceOver, Picture in Picture) sono implementate ma **non verificate con hardware reale**. Il dettaglio è in [Stato reale](#stato-reale).
 
 ## Documentazione
 
@@ -62,10 +62,22 @@ Aether **non contiene** credenziali. Per installarlo sul tuo iPhone serve un acc
 2. `xcodegen generate`, apri il progetto, collega l'iPhone, scegli **Run**. Xcode gestisce certificato e profilo con la firma automatica.
 3. Alla prima apertura iOS chiede il permesso «Rete locale» (serve a Google Cast, DLNA e agli addon nella tua LAN).
 
-**Non è fornito nessun IPA.** Un IPA installabile richiede un certificato e un profilo di provisioning del tuo account: non vengono mai chiesti password Apple e non è possibile produrlo in modo verificabile senza di essi. Per distribuire fuori dall'App Store servono un account a pagamento (Ad Hoc / Enterprise) o TestFlight. Due strade, **entrambe non verificate** perché richiedono le tue credenziali:
+### Comporre l'IPA su GitHub
 
-* in locale: `Scripts/archive.sh` (usa `Config/Signing.local.xcconfig` e `Config/ExportOptions.plist`, derivato da `Config/ExportOptions.plist.example`);
-* in GitHub Actions: il workflow manuale `.github/workflows/release-ipa.yml` (secret `APPLE_TEAM_ID`, `APP_BUNDLE_ID`, `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `PROVISIONING_PROFILE_BASE64`). Non chiede mai password Apple, verifica la firma dell'IPA prima di caricarlo come artefatto e si ferma con un errore chiaro se manca un secret.
+> **Costo dei minuti:** finché il repository era privato i minuti dei runner macOS contavano 10× e dopo molte esecuzioni da ~15 minuti i job hanno smesso di partire (quota esaurita); con il repository pubblico i runner sono gratuiti e hanno ripreso a funzionare. Per tenere la CI veloce i test UI (~15 minuti) girano solo su `main` e sulle esecuzioni manuali; gli altri push compilano e lanciano i test unitari, e le modifiche alla sola documentazione non avviano la CI.
+
+Il workflow **Build IPA** (`.github/workflows/build-ipa.yml`) compone il file `.ipa` sui runner macOS di GitHub. Si avvia da *Actions ▸ Build IPA ▸ Run workflow* (anche via API), quando spingi un tag `v*` e quando il file del workflow cambia.
+
+| Modalità | Credenziali | Risultato | Stato |
+|---|---|---|---|
+| **Non firmato** (predefinita) | nessuna | artefatto `Aether-unsigned-ipa` con `Aether-unsigned.ipa` (arm64, Release, ~7,7 MB compresso); per pubblicarlo come *pre-release* di GitHub: esecuzione manuale con `publish_release` e un `release_tag` (es. `v1.0.0-alpha.1`), oppure push di un tag `v*`; se il tag non esiste viene creato sul commit compilato | ✅ eseguito in CI, anche dopo le correzioni della revisione: archivio Release per iPhone e pacchetto verificato (bundle id, versione 1.0.0 e build number presi dalla configurazione, deployment target, binario solo arm64 per dispositivo, Google Cast SDK incorporato, icona nel catalogo, privacy manifest, schemi `aether` e `stremio`, nessuna firma) |
+| **Firmato** (spunta *sign* nell'esecuzione manuale) | i tuoi secret (sotto) | `Aether-signed-ipa`, installabile sui dispositivi del tuo profilo | 🟡 scritto ma **mai eseguito**: richiede il tuo certificato e il tuo profilo |
+
+L'IPA non firmato **non si installa così com'è**: iOS richiede una firma. Va firmato di nuovo con il tuo Apple ID (per esempio con AltStore o Sideloadly) o con un tuo certificato. Non ho potuto provare l'installazione su un iPhone reale.
+
+Per la modalità firmata crea questi *repository secret* (Settings ▸ Secrets and variables ▸ Actions): `APPLE_TEAM_ID`, `APP_BUNDLE_ID` (l'identificativo registrato nel tuo profilo), `BUILD_CERTIFICATE_BASE64` (il `.p12` in base64), `P12_PASSWORD` (la password che hai scelto esportando il `.p12`), `PROVISIONING_PROFILE_BASE64` (il `.mobileprovision` in base64). Il workflow non chiede mai password Apple, si ferma con un errore chiaro se manca un secret, verifica la firma e il profilo incorporato prima di caricare il file e rimuove certificato e keychain al termine.
+
+Alternativa locale, anch'essa non verificata perché richiede le tue credenziali: `Scripts/archive.sh` (usa `Config/Signing.local.xcconfig` e `Config/ExportOptions.plist`, derivato da `Config/ExportOptions.plist.example`).
 
 ### iOS 27 e SDK
 

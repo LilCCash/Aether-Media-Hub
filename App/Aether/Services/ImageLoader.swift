@@ -158,10 +158,16 @@ extension EnvironmentValues {
 }
 
 /// Asynchronous artwork with a deterministic placeholder; cancels automatically when it leaves the screen.
+///
+/// The picture never takes part in layout: it fills whatever size the caller proposes and is clipped to it.
+/// An `Image` laid out with `.fill` reports a size larger than the proposal on one axis (a 16:9 backdrop in a
+/// narrow, tall slot is wider than the slot), and that excess used to propagate to the parent, widening the whole
+/// detail screen and the Home carousel beyond the display so their sides were cut off.
 struct RemoteImage: View {
     let urlString: String?
     var width: CGFloat = 160
     var contentMode: ContentMode = .fill
+    var alignment: Alignment = .center
     var placeholderSeed: String = ""
     var systemPlaceholder: String = "film"
 
@@ -172,24 +178,29 @@ struct RemoteImage: View {
     @State private var failed = false
 
     var body: some View {
-        ZStack {
-            if let image = image {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: contentMode)
-                    .transition(settings.animationsEnabled ? .opacity : .identity)
-            } else {
-                ZStack {
-                    Theme.fallbackGradient(for: placeholderSeed.isEmpty ? (urlString ?? "aether") : placeholderSeed)
-                    Image(systemName: failed ? "photo" : systemPlaceholder)
-                        .font(.system(size: max(14, width * 0.18), weight: .light))
-                        .foregroundStyle(.white.opacity(0.45))
-                }
+        Color.clear
+            .overlay(alignment: alignment) { artwork }
+            .clipped()
+            .animation(settings.animationsEnabled ? .easeOut(duration: 0.25) : nil, value: image != nil)
+            .task(id: urlString) { await load() }
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
+        if let image = image {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: contentMode)
+                .transition(settings.animationsEnabled ? .opacity : .identity)
+        } else {
+            ZStack {
+                Theme.fallbackGradient(for: placeholderSeed.isEmpty ? (urlString ?? "aether") : placeholderSeed)
+                Image(systemName: failed ? "photo" : systemPlaceholder)
+                    .font(.system(size: max(14, width * 0.18), weight: .light))
+                    .foregroundStyle(.white.opacity(0.45))
             }
         }
-        .animation(settings.animationsEnabled ? .easeOut(duration: 0.25) : nil, value: image != nil)
-        .task(id: urlString) { await load() }
-        .accessibilityHidden(true)
     }
 
     private func load() async {

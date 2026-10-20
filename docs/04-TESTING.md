@@ -4,6 +4,8 @@ Questo documento dice **cosa è stato eseguito davvero** e cosa no. Nessun test 
 
 ## Livelli
 
+> Costo: su un repository privato i minuti macOS di GitHub valgono 10×. I test UI (~15 min) girano solo su `main` e con *Run workflow*; gli altri push eseguono build e test unitari. L'ultima esecuzione completa dei test UI è quella riportata in fondo.
+
 | Livello | Dove | Come si esegue | Dove gira |
 |---|---|---|---|
 | Unit + integrazione del nucleo | `Packages/AetherCore/Tests` | `swift test` | CI (macOS), Linux in teoria |

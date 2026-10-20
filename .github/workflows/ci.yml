@@ -1,10 +1,19 @@
 name: CI
 
+# Cost note: on a private repository GitHub bills macOS runner minutes at 10x. The UI tests take ~15 minutes, so they
+# run only on main and on manual runs ("Run workflow"); every other push builds the app and runs the unit tests (~4 min).
+# Documentation-only changes do not start the workflow.
 on:
   push:
     branches: ['**']
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE']
   workflow_dispatch:
+    inputs:
+      ui_tests:
+        description: "UI tests to run, as an -only-testing target (for example AetherUITests/LayoutUITests)"
+        default: AetherUITests
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -94,7 +103,7 @@ jobs:
 
       - name: Start the fixture addon server
         id: fixture
-        if: steps.build.outcome == 'success'
+        if: steps.build.outcome == 'success' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
         run: |
           swiftc -O Tools/MakeFixtureVideo.swift -o "$RUNNER_TEMP/makevideo"
           "$RUNNER_TEMP/makevideo" "$RUNNER_TEMP/sample.mp4" 150
@@ -110,6 +119,8 @@ jobs:
       - name: UI tests
         id: ui
         if: steps.fixture.outcome == 'success'
+        env:
+          UI_TESTS: ${{ inputs.ui_tests }}
         run: |
           set -o pipefail
           TEST_RUNNER_AETHER_FIXTURE_LAN_HOST="${{ steps.fixture.outputs.lan_ip }}" \
@@ -117,7 +128,7 @@ jobs:
             -project Aether.xcodeproj -scheme Aether \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            -only-testing:AetherUITests \
+            -only-testing:"${UI_TESTS:-AetherUITests}" \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" 2>&1 | tee "$RUNNER_TEMP/ui.log"
 
       - name: Upload result bundles
