@@ -9,6 +9,19 @@ struct AddonsView: View {
     @State private var installPrefill: String?
     @State private var toast: String?
 
+    /// Cinemeta is offered until the official one is installed.
+    private var showsCinemetaRecommendation: Bool {
+        let installed = addons.addons.contains(where: { (addon: InstalledAddon) -> Bool in
+            return KnownAddons.isOfficial(manifest: addon.manifest, url: KnownAddons.cinemetaManifestURL) && addon.isOfficial
+        })
+        return !installed
+    }
+
+    /// OpenSubtitles v3 is offered until an addon with its id is installed (whoever installed it).
+    private var showsOpenSubtitlesRecommendation: Bool {
+        return !RecommendedSubtitleAddon.isInstalled(in: addons.addons)
+    }
+
     var body: some View {
         List {
             if addons.addons.isEmpty {
@@ -33,22 +46,40 @@ struct AddonsView: View {
                     }
                 }
             }
-            if !addons.addons.contains(where: { KnownAddons.isOfficial(manifest: $0.manifest, url: KnownAddons.cinemetaManifestURL) && $0.isOfficial }) {
-                Section(header: Text("Consigliato")) {
-                    Button {
-                        installPrefill = KnownAddons.cinemetaManifestURL.absoluteString
-                        showingInstall = true
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "sparkles.rectangle.stack").font(.title2).foregroundStyle(.tint)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Cinemeta").font(.headline)
-                                Text("Metadati ufficiali di Stremio (poster, trame, episodi). Non fornisce sorgenti video.")
-                                    .font(.caption).foregroundStyle(Color.aetherSecondary)
+            if showsCinemetaRecommendation || showsOpenSubtitlesRecommendation {
+                Section(header: Text("Consigliato"), footer: Text("Facoltativi: Aether non installa nulla da solo. Si apre l'anteprima e decidi tu.")) {
+                    if showsCinemetaRecommendation {
+                        Button {
+                            installPrefill = KnownAddons.cinemetaManifestURL.absoluteString
+                            showingInstall = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "sparkles.rectangle.stack").font(.title2).foregroundStyle(.tint)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Cinemeta").font(.headline)
+                                    Text("Metadati ufficiali di Stremio (poster, trame, episodi). Non fornisce sorgenti video.")
+                                        .font(.caption).foregroundStyle(Color.aetherSecondary)
+                                }
                             }
                         }
+                        .accessibilityIdentifier("addons.recommended")
                     }
-                    .accessibilityIdentifier("addons.recommended")
+                    if showsOpenSubtitlesRecommendation {
+                        Button {
+                            installPrefill = RecommendedSubtitleAddon.manifestURL.absoluteString
+                            showingInstall = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "captions.bubble").font(.title2).foregroundStyle(.tint)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(RecommendedSubtitleAddon.name).font(.headline)
+                                    Text("Sottotitoli da OpenSubtitles: addon ufficiale di Stremio, senza account né chiave. Per cercarli invia al suo server il codice IMDb del titolo e, se disponibili, nome, dimensione e impronta del file video.")
+                                        .font(.caption).foregroundStyle(Color.aetherSecondary)
+                                }
+                            }
+                        }
+                        .accessibilityIdentifier("addons.recommended.opensubtitles")
+                    }
                 }
             }
             Section(footer: Text("Aether non include né consiglia addon che forniscono contenuti protetti: verifica di avere i diritti sui contenuti che riproduci. Gli addon sono trattati come servizi non fidati.")) {

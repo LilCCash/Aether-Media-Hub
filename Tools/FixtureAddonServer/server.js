@@ -18,6 +18,8 @@
 //   /media/<file>                        any file of --media-dir (the CI "media matrix": MKV, HDR10, HLG, hev1, …), with Range support;
 //                                        each one that exists is also listed as a title in the "Fixture Matrix" catalog
 //   /subs/it.srt, /subs/en.vtt           subtitle files
+//   /subs/missing.srt, /subs/garbage.srt a subtitle that answers 404 and one that is not a subtitle (the error paths); offered by "Broken Captions"
+//   /nosubs/…, /opensubs/…               this same server as an addon without a `subtitles` resource, and as one posing as the official OpenSubtitles v3 id
 //   /poster/{n}.png, /backdrop/{n}.png, /logo/{n}.png   generated portrait posters, 16:9 backdrops, wide RGBA logos
 //   /tmdb/3/…, /tvdb/v4/…               stand-ins for the TMDB and TheTVDB APIs (metadata.js); tt9300001 is a bare movie searched as "Sparse"
 //   /__control/offline?on=1|0            make every addon endpoint answer 503 (tests the "addon offline" path)
@@ -49,6 +51,9 @@ const movies = [
   { id: 'tt9000002', name: 'Aether Fixture Two', year: 2022, genres: ['Fixture', 'Comedy'], runtime: '1 min', rating: '6.4' },
   { id: 'tt9000003', name: 'Unsupported Format', year: 2020, genres: ['Fixture'], runtime: '90 min', rating: '5.0' },
   { id: 'tt9000004', name: 'Nothing To Watch', year: 2019, genres: ['Fixture'], runtime: '90 min', rating: '4.1' },
+  // Subtitle scenarios, listed only when searched for: a title the addon has no subtitles for, and one whose subtitle files are unusable.
+  { id: 'tt9000005', name: 'Silent Feature', year: 2018, genres: ['Fixture'], runtime: '1 min', rating: '5.5', hidden: true },
+  { id: 'tt9000006', name: 'Broken Captions', year: 2017, genres: ['Fixture'], runtime: '1 min', rating: '5.1', hidden: true },
   // A bare meta (name only), listed only when searched for: what the TMDB / TheTVDB stand-ins (metadata.js) can fill in.
   { id: 'tt9300001', name: 'Sparse Fixture Movie', year: 2020, genres: [], runtime: '', rating: '', hidden: true, sparse: true },
 ];
@@ -115,6 +120,17 @@ const manifest = {
   behaviorHints: { configurable: false },
 };
 
+// Variants of this server under /<name>/…: the same addon without a `subtitles` resource, and one posing as the official
+// OpenSubtitles v3 id (tests of the "recommended addon" entry and of the "no subtitles addon installed" state).
+const variantManifests = {
+  nosubs: { ...manifest, resources: ['catalog', 'meta', 'stream'] },
+  opensubs: {
+    id: 'org.stremio.opensubtitlesv3', version: '1.0.0', name: 'OpenSubtitles v3 (fixture)',
+    description: 'Stands in for the official OpenSubtitles v3 addon in automated tests',
+    resources: ['subtitles'], types: ['movie', 'series'], idPrefixes: ['tt'], catalogs: [],
+  },
+};
+
 function streamsFor(id) {
   const m = matrix.find((entry) => entry.id === id);
   if (m) {
@@ -131,6 +147,11 @@ function streamsFor(id) {
     ];
   }
   if (id === 'tt9000004') return [];
+  // The subtitle-scenario titles carry no subtitles inside the stream: only the addon's `subtitles` resource decides.
+  if (id === 'tt9000005' || id === 'tt9000006') {
+    return [{ name: 'Fixture 720p', title: `${id} 720p MP4 H.264`, url: `${BASE}/media/sample.mp4?q=720`,
+      behaviorHints: { bingeGroup: 'fixture-720p', filename: 'sample.mp4' } }];
+  }
   return [
     { name: 'Fixture 1080p', title: `${id} 1080p MP4 H.264`, url: `${BASE}/media/sample.mp4?q=1080`, subtitles: sub,
       behaviorHints: { bingeGroup: 'fixture-1080p', filename: 'sample.mp4' } },
@@ -293,7 +314,10 @@ function decodeExtra(segment) {
 const server = http.createServer((req, res) => {
   BASE = `http://${req.headers.host || `127.0.0.1:${PORT}`}`;
   const url = new URL(req.url, BASE);
-  const p = decodeURIComponent(url.pathname);
+  const rawPath = decodeURIComponent(url.pathname);
+  const variantMatch = /^\/(nosubs|opensubs)(\/.*)$/.exec(rawPath);
+  const variant = variantMatch ? variantMatch[1] : null;
+  const p = variantMatch ? variantMatch[2] : rawPath;
   if (!p.startsWith('/__control/')) requests.push(p);
 
   if (p === '/__control/offline') { offline = url.searchParams.get('on') === '1'; return send(res, 200, { offline }); }
@@ -307,6 +331,8 @@ const server = http.createServer((req, res) => {
   if (p.startsWith('/logo/')) return send(res, 200, logo(), 'image/png');
   if (p === '/subs/it.srt') return send(res, 200, SRT, 'application/x-subrip');
   if (p === '/subs/en.vtt') return send(res, 200, VTT, 'text/vtt');
+  if (p === '/subs/missing.srt') { res.writeHead(404); return res.end('no such subtitle'); }
+  if (p === '/subs/garbage.srt') return send(res, 200, 'This is not a subtitle file.\n', 'text/plain');
   if (p.startsWith('/media/') && mediaOffline) { res.writeHead(503); return res.end('media offline'); }
   if (p === '/media/sample.mp4') return serveVideo(req, res);
   if (p.startsWith('/media/')) return serveMatrixFile(req, res, p.slice('/media/'.length));
@@ -315,7 +341,7 @@ const server = http.createServer((req, res) => {
 
   if (p === '/bad/manifest.json') return send(res, 200, { id: 'org.bad', version: 'not-semver-but-ok' });
   if (p === '/html/manifest.json') return send(res, 200, '<html><body>Not an addon</body></html>', 'text/html');
-  if (p === '/manifest.json') return send(res, 200, manifest);
+  if (p === '/manifest.json') return send(res, 200, variant ? variantManifests[variant] : manifest);
 
   const parts = p.replace(/\.json$/, '').split('/').filter(Boolean);
   const [resource, type, id, extraSegment] = parts;
@@ -343,6 +369,14 @@ const server = http.createServer((req, res) => {
     return send(res, 200, { streams: streamsFor(baseId) });
   }
   if (resource === 'subtitles') {
+    // Subtitle scenarios: nothing at all for one title, files that cannot be used for the other.
+    if (id === 'tt9000005') return send(res, 200, { subtitles: [] });
+    if (id === 'tt9000006') {
+      return send(res, 200, { subtitles: [
+        { id: 'missing', url: `${BASE}/subs/missing.srt`, lang: 'ita' },
+        { id: 'garbage', url: `${BASE}/subs/garbage.srt`, lang: 'eng' },
+      ] });
+    }
     return send(res, 200, { subtitles: [
       { id: 'it-addon', url: `${BASE}/subs/it.srt`, lang: 'ita' },
       { id: 'en-addon', url: `${BASE}/subs/en.vtt`, lang: 'eng' },

@@ -42,6 +42,12 @@ struct SessionTrackMemory: Equatable {
         rememberedSubtitle = choice
     }
 
+    /// The viewer switched on a subtitle that has no language to remember (an imported file, an addon entry without a language):
+    /// an earlier "off" or language no longer describes what they want.
+    mutating func forgetSubtitle() {
+        rememberedSubtitle = nil
+    }
+
     /// Audio language to prefer for this title, nil when the viewer chose nothing (or chose it for another title).
     func audioLanguageToApply(forMeta metaID: String) -> String? {
         if self.metaID != metaID { return nil }
@@ -145,10 +151,18 @@ enum TrackPreferences {
         return nil
     }
 
+    /// Stable language code of an engine track: its language tag, otherwise its title when that is a single word ("Italiano"),
+    /// otherwise nil ("Italiano · AC3" and "Traccia 2" say nothing reliable).
+    static func languageCode(language: String?, title: String) -> String? {
+        if let code = SessionTrackMemory.stableCode(language) { return code }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed.contains(" ") || trimmed.contains("·") { return nil }
+        return SessionTrackMemory.stableCode(trimmed)
+    }
+
     /// What to remember when the viewer picks this audio track by hand.
     static func audioLanguageToRemember(for track: EngineTrack) -> String? {
-        if let code = SessionTrackMemory.stableCode(track.language) { return code }
-        return SessionTrackMemory.stableCode(track.title)
+        return languageCode(language: track.language, title: track.title)
     }
 
     // MARK: Subtitles
@@ -287,6 +301,20 @@ struct SubtitleRowText: Equatable {
 }
 
 extension SubtitleOption {
+    var isEmbedded: Bool {
+        switch kind {
+        case .embedded: return true
+        case .addon, .local: return false
+        }
+    }
+
+    var isLocalFile: Bool {
+        switch kind {
+        case .local: return true
+        case .embedded, .addon: return false
+        }
+    }
+
     /// Identifier of the option built for an addon subtitle: stable across refreshes of the list (the URL is unique).
     static func optionID(for candidate: SubtitleCandidate) -> String {
         return "addon-" + candidate.url

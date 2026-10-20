@@ -2081,3 +2081,116 @@ final class DebridSecretHandlingTests: XCTestCase {
         }
     }
 }
+
+// MARK: - Wire format of Tools/FixtureTorBoxServer
+
+/// The UI tests run against a Node test double (Tools/FixtureTorBoxServer/server.js). The bodies below are copied from its
+/// answers (same keys, same value types), so a change of the fixture's wire format or of the client's models that would break
+/// the UI tests is caught here first. The fixture itself is checked by Tools/FixtureTorBoxServer/selftest.js.
+final class TorBoxFixtureContractTests: XCTestCase {
+    private static let base = URL(string: "http://127.0.0.1:7778/v1/api")!
+    private static let key = "test-key"
+    private static let seriesHash = "2222222222222222222222222222222222222222"
+    private static let slowHash = "3333333333333333333333333333333333333333"
+
+    private static let user = #"{"id":4242,"created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-01T00:00:00Z","email":"fixture.user@example.com","plan":2,"total_downloaded":0,"is_subscribed":true,"premium_expires_at":"2099-01-01T00:00:00.167Z","cooldown_until":null,"auth_id":"fixture-auth"}"#
+
+    private static let seriesCached = #"{"name":"Cached.Series.S01.1080p","size":1750000000,"hash":"2222222222222222222222222222222222222222","files":[{"name":"Cached.Series.S01.1080p/Cached.Series.S01E01.1080p.mkv","size":900000000},{"name":"Cached.Series.S01.1080p/Cached.Series.S01E02.1080p.mkv","size":850000000}]}"#
+
+    private static let seriesItem = #"{"id":101,"hash":"2222222222222222222222222222222222222222","name":"Cached.Series.S01.1080p","size":1750000000,"magnet":"magnet:?xt=urn:btih:2222222222222222222222222222222222222222","progress":1,"download_state":"cached","download_speed":0,"upload_speed":0,"eta":0,"seeds":0,"peers":0,"ratio":0,"availability":1,"active":false,"download_finished":true,"download_present":true,"cached":true,"torrent_file":false,"created_at":"2026-10-20T11:10:15.184Z","updated_at":"2026-10-20T11:10:15.193Z","expires_at":null,"inactive_check":0,"server":1,"auth_id":"fixture-auth","files":[{"id":31,"name":"Cached.Series.S01.1080p/Cached.Series.S01E01.1080p.mkv","short_name":"Cached.Series.S01E01.1080p.mkv","size":900000000,"mimetype":"video/x-matroska","md5":null,"s3_path":"fixture/101/31","zipped":false,"infected":false,"opensubtitles_hash":null},{"id":32,"name":"Cached.Series.S01.1080p/Cached.Series.S01E02.1080p.mkv","short_name":"Cached.Series.S01E02.1080p.mkv","size":850000000,"mimetype":"video/x-matroska","md5":null,"s3_path":"fixture/101/32","zipped":false,"infected":false,"opensubtitles_hash":null}]}"#
+
+    private static func slowItem(progress: String, state: String, speed: Int, eta: Int, finished: Bool) -> String {
+        return #"{"id":102,"hash":"3333333333333333333333333333333333333333","name":"Slow.Download.2024.720p","size":700000000,"magnet":"magnet:?xt=urn:btih:3333333333333333333333333333333333333333","progress":\#(progress),"download_state":"\#(state)","download_speed":\#(speed),"upload_speed":0,"eta":\#(eta),"seeds":12,"peers":3,"ratio":0,"availability":1,"active":\#(!finished),"download_finished":\#(finished),"download_present":\#(finished),"cached":false,"torrent_file":false,"created_at":"2026-10-20T11:10:15.184Z","updated_at":"2026-10-20T11:10:15.193Z","expires_at":null,"inactive_check":0,"server":1,"auth_id":"fixture-auth","files":[{"id":41,"name":"Slow.Download.2024.720p/Slow.Download.2024.720p.mkv","short_name":"Slow.Download.2024.720p.mkv","size":700000000,"mimetype":"video/x-matroska","md5":null,"s3_path":"fixture/102/41","zipped":false,"infected":false,"opensubtitles_hash":null}]}"#
+    }
+
+    private func makeResolver(_ env: TBEnvironment) -> DebridResolver {
+        let client = env.makeClient(key: TorBoxFixtureContractTests.key, baseURL: TorBoxFixtureContractTests.base)
+        return DebridResolver(client: client, clock: env.clock.clock)
+    }
+
+    func testFixtureAccountAnswerDecodesIncludingFractionalSecondsDates() async throws {
+        let env = TBEnvironment()
+        env.stub.on("GET", "/user/me", replies: [TBStubHTTP.envelope(detail: "Fetched user data.", data: TorBoxFixtureContractTests.user)])
+        let account = try await makeResolver(env).validateCredentials()
+        XCTAssertEqual(account.planName, "Pro")
+        XCTAssertFalse(account.isFreePlan)
+        XCTAssertNotNil(account.premiumExpiresAt, "premium_expires_at carries milliseconds")
+        XCTAssertNil(account.notice)
+        XCTAssertEqual(env.stub.requests.first?.url.absoluteString, "http://127.0.0.1:7778/v1/api/user/me?settings=false")
+    }
+
+    func testCachedSeriesPackResolvesToTheRequestedEpisodeNotTheLargestFile() async throws {
+        let env = TBEnvironment()
+        env.stub.on("GET", "/torrents/mylist", query: "offset=", replies: [TBStubHTTP.envelope(detail: "Fetched torrent list.", data: "[]")])
+        env.stub.on("POST", "/torrents/checkcached", replies: [TBStubHTTP.envelope(detail: "Found cached torrents.", data: "[" + TorBoxFixtureContractTests.seriesCached + "]")])
+        env.stub.on("POST", "/torrents/createtorrent", replies: [TBStubHTTP.envelope(detail: "Found Cached Torrent. Using Cached Torrent.", data: #"{"torrent_id":101,"hash":"2222222222222222222222222222222222222222","auth_id":"fixture-auth"}"#)])
+        env.stub.on("GET", "/torrents/mylist", query: "id=101", replies: [TBStubHTTP.envelope(detail: "Fetched torrent.", data: TorBoxFixtureContractTests.seriesItem)])
+        env.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(detail: "Requested download link.", data: "\"http://127.0.0.1:7778/cdn/Cached.Series.S01E02.1080p.mp4\"")])
+
+        let request = DebridRequest(infoHash: TorBoxFixtureContractTests.seriesHash, fileIndex: 1, stremioID: "tt9100001:1:2")
+        let resolution = try await makeResolver(env).resolve(request)
+        XCTAssertEqual(resolution.torrentID, 101)
+        XCTAssertEqual(resolution.fileID, 32, "episode 2 is the smaller file; ids are 31/32, not the positions 0/1")
+        XCTAssertEqual(resolution.fileName, "Cached.Series.S01E02.1080p.mkv")
+        XCTAssertEqual(resolution.fileSize, 850_000_000)
+        XCTAssertEqual(resolution.url.absoluteString, "http://127.0.0.1:7778/cdn/Cached.Series.S01E02.1080p.mp4")
+        XCTAssertFalse(resolution.wasAlreadyInAccount)
+
+        let download = try XCTUnwrap(env.stub.requests(pathSuffix: "/torrents/requestdl").first)
+        XCTAssertEqual(download.url.query, "token=test-key&torrent_id=101&file_id=32")
+        for sent in env.stub.requests {
+            XCTAssertEqual(sent.url.host, "127.0.0.1")
+            XCTAssertEqual(sent.url.port, 7778)
+            XCTAssertTrue(sent.url.path.hasPrefix("/v1/api/"), sent.url.path)
+        }
+        tbAssertNoDestructiveCalls(env.stub)
+    }
+
+    func testDownloadingTorrentOfTheFixtureReportsProgressThenResolves() async throws {
+        let env = TBEnvironment()
+        env.stub.on("GET", "/torrents/mylist", query: "offset=", replies: [TBStubHTTP.envelope(data: "[]")])
+        env.stub.on("POST", "/torrents/createtorrent", replies: [TBStubHTTP.envelope(detail: "Torrent added.", data: #"{"torrent_id":102,"hash":"3333333333333333333333333333333333333333","auth_id":"fixture-auth"}"#)])
+        env.stub.on("GET", "/torrents/mylist", query: "id=102", replies: [
+            TBStubHTTP.envelope(data: TorBoxFixtureContractTests.slowItem(progress: "0.2", state: "downloading", speed: 15_000_000, eta: 6, finished: false)),
+            TBStubHTTP.envelope(data: TorBoxFixtureContractTests.slowItem(progress: "0.6", state: "downloading", speed: 15_000_000, eta: 3, finished: false)),
+            TBStubHTTP.envelope(data: TorBoxFixtureContractTests.slowItem(progress: "1", state: "completed", speed: 0, eta: 0, finished: true))
+        ])
+        env.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(data: "\"http://127.0.0.1:7778/cdn/Slow.Download.2024.720p.mp4\"")])
+
+        let recorder = TBProgressRecorder()
+        let request = DebridRequest(infoHash: TorBoxFixtureContractTests.slowHash, mode: .startIfNeeded)
+        let resolution = try await makeResolver(env).resolve(request, onProgress: recorder.callback)
+        XCTAssertEqual(resolution.fileID, 41)
+        XCTAssertEqual(resolution.fileName, "Slow.Download.2024.720p.mkv")
+        XCTAssertEqual(env.clock.sleeps, [3, 3], "two polls found the download unfinished")
+
+        let downloading = recorder.all.filter { (progress: DebridProgress) -> Bool in return progress.phase == .downloading }
+        XCTAssertEqual(downloading.count, 2)
+        XCTAssertEqual(downloading[0].fraction, 0.2)
+        XCTAssertEqual(downloading[0].downloadSpeed, 15_000_000)
+        XCTAssertEqual(downloading[0].etaSeconds, 6)
+        XCTAssertEqual(downloading[0].state, "downloading")
+        XCTAssertEqual(downloading[1].fraction, 0.6)
+        XCTAssertEqual(env.stub.requests(pathSuffix: "/torrents/createtorrent").count, 1)
+    }
+
+    func testRateLimitAnswerOfTheFixtureIsRetriedTwiceThenReported() async {
+        let env = TBEnvironment()
+        let body = #"{"success":false,"error":"RATE_LIMIT_EXCEEDED","detail":"Too many requests. Please slow down.","data":null}"#
+        env.stub.on("GET", "/user/me", replies: [TBStubHTTP.raw(status: 429, body: body, headers: ["retry-after": "2", "x-ratelimit-limit": "300", "x-ratelimit-remaining": "0"])])
+        let resolver = makeResolver(env)
+        await tbExpect(DebridError.rateLimited(retryAfter: 2)) { try await resolver.validateCredentials() }
+        XCTAssertEqual(env.stub.requests.count, 3, "max 3 attempts")
+        XCTAssertEqual(env.clock.sleeps, [2, 2], "waits what Retry-After says")
+    }
+
+    func testFreePlanAnswerOfTheFixtureShowsTheFreePlanNotice() async throws {
+        let env = TBEnvironment()
+        let body = #"{"id":4242,"email":"fixture.user@example.com","plan":0,"total_downloaded":0,"is_subscribed":false,"premium_expires_at":null,"cooldown_until":null,"auth_id":"fixture-auth"}"#
+        env.stub.on("GET", "/user/me", replies: [TBStubHTTP.envelope(data: body)])
+        let account = try await makeResolver(env).validateCredentials()
+        XCTAssertTrue(account.isFreePlan)
+        XCTAssertNil(account.premiumExpiresAt)
+        XCTAssertNotNil(account.notice)
+    }
+}

@@ -484,7 +484,10 @@ final class PlayerViewModel: ObservableObject {
         alternatives = alternatives.filter { $0.id != item.id }
         let position = max(snapshot.position, lastRetryPosition)
         failure = nil
+        // Another release of the same title: its subtitles, hash and tracks are not those of the previous one.
+        resetSubtitleStateForNewVideo()
         Task { await beginPlayback(startOverride: position > 5 ? position : nil) }
+        Task { await loadSubtitleOptions() }
         env.setBingeGroup(item.stream.behaviorHints.bingeGroup, forMeta: meta.id)
     }
 
@@ -588,92 +591,363 @@ final class PlayerViewModel: ObservableObject {
     // MARK: Tracks
 
     private func refreshTracks() {
+        subtitleTracksKnown = true
         audioTracks = engine.audioTracks()
         refreshEmbeddedSubtitleOptions()
         if !preferredAudioApplied, !audioTracks.isEmpty {
             preferredAudioApplied = true
             applyPreferredAudio()
         }
+        syncEngineSubtitleWithSelection()
+        reselectEmbeddedAfterEngineChange()
         applyPreferredSubtitleIfNeeded()
     }
 
+    /// Audio language: what the viewer picked by hand for this title, then the preferred language, then the secondary one
+    /// ("off" means none).
     private func applyPreferredAudio() {
-        guard let language = SettingsStore.resolvedLanguage(playback.preferredAudioLanguage) else { return }
-        if let match = audioTracks.first(where: { LanguageCodes.matches($0.language ?? "", language) || LanguageCodes.matches($0.title, language) }),
-           !match.isSelected {
-            engine.selectAudio(id: match.id)
-            audioTracks = engine.audioTracks()
-        }
+        let languages = TrackPreferences.audioLanguages(
+            remembered: trackMemory.audioLanguageToApply(forMeta: meta.id),
+            primary: SettingsStore.resolvedLanguage(playback.preferredAudioLanguage),
+            secondary: SettingsStore.resolvedLanguage(playback.secondaryAudioLanguage))
+        guard let match = TrackPreferences.pickAudio(languages: languages, tracks: audioTracks), !match.isSelected else { return }
+        engine.selectAudio(id: match.id)
+        audioTracks = engine.audioTracks()
     }
 
+    /// Audio track picked by the viewer. Its language is remembered for the next episode of this series.
     func selectAudio(_ track: EngineTrack) {
+        preferredAudioApplied = true
+        trackMemory.rememberAudio(language: TrackPreferences.audioLanguageToRemember(for: track), metaID: meta.id)
         engine.selectAudio(id: track.id)
         audioTracks = engine.audioTracks()
+    }
+
+    /// A new engine replaced the old one (fallback to the other engine): its tracks are unknown until it reports them, the audio
+    /// language is chosen again, and the subtitle on screen is carried over. A downloaded or imported subtitle is drawn by the app,
+    /// so it survives as it is; an embedded track has another id in the new engine and is looked up again by language.
+    func engineReplaced() {
+        preferredAudioApplied = false
+        subtitleTracksKnown = false
+        engineSubtitlesSilenced = false
+        audioTracks = []
+        embeddedOptions = []
+        if let selected = selectedOption {
+            switch selected.kind {
+            case .embedded:
+                pendingEmbeddedLanguage = selected.languageCode ?? selected.language ?? selected.title
+                selectedSubtitleID = nil
+                selectedOption = nil
+            case .addon, .local:
+                engineSubtitleSyncPending = true
+            }
+        }
+        publishSubtitleOptions()
     }
 
     // MARK: Subtitles
 
     private func refreshEmbeddedSubtitleOptions() {
-        let embedded = engine.embeddedSubtitleTracks().map {
-            SubtitleOption(id: "embedded-\($0.id)", title: $0.title, detail: "Incorporato", language: $0.language, kind: .embedded($0.id))
+        var options: [SubtitleOption] = []
+        for track in engine.embeddedSubtitleTracks() {
+            let code = TrackPreferences.languageCode(language: track.language, title: track.title)
+            options.append(SubtitleOption(id: "embedded-\(track.id)", title: track.title, detail: "Incorporato",
+                                          language: track.language, kind: .embedded(track.id), languageCode: code))
         }
-        let others = subtitleOptions.filter { if case .embedded = $0.kind { return false } else { return true } }
-        subtitleOptions = embedded + others
+        embeddedOptions = options
+        // The embedded track that was on is no longer reported: do not claim it still is.
+        if let selected = selectedOption, case .embedded = selected.kind {
+            let stillThere = options.contains(where: { (option: SubtitleOption) -> Bool in
+                return option.id == selected.id
+            })
+            if !stillThere {
+                selectedSubtitleID = nil
+                selectedOption = nil
+            }
+        }
+        publishSubtitleOptions()
     }
 
-    private func loadSubtitleOptions() async {
-        guard let video = currentVideo ?? Optional(Video(id: meta.id, title: meta.name)) else { return }
-        var options: [SubtitleOption] = []
-        var seen = Set<String>()
-        func add(_ subtitle: AddonSubtitle, source: String?) {
-            guard seen.insert(subtitle.url).inserted else { return }
-            let language = LanguageCodes.displayName(subtitle.lang)
-            options.append(SubtitleOption(id: "addon-\(subtitle.id)-\(options.count)",
-                                          title: subtitle.label ?? language,
-                                          detail: [subtitle.label != nil ? language : nil, source ?? subtitle.addonName].compactMap { $0 }.joined(separator: " · "),
-                                          language: subtitle.lang, kind: .addon(subtitle)))
+    /// `subtitleOptions` = embedded tracks first, then the addon subtitles in the order of the groups, then imported files.
+    private func publishSubtitleOptions() {
+        var addonOptions: [SubtitleOption] = []
+        for group in subtitleGroups {
+            for candidate in group.candidates { addonOptions.append(SubtitleOption.addon(candidate)) }
         }
-        for subtitle in currentStream?.subtitles ?? [] { add(subtitle, source: currentStream?.addonName) }
-        let hints = currentStream?.behaviorHints
-        let remote = await env.service.subtitles(type: meta.type, videoID: video.id, videoHash: hints?.videoHash,
-                                                 videoSize: hints?.videoSize, filename: hints?.filename)
-        for subtitle in remote { add(subtitle, source: nil) }
-        let embedded = subtitleOptions.filter { if case .embedded = $0.kind { return true } else { return false } }
-        let locals = subtitleOptions.filter { if case .local = $0.kind { return true } else { return false } }
-        subtitleOptions = embedded + options + locals
+        subtitleOptions = embeddedOptions + addonOptions + localOptions
+    }
+
+    // MARK: Subtitles from addons
+
+    /// Languages for the ranking of the list and for the automatic choice: what the viewer picked by hand for this title, then the
+    /// preferred language, then the secondary one ("off" means none).
+    private func subtitleWishes() -> (ranking: [String], automatic: [String]) {
+        let remembered = trackMemory.subtitleChoiceToApply(forMeta: meta.id)
+        let primary = SettingsStore.resolvedLanguage(playback.preferredSubtitleLanguage)
+        let secondary = SettingsStore.resolvedLanguage(playback.secondarySubtitleLanguage)
+        let ranking = TrackPreferences.subtitleRanking(remembered: remembered, primary: primary, secondary: secondary)
+        let automatic = TrackPreferences.automaticSubtitleLanguages(remembered: remembered, primary: primary, secondary: secondary)
+        return (ranking, automatic)
+    }
+
+    /// Asks every installed subtitles addon for this video. The first answer carries what the stream announces (hash, size, file
+    /// name) and never waits for anything else. When the stream announces no hash, one is computed on this device in the
+    /// background (`SubtitleHashProbe`, once per stream and session; never for downloads, HLS or non-public http) and the addons
+    /// are asked again with it: both answers end up in the list.
+    private func loadSubtitleOptions() async {
+        subtitleGeneration += 1
+        let generation = subtitleGeneration
+        subtitleHashTask?.cancel()
+        subtitleHashTask = nil
+
+        let stream = currentStream
+        let type = meta.type
+        let videoID = currentVideo?.id ?? meta.id
+        var announced: [AddonSubtitle] = []
+        for subtitle in stream?.subtitles ?? [] {
+            var entry = subtitle
+            if entry.addonName == nil { entry.addonName = stream?.addonName }
+            announced.append(entry)
+        }
+        streamSubtitles = announced
+        plainSubtitles = []
+        hashedSubtitles = []
+        subtitleListPhase = .loading
+        rebuildSubtitleList()
+        applyPreferredSubtitleIfNeeded()
+
+        let handles = await env.service.handles()
+        guard generation == subtitleGeneration, !tornDown else { return }
+        let providers = SubtitleAddonSupport.providers(in: handles, type: type, videoID: videoID)
+        hasSubtitleProvider = !providers.isEmpty
+        if providers.isEmpty {
+            finishSubtitleLoading()
+            return
+        }
+
+        var known: SubtitleHashResult?
+        if let stream = stream { known = localHashes[stream.id] }
+        let params = SubtitleVideoParams.resolve(stream: stream, local: known, filename: nil)
+        startHashProbeIfNeeded(generation: generation, type: type, videoID: videoID)
+        let answer = await env.service.subtitles(type: type, videoID: videoID, params: params)
+        guard generation == subtitleGeneration, !tornDown else { return }
+        if known != nil { hashedSubtitles = answer } else { plainSubtitles = answer }
+        finishSubtitleLoading()
+    }
+
+    private func finishSubtitleLoading() {
+        subtitleListPhase = .ready
+        rebuildSubtitleList()
         applyPreferredSubtitleIfNeeded()
     }
 
-    private func applyPreferredSubtitleIfNeeded() {
-        guard !preferredSubtitleApplied, selectedSubtitleID == nil else { return }
-        guard let language = SettingsStore.resolvedLanguage(playback.preferredSubtitleLanguage) else { return }
-        guard !subtitleOptions.isEmpty else { return }
-        // Prefer embedded tracks (no download, perfectly in sync) and fall back to addon subtitles.
-        let match = subtitleOptions.first(where: {
-            if case .embedded = $0.kind { return LanguageCodes.matches($0.language ?? "", language) || LanguageCodes.matches($0.title, language) }
-            return false
-        }) ?? subtitleOptions.first(where: {
-            if case .addon = $0.kind { return LanguageCodes.matches($0.language ?? "", language) }
-            return false
-        })
-        if let match = match {
-            preferredSubtitleApplied = true
-            selectSubtitle(match)
+    private func startHashProbeIfNeeded(generation: Int, type: String, videoID: String) {
+        var isDownload = false
+        if case .download = request.source { isDownload = true }
+        guard let stream = currentStream, SubtitleHashPlan.shouldProbe(stream: stream, isDownload: isDownload) else { return }
+        if localHashes[stream.id] != nil || attemptedHashStreams.contains(stream.id) { return }
+        attemptedHashStreams.insert(stream.id)
+        let probe = SubtitleHashProbe(http: env.http, policy: env.settings.value.networkPolicy(allowLoopback: env.isUITesting))
+        subtitleHashTask = Task { [weak self] in
+            let outcome = await probe.probe(stream: stream)
+            if Task.isCancelled { return }
+            await self?.hashProbeFinished(outcome, stream: stream, type: type, videoID: videoID, generation: generation)
         }
     }
 
-    func disableSubtitles() {
+    private func hashProbeFinished(_ outcome: Result<SubtitleHashResult, SubtitleHashFailure>, stream: AddonStream,
+                                   type: String, videoID: String, generation: Int) async {
+        guard !tornDown else { return }
+        switch outcome {
+        case .failure(let reason):
+            // Not an error for the viewer: the addons simply keep answering without a hash.
+            if reason != .cancelled {
+                env.diagnostics.logDetached(.info, "subtitles", "Hash del video non calcolato: \(reason.message)")
+            }
+        case .success(let hashed):
+            localHashes[stream.id] = hashed
+            guard generation == subtitleGeneration else { return }
+            let params = SubtitleVideoParams.resolve(stream: stream, local: hashed, filename: nil)
+            let refined = await env.service.subtitles(type: type, videoID: videoID, params: params)
+            guard generation == subtitleGeneration, !tornDown else { return }
+            hashedSubtitles = refined
+            rebuildSubtitleList()
+        }
+    }
+
+    /// Ranks and groups what the stream and the addons offered (`SubtitleCatalog`). Answers with the local hash come first.
+    private func rebuildSubtitleList() {
+        var pool: [AddonSubtitle] = streamSubtitles
+        pool.append(contentsOf: hashedSubtitles)
+        pool.append(contentsOf: plainSubtitles)
+        // The subtitle on screen stays in the list even if a refreshed answer no longer carries it.
+        if let selected = selectedOption, case .addon(let subtitle) = selected.kind {
+            let wanted = subtitle.url.trimmingCharacters(in: .whitespacesAndNewlines)
+            let present = pool.contains(where: { (entry: AddonSubtitle) -> Bool in
+                return entry.url.trimmingCharacters(in: .whitespacesAndNewlines) == wanted
+            })
+            if !present { pool.append(subtitle) }
+        }
+        let preferences = SubtitlePreferences(languages: subtitleWishes().ranking, preferHearingImpaired: false)
+        let candidates = SubtitleCatalog.candidates(from: pool, preferences: preferences)
+        subtitleCandidates = candidates
+        let groups = SubtitleCatalog.groups(from: candidates)
+        if groups != subtitleGroups { subtitleGroups = groups }
+        publishSubtitleOptions()
+    }
+
+    // MARK: Automatic choice
+
+    /// At the start of a video: an embedded track in the preferred language, otherwise the best addon subtitle for the preferred
+    /// language, then the same for the secondary one. Nothing when both are "off". What the viewer picked by hand earlier for this
+    /// title replaces the settings. Runs once the engine has reported its tracks and the addons have answered.
+    private func applyPreferredSubtitleIfNeeded() {
+        guard !preferredSubtitleApplied, selectedSubtitleID == nil, subtitleTracksKnown, !tornDown else { return }
+        let wishes = subtitleWishes().automatic
+        if wishes.isEmpty {
+            preferredSubtitleApplied = true
+            silenceEngineSubtitles()
+            return
+        }
+        var embedded: [EmbeddedSubtitleInfo] = []
+        for option in embeddedOptions {
+            embedded.append(EmbeddedSubtitleInfo(optionID: option.id, title: option.title, language: option.language))
+        }
+        let decision = TrackPreferences.decide(languages: wishes, embedded: embedded, candidates: subtitleCandidates,
+                                               listIsFinal: subtitleListPhase == .ready)
+        switch decision {
+        case .embedded(let optionID):
+            guard let option = embeddedOptions.first(where: { (item: SubtitleOption) -> Bool in
+                return item.id == optionID
+            }) else { return }
+            preferredSubtitleApplied = true
+            activateSubtitle(option)
+        case .addon(let candidate):
+            preferredSubtitleApplied = true
+            activateSubtitle(SubtitleOption.addon(candidate))
+        case .wait:
+            return
+        case .nothing:
+            preferredSubtitleApplied = true
+            silenceEngineSubtitles()
+        }
+    }
+
+    /// No subtitle was chosen: an embedded track the engine switched on by itself (a default or forced track) is switched off, so
+    /// that what the sheet says ("Disattivati") is what the viewer sees. Asked once per video.
+    private func silenceEngineSubtitles() {
+        if engineSubtitlesSilenced { return }
+        engineSubtitlesSilenced = true
+        let engineHasOneOn = engine.embeddedSubtitleTracks().contains(where: { (track: EngineTrack) -> Bool in
+            return track.isSelected
+        })
+        if engineHasOneOn { engine.selectEmbeddedSubtitle(id: nil) }
+    }
+
+    /// After an engine change the new engine may switch on a subtitle track of its own: when the viewer's subtitle is drawn by
+    /// the app (downloaded or imported), it must be the only one on screen.
+    private func syncEngineSubtitleWithSelection() {
+        if !engineSubtitleSyncPending || embeddedOptions.isEmpty { return }
+        engineSubtitleSyncPending = false
+        guard let selected = selectedOption else { return }
+        switch selected.kind {
+        case .addon, .local:
+            engine.selectEmbeddedSubtitle(id: nil)
+        case .embedded:
+            return
+        }
+    }
+
+    /// After an engine change the embedded track that was on is looked up again by language: track ids differ between engines.
+    private func reselectEmbeddedAfterEngineChange() {
+        guard let language = pendingEmbeddedLanguage, !embeddedOptions.isEmpty else { return }
+        pendingEmbeddedLanguage = nil
+        guard selectedSubtitleID == nil else { return }
+        var embedded: [EmbeddedSubtitleInfo] = []
+        for option in embeddedOptions {
+            embedded.append(EmbeddedSubtitleInfo(optionID: option.id, title: option.title, language: option.language))
+        }
+        if let match = TrackPreferences.embeddedMatch(embedded, language: language),
+           let option = embeddedOptions.first(where: { (item: SubtitleOption) -> Bool in return item.id == match.optionID }) {
+            activateSubtitle(option)
+        } else {
+            statusMessage = "I sottotitoli incorporati non sono disponibili con questo motore."
+            scheduleStatusClear()
+        }
+    }
+
+    /// A new video (next episode, other source): the subtitle on screen, the lists and the one-time decisions start over.
+    /// What the viewer chose by hand (`trackMemory`) is kept: it applies to the next video of the same title.
+    private func resetSubtitleStateForNewVideo() {
+        subtitleTask?.cancel()
+        subtitleHashTask?.cancel()
+        subtitleHashTask = nil
+        subtitleGeneration += 1
+        timeline = nil
+        activeCues = []
         selectedSubtitleID = nil
+        selectedOption = nil
+        subtitleError = nil
+        failedSubtitle = nil
+        cueCache = [:]
+        streamSubtitles = []
+        plainSubtitles = []
+        hashedSubtitles = []
+        subtitleCandidates = []
+        subtitleGroups = []
+        embeddedOptions = []
+        localOptions = []
+        subtitleOptions = []
+        audioTracks = []
+        subtitleListPhase = .loading
+        hasSubtitleProvider = false
+        preferredAudioApplied = false
+        preferredSubtitleApplied = false
+        subtitleTracksKnown = false
+        engineSubtitlesSilenced = false
+        engineSubtitleSyncPending = false
+        pendingEmbeddedLanguage = nil
+    }
+
+    // MARK: Choosing a subtitle
+
+    /// Subtitles off, chosen by the viewer. Remembered for the next episode of this series.
+    func disableSubtitles() {
+        preferredSubtitleApplied = true
+        trackMemory.rememberSubtitle(.off, metaID: meta.id)
+        subtitleTask?.cancel()
+        selectedSubtitleID = nil
+        selectedOption = nil
         timeline = nil
         activeCues = []
         subtitleError = nil
+        failedSubtitle = nil
         engine.selectEmbeddedSubtitle(id: nil)
     }
 
+    /// A subtitle chosen by the viewer. Its language is remembered for the next episode of this series.
     func selectSubtitle(_ option: SubtitleOption) {
+        preferredSubtitleApplied = true
+        switch option.kind {
+        case .embedded, .addon:
+            if let code = option.languageCode {
+                trackMemory.rememberSubtitle(.language(code), metaID: meta.id)
+            } else {
+                trackMemory.forgetSubtitle()
+            }
+        case .local:
+            trackMemory.forgetSubtitle()
+        }
+        activateSubtitle(option)
+    }
+
+    /// Switches a subtitle on without touching the memory of what the viewer chose (used by the automatic choice as well).
+    private func activateSubtitle(_ option: SubtitleOption) {
         subtitleTask?.cancel()
         subtitleError = nil
+        failedSubtitle = nil
         selectedSubtitleID = option.id
+        selectedOption = option
         switch option.kind {
         case .embedded(let id):
             timeline = nil
@@ -681,15 +955,17 @@ final class PlayerViewModel: ObservableObject {
             engine.selectEmbeddedSubtitle(id: id)
         case .addon(let subtitle):
             engine.selectEmbeddedSubtitle(id: nil)
-            guard let url = URL.lenient(subtitle.url) else { subtitleError = "URL dei sottotitoli non valido."; return }
-            loadExternal(cacheKey: option.id, language: subtitle.lang) {
-                let response = try await self.env.http.send(HTTPRequest(url: url, timeout: 15, maxBytes: HTTPLimits.subtitle, purpose: .addonRequest))
-                guard response.isSuccess else { throw AddonError.http(status: response.statusCode) }
-                return response.data
+            guard let url = URL.lenient(subtitle.url) else {
+                subtitleDidFail(option, message: "L'indirizzo dei sottotitoli non è valido.")
+                return
+            }
+            let loader = SubtitleFileLoader(http: env.http)
+            loadExternal(option) { () async throws -> Data in
+                return try await loader.download(url: url)
             }
         case .local(let url):
             engine.selectEmbeddedSubtitle(id: nil)
-            loadExternal(cacheKey: option.id, language: option.language) {
+            loadExternal(option) { () async throws -> Data in
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
                 return try Data(contentsOf: url)
@@ -697,41 +973,66 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
-    private func loadExternal(cacheKey: String, language: String?, fetch: @escaping () async throws -> Data) {
-        if let cached = cueCache[cacheKey] {
+    /// Downloads (or reads) and parses a subtitle; the cues are drawn by the app's own overlay, so they do not depend on the engine.
+    private func loadExternal(_ option: SubtitleOption, fetch: @escaping () async throws -> Data) {
+        if let cached = cueCache[option.id] {
             timeline = cached
             updateCues()
             return
         }
         timeline = nil
         activeCues = []
+        let language = option.language
+        let encoding = option.encodingHint
         subtitleTask = Task { [weak self] in
             do {
                 let data = try await fetch()
-                let cues = try SubtitleParser.parse(data, languageHint: language)
+                let cues = try await SubtitleFileLoader.parse(data, languageHint: language, encodingHint: encoding)
                 if Task.isCancelled { return }
-                let timeline = SubtitleTimeline(cues: cues)
-                self?.cueCache[cacheKey] = timeline
-                if self?.selectedSubtitleID == cacheKey {
-                    self?.timeline = timeline
-                    self?.updateCues()
-                }
+                self?.subtitleDidLoad(option, cues: cues)
             } catch {
                 if Task.isCancelled { return }
-                let message: String
-                if let subtitleError = error as? SubtitleError { message = subtitleError.message }
-                else if let addonError = error as? AddonError { message = "Sottotitoli non scaricabili: \(addonError.message)" }
-                else { message = "Sottotitoli non utilizzabili: \(error.localizedDescription)" }
-                self?.subtitleError = message
+                self?.subtitleDidFail(option, message: SubtitleFileLoader.message(for: error))
             }
         }
+    }
+
+    private func subtitleDidLoad(_ option: SubtitleOption, cues: [SubtitleCue]) {
+        let loaded = SubtitleTimeline(cues: cues)
+        cueCache[option.id] = loaded
+        guard selectedSubtitleID == option.id else { return }
+        timeline = loaded
+        updateCues()
+    }
+
+    /// The file could not be downloaded or read: say so, clear the selection and leave playback alone.
+    private func subtitleDidFail(_ option: SubtitleOption, message: String) {
+        guard selectedSubtitleID == option.id else { return }
+        selectedSubtitleID = nil
+        selectedOption = nil
+        timeline = nil
+        activeCues = []
+        subtitleError = message
+        failedSubtitle = option
+        statusMessage = message
+        scheduleStatusClear()
+        env.diagnostics.logDetached(.warning, "subtitles", message)
+    }
+
+    /// Tries again with the subtitle that failed.
+    func retrySubtitle() {
+        guard let option = failedSubtitle else { return }
+        activateSubtitle(option)
     }
 
     func importLocalSubtitle(_ url: URL) {
         let name = url.deletingPathExtension().lastPathComponent
         let option = SubtitleOption(id: "local-\(url.lastPathComponent)", title: name, detail: "File locale", language: nil, kind: .local(url))
-        subtitleOptions.removeAll(where: { $0.id == option.id })
-        subtitleOptions.append(option)
+        localOptions.removeAll(where: { (item: SubtitleOption) -> Bool in return item.id == option.id })
+        localOptions.append(option)
+        // A file with the same name may have been replaced since the last import.
+        cueCache.removeValue(forKey: option.id)
+        publishSubtitleOptions()
         selectSubtitle(option)
     }
 
@@ -814,8 +1115,11 @@ final class PlayerViewModel: ObservableObject {
 
     var currentStreamForCast: AddonStream? { currentStream }
 
+    /// Subtitles a remote receiver would lose: the one the app draws itself, when one is on (the list of what could be chosen does
+    /// not matter, only what is shown). Embedded tracks travel with the video.
     func externalSubtitleCount() -> Int {
-        return subtitleOptions.filter { if case .embedded = $0.kind { return false } else { return true } }.count
+        guard let selected = selectedOption else { return 0 }
+        return selected.isEmbedded ? 0 : 1
     }
 
     struct CastPlan {
