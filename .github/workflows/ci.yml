@@ -113,18 +113,18 @@ jobs:
           ffmpeg -version | head -1
           mkdir -p "$RUNNER_TEMP/media"
           cd "$RUNNER_TEMP/media"
-          V="-f lavfi -i testsrc2=size=640x360:rate=24:duration=8"
-          A="-f lavfi -i sine=frequency=440:sample_rate=48000:duration=8"
+          V="-f lavfi -i testsrc2=size=640x360:rate=24:duration=60"
+          A="-f lavfi -i sine=frequency=440:sample_rate=48000:duration=60"
           F="ffmpeg -nostdin -loglevel error -y"
-          $F $V $A -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 96k -shortest h264.mkv
-          $F -i h264.mkv -c:v libx264 -pix_fmt yuv420p -c:a libmp3lame h264.avi
+          $F $V $A -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac -b:a 96k -shortest h264.mkv
+          $F -i h264.mkv -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a libmp3lame h264.avi
           HDR10="colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1):max-cll=1000,400:repeat-headers=1:log-level=error"
-          $F $V $A -vf format=yuv420p10le -c:v libx265 -profile:v main10 -tag:v hvc1 -x265-params "$HDR10" -c:a aac -b:a 96k -shortest hdr10.mp4
+          $F $V $A -vf format=yuv420p10le -c:v libx265 -preset ultrafast -profile:v main10 -tag:v hvc1 -x265-params "$HDR10" -c:a aac -b:a 96k -shortest hdr10.mp4
           $F -i hdr10.mp4 -c copy hdr10.mkv
           $F -i hdr10.mp4 -c copy -tag:v hev1 hdr10-hev1.mp4
           HLG="colorprim=bt2020:transfer=arib-std-b67:colormatrix=bt2020nc:repeat-headers=1:log-level=error"
-          $F $V $A -vf format=yuv420p10le -c:v libx265 -profile:v main10 -tag:v hvc1 -x265-params "$HLG" -c:a aac -b:a 96k -shortest hlg.mp4
-          $F $V $A -vf format=yuv420p -c:v libx265 -tag:v hvc1 -x265-params "log-level=error" -c:a aac -b:a 96k -shortest sdr-hevc.mp4
+          $F $V $A -vf format=yuv420p10le -c:v libx265 -preset ultrafast -profile:v main10 -tag:v hvc1 -x265-params "$HLG" -c:a aac -b:a 96k -shortest hlg.mp4
+          $F $V $A -vf format=yuv420p -c:v libx265 -preset ultrafast -tag:v hvc1 -x265-params "log-level=error" -c:a aac -b:a 96k -shortest sdr-hevc.mp4
           for f in *; do
             echo "== $f ($(stat -f%z "$f") bytes)"
             ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,codec_tag_string,profile,pix_fmt,color_space,color_transfer,color_primaries -of compact=p=0 "$f"
