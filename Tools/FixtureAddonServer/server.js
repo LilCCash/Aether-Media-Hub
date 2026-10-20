@@ -8,6 +8,8 @@
 
 // Endpoints (all JSON unless noted):
 //   /manifest.json                       valid manifest (catalogs movie+series with search, meta, stream, subtitles)
+//   /extra/manifest.json                 a second addon with types 'tv' and 'sports' (one catalog each, with genre options; search on the
+//                                        TV catalog only), served under /extra/catalog/{type}/{id}[/{extra}].json
 //   /bad/manifest.json                   JSON that is not a manifest (missing required fields)
 //   /html/manifest.json                  an HTML page instead of JSON
 //   /catalog/{type}/{id}[/{extra}].json  catalogs (search=…, skip=…)
@@ -130,6 +132,41 @@ const variantManifests = {
     resources: ['subtitles'], types: ['movie', 'series'], idPrefixes: ['tt'], catalogs: [],
   },
 };
+
+// A second, tiny addon (live TV and sports) that proves content types appear and disappear with the installed addons.
+// `extra-tv` declares optional `genre` and `search`, so a search can carry the genre too (and the server honours it);
+// `extra-sports` is browse-only (no search). One channel has neither a year nor a genre, to exercise the
+// "hidden because the data is missing" counts of the local filters.
+const extraManifest = {
+  id: 'org.aether.fixture.extra', version: '1.0.0', name: 'Aether Fixture Extra',
+  description: 'Second controlled addon: live TV and sports catalogs',
+  resources: ['catalog'],
+  types: ['tv', 'sports'],
+  catalogs: [
+    { type: 'tv', id: 'extra-tv', name: 'Fixture Canali',
+      extra: [{ name: 'genre', options: ['News', 'Kids'] }, { name: 'search' }, { name: 'skip' }] },
+    { type: 'sports', id: 'extra-sports', name: 'Fixture Sport',
+      extra: [{ name: 'genre', options: ['Calcio', 'Tennis'] }, { name: 'skip' }] },
+  ],
+  behaviorHints: { configurable: false },
+};
+const extraItems = {
+  'extra-tv': [
+    { id: 'fxtv-news', name: 'Fixture News Live', year: 2020, genres: ['News'] },
+    { id: 'fxtv-kids', name: 'Fixture Kids Channel', year: 2018, genres: ['Kids'] },
+    { id: 'fxtv-night', name: 'Fixture Night Channel', year: null, genres: [] },
+  ],
+  'extra-sports': [
+    { id: 'fxsp-derby', name: 'Fixture Derby Highlights', year: 2024, genres: ['Calcio'] },
+    { id: 'fxsp-final', name: 'Fixture Open Final', year: 2024, genres: ['Tennis'] },
+  ],
+};
+
+function extraPreview(item, type, index) {
+  const meta = { id: item.id, type, name: item.name, poster: `${BASE}/poster/${index}.png`, genres: item.genres };
+  if (item.year) meta.releaseInfo = String(item.year);
+  return meta;
+}
 
 function streamsFor(id) {
   const m = matrix.find((entry) => entry.id === id);
@@ -342,6 +379,23 @@ const server = http.createServer((req, res) => {
   if (p === '/bad/manifest.json') return send(res, 200, { id: 'org.bad', version: 'not-semver-but-ok' });
   if (p === '/html/manifest.json') return send(res, 200, '<html><body>Not an addon</body></html>', 'text/html');
   if (p === '/manifest.json') return send(res, 200, variant ? variantManifests[variant] : manifest);
+  if (p === '/extra/manifest.json') return send(res, 200, extraManifest);
+  if (p.startsWith('/extra/catalog/')) {
+    const [, , type, id, extraSegment] = p.replace(/\.json$/, '').split('/').filter(Boolean);
+    const list = extraItems[id];
+    if (!list) return send(res, 200, { metas: [] });
+    const extra = extraSegment ? decodeExtra(extraSegment) : {};
+    if (extra.skip && parseInt(extra.skip, 10) > 0) return send(res, 200, { metas: [] });
+    let items = list;
+    if (extra.search) {
+      const q = extra.search.toLowerCase();
+      items = items.filter((item) => item.name.toLowerCase().includes(q));
+    }
+    if (extra.genre) items = items.filter((item) => item.genres.includes(extra.genre));
+    const offset = id === 'extra-sports' ? 30 : 20;
+    return send(res, 200, { metas: items.map((item, i) => extraPreview(item, type, offset + i + 1)) });
+  }
+  if (p.startsWith('/extra/')) return send(res, 404, { error: 'unknown route', path: p });
 
   const parts = p.replace(/\.json$/, '').split('/').filter(Boolean);
   const [resource, type, id, extraSegment] = parts;

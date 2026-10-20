@@ -67,6 +67,35 @@ final class BrowseUITests: AetherUITestCase {
         XCTAssertFalse(element("stream.row.0").exists, "there is nothing playable to start")
     }
 
+    // 4b. The type choices of Search and Discover come from the installed addon: films and series, nothing invented
+    func testTypeChoicesComeFromTheInstalledAddon() {
+        openTab("Cerca")
+        XCTAssertTrue(element("search.type").waitForExistence(timeout: 20), "Search offers a type menu")
+        openFilterMenu("search.type")
+        XCTAssertTrue(filterMenuLists("Film"))
+        XCTAssertTrue(filterMenuLists("Serie TV"))
+        XCTAssertFalse(app.buttons["Anime"].exists, "a type nobody provides is not offered")
+        filterMenuItem("Tutti i tipi").tap()
+
+        openTab("Scopri")
+        XCTAssertTrue(element("discover.type.movie").waitForExistence(timeout: 30))
+        XCTAssertTrue(element("discover.type.series").exists)
+        XCTAssertFalse(element("discover.type.anime").exists)
+    }
+
+    // 4c. Choosing a type narrows the search to the catalogs of that type
+    func testSearchTypeFilterRestrictsResults() {
+        openTab("Cerca")
+        typeSearch("fixture")
+        XCTAssertTrue(button(labelContaining: "Aether Fixture One").waitForExistence(timeout: 30), "films are found")
+        XCTAssertTrue(button(labelContaining: "Fixture Series").exists, "series are found")
+
+        chooseFilter("search.type", "Serie TV")
+        waitUntil(20, "films should leave when the type is Serie TV") { !self.button(labelContaining: "Aether Fixture One").exists }
+        XCTAssertTrue(button(labelContaining: "Fixture Series").waitForExistence(timeout: 20))
+        XCTAssertEqual(filterMenuValue("search.type"), "Serie TV")
+    }
+
     // 6b. A title without sources says so
     func testTitleWithoutSourcesShowsEmptyState() {
         openTitleViaSearch("Nothing", expecting: "Nothing To Watch")

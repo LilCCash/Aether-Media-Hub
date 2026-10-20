@@ -367,12 +367,16 @@ public struct ContentSettings: Codable, Equatable, Sendable {
     public var searchLocal: Bool = true
     public var saveSearchHistory: Bool = true
     public var searchSort: SearchSort = .relevance
+    /// The user's order and visibility of the content types in Discover (`DiscoverLayout` reconciles it with the types
+    /// the installed addons provide). Empty until the user changes something: then every type is shown, in canonical order.
+    /// Entries of types nobody provides right now are kept, so reinstalling an addon restores the choice.
+    public var discoverTypes: [DiscoverTypeSetting] = []
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case preferredLanguage, catalogRefreshMinutes, hideAdultCatalogs, searchRemote, searchLocal
-        case saveSearchHistory, searchSort
+        case saveSearchHistory, searchSort, discoverTypes
     }
 
     public init(from decoder: Decoder) throws {
@@ -384,6 +388,7 @@ public struct ContentSettings: Codable, Equatable, Sendable {
         searchLocal = c.value(.searchLocal, default: true)
         saveSearchHistory = c.value(.saveSearchHistory, default: true)
         searchSort = c.value(.searchSort, default: .relevance)
+        discoverTypes = c.lossyArray(DiscoverTypeSetting.self, forKey: .discoverTypes)
     }
 }
 

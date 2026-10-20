@@ -74,6 +74,7 @@ struct SettingsRootView: View {
                 link("Riproduzione", "play.rectangle.fill", .orange) { PlaybackSettingsView() }
                 link("Contenuti e scoperta", "square.grid.2x2.fill", .green) { ContentSettingsView() }
                 link("Casting", "tv.and.mediabox.fill", .teal) { CastingSettingsView() }
+                link("Servizi", "key.fill", .purple) { ServicesSettingsView() }
             }
             Section {
                 link("Archiviazione", "internaldrive.fill", .brown) { StorageSettingsView() }
@@ -161,6 +162,10 @@ struct AppearanceSettingsView: View {
                 .onMove { source, destination in
                     settings.value.appearance.homeSections.move(fromOffsets: source, toOffset: destination)
                 }
+            }
+            Section(footer: Text("Quali tipi di contenuto mostra Scopri (film, serie, TV, sport…) e in che ordine. I tipi arrivano dagli addon installati.")) {
+                NavigationLink("Categorie di Scopri") { DiscoverSettingsView() }
+                    .accessibilityIdentifier("settings.discover")
             }
         }
         .navigationTitle("Aspetto")

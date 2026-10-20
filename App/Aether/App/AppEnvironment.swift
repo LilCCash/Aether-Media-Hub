@@ -29,6 +29,8 @@ final class AppEnvironment: ObservableObject {
     let credentials: ServiceCredentials
     /// Adds TMDB / TheTVDB data to addon metas when the user has stored a key for them (best effort, never overwrites).
     let metadata: MetadataEnricher
+    /// TorBox: connection status, cache check and resolution of torrent streams into playable links (user-supplied key).
+    let debrid: DebridService
 
     /// `arguments` exist so unit tests can build an isolated environment (see `UITestHooks`).
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
@@ -86,10 +88,15 @@ final class AppEnvironment: ObservableObject {
             tmdb: TMDBClient(http: http, credentials: serviceKeys.provider(for: .tmdb), baseURL: tmdbBase),
             tvdb: TVDBClient(http: http, apiKey: serviceKeys.provider(for: .tvdb), pin: serviceKeys.pinProvider(for: .tvdb), baseURL: tvdbBase),
             cache: responseCache)
+        // The UI tests point TorBox at their fixture server (a loopback address); a normal launch always uses api.torbox.app.
+        let torboxBase = hooks.torboxServerURL.flatMap { DebridService.fixtureAPIBase(from: $0) } ?? TorBoxClient.productionBaseURL
+        debrid = DebridService(credentials: serviceKeys, http: http, baseURL: torboxBase, log: diagnostics)
 
         credentials.onChange = { [weak self] in
-            guard let metadata = self?.metadata else { return }
+            guard let self = self else { return }
+            let metadata = self.metadata
             Task { await metadata.reset() }
+            self.debrid.credentialsDidChange()
         }
         settings.onChange = { [weak self] new, old in
             self?.settingsDidChange(new: new, old: old)
@@ -196,6 +203,8 @@ final class AppEnvironment: ObservableObject {
 ///   -AETHER_UITEST_SETTINGS <json> partial AppSettings JSON applied on top of the defaults
 ///   -AETHER_UITEST_OPENURL <url>  handled like a deep link once the app has started
 ///   -AETHER_UITEST_METADATA_BASE <url>  base of the fixture server that stands in for the TMDB (/tmdb/3) and TheTVDB (/tvdb/v4) APIs
+///   -AETHER_UITEST_TORBOX_URL <url>  address of the TorBox fixture server (for example http://127.0.0.1:7778); the app adds /v1/api.
+///                                    Only loopback and private-network addresses are accepted, so the key can never go elsewhere.
 /// In this mode loopback addresses are allowed so the tests can talk to the fixture server.
 struct UITestHooks {
     let isActive: Bool
@@ -204,6 +213,7 @@ struct UITestHooks {
     let settingsJSON: String?
     let openURL: String?
     let metadataBaseURL: String?
+    let torboxServerURL: String?
 
     init(arguments: [String]) {
         isActive = arguments.contains("-AETHER_UITEST")
@@ -216,6 +226,7 @@ struct UITestHooks {
         settingsJSON = value(after: "-AETHER_UITEST_SETTINGS")
         openURL = value(after: "-AETHER_UITEST_OPENURL")
         metadataBaseURL = isActive ? value(after: "-AETHER_UITEST_METADATA_BASE") : nil
+        torboxServerURL = isActive ? value(after: "-AETHER_UITEST_TORBOX_URL") : nil
     }
 
     func prepareDefaults() {

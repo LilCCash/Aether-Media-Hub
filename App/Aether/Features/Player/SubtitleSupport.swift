@@ -259,15 +259,15 @@ struct SubtitleRowText: Equatable {
             totals[key, default: 0] += 1
         }
         var counters: [String: Int] = [:]
-        var rows: [SubtitleRowText] = []
+        var result: [SubtitleRowText] = []
         for candidate in group.candidates {
             let key = baseTitle(of: candidate).lowercased()
             counters[key, default: 0] += 1
             var number: Int?
             if (totals[key] ?? 0) > 1 { number = counters[key] }
-            rows.append(make(candidate, number: number))
+            result.append(make(candidate, number: number))
         }
-        return rows
+        return result
     }
 
     static func languageName(of candidate: SubtitleCandidate) -> String {

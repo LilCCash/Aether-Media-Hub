@@ -19,13 +19,16 @@ extension AppEnvironment {
                 server = url
             }
         }
+        // A torrent counts as playable only when the user has saved a TorBox key (it is then resolved into a link on demand).
+        var capabilities = PlaybackEngineFactory.capabilities
+        capabilities.debridAvailable = credentials.isConfigured(ServiceKind.torbox)
         return StreamPreferences(
             qualityCap: value.playback.qualityCap,
             preferredLanguage: SettingsStore.resolvedLanguage(value.playback.preferredAudioLanguage),
             preferLanguage: value.playback.preferStreamsInPreferredAudioLanguage,
             addonOrder: addons.addons.map { $0.id.uuidString },
             streamingServer: server,
-            capabilities: PlaybackEngineFactory.capabilities)
+            capabilities: capabilities)
     }
 
     func bingeGroup(forMeta metaID: String) -> String? {
@@ -54,6 +57,54 @@ extension AppEnvironment {
     }
 }
 
+// MARK: - TorBox state of the picker
+
+/// The torrent row that is being turned into a link right now.
+struct DebridRowResolution: Equatable {
+    var itemID: String
+    var mode: DebridMode
+    var progress: DebridProgress?
+
+    var message: String {
+        if let progress = progress { return progress.message }
+        return mode == DebridMode.startIfNeeded ? "Avvio il download su TorBox…" : "Controllo TorBox…"
+    }
+
+    /// "42% · 15 MB/s · ancora 3 s" (only what TorBox reported).
+    var detail: String? { return DebridFormat.detail(for: progress) }
+
+    /// A bar is shown only while TorBox itself is downloading and has reported a fraction.
+    var determinateFraction: Double? {
+        guard let progress = progress, progress.phase == DebridProgress.Phase.downloading,
+              let fraction = progress.fraction, fraction.isFinite else { return nil }
+        return min(1.0, max(0.0, fraction))
+    }
+}
+
+/// Why a torrent row could not be played, shown under the row.
+struct DebridRowFailure: Equatable {
+    var itemID: String
+    var message: String
+    var isRetryable: Bool
+    var mode: DebridMode
+    var file: DebridFileCandidate?
+}
+
+/// The files of a torrent when the right one cannot be picked automatically.
+struct DebridFileChoice: Identifiable {
+    let id = UUID()
+    let item: RankedStream
+    let mode: DebridMode
+    let candidates: [DebridFileCandidate]
+}
+
+/// What a torrent row shows besides the usual badges.
+struct DebridRowAppearance: Equatable {
+    var torBoxConfigured: Bool
+    /// nil: nothing to show (the cache status is unknown).
+    var badge: DebridCacheBadge?
+}
+
 @MainActor
 final class StreamPickerModel: ObservableObject {
     @Published private(set) var ranked: [RankedStream] = []
@@ -64,6 +115,16 @@ final class StreamPickerModel: ObservableObject {
     @Published var blockedMessage: String?
     @Published var infoMessage: String?
 
+    // TorBox
+    @Published private(set) var cacheStatuses: [String: DebridCacheStatus] = [:]
+    @Published private(set) var checkingHashes: Set<String> = []
+    @Published private(set) var cacheCheckFailure: DebridError?
+    @Published private(set) var resolution: DebridRowResolution?
+    @Published private(set) var rowFailure: DebridRowFailure?
+    /// A torrent that is not in TorBox's cache and waits for the user's yes before anything is added to the account.
+    @Published var pendingDownload: RankedStream?
+    @Published var fileChoice: DebridFileChoice?
+
     private var collected: [AddonStream] = []
     private var seen = Set<String>()
     private var task: Task<Void, Never>?
@@ -71,15 +132,31 @@ final class StreamPickerModel: ObservableObject {
     private weak var env: AppEnvironment?
     private var autoSelected = false
 
+    private var pendingHashes: [String] = []
+    private var requestedHashes = Set<String>()
+    private var availabilityTask: Task<Void, Never>?
+    private var availabilityGeneration = 0
+    private var deferredAutoSelect: ((RankedStream) -> Void)?
+    private var resolutionTask: Task<Void, Never>?
+    private var resolutionToken = UUID()
+    private var progressSequence = 0
+    /// The picker is closing because playback is about to start: the work that opens the player must not be cancelled.
+    private var handingOver = false
+
     init(request: StreamPickerRequest) {
         self.request = request
     }
 
     deinit {
         task?.cancel()
+        availabilityTask?.cancel()
     }
 
-    var playable: [RankedStream] { ranked.filter { $0.info.support.isPlayable } }
+    /// Torrents known to be in TorBox's cache come first among the torrents; the other rows keep their place.
+    var playable: [RankedStream] {
+        let list = ranked.filter { $0.info.support.isPlayable }
+        return DebridStreamLogic.cachedFirst(list, statuses: cacheStatuses)
+    }
     var unplayable: [RankedStream] { ranked.filter { !$0.info.support.isPlayable } }
 
     var addonNames: [String] {
@@ -95,9 +172,33 @@ final class StreamPickerModel: ObservableObject {
         return list.filter { $0.stream.addonName == filter }
     }
 
+    var debridConfigured: Bool { return env?.debrid.isConfigured ?? false }
+
+    var hasTorrentRows: Bool {
+        return ranked.contains(where: { (item: RankedStream) -> Bool in return DebridStreamLogic.isTorrent(item.stream) })
+    }
+
+    func appearance(for item: RankedStream) -> DebridRowAppearance? {
+        guard DebridStreamLogic.isTorrent(item.stream) else { return nil }
+        let configured = debridConfigured
+        var badge: DebridCacheBadge?
+        if configured, let hash = DebridStreamLogic.canonicalHash(of: item.stream) {
+            badge = DebridCacheBadge.badge(status: cacheStatuses[hash], isChecking: checkingHashes.contains(hash))
+        }
+        return DebridRowAppearance(torBoxConfigured: configured, badge: badge)
+    }
+
     func start(env: AppEnvironment, onAutoSelect: @escaping (RankedStream) -> Void) {
         self.env = env
         task?.cancel()
+        availabilityTask?.cancel()
+        availabilityTask = nil
+        availabilityGeneration += 1
+        pendingHashes = []
+        requestedHashes = []
+        checkingHashes = []
+        cacheCheckFailure = nil
+        deferredAutoSelect = nil
         collected = []
         seen = []
         errors = [:]
@@ -109,6 +210,9 @@ final class StreamPickerModel: ObservableObject {
 
     func stop() {
         task?.cancel()
+        availabilityTask?.cancel()
+        // Leaving the picker ends the wait. A download already started stays in the user's TorBox account.
+        if !handingOver { cancelResolution() }
     }
 
     private func run(onAutoSelect: @escaping (RankedStream) -> Void) async {
@@ -149,16 +253,98 @@ final class StreamPickerModel: ObservableObject {
             collected.append(stream)
         }
         ranked = StreamSelector.rank(collected, preferences: env.streamPreferences())
+        scheduleAvailabilityCheck()
     }
 
     private func maybeAutoSelect(env: AppEnvironment, onAutoSelect: @escaping (RankedStream) -> Void) {
         guard !autoSelected, env.settings.value.playback.autoSelectStream else { return }
+        // Torrents wait for the cache check: only one that TorBox reports in cache may be chosen without the user's tap.
+        if env.debrid.isConfigured && hasPendingCacheChecks {
+            deferredAutoSelect = onAutoSelect
+            return
+        }
         // Continuity: prefer the release group of the previous episode of this series.
         let binge = env.bingeGroup(forMeta: request.meta.id)
-        guard let best = StreamSelector.autoSelect(ranked, previousBingeGroup: binge) else { return }
+        let candidates = DebridStreamLogic.autoSelectable(ranked, statuses: cacheStatuses, debridConfigured: env.debrid.isConfigured)
+        guard resolution == nil, pendingDownload == nil, let best = StreamSelector.autoSelect(candidates, previousBingeGroup: binge) else { return }
         autoSelected = true
         onAutoSelect(best)
     }
+
+    // MARK: Cache check
+
+    private var hasPendingCacheChecks: Bool { return availabilityTask != nil || !pendingHashes.isEmpty }
+
+    /// Asks TorBox about the torrents that have not been asked about yet, in one request per 100 hashes, without blocking the
+    /// list: rows show "Verifica…" until the answer arrives, and nothing at all if the check fails.
+    private func scheduleAvailabilityCheck() {
+        guard let env = env, env.debrid.isConfigured else { return }
+        for hash in DebridStreamLogic.hashes(in: ranked) {
+            if requestedHashes.insert(hash).inserted {
+                pendingHashes.append(hash)
+                checkingHashes.insert(hash)
+            }
+        }
+        guard availabilityTask == nil, !pendingHashes.isEmpty else { return }
+        let generation = availabilityGeneration
+        availabilityTask = Task { [weak self] in
+            // Answers of other addons that arrive within a moment join the same request.
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            await self?.drainAvailability(generation: generation)
+        }
+    }
+
+    private func drainAvailability(generation: Int) async {
+        guard let env = env else { return }
+        while !pendingHashes.isEmpty && !Task.isCancelled && generation == availabilityGeneration {
+            let batch = pendingHashes
+            pendingHashes = []
+            let report = await env.debrid.availability(infoHashes: batch)
+            if Task.isCancelled || generation != availabilityGeneration { return }
+            applyAvailability(report, for: batch)
+        }
+        guard generation == availabilityGeneration else { return }
+        availabilityTask = nil
+        if !Task.isCancelled, let deferred = deferredAutoSelect {
+            deferredAutoSelect = nil
+            maybeAutoSelect(env: env, onAutoSelect: deferred)
+        }
+    }
+
+    private func applyAvailability(_ report: DebridAvailabilityReport, for batch: [String]) {
+        var statuses = cacheStatuses
+        var unanswered = 0
+        for hash in batch {
+            let status = report.status(for: hash)
+            if status == DebridCacheStatus.unknown {
+                unanswered += 1
+            } else {
+                statuses[hash] = status
+            }
+        }
+        cacheStatuses = statuses
+        checkingHashes.subtract(batch)
+        if let failure = report.failure {
+            cacheCheckFailure = failure
+        } else if unanswered == 0 {
+            cacheCheckFailure = nil
+        }
+    }
+
+    func retryCacheCheck() {
+        cacheCheckFailure = nil
+        for hash in DebridStreamLogic.hashes(in: ranked) where cacheStatuses[hash] == nil {
+            requestedHashes.remove(hash)
+        }
+        scheduleAvailabilityCheck()
+    }
+
+    private func cacheStatus(of stream: AddonStream) -> DebridCacheStatus? {
+        guard let hash = DebridStreamLogic.canonicalHash(of: stream) else { return nil }
+        return cacheStatuses[hash]
+    }
+
+    // MARK: Playing
 
     /// Queues the file for offline viewing. Only direct files qualify; the planner explains refusals.
     func download(_ item: RankedStream, env: AppEnvironment) async {
@@ -170,7 +356,13 @@ final class StreamPickerModel: ObservableObject {
         }
     }
 
-    func play(_ item: RankedStream, env: AppEnvironment, dismiss: () -> Void) async {
+    func play(_ item: RankedStream, env: AppEnvironment, dismiss: @escaping () -> Void) async {
+        cancelResolution()
+        rowFailure = nil
+        if DebridStreamLogic.isTorrent(item.stream) && env.debrid.isConfigured {
+            beginTorBox(item, env: env, dismiss: dismiss)
+            return
+        }
         if let url = StreamResolver.playbackURL(for: item.stream, streamingServer: env.streamPreferences().streamingServer) {
             if let blocked = await env.validateMediaURL(url) {
                 blockedMessage = blocked.message
@@ -180,13 +372,160 @@ final class StreamPickerModel: ObservableObject {
             blockedMessage = "Questa sorgente non può essere riprodotta."
             return
         }
+        await present(item, env: env, dismiss: dismiss)
+    }
+
+    /// Opens the player for the chosen stream. The player receives the stream as the addon gave it; a torrent is turned into a
+    /// link there (the link resolved here is handed over through `DebridService`).
+    private func present(_ item: RankedStream, env: AppEnvironment, dismiss: () -> Void) async {
         env.setBingeGroup(item.stream.behaviorHints.bingeGroup, forMeta: request.meta.id)
         let alternatives = playable.filter { $0.id != item.id }
         let player = PlayerRequest(meta: request.meta, video: request.video, source: .stream(item.stream), alternatives: alternatives)
+        handingOver = true
         dismiss()
         // Present after the sheet is gone to avoid overlapping presentations.
         try? await Task.sleep(nanoseconds: 350_000_000)
         env.router.play(player)
+    }
+
+    // MARK: Playing a torrent through TorBox
+
+    /// A torrent that TorBox already reported as not cached is never started without the user's confirmation; any other row is
+    /// first resolved in `cachedOnly` mode, which cannot start a download either (it ends in `notCached`, and that asks).
+    private func beginTorBox(_ item: RankedStream, env: AppEnvironment, dismiss: @escaping () -> Void) {
+        if cacheStatus(of: item.stream) == DebridCacheStatus.notCached {
+            pendingDownload = item
+            return
+        }
+        startResolution(item, mode: DebridMode.cachedOnly, file: nil, env: env, dismiss: dismiss)
+    }
+
+    func confirmDownload(_ item: RankedStream, env: AppEnvironment, dismiss: @escaping () -> Void) {
+        pendingDownload = nil
+        startResolution(item, mode: DebridMode.startIfNeeded, file: nil, env: env, dismiss: dismiss)
+    }
+
+    func chooseFile(_ file: DebridFileCandidate, from choice: DebridFileChoice, env: AppEnvironment,
+                    dismiss: @escaping () -> Void) {
+        fileChoice = nil
+        startResolution(choice.item, mode: choice.mode, file: file, env: env, dismiss: dismiss)
+    }
+
+    func retryResolution(env: AppEnvironment, dismiss: @escaping () -> Void) {
+        guard let failure = rowFailure,
+              let item = ranked.first(where: { (candidate: RankedStream) -> Bool in return candidate.id == failure.itemID }) else { return }
+        startResolution(item, mode: failure.mode, file: failure.file, env: env, dismiss: dismiss)
+    }
+
+    /// Stops waiting for TorBox. A torrent already added to the account stays there: Aether never deletes the user's items.
+    func cancelResolution() {
+        resolutionTask?.cancel()
+        resolutionTask = nil
+        resolutionToken = UUID()
+        resolution = nil
+    }
+
+    private func startResolution(_ item: RankedStream, mode: DebridMode, file: DebridFileCandidate?,
+                                 env: AppEnvironment, dismiss: @escaping () -> Void) {
+        resolutionTask?.cancel()
+        let token = UUID()
+        resolutionToken = token
+        progressSequence = 0
+        rowFailure = nil
+        resolution = DebridRowResolution(itemID: item.id, mode: mode, progress: nil)
+        resolutionTask = Task {
+            await self.runResolution(item, mode: mode, file: file, token: token, env: env, dismiss: dismiss)
+        }
+    }
+
+    private func runResolution(_ item: RankedStream, mode: DebridMode, file: DebridFileCandidate?, token: UUID,
+                               env: AppEnvironment, dismiss: @escaping () -> Void) async {
+        let stremioID = DebridStreamLogic.stremioID(meta: request.meta, video: request.video)
+        guard var debridRequest = DebridRequest(stream: item.stream, stremioID: stremioID, mode: mode) else {
+            finishResolution(token)
+            blockedMessage = "Questa sorgente non può essere riprodotta."
+            return
+        }
+        if let file = file { debridRequest.filename = file.path }
+        let relay = DebridProgressRelay()
+        let sink: @Sendable (DebridProgress) -> Void = { (progress: DebridProgress) -> Void in
+            let sequence = relay.next()
+            Task { @MainActor in
+                self.receive(progress, sequence: sequence, token: token)
+            }
+        }
+        do {
+            let result = try await env.debrid.resolve(debridRequest, onProgress: sink)
+            try Task.checkCancellation()
+            guard token == resolutionToken else { return }
+            if let blocked = await env.validateMediaURL(result.url) {
+                finishResolution(token)
+                blockedMessage = blocked.message
+                return
+            }
+            guard token == resolutionToken, !Task.isCancelled else { return }
+            env.debrid.stashResolution(result, for: item.stream, stremioID: stremioID)
+            finishResolution(token)
+            await present(item, env: env, dismiss: dismiss)
+        } catch is CancellationError {
+            finishResolution(token)
+        } catch let error as DebridError {
+            guard token == resolutionToken else { return }
+            finishResolution(token)
+            handle(error, item: item, mode: mode, file: file)
+        } catch {
+            guard token == resolutionToken else { return }
+            finishResolution(token)
+            rowFailure = DebridRowFailure(itemID: item.id, message: DebridErrorText.describe(error), isRetryable: false,
+                                          mode: mode, file: file)
+        }
+    }
+
+    private func receive(_ progress: DebridProgress, sequence: Int, token: UUID) {
+        guard token == resolutionToken, sequence > progressSequence, var current = resolution else { return }
+        progressSequence = sequence
+        current.progress = progress
+        resolution = current
+    }
+
+    private func finishResolution(_ token: UUID) {
+        if token == resolutionToken { resolution = nil }
+    }
+
+    private func handle(_ error: DebridError, item: RankedStream, mode: DebridMode, file: DebridFileCandidate?) {
+        switch error {
+        case .notCached:
+            if mode == DebridMode.cachedOnly {
+                // Not in cache after all: ask before anything is added to the user's account.
+                pendingDownload = item
+                return
+            }
+        case .noMatchingFile(let candidates):
+            if !candidates.isEmpty {
+                fileChoice = DebridFileChoice(item: item, mode: mode, candidates: candidates)
+                return
+            }
+        default:
+            break
+        }
+        rowFailure = DebridRowFailure(itemID: item.id, message: DebridErrorText.message(for: error),
+                                      isRetryable: error.isRetryable, mode: mode, file: file)
+    }
+}
+
+// MARK: - Views
+
+private enum PickerEntry: Identifiable {
+    case stream(offset: Int, item: RankedStream)
+    case progress(itemID: String)
+    case failure(itemID: String)
+
+    var id: String {
+        switch self {
+        case .stream(_, let item): return "stream:" + item.id
+        case .progress(let itemID): return "progress:" + itemID
+        case .failure(let itemID): return "failure:" + itemID
+        }
     }
 }
 
@@ -211,28 +550,14 @@ struct StreamPickerSheet: View {
                 if model.addonNames.count > 1 {
                     Section { chips }.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 }
+                if let failure = model.cacheCheckFailure, model.hasTorrentRows {
+                    Section { cacheNotice(failure) }.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                }
                 let playable = model.filtered(model.playable)
                 if !playable.isEmpty {
                     Section(header: Text("Sorgenti riproducibili")) {
-                        ForEach(Array(playable.enumerated()), id: \.element.id) { offset, item in
-                            StreamRow(item: item, isBest: offset == 0) {
-                                Task { await model.play(item, env: env) { dismiss() } }
-                            }
-                            .accessibilityIdentifier("stream.row.\(offset)")
-                            .swipeActions(edge: .trailing) {
-                                Button { Task { await model.download(item, env: env) } } label: {
-                                    Label("Scarica", systemImage: "arrow.down.circle")
-                                }
-                                .tint(settings.accentColor)
-                            }
-                            .contextMenu {
-                                Button { Task { await model.play(item, env: env) { dismiss() } } } label: {
-                                    Label("Riproduci", systemImage: "play.fill")
-                                }
-                                Button { Task { await model.download(item, env: env) } } label: {
-                                    Label("Scarica per guardarlo offline", systemImage: "arrow.down.circle")
-                                }
-                            }
+                        ForEach(entries(for: playable)) { entry in
+                            entryRow(entry)
                         }
                     }
                 }
@@ -257,7 +582,7 @@ struct StreamPickerSheet: View {
                     Section {
                         DisclosureGroup("Non riproducibili su iOS (\(unplayable.count))", isExpanded: $showUnplayable) {
                             ForEach(unplayable) { item in
-                                StreamRow(item: item, isBest: false) { openExternally(item) }
+                                StreamRow(item: item, isBest: false, debrid: model.appearance(for: item)) { openExternally(item) }
                             }
                         }
                     }
@@ -303,12 +628,80 @@ struct StreamPickerSheet: View {
             .animation(.easeInOut(duration: 0.2), value: model.infoMessage)
         }
         .presentationDetents([.large])
+        .confirmationDialog(DebridUserText.downloadConfirmationTitle,
+                            isPresented: Binding(get: { model.pendingDownload != nil }, set: { if !$0 { model.pendingDownload = nil } }),
+                            titleVisibility: .visible,
+                            presenting: model.pendingDownload) { (pending: RankedStream) in
+            Button("Avvia il download") { model.confirmDownload(pending, env: env) { dismiss() } }
+            Button("Annulla", role: .cancel) {}
+        } message: { (_: RankedStream) in
+            Text(DebridUserText.downloadConfirmationMessage)
+        }
+        .sheet(item: $model.fileChoice) { (choice: DebridFileChoice) in
+            DebridFileChoiceSheet(choice: choice) { (file: DebridFileCandidate) in
+                model.chooseFile(file, from: choice, env: env) { dismiss() }
+            }
+        }
         .onAppear {
             model.start(env: env) { best in
                 Task { await model.play(best, env: env) { dismiss() } }
             }
         }
         .onDisappear { model.stop() }
+    }
+
+    private func entries(for list: [RankedStream]) -> [PickerEntry] {
+        var result: [PickerEntry] = []
+        for (offset, item) in list.enumerated() {
+            result.append(PickerEntry.stream(offset: offset, item: item))
+            if model.resolution?.itemID == item.id { result.append(PickerEntry.progress(itemID: item.id)) }
+            if model.rowFailure?.itemID == item.id { result.append(PickerEntry.failure(itemID: item.id)) }
+        }
+        return result
+    }
+
+    @ViewBuilder
+    private func entryRow(_ entry: PickerEntry) -> some View {
+        switch entry {
+        case .stream(let offset, let item):
+            streamRow(offset: offset, item: item)
+        case .progress:
+            if let state = model.resolution {
+                DebridProgressRow(state: state) { model.cancelResolution() }
+            }
+        case .failure:
+            if let failure = model.rowFailure {
+                DebridFailureRow(failure: failure) { model.retryResolution(env: env) { dismiss() } }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func streamRow(offset: Int, item: RankedStream) -> some View {
+        let isTorrent = DebridStreamLogic.isTorrent(item.stream)
+        StreamRow(item: item, isBest: offset == 0, debrid: model.appearance(for: item)) {
+            Task { await model.play(item, env: env) { dismiss() } }
+        }
+        .accessibilityIdentifier("stream.row.\(offset)")
+        .swipeActions(edge: .trailing) {
+            // A torrent is not a file: there is nothing to download for offline viewing.
+            if !isTorrent {
+                Button { Task { await model.download(item, env: env) } } label: {
+                    Label("Scarica", systemImage: "arrow.down.circle")
+                }
+                .tint(settings.accentColor)
+            }
+        }
+        .contextMenu {
+            Button { Task { await model.play(item, env: env) { dismiss() } } } label: {
+                Label("Riproduci", systemImage: "play.fill")
+            }
+            if !isTorrent {
+                Button { Task { await model.download(item, env: env) } } label: {
+                    Label("Scarica per guardarlo offline", systemImage: "arrow.down.circle")
+                }
+            }
+        }
     }
 
     private var header: some View {
@@ -343,6 +736,19 @@ struct StreamPickerSheet: View {
         }
     }
 
+    /// The cache check failed: the torrent rows carry no badge, and this says why (with a retry when trying again can help).
+    @ViewBuilder
+    private func cacheNotice(_ failure: DebridError) -> some View {
+        let text = "Non riesco a controllare la cache di TorBox. " + DebridErrorText.message(for: failure)
+        if failure.isRetryable {
+            InlineErrorView(message: text, retryTitle: "Riprova", retry: { model.retryCacheCheck() })
+                .accessibilityIdentifier("stream.debrid.cacheError")
+        } else {
+            InlineErrorView(message: text)
+                .accessibilityIdentifier("stream.debrid.cacheError")
+        }
+    }
+
     @ViewBuilder
     private var emptyState: some View {
         let handles = env.addons.enabledAddons
@@ -364,8 +770,11 @@ struct StreamPickerSheet: View {
             if let url = URL(string: "https://www.youtube.com/watch?v=\(id)") { openURL(url) }
         case .external(let string):
             if let url = URL.lenient(string), url.scheme?.lowercased() == "https" || url.scheme?.lowercased() == "http" { openURL(url) }
+        case .torrent:
+            model.blockedMessage = DebridUserText.torrentNeedsTorBox
         default:
-            break
+            // Nothing to open: say why instead of ignoring the tap.
+            if case .unsupported(let reason) = item.info.support { model.blockedMessage = reason.message }
         }
     }
 }
@@ -373,6 +782,7 @@ struct StreamPickerSheet: View {
 struct StreamRow: View {
     let item: RankedStream
     let isBest: Bool
+    var debrid: DebridRowAppearance? = nil
     let action: () -> Void
     @EnvironmentObject private var settings: SettingsStore
 
@@ -398,9 +808,16 @@ struct StreamRow: View {
                     Text(details).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(3)
                 }
                 FlowBadges(info: item.info)
+                if let debrid = debrid {
+                    DebridBadgeRow(appearance: debrid)
+                }
                 if case .unsupported(let reason) = item.info.support {
                     Label(reason.message, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                }
+                if let debrid = debrid, !debrid.torBoxConfigured {
+                    Label(DebridUserText.configureHint, systemImage: "key")
+                        .font(.caption).foregroundStyle(Color.aetherSecondary).fixedSize(horizontal: false, vertical: true)
                 }
                 ForEach(item.info.warnings, id: \.self) { warning in
                     Label(warning, systemImage: "info.circle").font(.caption).foregroundStyle(Color.aetherSecondary)
@@ -410,7 +827,150 @@ struct StreamRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityHint(item.info.support.isPlayable ? "Riproduci questa sorgente" : "Non riproducibile")
+        .accessibilityHint(hintText)
+    }
+
+    private var hintText: String {
+        guard item.info.support.isPlayable else { return "Non riproducibile" }
+        if let debrid = debrid, debrid.torBoxConfigured {
+            switch debrid.badge {
+            case .some(DebridCacheBadge.notCached): return "Richiede un download su TorBox, con conferma"
+            case .some(DebridCacheBadge.cached): return "Riproduci tramite TorBox: il contenuto è in cache"
+            default: return "Controlla TorBox e riproduci questa sorgente"
+            }
+        }
+        return "Riproduci questa sorgente"
+    }
+}
+
+/// "Torrent" plus the TorBox cache badge. The badge says only what the cache check answered.
+struct DebridBadgeRow: View {
+    let appearance: DebridRowAppearance
+
+    var body: some View {
+        WrappingHStack(spacing: 6) {
+            Text("Torrent")
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(Color.primary.opacity(0.09), in: Capsule())
+            if let badge = appearance.badge {
+                Label {
+                    Text(badge.label).foregroundStyle(.primary)
+                } icon: {
+                    Image(systemName: badge.systemImage).foregroundStyle(color(for: badge))
+                }
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(color(for: badge).opacity(0.16), in: Capsule())
+                .accessibilityLabel(badge.accessibilityText)
+            }
+        }
+    }
+
+    private func color(for badge: DebridCacheBadge) -> Color {
+        switch badge {
+        case .checking: return Color.gray
+        case .cached: return Color.green
+        case .notCached: return Color.orange
+        }
+    }
+}
+
+/// Progress of the resolution under the row that was tapped: the step, and for a real download percent, speed and time left.
+struct DebridProgressRow: View {
+    let state: DebridRowResolution
+    let cancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let fraction = state.determinateFraction {
+                ProgressView(value: fraction) {
+                    Text(state.message).font(.subheadline.weight(.medium)).fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text(state.message).font(.subheadline.weight(.medium)).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if let detail = state.detail {
+                Text(detail).font(.caption.monospacedDigit()).foregroundStyle(Color.aetherSecondary)
+            }
+            Button(role: .cancel, action: cancel) {
+                Text("Annulla")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("stream.debrid.cancel")
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("stream.debrid.progress")
+    }
+}
+
+/// A clear Italian message under the row, with a retry when trying again can help.
+struct DebridFailureRow: View {
+    let failure: DebridRowFailure
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                Text(failure.message).font(.footnote).fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
+            if failure.isRetryable {
+                Button(action: retry) {
+                    Text("Riprova")
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("stream.debrid.retry")
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("stream.debrid.error")
+    }
+}
+
+/// The video files of a torrent when the right one cannot be found automatically (an episode in a season pack).
+struct DebridFileChoiceSheet: View {
+    let choice: DebridFileChoice
+    let onSelect: (DebridFileCandidate) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(choice.candidates, id: \.id) { file in
+                        Button { onSelect(file) } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(file.name).font(.subheadline.weight(.medium)).lineLimit(3)
+                                if let size = file.size, size > 0 {
+                                    Text(Format.bytes(size)).font(.caption).foregroundStyle(Color.aetherSecondary)
+                                }
+                            }
+                        }
+                        .accessibilityIdentifier("stream.debrid.file.\(file.id)")
+                    }
+                } header: {
+                    Text("File video nel torrent")
+                } footer: {
+                    Text("Non riesco a capire da solo quale file corrisponde a questo episodio: scegli quello giusto.")
+                }
+            }
+            .navigationTitle("Scegli il file")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Annulla") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .accessibilityIdentifier("stream.debrid.fileChoice")
     }
 }
 
