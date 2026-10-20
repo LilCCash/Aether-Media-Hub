@@ -12,8 +12,24 @@ struct SubtitleOption: Identifiable, Hashable {
     let id: String
     let title: String
     let detail: String?
+    /// Language as announced by the engine or the addon, in any spelling.
     let language: String?
     let kind: Kind
+    /// Stable language code (`LanguageCodes.normalise`) when the language is known: what a choice made by hand remembers.
+    let languageCode: String?
+    /// Charset announced in the URL of an addon subtitle (`?senc=cp1250`).
+    let encodingHint: String?
+
+    init(id: String, title: String, detail: String?, language: String?, kind: Kind,
+         languageCode: String? = nil, encodingHint: String? = nil) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.language = language
+        self.kind = kind
+        self.languageCode = languageCode
+        self.encodingHint = encodingHint
+    }
 }
 
 /// Orchestrates one playback session: engine, resume/progress, subtitles, audio, next episode, sleep timer,
@@ -32,6 +48,12 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var selectedSubtitleID: String?
     @Published private(set) var activeCues: [SubtitleCue] = []
     @Published private(set) var subtitleError: String?
+    /// Addon subtitles grouped by language and ranked for this viewer (`SubtitleCatalog`).
+    @Published private(set) var subtitleGroups: [SubtitleLanguageGroup] = []
+    /// `.loading` until the addons have answered for the first time.
+    @Published private(set) var subtitleListPhase: SubtitleListPhase = .loading
+    /// At least one installed, enabled addon can serve subtitles for this title.
+    @Published private(set) var hasSubtitleProvider = false
     @Published var subtitleDelay: Double
     @Published private(set) var sleepRemaining: TimeInterval?
     @Published private(set) var nextEpisode: Video?
@@ -68,6 +90,27 @@ final class PlayerViewModel: ObservableObject {
     private var tornDown = false
     private var preferredAudioApplied = false
     private var preferredSubtitleApplied = false
+    // Subtitles: lists, selection and the one-time decisions of the current video.
+    private var embeddedOptions: [SubtitleOption] = []
+    private var localOptions: [SubtitleOption] = []
+    private var subtitleCandidates: [SubtitleCandidate] = []
+    /// Subtitles announced by the stream itself.
+    private var streamSubtitles: [AddonSubtitle] = []
+    /// Answers of the addons asked without a local hash / with the hash computed on this device.
+    private var plainSubtitles: [AddonSubtitle] = []
+    private var hashedSubtitles: [AddonSubtitle] = []
+    private var selectedOption: SubtitleOption?
+    private var failedSubtitle: SubtitleOption?
+    private var subtitleGeneration = 0
+    private var subtitleHashTask: Task<Void, Never>?
+    private var localHashes: [String: SubtitleHashResult] = [:]
+    private var attemptedHashStreams = Set<String>()
+    private var subtitleTracksKnown = false
+    private var engineSubtitlesSilenced = false
+    private var engineSubtitleSyncPending = false
+    private var pendingEmbeddedLanguage: String?
+    /// Audio and subtitle choices made by hand in this session (applied to the next episode of the same series).
+    private(set) var trackMemory = SessionTrackMemory()
     private var retriedAfterNetworkLoss = false
     private var wasPlayingBeforeInterruption = false
     private var fullMetaLoaded = false
@@ -124,8 +167,9 @@ final class PlayerViewModel: ObservableObject {
         Task {
             await beginPlayback(startOverride: nil)
             await loadFullMetaIfNeeded()
-            await loadSubtitleOptions()
         }
+        // The video id is known already: asking the subtitle addons does not wait for the full metadata.
+        Task { await loadSubtitleOptions() }
         startCueTimer()
     }
 
@@ -163,6 +207,9 @@ final class PlayerViewModel: ObservableObject {
             Task { await env.libraryStore.flush() }
         }
         subtitleTask?.cancel()
+        subtitleHashTask?.cancel()
+        subtitleGeneration += 1
+        trackMemory.reset()
         sleepTask?.cancel()
         countdownTask?.cancel()
         nextStreamsTask?.cancel()
@@ -365,6 +412,7 @@ final class PlayerViewModel: ObservableObject {
         mediaInfo = nil
         failure = nil
         bindEngine()
+        engineReplaced()
         statusMessage = reason
         Task { await beginPlayback(startOverride: position > 5 ? position : nil) }
     }
@@ -485,13 +533,7 @@ final class PlayerViewModel: ObservableObject {
         request.video = video
         request.source = .stream(best.stream)
         alternatives = ranked.filter { $0.info.support.isPlayable && $0.id != best.id }
-        timeline = nil
-        activeCues = []
-        selectedSubtitleID = nil
-        subtitleOptions = []
-        cueCache = [:]
-        preferredAudioApplied = false
-        preferredSubtitleApplied = false
+        resetSubtitleStateForNewVideo()
         lastRecordedPosition = -100
         didFinish = false
         nextStreamsTask = nil

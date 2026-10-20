@@ -46,7 +46,7 @@ final class DetailViewModel: ObservableObject {
         let base = meta
         let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
         guard let enrichment = await env.metadata.enrich(base, language: language), !Task.isCancelled, meta.id == base.id else { return }
-        attributions = enrichment.attributions(whenMergedInto: base)
+        attributions = enrichment.creditLines(whenMergedInto: base)
         meta = base.merging(enrichment: enrichment)
         if selectedSeason == nil { selectedSeason = initialSeason() }
     }

@@ -389,7 +389,7 @@ extension MetadataEnrichment {
     }
 
     /// Credit lines to show next to a meta that this enrichment was merged into: none when it added nothing visible.
-    public func attributions(whenMergedInto meta: MetaItem) -> [String] {
+    public func creditLines(whenMergedInto meta: MetaItem) -> [String] {
         var merged = meta.merging(enrichment: self)
         var original = meta
         merged.externalIDs = ExternalIDs()

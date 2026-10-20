@@ -372,9 +372,9 @@ final class MetadataTests: XCTestCase {
                             releaseInfo: "2000", runtime: "90 min", genres: ["a"], cast: ["c"], directors: ["d"])
         let enrichment = MetadataEnrichment(ids: ExternalIDs(imdb: "tt1", tmdb: 5, tvdb: nil), poster: "other", overview: "other",
                                             genres: ["z"], sources: [.tmdb])
-        XCTAssertEqual(enrichment.attributions(whenMergedInto: full), [])
+        XCTAssertEqual(enrichment.creditLines(whenMergedInto: full), [])
         let sparse = MetaItem(id: "tt1", type: "movie", name: "X")
-        XCTAssertEqual(enrichment.attributions(whenMergedInto: sparse), [MetadataService.tmdb.attribution])
+        XCTAssertEqual(enrichment.creditLines(whenMergedInto: sparse), [MetadataService.tmdb.attribution])
         XCTAssertTrue(MetadataService.tmdb.attribution.contains("not endorsed or certified by TMDB"))
     }
 
