@@ -113,13 +113,11 @@ jobs:
 
           [ -d "$APP/Frameworks/GoogleCast.framework" ] && check ok "Google Cast framework embedded" || check bad "GoogleCast.framework is missing from Frameworks/"
           [ -f "$APP/Assets.car" ] && check ok "asset catalog compiled" || check bad "Assets.car is missing"
-          # Best effort: the exact assetutil/Info.plist layout of the icon differs between Xcode releases, so a miss
-          # is reported as a warning (with the icon-related keys for diagnosis) rather than failing the whole build.
           if xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep -q '"Name" : "AppIcon"' \
              || /usr/libexec/PlistBuddy -c 'Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName' "$INFO" 2>/dev/null | grep -qx AppIcon; then
             check ok "app icon is in the catalog"
           else
-            echo "::warning::Could not confirm the AppIcon in Assets.car or Info.plist"
+            check bad "no AppIcon found in Assets.car or Info.plist"
             plutil -p "$INFO" | grep -i icon || true
           fi
           [ -f "$APP/PrivacyInfo.xcprivacy" ] && check ok "privacy manifest present" || check bad "PrivacyInfo.xcprivacy is missing"
