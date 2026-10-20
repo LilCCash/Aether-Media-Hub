@@ -1,0 +1,101 @@
+// Stand-in for the TMDB v3 API (/tmdb/3/...) and the TheTVDB v4 API (/tvdb/v4/...) used by the UI tests, so that the
+// metadata enrichment and the Settings checks run end to end without a real account and without the network.
+//
+//   TMDB    accepts the key "fixture-tmdb-key" (as api_key or as a Bearer token); anything else gets HTTP 401 / status_code 7,
+//           exactly like the real service answers an invalid key.
+//   TheTVDB POST /tvdb/v4/login accepts {"apikey": "fixture-tvdb-key"} and answers a token; a wrong key gets HTTP 401 and
+//           "InvalidAPIKey", like the real service. The data endpoints then require "Authorization: Bearer fixture-tvdb-token".
+//
+// Titles: tt9300001 (a movie whose addon meta is deliberately bare, see server.js) is known to the TMDB stand-in;
+// tt9100001 (the fixture series) is known to both.
+const TMDB_KEY = 'fixture-tmdb-key';
+const TVDB_KEY = 'fixture-tvdb-key';
+const TVDB_TOKEN = 'fixture-tvdb-token';
+
+const tmdbMovie = {
+  id: 93001, title: 'Sparse Fixture Movie (TMDB)', overview: 'Trama fornita dal servizio TMDB di prova.',
+  tagline: 'Un titolo senza dettagli', poster_path: '/p.jpg', backdrop_path: '/b.jpg',
+  genres: [{ id: 1, name: 'Fantascienza' }, { id: 2, name: 'Avventura' }], runtime: 97, release_date: '2020-05-05',
+  vote_average: 7.4, credits: { cast: [{ name: 'Attrice TMDB Uno', order: 0 }, { name: 'Attore TMDB Due', order: 1 }],
+    crew: [{ name: 'Regista TMDB', job: 'Director' }] },
+  images: { logos: [] }, external_ids: { imdb_id: 'tt9300001' },
+};
+
+const tmdbShow = {
+  id: 91001, name: 'Fixture Series (TMDB)', overview: 'Trama della serie dal servizio TMDB di prova.', episode_run_time: [42],
+  first_air_date: '2023-01-01', genres: [{ id: 3, name: 'Fantascienza' }], poster_path: '/p.jpg', external_ids: { imdb_id: 'tt9100001', tvdb_id: 555 },
+};
+
+const tmdbSeason1 = { episodes: [
+  { episode_number: 1, season_number: 1, name: 'Pilota (TMDB)', overview: 'Panoramica TMDB episodio 1', still_path: '/s1.jpg' },
+  { episode_number: 2, season_number: 1, name: 'Seconda luce (TMDB)', overview: 'Panoramica TMDB episodio 2', still_path: '/s2.jpg' },
+] };
+
+const tvdbEpisodes = { status: 'success', data: { episodes: [
+  { seasonNumber: 1, number: 1, name: 'Pilota (TVDB)', overview: 'Panoramica TVDB episodio 1', image: null },
+  { seasonNumber: 1, number: 2, name: 'Seconda luce (TVDB)', overview: 'Panoramica TVDB episodio 2', image: null },
+] }, links: { next: null } };
+
+function handle(req, res, p, url, base, tools) {
+  const { send, poster } = tools;
+
+  // ---- image host standing in for image.tmdb.org -------------------------------------------------------------
+  if (p.startsWith('/tmdb-img/')) { send(res, 200, poster(7), 'image/png'); return true; }
+
+  // ---- TMDB ---------------------------------------------------------------------------------------------------
+  if (p.startsWith('/tmdb/3/')) {
+    const key = url.searchParams.get('api_key');
+    const bearer = (req.headers.authorization || '').replace(/^Bearer /, '');
+    if (key !== TMDB_KEY && bearer !== TMDB_KEY) {
+      send(res, 401, { status_code: 7, status_message: 'Invalid API key: You must be granted a valid key.', success: false });
+      return true;
+    }
+    const route = p.slice('/tmdb/3'.length);
+    if (route === '/configuration') {
+      send(res, 200, { images: { secure_base_url: `${base}/tmdb-img/`, poster_sizes: ['w92', 'w342', 'w500', 'original'],
+        backdrop_sizes: ['w300', 'w780', 'w1280', 'original'], logo_sizes: ['w185', 'w500', 'original'], still_sizes: ['w185', 'w300', 'original'] } });
+    } else if (route === '/find/tt9300001') {
+      send(res, 200, { movie_results: [{ id: 93001 }], tv_results: [] });
+    } else if (route === '/find/tt9100001') {
+      send(res, 200, { movie_results: [], tv_results: [{ id: 91001 }] });
+    } else if (route.startsWith('/find/')) {
+      send(res, 200, { movie_results: [], tv_results: [] });
+    } else if (route === '/movie/93001') {
+      send(res, 200, tmdbMovie);
+    } else if (route === '/tv/91001') {
+      send(res, 200, tmdbShow);
+    } else if (route === '/tv/91001/season/1') {
+      send(res, 200, tmdbSeason1);
+    } else {
+      send(res, 404, { status_code: 34, status_message: 'The resource you requested could not be found.', success: false });
+    }
+    return true;
+  }
+
+  // ---- TheTVDB ------------------------------------------------------------------------------------------------
+  if (p === '/tvdb/v4/login' && req.method === 'POST') {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      let body = {};
+      try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch (e) { /* answered below */ }
+      if (body.apikey === TVDB_KEY) send(res, 200, { status: 'success', data: { token: TVDB_TOKEN } });
+      else send(res, 401, { status: 'failure', message: 'InvalidAPIKey: Invalid API key', data: null });
+    });
+    return true;
+  }
+  if (p.startsWith('/tvdb/v4/')) {
+    if ((req.headers.authorization || '') !== `Bearer ${TVDB_TOKEN}`) {
+      send(res, 401, { status: 'failure', message: 'Unauthorized' });
+      return true;
+    }
+    const route = p.slice('/tvdb/v4'.length);
+    if (route === '/search/remoteid/tt9100001') send(res, 200, { status: 'success', data: [{ series: { id: 555 } }] });
+    else if (route === '/series/555/episodes/default/ita') send(res, 200, tvdbEpisodes);
+    else send(res, 404, { status: 'failure', message: 'Not Found' });
+    return true;
+  }
+  return false;
+}
+
+module.exports = { handle, TMDB_KEY, TVDB_KEY };

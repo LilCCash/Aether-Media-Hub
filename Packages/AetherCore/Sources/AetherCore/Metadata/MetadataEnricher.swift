@@ -8,6 +8,7 @@ public actor MetadataEnricher {
     /// Seasons asked from TMDB / TheTVDB for one title. Series with more seasons are enriched for the first ones only.
     static let maxSeasons = 12
     static let maxCast = 12
+    static let imageHost = "image.tmdb.org"
 
     private let tmdb: TMDBClient?
     private let tvdb: TVDBClient?
@@ -198,8 +199,14 @@ public actor MetadataEnricher {
         if let known = imageConfiguration { return known }
         if let fetched = try? await client.configuration() {
             var usable = fetched
-            // Image hosts come from TMDB's own answer; anything but https falls back to the documented default.
-            if let base = fetched.secureBaseURL, !base.lowercased().hasPrefix("https://") { usable.secureBaseURL = TMDBImageConfiguration().secureBaseURL }
+            // The image host comes from TMDB's own answer, but only TMDB's image host (https) is accepted, plus the local
+            // fixture hosts that the host-trust rule allows; anything else falls back to the documented default.
+            if let base = fetched.secureBaseURL, let url = URL(string: base),
+               !MetadataHTTP.isTrusted(url, productionHost: MetadataEnricher.imageHost) {
+                usable.secureBaseURL = TMDBImageConfiguration().secureBaseURL
+            } else if let base = fetched.secureBaseURL, URL(string: base) == nil {
+                usable.secureBaseURL = TMDBImageConfiguration().secureBaseURL
+            }
             if usable.posterSizes.isEmpty { usable.posterSizes = TMDBImageConfiguration().posterSizes }
             if usable.backdropSizes.isEmpty { usable.backdropSizes = TMDBImageConfiguration().backdropSizes }
             if usable.logoSizes.isEmpty { usable.logoSizes = TMDBImageConfiguration().logoSizes }

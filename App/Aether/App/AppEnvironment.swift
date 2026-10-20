@@ -79,9 +79,12 @@ final class AppEnvironment: ObservableObject {
         casting = CastCoordinator(settings: settings)
         let serviceKeys = ServiceCredentials(secrets: secrets)
         credentials = serviceKeys
+        // The UI tests point both services at their fixture server; a normal launch always uses the production APIs.
+        let tmdbBase = hooks.metadataBaseURL.flatMap { URL(string: $0 + "/tmdb/3") } ?? TMDBClient.productionBaseURL
+        let tvdbBase = hooks.metadataBaseURL.flatMap { URL(string: $0 + "/tvdb/v4") } ?? TVDBClient.productionBaseURL
         metadata = MetadataEnricher(
-            tmdb: TMDBClient(http: http, credentials: serviceKeys.provider(for: .tmdb)),
-            tvdb: TVDBClient(http: http, apiKey: serviceKeys.provider(for: .tvdb), pin: serviceKeys.pinProvider(for: .tvdb)),
+            tmdb: TMDBClient(http: http, credentials: serviceKeys.provider(for: .tmdb), baseURL: tmdbBase),
+            tvdb: TVDBClient(http: http, apiKey: serviceKeys.provider(for: .tvdb), pin: serviceKeys.pinProvider(for: .tvdb), baseURL: tvdbBase),
             cache: responseCache)
 
         credentials.onChange = { [weak self] in
@@ -192,6 +195,7 @@ final class AppEnvironment: ObservableObject {
 ///   -AETHER_UITEST_RESET          wipe that namespace (and stored settings) before starting
 ///   -AETHER_UITEST_SETTINGS <json> partial AppSettings JSON applied on top of the defaults
 ///   -AETHER_UITEST_OPENURL <url>  handled like a deep link once the app has started
+///   -AETHER_UITEST_METADATA_BASE <url>  base of the fixture server that stands in for the TMDB (/tmdb/3) and TheTVDB (/tvdb/v4) APIs
 /// In this mode loopback addresses are allowed so the tests can talk to the fixture server.
 struct UITestHooks {
     let isActive: Bool
@@ -199,6 +203,7 @@ struct UITestHooks {
     let reset: Bool
     let settingsJSON: String?
     let openURL: String?
+    let metadataBaseURL: String?
 
     init(arguments: [String]) {
         isActive = arguments.contains("-AETHER_UITEST")
@@ -210,6 +215,7 @@ struct UITestHooks {
         session = value(after: "-AETHER_UITEST_SESSION") ?? UUID().uuidString
         settingsJSON = value(after: "-AETHER_UITEST_SETTINGS")
         openURL = value(after: "-AETHER_UITEST_OPENURL")
+        metadataBaseURL = isActive ? value(after: "-AETHER_UITEST_METADATA_BASE") : nil
     }
 
     func prepareDefaults() {

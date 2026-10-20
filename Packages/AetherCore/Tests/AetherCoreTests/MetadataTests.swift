@@ -488,6 +488,17 @@ final class MetadataTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    func testImagesOnlyComeFromTMDBsImageHost() async throws {
+        let http = MetaStubHTTP()
+        http.on("GET", "/configuration", .init(body: MetaFixtures.configuration.replacingOccurrences(of: "https://image.tmdb.org/t/p/", with: "https://evil.example/img/")))
+        http.on("GET", "/find/tt0133093", .init(body: MetaFixtures.findMovie))
+        http.on("GET", "/movie/603", .init(body: MetaFixtures.movie))
+        let result = await MetadataEnricher(tmdb: MetaFixtures.tmdbClient(http), tvdb: nil).enrich(MetaFixtures.movieMeta(), language: "it-IT")
+        let enrichment = try XCTUnwrap(result)
+        XCTAssertEqual(enrichment.poster, "https://image.tmdb.org/t/p/w500/p.jpg", "the answer's own host is ignored")
+        XCTAssertEqual(enrichment.logo, "https://image.tmdb.org/t/p/w500/l_it.png")
+    }
+
     func testTolerantDecodingOfOddFields() async throws {
         let http = MetaStubHTTP()
         http.on("GET", "/configuration", .init(body: MetaFixtures.configuration))
@@ -683,8 +694,10 @@ final class MetadataTests: XCTestCase {
         let again = try JSONDecoder().decode(MetaItem.self, from: try JSONEncoder().encode(meta))
         XCTAssertEqual(again.externalIDs, meta.externalIDs)
 
-        let bare = try JSONDecoder().decode(MetaItem.self, from: Data(#"{"id":"tt1","type":"movie","name":"Old"}"#.utf8))
-        XCTAssertTrue(bare.externalIDs.isEmpty)
+        let bare = try JSONDecoder().decode(MetaItem.self, from: Data(#"{"id":"kitsu:1","type":"series","name":"Old"}"#.utf8))
+        XCTAssertTrue(bare.externalIDs.isEmpty, "nothing is invented for ids that are not IMDb ids")
+        let imdbOnly = try JSONDecoder().decode(MetaItem.self, from: Data(#"{"id":"tt1","type":"movie","name":"Old"}"#.utf8))
+        XCTAssertEqual(imdbOnly.externalIDs, ExternalIDs(imdb: "tt1", tmdb: nil, tvdb: nil), "a tt… id is an IMDb id by definition")
     }
 
     func testErrorMessagesAreItalianAndCarryNoDetail() {

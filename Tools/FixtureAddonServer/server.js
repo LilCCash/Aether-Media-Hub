@@ -19,6 +19,7 @@
 //                                        each one that exists is also listed as a title in the "Fixture Matrix" catalog
 //   /subs/it.srt, /subs/en.vtt           subtitle files
 //   /poster/{n}.png, /backdrop/{n}.png, /logo/{n}.png   generated portrait posters, 16:9 backdrops, wide RGBA logos
+//   /tmdb/3/…, /tvdb/v4/…               stand-ins for the TMDB and TheTVDB APIs (metadata.js); tt9300001 is a bare movie searched as "Sparse"
 //   /__control/offline?on=1|0            make every addon endpoint answer 503 (tests the "addon offline" path)
 //   /__control/media?on=0|1              make /media/* answer 503 (tests offline playback of a downloaded file)
 //   /__control/requests                  JSON array of the paths requested so far (for assertions)
@@ -26,6 +27,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const metadataFixture = require('./metadata');
 
 const args = process.argv.slice(2);
 function arg(name, fallback) {
@@ -47,6 +49,8 @@ const movies = [
   { id: 'tt9000002', name: 'Aether Fixture Two', year: 2022, genres: ['Fixture', 'Comedy'], runtime: '1 min', rating: '6.4' },
   { id: 'tt9000003', name: 'Unsupported Format', year: 2020, genres: ['Fixture'], runtime: '90 min', rating: '5.0' },
   { id: 'tt9000004', name: 'Nothing To Watch', year: 2019, genres: ['Fixture'], runtime: '90 min', rating: '4.1' },
+  // A bare meta (name only), listed only when searched for: what the TMDB / TheTVDB stand-ins (metadata.js) can fill in.
+  { id: 'tt9300001', name: 'Sparse Fixture Movie', year: 2020, genres: [], runtime: '', rating: '', hidden: true, sparse: true },
 ];
 const series = [
   { id: 'tt9100001', name: 'Fixture Series', year: 2023, genres: ['Fixture', 'Sci-Fi'], rating: '8.2' },
@@ -57,6 +61,7 @@ const episodes = [
 ];
 
 function metaPreview(item, type, index) {
+  if (item.sparse) return { id: item.id, type, name: item.name };
   return {
     id: item.id, type, name: item.name, poster: `${BASE}/poster/${index}.png`,
     background: `${BASE}/backdrop/${index}.png`, logo: `${BASE}/logo/${index}.png`,
@@ -65,6 +70,7 @@ function metaPreview(item, type, index) {
 }
 
 function metaFull(item, type, index) {
+  if (item.sparse) return metaPreview(item, type, index);
   const meta = {
     ...metaPreview(item, type, index),
     description: `${item.name} is a controlled fixture title used by Aether's automated tests.`,
@@ -295,6 +301,7 @@ const server = http.createServer((req, res) => {
   if (p === '/__control/requests') return send(res, 200, requests);
   if (p === '/__control/reset') { requests.length = 0; offline = false; mediaOffline = false; return send(res, 200, { ok: true }); }
 
+  if (metadataFixture.handle(req, res, p, url, BASE, { send, poster })) return;
   if (p.startsWith('/poster/')) return send(res, 200, poster(parseInt(p.split('/')[2], 10) || 0), 'image/png');
   if (p.startsWith('/backdrop/')) return send(res, 200, backdrop(parseInt(p.split('/')[2], 10) || 0), 'image/png');
   if (p.startsWith('/logo/')) return send(res, 200, logo(), 'image/png');
@@ -317,7 +324,8 @@ const server = http.createServer((req, res) => {
     const list = id === 'fixture-matrix' ? matrix : (type === 'movie' ? movies : series);
     const extra = extraSegment ? decodeExtra(extraSegment) : {};
     if (extra.skip && parseInt(extra.skip, 10) > 0) return send(res, 200, { metas: [] });
-    let items = list.map((item, i) => metaPreview(item, type, i + 1 + (type === 'series' ? 10 : 0)));
+    const visible = list.filter((item) => !item.hidden || extra.search);
+    let items = visible.map((item, i) => metaPreview(item, type, i + 1 + (type === 'series' ? 10 : 0)));
     if (extra.search) {
       const q = extra.search.toLowerCase();
       items = items.filter((m) => m.name.toLowerCase().includes(q));
