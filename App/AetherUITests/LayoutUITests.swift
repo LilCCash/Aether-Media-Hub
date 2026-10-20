@@ -14,9 +14,12 @@ final class LayoutUITests: AetherUITestCase {
         XCTAssertLessThanOrEqual(frame.maxX, window.maxX + 0.5, "\(name) ends right of the screen (maxX=\(frame.maxX), width=\(window.width))", file: file, line: line)
     }
 
+    /// Animations off: the Home carousel advances by itself every few seconds, which would move the card under measurement.
+    private static let stillSettings = #"{"appearance":{"animationsEnabled":false},"playback":{"controlsAutoHideSeconds":15}}"#
+
     override func setUpWithError() throws {
         try super.setUpWithError()
-        launchWithFixtureAddon()
+        launchWithFixtureAddon(settings: Self.stillSettings)
     }
 
     func testDetailScreenFitsTheScreenWidth() {
@@ -42,11 +45,21 @@ final class LayoutUITests: AetherUITestCase {
 
     func testHomeCarouselFitsTheScreenWidth() {
         openTab("Home")
-        let hero = button(labelContaining: "In evidenza")
-        assertFitsHorizontally(hero, "featured card")
-        let frame = hero.frame
-        XCTAssertGreaterThan(frame.width, windowFrame.width * 0.8, "featured card is too narrow (\(frame.width))")
-        XCTAssertLessThanOrEqual(frame.width, windowFrame.width + 0.5, "featured card is wider than the screen (\(frame.width))")
+        XCTAssertTrue(button(labelContaining: "In evidenza").waitForExistence(timeout: 30), "no featured card on Home")
+        // The carousel is a paged TabView: the neighbouring pages exist in the accessibility tree, just outside the screen.
+        // The page that is on screen is the one overlapping the window the most; it must lie inside it, and every page
+        // must have the same width (a page wider than the others is the bug this guards against).
+        let predicate = NSPredicate(format: "label CONTAINS[c] %@", "In evidenza")
+        let cards = app.buttons.matching(predicate).allElementsBoundByIndex
+        XCTAssertFalse(cards.isEmpty)
+        let window = windowFrame
+        let visible = cards.max { $0.frame.intersection(window).width < $1.frame.intersection(window).width }!
+        assertFitsHorizontally(visible, "featured card")
+        XCTAssertGreaterThan(visible.frame.width, window.width * 0.8, "featured card is too narrow (\(visible.frame.width))")
+        XCTAssertLessThanOrEqual(visible.frame.width, window.width + 0.5, "featured card is wider than the screen (\(visible.frame.width))")
+        for card in cards {
+            XCTAssertEqual(card.frame.width, visible.frame.width, accuracy: 1, "carousel pages have different widths")
+        }
     }
 
     func testRowsKeepTheirTitlesAndScrollHorizontally() {

@@ -11,6 +11,8 @@ on:
       service:
         description: "torbox | tmdb | tvdb | opensubtitles | cinemeta | mpvkit | all"
         default: all
+  push:
+    paths: ['.github/workflows/api-probe.yml']
 
 permissions:
   contents: read
@@ -19,6 +21,8 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      SVC: ${{ inputs.service || 'all' }}
     steps:
       - name: Helpers
         run: |
@@ -34,7 +38,7 @@ jobs:
           LIB
 
       - name: TorBox
-        if: inputs.service == 'torbox' || inputs.service == 'all'
+        if: env.SVC == 'torbox' || env.SVC == 'all'
         run: |
           . "$RUNNER_TEMP/probe/lib.sh"
           fetch health https://api.torbox.app/; head -c 600 "$RUNNER_TEMP/probe/health"; echo; end
@@ -60,7 +64,7 @@ jobs:
           fetch terms https://torbox.app/terms; sed -e 's/<[^>]*>/ /g' "$RUNNER_TEMP/probe/terms" | tr -s ' \n' | grep -o -i -E '.{200}(third.party|api key|automated|scrap|rate|abuse|resell|share).{300}' | head -14; end
 
       - name: TMDB
-        if: inputs.service == 'tmdb' || inputs.service == 'all'
+        if: env.SVC == 'tmdb' || env.SVC == 'all'
         run: |
           . "$RUNNER_TEMP/probe/lib.sh"
           fetch tmdb_spec https://developer.themoviedb.org/openapi/tmdb-api.json
@@ -76,7 +80,7 @@ jobs:
           fetch tmdb_terms https://www.themoviedb.org/api-terms-of-use; sed -e 's/<[^>]*>/ /g' "$RUNNER_TEMP/probe/tmdb_terms" | tr -s ' \n' | grep -o -i -E '.{250}(attribution|commercial|endorsed|cache|rate limit|50 requests).{350}' | head -12; end
 
       - name: TheTVDB
-        if: inputs.service == 'tvdb' || inputs.service == 'all'
+        if: env.SVC == 'tvdb' || env.SVC == 'all'
         run: |
           . "$RUNNER_TEMP/probe/lib.sh"
           fetch tvdb_spec https://thetvdb.github.io/v4-api/swagger.yml
@@ -95,7 +99,7 @@ jobs:
           fetch tvdb_attr https://thetvdb.com/api-information; sed -e 's/<[^>]*>/ /g' "$RUNNER_TEMP/probe/tvdb_attr" | tr -s ' \n' | grep -o -i -E '.{200}(attribution|free|subscri|open source|commercial|user.supported).{300}' | head -12; end
 
       - name: OpenSubtitles (Stremio addon)
-        if: inputs.service == 'opensubtitles' || inputs.service == 'all'
+        if: env.SVC == 'opensubtitles' || env.SVC == 'all'
         run: |
           . "$RUNNER_TEMP/probe/lib.sh"
           fetch os_manifest https://opensubtitles-v3.strem.io/manifest.json; head -c 1800 "$RUNNER_TEMP/probe/os_manifest"; echo; end
@@ -108,7 +112,7 @@ jobs:
           fetch os_rest https://api.opensubtitles.com/api/v1/infos/languages -H "Api-Key: invalid"; head -c 400 "$RUNNER_TEMP/probe/os_rest"; echo; end
 
       - name: Cinemeta (catalog extras)
-        if: inputs.service == 'cinemeta' || inputs.service == 'all'
+        if: env.SVC == 'cinemeta' || env.SVC == 'all'
         run: |
           . "$RUNNER_TEMP/probe/lib.sh"
           fetch cm https://v3-cinemeta.strem.io/manifest.json
@@ -118,7 +122,7 @@ jobs:
           fetch cm_genre "https://v3-cinemeta.strem.io/catalog/movie/top/genre=Action.json"; jq -c '{count: (.metas | length), first: .metas[0] | {name, genres, releaseInfo}}' "$RUNNER_TEMP/probe/cm_genre" | head -c 600; echo; end
 
       - name: MPVKit
-        if: inputs.service == 'mpvkit' || inputs.service == 'all'
+        if: env.SVC == 'mpvkit' || env.SVC == 'all'
         run: |
           . "$RUNNER_TEMP/probe/lib.sh"
           fetch mpv_releases "https://api.github.com/repos/mpvkit/MPVKit/releases?per_page=6"
