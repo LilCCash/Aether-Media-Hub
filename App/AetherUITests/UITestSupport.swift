@@ -162,7 +162,9 @@ class AetherUITestCase: XCTestCase {
                 return
             }
         }
-        XCTFail("the player did not open")
+        let digest = app.buttons.allElementsBoundByIndex.prefix(25).map { $0.label }.joined(separator: " | ")
+        let texts = app.staticTexts.allElementsBoundByIndex.prefix(25).map { $0.label }.joined(separator: " | ")
+        XCTFail("the player did not open. buttons: \(digest) texts: \(texts)")
     }
 
     /// The overlay auto-hides after at most 15 s; bring it back (a tap toggles it) before using its buttons.

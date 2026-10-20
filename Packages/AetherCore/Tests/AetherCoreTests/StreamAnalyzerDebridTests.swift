@@ -4,12 +4,12 @@ import XCTest
 // A torrent stream counts as playable only when a debrid service (TorBox) is available; nothing else changes.
 
 final class StreamAnalyzerDebridTests: XCTestCase {
-    private let hash = "0123456789abcdef0123456789abcdef01234567"
+    private let infoHash = "0123456789abcdef0123456789abcdef01234567"
 
     private func torrent(_ name: String? = nil, filename: String? = nil) -> AddonStream {
         var hints = StreamBehaviorHints()
         hints.filename = filename
-        return AddonStream(source: .torrent(infoHash: hash, fileIndex: nil, trackers: []), name: name, behaviorHints: hints)
+        return AddonStream(source: .torrent(infoHash: infoHash, fileIndex: nil, trackers: []), name: name, behaviorHints: hints)
     }
 
     func testCapabilitiesDefaultToNoDebrid() {

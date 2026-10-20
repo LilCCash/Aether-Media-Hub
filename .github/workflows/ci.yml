@@ -184,6 +184,8 @@ jobs:
           grep -E "Executed [0-9]+ tests?" "$RUNNER_TEMP/ui.log" | tail -2 || true
           grep -E "Test Case .* (passed|failed)" "$RUNNER_TEMP/ui.log" | sed -E 's/.*Test Case .-\[AetherUITests\.//' | head -60 || true
           grep -E "error: -\[" "$RUNNER_TEMP/ui.log" | sort -u | head -40 || true
+          echo "=== media matrix (what the info sheet showed) ==="
+          grep -h "MATRIX-LINE" "$RUNNER_TEMP/ui.log" | sort -u | head -40 || true
           echo "=== accessibility audit notes ==="
           grep -h "A11Y-ISSUE" "$RUNNER_TEMP/ui.log" | sort -u | head -30 || true
           echo "=== fixture server ==="
