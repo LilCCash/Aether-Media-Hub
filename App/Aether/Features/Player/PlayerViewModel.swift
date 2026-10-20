@@ -114,6 +114,13 @@ final class PlayerViewModel: ObservableObject {
     private var retriedAfterNetworkLoss = false
     private var wasPlayingBeforeInterruption = false
     private var fullMetaLoaded = false
+    // TorBox: a torrent source is turned into a direct link before `engine.load`. That link carries a token, so it lives only here
+    // (never in `request`, `currentStream`, the library, a download or a Cast hand-off) and is never logged.
+    private var debridStream: AddonStream?
+    private var debridStreamKey: String?
+    private var debridTask: Task<AddonStream, Error>?
+    private var debridGeneration = 0
+    private var debridProgressSequence = 0
 
     private var playback: PlaybackSettings { env.settings.value.playback }
 
@@ -197,11 +204,23 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
-    private var currentContainer: String? { PlayerViewModel.container(of: request, env: env) }
+    /// For a torrent resolved through TorBox the container is the one of the file TorBox returned.
+    private var currentContainer: String? {
+        if let direct = currentDebridStream() {
+            return StreamAnalyzer.analyze(direct, streamingServer: nil).container
+        }
+        return PlayerViewModel.container(of: request, env: env)
+    }
 
     func teardown() {
         guard !tornDown else { return }
         tornDown = true
+        // Closing the player ends a TorBox wait too; an item already added to the user's account stays there.
+        debridGeneration += 1
+        debridTask?.cancel()
+        debridTask = nil
+        debridStream = nil
+        debridStreamKey = nil
         // Record the final position and write it to disk in one ordered step: a separate flush could run first.
         if !recordProgress(force: true, flushAfter: true) {
             Task { await env.libraryStore.flush() }
@@ -226,6 +245,10 @@ final class PlayerViewModel: ObservableObject {
         failure = nil
         statusMessage = nil
         retriedAfterNetworkLoss = false
+        // A newer start supersedes a TorBox wait that is still in flight.
+        debridGeneration += 1
+        debridTask?.cancel()
+        debridTask = nil
         if let plan = playbackPlan, !plan.canPlay, let message = plan.blockingMessage {
             handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: message))
             return
@@ -240,7 +263,14 @@ final class PlayerViewModel: ObservableObject {
             }
             url = local
         case .stream(let stream):
-            guard let resolved = StreamResolver.playbackURL(for: stream, streamingServer: env.streamPreferences().streamingServer) else {
+            var source = stream
+            if DebridStreamLogic.isTorrent(stream) && env.debrid.isConfigured {
+                // A torrent has no address of its own: TorBox turns it into a direct link first (progress and errors show here).
+                guard let direct = await resolveTorrentWithTorBox(stream) else { return }
+                source = direct
+                guard adoptEngine(forResolved: direct) else { return }
+            }
+            guard let resolved = StreamResolver.playbackURL(for: source, streamingServer: env.streamPreferences().streamingServer) else {
                 handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: "Sorgente non riproducibile"))
                 return
             }
@@ -249,7 +279,7 @@ final class PlayerViewModel: ObservableObject {
                 return
             }
             url = resolved
-            headers = stream.behaviorHints.proxyRequestHeaders
+            headers = source.behaviorHints.proxyRequestHeaders
         }
 
         var start = startOverride
@@ -264,6 +294,107 @@ final class PlayerViewModel: ObservableObject {
         engine.load(url: url, headers: headers, startAt: start, autoplay: true)
         if start != nil && (start ?? 0) > 1 { statusMessage = "Riprendo da \(Format.duration(start ?? 0))" }
         scheduleStatusClear()
+    }
+
+    // MARK: TorBox (torrent sources)
+
+    /// What identifies one resolution: the torrent and the video it is played for.
+    private func debridKey(for stream: AddonStream) -> String {
+        return AddonStream.sourceKey(stream.source) + "|" + DebridStreamLogic.stremioID(meta: meta, video: currentVideo)
+    }
+
+    /// The direct link TorBox produced for the source that plays now, if there is one.
+    private func currentDebridStream() -> AddonStream? {
+        guard let direct = debridStream, let key = debridStreamKey else { return nil }
+        guard case .stream(let stream) = request.source else { return nil }
+        return debridKey(for: stream) == key ? direct : nil
+    }
+
+    private func forgetDebridLink() {
+        debridStream = nil
+        debridStreamKey = nil
+    }
+
+    /// Turns a torrent into a direct-link stream through TorBox. The player only plays what TorBox already has in its cache:
+    /// starting a download needs the user's confirmation, which the stream picker asks for. nil when it did not work (the failure
+    /// panel is showing) or when the player moved on or closed in the meantime.
+    private func resolveTorrentWithTorBox(_ stream: AddonStream) async -> AddonStream? {
+        let key = debridKey(for: stream)
+        if let direct = debridStream, debridStreamKey == key { return direct }
+        forgetDebridLink()
+        debridGeneration += 1
+        let generation = debridGeneration
+        debridProgressSequence = 0
+        statusMessage = "Controllo TorBox…"
+        let stremioID = DebridStreamLogic.stremioID(meta: meta, video: currentVideo)
+        let debrid = env.debrid
+        let relay = DebridProgressRelay()
+        let sink: @Sendable (DebridProgress) -> Void = { (progress: DebridProgress) -> Void in
+            let sequence = relay.next()
+            Task { @MainActor in
+                self.debridProgressArrived(progress, sequence: sequence, generation: generation)
+            }
+        }
+        let task = Task { () -> AddonStream in
+            return try await debrid.playableStream(for: stream, stremioID: stremioID, onProgress: sink)
+        }
+        debridTask = task
+        let outcome = await task.result
+        guard generation == debridGeneration, !tornDown else { return nil }
+        debridTask = nil
+        statusMessage = nil
+        switch outcome {
+        case .success(let direct):
+            guard case .stream(let current) = request.source, current.id == stream.id else { return nil }
+            debridStream = direct
+            debridStreamKey = key
+            return direct
+        case .failure(let error):
+            if error is CancellationError { return nil }
+            handleFailure(DebridPlayback.failure(forAny: error))
+            return nil
+        }
+    }
+
+    private func debridProgressArrived(_ progress: DebridProgress, sequence: Int, generation: Int) {
+        guard generation == debridGeneration, sequence > debridProgressSequence, failure == nil, !tornDown else { return }
+        debridProgressSequence = sequence
+        statusMessage = DebridFormat.statusLine(for: progress)
+    }
+
+    /// The file TorBox returned decides the container, and so the engine (a Matroska file needs MPV). False when no engine can
+    /// play it; the failure panel then says why.
+    private func adoptEngine(forResolved direct: AddonStream) -> Bool {
+        let container = StreamAnalyzer.analyze(direct, streamingServer: nil).container
+        let plan = PlaybackPlanner.plan(container: container, facts: nil, device: device,
+                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: playback.engine,
+                                        forceSDR: playback.video.hdrMode == .sdr)
+        playbackPlan = plan
+        guard let wanted = plan.engine else {
+            handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: plan.blockingMessage ?? "Formato non riproducibile"))
+            return false
+        }
+        if wanted != engine.kind && canUse(wanted) {
+            engine.teardown()
+            engine = PlaybackEngineFactory.make(wanted, settings: playback, device: device)
+            mediaInfo = nil
+            bindEngine()
+            engineReplaced()
+        }
+        return true
+    }
+
+    /// With TorBox configured, a torrent is chosen automatically only when TorBox says it is in its cache: the automatic choice
+    /// never starts a download. Direct links are untouched.
+    private func debridAutoSelectable(_ ranked: [RankedStream]) async -> [RankedStream] {
+        guard env.debrid.isConfigured else { return ranked }
+        let hashes = DebridStreamLogic.hashes(in: ranked)
+        var statuses: [String: DebridCacheStatus] = [:]
+        if !hashes.isEmpty {
+            let report = await env.debrid.availability(infoHashes: hashes)
+            statuses = report.statuses
+        }
+        return DebridStreamLogic.autoSelectable(ranked, statuses: statuses, debridConfigured: true)
     }
 
     private func loadFullMetaIfNeeded() async {
@@ -356,8 +487,15 @@ final class PlayerViewModel: ObservableObject {
 
     private func handleFailure(_ new: PlaybackFailure) {
         if tryEngineFallback(after: new) { return }
-        failure = new
-        env.diagnostics.logDetached(.error, "player", "Errore di riproduzione (\(new.kind.rawValue)): \(new.detail)")
+        // The engine's wording may quote the file's address, and a link resolved through TorBox carries a token: it is redacted
+        // before it is shown or logged. A link the CDN refused (expired) is dropped, so that "Riprova" asks TorBox for a new one.
+        var shown = new
+        if currentDebridStream() != nil {
+            shown = DebridPlayback.redacted(new)
+            if DebridPlayback.invalidatesResolvedLink(new) { forgetDebridLink() }
+        }
+        failure = shown
+        env.diagnostics.logDetached(.error, "player", "Errore di riproduzione (\(shown.kind.rawValue)): \(shown.detail)")
         engine.pause()
     }
 
@@ -525,7 +663,8 @@ final class PlayerViewModel: ObservableObject {
         }
         let ranked = StreamSelector.rank(result.streams, preferences: env.streamPreferences())
         let binge = currentStream?.behaviorHints.bingeGroup ?? env.bingeGroup(forMeta: meta.id)
-        guard let best = StreamSelector.autoSelect(ranked, previousBingeGroup: binge) else {
+        let choices = await debridAutoSelectable(ranked)
+        guard let best = StreamSelector.autoSelect(choices, previousBingeGroup: binge) else {
             statusMessage = nil
             handleFailure(PlaybackFailure(kind: .notFound, detail: "Nessuna sorgente riproducibile per \(video.episodeLabel ?? "questo episodio")."))
             return
@@ -1143,8 +1282,15 @@ final class PlayerViewModel: ObservableObject {
 
     var currentStreamInfo: StreamInfo? {
         guard let stream = currentStream else { return nil }
-        return StreamAnalyzer.analyze(stream, streamingServer: env.streamPreferences().streamingServer,
-                                      capabilities: PlaybackEngineFactory.capabilities)
+        var info = StreamAnalyzer.analyze(stream, streamingServer: env.streamPreferences().streamingServer,
+                                          capabilities: PlaybackEngineFactory.capabilities)
+        if let direct = currentDebridStream() {
+            // A torrent says nothing about its file: container and size are those of the file TorBox returned.
+            let resolved = StreamAnalyzer.analyze(direct, streamingServer: nil)
+            info.container = resolved.container
+            if let size = direct.behaviorHints.videoSize, size > 0 { info.sizeBytes = size }
+        }
+        return info
     }
 
     var addonSourceName: String? { currentStream?.addonName }

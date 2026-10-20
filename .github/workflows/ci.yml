@@ -138,7 +138,10 @@ jobs:
           "$RUNNER_TEMP/makevideo" "$RUNNER_TEMP/sample.mp4" 150
           # Listen on every interface: the download test reaches the server through the machine's LAN address.
           nohup node Tools/FixtureAddonServer/server.js --port 7777 --host 0.0.0.0 --video "$RUNNER_TEMP/sample.mp4" --media-dir "$RUNNER_TEMP/media" > "$RUNNER_TEMP/fixture.log" 2>&1 &
+          # Stand-in for the TorBox API (the app is pointed at it by -AETHER_UITEST_TORBOX_URL); loopback only, serves the same sample video.
+          nohup node Tools/FixtureTorBoxServer/server.js --port 7778 --video "$RUNNER_TEMP/sample.mp4" > "$RUNNER_TEMP/torbox-fixture.log" 2>&1 &
           sleep 2
+          curl -fsS http://127.0.0.1:7778/ | head -c 200
           LAN_IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || true)
           echo "LAN address: ${LAN_IP:-none}"
           echo "lan_ip=$LAN_IP" >> "$GITHUB_OUTPUT"

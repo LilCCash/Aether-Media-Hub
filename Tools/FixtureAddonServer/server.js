@@ -24,6 +24,8 @@
 //   /nosubs/…, /opensubs/…               this same server as an addon without a `subtitles` resource, and as one posing as the official OpenSubtitles v3 id
 //   /poster/{n}.png, /backdrop/{n}.png, /logo/{n}.png   generated portrait posters, 16:9 backdrops, wide RGBA logos
 //   /tmdb/3/…, /tvdb/v4/…               stand-ins for the TMDB and TheTVDB APIs (metadata.js); tt9300001 is a bare movie searched as "Sparse"
+//   tt9400001 / tt9400002 / tt9400003    "Torbox Cached Film", "Torbox Download Film", "Torbox Cached Series" (searched for as "Torbox"): a single torrent
+//                                        source each, with the hashes the TorBox fixture (Tools/FixtureTorBoxServer) reports as cached / not cached
 //   /__control/offline?on=1|0            make every addon endpoint answer 503 (tests the "addon offline" path)
 //   /__control/media?on=0|1              make /media/* answer 503 (tests offline playback of a downloaded file)
 //   /__control/requests                  JSON array of the paths requested so far (for assertions)
@@ -58,9 +60,14 @@ const movies = [
   { id: 'tt9000006', name: 'Broken Captions', year: 2017, genres: ['Fixture'], runtime: '1 min', rating: '5.1', hidden: true },
   // A bare meta (name only), listed only when searched for: what the TMDB / TheTVDB stand-ins (metadata.js) can fill in.
   { id: 'tt9300001', name: 'Sparse Fixture Movie', year: 2020, genres: [], runtime: '', rating: '', hidden: true, sparse: true },
+  // TorBox scenarios (the stand-in for the service is Tools/FixtureTorBoxServer): each title has one torrent source, listed only when
+  // searched for. Their names avoid the words other searches use.
+  { id: 'tt9400001', name: 'Torbox Cached Film', year: 2024, genres: ['Torbox'], runtime: '1 min', rating: '6.0', hidden: true },
+  { id: 'tt9400002', name: 'Torbox Download Film', year: 2024, genres: ['Torbox'], runtime: '1 min', rating: '6.0', hidden: true },
 ];
 const series = [
   { id: 'tt9100001', name: 'Fixture Series', year: 2023, genres: ['Fixture', 'Sci-Fi'], rating: '8.2' },
+  { id: 'tt9400003', name: 'Torbox Cached Series', year: 2024, genres: ['Torbox'], rating: '6.0', hidden: true },
 ];
 const episodes = [
   { id: 'tt9100001:1:1', title: 'Pilot', season: 1, episode: 1 },
@@ -84,7 +91,8 @@ function metaFull(item, type, index) {
     runtime: item.runtime, cast: ['Test Actor One', 'Test Actor Two'], director: ['Test Director'],
   };
   if (type === 'series') {
-    meta.videos = episodes.map((e) => ({
+    // The episode ids carry the id of the series (tt9100001:1:2), whichever series it is.
+    meta.videos = episodes.map((e) => ({ ...e, id: e.id.replace('tt9100001', item.id) })).map((e) => ({
       id: e.id, title: e.title, season: e.season, episode: e.episode,
       released: '2023-01-0' + e.episode + 'T00:00:00.000Z', thumbnail: `${BASE}/poster/${index}.png`,
     }));
@@ -184,6 +192,20 @@ function streamsFor(id) {
     ];
   }
   if (id === 'tt9000004') return [];
+  // TorBox scenarios: one torrent each, with the hash the TorBox fixture reports as cached (1…1: a movie; 2…2: a season pack with
+  // S01E01 and S01E02) or as not cached (3…3: it downloads for a few seconds once the user confirms). No trackers: nothing is contacted.
+  if (id === 'tt9400001') {
+    return [{ name: 'Torbox Cached 1080p', title: 'Cached.Movie.2024.1080p.mkv', infoHash: '1'.repeat(40),
+      behaviorHints: { bingeGroup: 'torbox-cached', filename: 'Cached.Movie.2024.1080p.mkv' } }];
+  }
+  if (id === 'tt9400002') {
+    return [{ name: 'Torbox Download 720p', title: 'Slow.Download.2024.720p.mkv', infoHash: '3'.repeat(40),
+      behaviorHints: { bingeGroup: 'torbox-download', filename: 'Slow.Download.2024.720p.mkv' } }];
+  }
+  if (id === 'tt9400003') {
+    return [{ name: 'Torbox Cached Pack 1080p', title: 'Cached.Series.S01.1080p', infoHash: '2'.repeat(40),
+      behaviorHints: { bingeGroup: 'torbox-series' } }];
+  }
   // The subtitle-scenario titles carry no subtitles inside the stream: only the addon's `subtitles` resource decides.
   if (id === 'tt9000005' || id === 'tt9000006') {
     return [{ name: 'Fixture 720p', title: `${id} 720p MP4 H.264`, url: `${BASE}/media/sample.mp4?q=720`,

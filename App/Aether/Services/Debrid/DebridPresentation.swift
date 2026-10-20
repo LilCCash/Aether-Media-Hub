@@ -34,18 +34,18 @@ enum DebridFormat {
     static func detail(for progress: DebridProgress?) -> String? {
         guard let progress = progress else { return nil }
         var parts: [String] = []
-        if progress.phase == DebridProgress.Phase.downloading, let percent = percent(progress.fraction) {
-            parts.append(percent)
+        if progress.phase == DebridProgress.Phase.downloading, let percentText = DebridFormat.percent(progress.fraction) {
+            parts.append(percentText)
         }
-        if let speed = speed(progress.downloadSpeed) { parts.append(speed) }
-        if let eta = eta(progress.etaSeconds) { parts.append("ancora " + eta) }
+        if let speedText = DebridFormat.speed(progress.downloadSpeed) { parts.append(speedText) }
+        if let etaText = DebridFormat.eta(progress.etaSeconds) { parts.append("ancora " + etaText) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// One line for a status pill: the provider's step plus the percentage while it downloads.
     static func statusLine(for progress: DebridProgress) -> String {
-        if progress.phase == DebridProgress.Phase.downloading, let percent = percent(progress.fraction) {
-            return progress.message + " " + percent
+        if progress.phase == DebridProgress.Phase.downloading, let percentText = DebridFormat.percent(progress.fraction) {
+            return progress.message + " " + percentText
         }
         return progress.message
     }

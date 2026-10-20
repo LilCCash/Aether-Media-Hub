@@ -286,15 +286,21 @@ final class SearchFilterAddonsUITests: AetherUITestCase {
         launchWithFixtureAddon()
     }
 
-    // New types, genres and the honest "cannot search" message appear when an addon is installed, with the app running.
+    /// Installs the second addon while the app is running, then goes back to Search and waits until the filter bar
+    /// knows it (the genres of the new addon are the sign).
+    private func installExtraAddonAndOpenSearch() {
+        installAddonByTyping(AetherUITestCase.extraManifestURL, expectingRow: AetherUITestCase.extraAddonRowID)
+        openTab("Cerca")
+        waitForSearchToKnowTheExtraAddon()
+    }
+
+    // New types and genres appear when an addon is installed, with the app running; nothing else changes.
     func testInstallingAnAddonAddsItsTypesAndGenres() {
         openTab("Cerca")
         XCTAssertTrue(element("search.type").waitForExistence(timeout: 20))
         XCTAssertFalse(element("search.genre").exists, "no genres are known before the second addon is installed")
 
-        installAddonByTyping(AetherUITestCase.extraManifestURL, expectingRow: AetherUITestCase.extraAddonRowID)
-        openTab("Cerca")
-        waitForSearchToKnowTheExtraAddon()
+        installExtraAddonAndOpenSearch()
 
         // The type menu now lists live TV and sports next to films and series.
         openFilterMenu("search.type")
@@ -304,11 +310,19 @@ final class SearchFilterAddonsUITests: AetherUITestCase {
         XCTAssertTrue(filterMenuLists("Sport"))
         filterMenuItem("Tutti i tipi").tap()
 
-        // The genre menu appeared too (that is what the wait above relied on), with the genres of the searchable addon.
+        // The genre menu appeared too, with the genres of the searchable addon only (sports cannot be searched).
         openFilterMenu("search.genre")
         XCTAssertTrue(filterMenuLists("News"))
         XCTAssertTrue(filterMenuLists("Kids"))
+        XCTAssertFalse(app.buttons["Calcio"].exists, "the genres of a type that cannot be searched are not offered")
         filterMenuItem("News").tap()
+        XCTAssertEqual(filterMenuValue("search.genre"), "News")
+    }
+
+    // The genre travels only to the catalog whose manifest declares search+genre; for every other catalog Aether filters.
+    func testGenreIsSentOnlyWhereTheManifestDeclaresItAndCheckedLocallyEverywhere() {
+        installExtraAddonAndOpenSearch()
+        chooseFilter("search.genre", "News")
         XCTAssertEqual(filterMenuValue("search.genre"), "News")
 
         typeSearch("fixture")
@@ -316,7 +330,6 @@ final class SearchFilterAddonsUITests: AetherUITestCase {
         XCTAssertFalse(button(labelContaining: "Fixture Kids Channel").exists, "another genre")
         XCTAssertFalse(button(labelContaining: "Aether Fixture One").exists, "films of another genre must not be listed")
 
-        // The genre travelled only to the catalog whose manifest declares search+genre; the others were filtered by Aether.
         let paths = Fixture.requestedPaths()
         XCTAssertTrue(paths.contains { $0.contains("/extra/catalog/tv/extra-tv/search=fixture&genre=News") },
                       "the genre should be sent to the catalog that declares it: \(paths)")
@@ -334,10 +347,18 @@ final class SearchFilterAddonsUITests: AetherUITestCase {
         scrollUntilHittable(note, maxSwipes: 4)
         XCTAssertTrue(note.exists, "the screen should say who applied the genre filter")
         XCTAssertTrue(note.label.contains("applicato da Aether"), "unexpected note: \(note.label)")
+    }
 
-        // Live TV is searchable and keeps the genre; sports have no search: the message is honest and nothing is asked.
+    // Live TV is searchable and keeps the genre; sports have no search: the message is honest and nothing is asked.
+    func testATypeThatCannotBeSearchedSaysSoInsteadOfPretending() {
+        installExtraAddonAndOpenSearch()
+        chooseFilter("search.genre", "News")
+        typeSearch("fixture")
+        XCTAssertTrue(button(labelContaining: "Fixture News Live").waitForExistence(timeout: 30))
+
         chooseFilter("search.type", "TV in diretta")
         XCTAssertEqual(filterMenuValue("search.type"), "TV in diretta")
+        XCTAssertEqual(filterMenuValue("search.genre"), "News", "live TV lists News, so the genre is kept")
         XCTAssertTrue(button(labelContaining: "Fixture News Live").waitForExistence(timeout: 30))
 
         chooseFilter("search.type", "Sport")
@@ -347,6 +368,8 @@ final class SearchFilterAddonsUITests: AetherUITestCase {
         XCTAssertTrue(element("search.empty").waitForExistence(timeout: 20), "an empty result explains itself")
         XCTAssertFalse(button(labelContaining: "Fixture News Live").exists)
         XCTAssertFalse(element("search.genre").exists, "sports list no searchable genres, and the old genre is dropped with the type")
+        let sportPaths = Fixture.requestedPaths().filter { $0.contains("/extra/catalog/sports/") && $0.contains("search=") }
+        XCTAssertTrue(sportPaths.isEmpty, "no addon was asked to search sports: \(sportPaths)")
     }
 
     // Removing the addon takes its types away; a choice that no longer exists is dropped.
@@ -457,7 +480,7 @@ final class DiscoverCategoriesUITests: AetherUITestCase {
         launchWithFixtureAddon()
     }
 
-    // Chips come from the installed addons, in canonical order, and follow them while the app runs.
+    // Chips come from the installed addons, in canonical order, and a new addon adds its own while the app runs.
     func testChipsFollowTheInstalledAddons() {
         openTab("Scopri")
         let movie = element("discover.type.movie")
@@ -486,6 +509,16 @@ final class DiscoverCategoriesUITests: AetherUITestCase {
         XCTAssertTrue(button(labelContaining: "Fixture News Live").waitForExistence(timeout: 30))
         sports.tap()
         XCTAssertTrue(button(labelContaining: "Fixture Derby Highlights").waitForExistence(timeout: 30))
+    }
+
+    // Removing the addon takes its chips away, and the selection moves to a type that still exists.
+    func testChipsOfARemovedAddonDisappear() {
+        installAddonByTyping(AetherUITestCase.extraManifestURL, expectingRow: AetherUITestCase.extraAddonRowID)
+        openTab("Scopri")
+        let sports = element("discover.type.sports")
+        XCTAssertTrue(sports.waitForExistence(timeout: 30), "sports should appear by itself")
+        sports.tap()
+        XCTAssertTrue(button(labelContaining: "Fixture Derby Highlights").waitForExistence(timeout: 30))
 
         uninstallAddon(rowID: AetherUITestCase.extraAddonRowID)
         openTab("Scopri")
@@ -493,9 +526,9 @@ final class DiscoverCategoriesUITests: AetherUITestCase {
             !self.element("discover.type.tv").exists && !self.element("discover.type.sports").exists
         }
         XCTAssertTrue(element("discover.type.movie").exists)
-        XCTAssertTrue(button(labelContaining: "Aether Fixture One").waitForExistence(timeout: 30)
-                      || button(labelContaining: "Fixture Series").waitForExistence(timeout: 5),
-                      "the selection falls back to a type that still exists")
+        XCTAssertTrue(button(labelContaining: "Aether Fixture One").waitForExistence(timeout: 30),
+                      "the selection falls back to the first type that still exists")
+        XCTAssertFalse(button(labelContaining: "Fixture Derby Highlights").exists, "the removed addon's titles are gone")
     }
 
     // The genre is requested from the addon (its manifest declares it); the year is filtered by Aether and counted.

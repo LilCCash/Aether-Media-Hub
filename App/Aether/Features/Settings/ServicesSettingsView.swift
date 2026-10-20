@@ -43,6 +43,7 @@ private struct TorBoxServiceSections: View {
                 SecureField("Chiave API di TorBox", text: $draft)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .onChange(of: draft) { _, _ in refusal = nil }
                     .accessibilityIdentifier("service.torbox.key")
                 Button("Salva") { Task { await save() } }
                     .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -51,6 +52,7 @@ private struct TorBoxServiceSections: View {
                     Label(refusal, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("service.torbox.status")
                 }
             }
@@ -59,7 +61,6 @@ private struct TorBoxServiceSections: View {
         } footer: {
             Text("La chiave resta nel Portachiavi di questo iPhone: non finisce nei backup né nei log. Rimuoverla non cancella nulla dal tuo account TorBox.")
         }
-        .onChange(of: draft) { _, _ in refusal = nil }
 
         Section {
             Text("1. Apri torbox.app/settings e accedi al tuo account.\n2. Vai in Impostazioni > API e crea (o copia) la tua chiave.\n3. Incollala qui sopra e tocca Salva.")
@@ -101,6 +102,7 @@ private struct TorBoxServiceSections: View {
             Label("Non ancora verificata in questa sessione.", systemImage: "questionmark.circle")
                 .foregroundStyle(Color.aetherSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("service.torbox.status")
         case .checking:
             HStack(spacing: 8) {
@@ -132,6 +134,7 @@ private struct TorBoxServiceSections: View {
             Label(message, systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("service.torbox.status")
         }
     }

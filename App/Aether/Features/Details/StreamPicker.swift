@@ -737,16 +737,10 @@ struct StreamPickerSheet: View {
     }
 
     /// The cache check failed: the torrent rows carry no badge, and this says why (with a retry when trying again can help).
-    @ViewBuilder
     private func cacheNotice(_ failure: DebridError) -> some View {
-        let text = "Non riesco a controllare la cache di TorBox. " + DebridErrorText.message(for: failure)
-        if failure.isRetryable {
-            InlineErrorView(message: text, retryTitle: "Riprova", retry: { model.retryCacheCheck() })
-                .accessibilityIdentifier("stream.debrid.cacheError")
-        } else {
-            InlineErrorView(message: text)
-                .accessibilityIdentifier("stream.debrid.cacheError")
-        }
+        let text: String = "Non riesco a controllare la cache di TorBox. " + DebridErrorText.message(for: failure)
+        let retryAction: (() -> Void)? = failure.isRetryable ? { () -> Void in model.retryCacheCheck() } : nil
+        return DebridCacheNotice(message: text, retry: retryAction)
     }
 
     @ViewBuilder
@@ -876,6 +870,35 @@ struct DebridBadgeRow: View {
     }
 }
 
+/// Why the cache check could not be made, with a retry when trying again can help. The torrent rows show no badge meanwhile.
+struct DebridCacheNotice: View {
+    let message: String
+    let retry: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                Text(message).font(.footnote).fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("stream.debrid.cacheError")
+            if let retry = retry {
+                Button(action: retry) {
+                    Text("Riprova")
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("stream.debrid.cacheRetry")
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .aetherGlassCard(cornerRadius: 14)
+        .padding(.horizontal, Theme.pageMargin)
+    }
+}
+
 /// Progress of the resolution under the row that was tapped: the step, and for a real download percent, speed and time left.
 struct DebridProgressRow: View {
     let state: DebridRowResolution
@@ -900,6 +923,8 @@ struct DebridProgressRow: View {
                 Text("Annulla")
             }
             .buttonStyle(.bordered)
+            .accessibilityLabel("Annulla l'attesa di TorBox")
+            .accessibilityHint("Smette di attendere. Quello che è già stato aggiunto al tuo account TorBox resta lì.")
             .accessibilityIdentifier("stream.debrid.cancel")
         }
         .padding(.vertical, 4)
