@@ -27,6 +27,8 @@ final class AppEnvironment: ObservableObject {
     let casting: CastCoordinator
     /// Keys of the optional services (TorBox, TMDB, TheTVDB), kept in the Keychain.
     let credentials: ServiceCredentials
+    /// Adds TMDB / TheTVDB data to addon metas when the user has stored a key for them (best effort, never overwrites).
+    let metadata: MetadataEnricher
 
     /// `arguments` exist so unit tests can build an isolated environment (see `UITestHooks`).
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
@@ -75,8 +77,17 @@ final class AppEnvironment: ObservableObject {
         router = AppRouter()
         downloads = DownloadManager(paths: paths, snapshot: snapshot)
         casting = CastCoordinator(settings: settings)
-        credentials = ServiceCredentials(secrets: secrets)
+        let serviceKeys = ServiceCredentials(secrets: secrets)
+        credentials = serviceKeys
+        metadata = MetadataEnricher(
+            tmdb: TMDBClient(http: http, credentials: serviceKeys.provider(for: .tmdb)),
+            tvdb: TVDBClient(http: http, apiKey: serviceKeys.provider(for: .tvdb), pin: serviceKeys.pinProvider(for: .tvdb)),
+            cache: responseCache)
 
+        credentials.onChange = { [weak self] in
+            guard let metadata = self?.metadata else { return }
+            Task { await metadata.reset() }
+        }
         settings.onChange = { [weak self] new, old in
             self?.settingsDidChange(new: new, old: old)
         }

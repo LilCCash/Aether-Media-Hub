@@ -13,6 +13,8 @@ final class PlayerMatrixUITests: AetherUITestCase {
         startPlayback()
         waitUntil(60, "\(title): the playhead never advanced past 2 s") { (playbackSeconds() ?? 0) >= 2 }
         XCTAssertFalse(element("player.error").exists, "\(title): an error panel is showing")
+        // Freeze the picture before reading the info: the files are short and the player closes itself at the end.
+        if element("player.playPause").exists { element("player.playPause").tap() }
     }
 
     private func openInfo() {
@@ -21,8 +23,9 @@ final class PlayerMatrixUITests: AetherUITestCase {
         }
         XCTAssertTrue(element("player.more").waitForExistence(timeout: 10), "the player's menu is not reachable")
         element("player.more").tap()
-        let info = app.buttons["Informazioni sulla sorgente"]
-        XCTAssertTrue(info.waitForExistence(timeout: 10), "no info entry in the player menu")
+        // The menu item is a button on recent iOS versions and a menu item on older ones: do not depend on the type.
+        let info = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Informazioni sulla sorgente")).firstMatch
+        XCTAssertTrue(info.waitForExistence(timeout: 10), "no info entry in the player menu: \(app.debugDescription.prefix(1500))")
         info.tap()
         XCTAssertTrue(element("info.engine").waitForExistence(timeout: 10), "the info sheet did not open")
     }

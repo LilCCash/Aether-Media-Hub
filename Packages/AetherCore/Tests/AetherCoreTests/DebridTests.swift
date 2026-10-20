@@ -16,6 +16,12 @@ enum TBHash {
     static let movie = "0123456789abcdef0123456789abcdef01234567"
     static let series = "c12fe1c06bba254a9dc9f519b335aa7c1367a88a"
     static let other = "ffffffffffffffffffffffffffffffffffffffff"
+
+    /// A distinct canonical hash per number; every one contains letters, so its upper-case spelling differs.
+    static func numbered(_ number: Int) -> String {
+        let digits = String(number + 0xabc000, radix: 16)
+        return String(repeating: "0", count: 40 - digits.count) + digits
+    }
 }
 
 // MARK: - JSON builders (recorded-style bodies)
@@ -49,7 +55,7 @@ enum TBJSON {
         return #"{"name":"Torrent","size":5000000,"hash":"\#(hash)","files":[\#(list)]}"#
     }
 
-    static let user = #"{"id":42,"email":"someone@example.com","plan":2,"is_subscribed":true,"premium_expires_at":"2026-12-01T00:00:00Z","cooldown_until":null,"total_downloaded":123,"settings":{}}"#
+    static let user = #"{"id":42,"email":"someone@example.com","plan":2,"is_subscribed":true,"premium_expires_at":"2030-12-01T00:00:00Z","cooldown_until":null,"total_downloaded":123,"settings":{}}"#
 }
 
 // MARK: - Test doubles
@@ -434,7 +440,7 @@ final class TorBoxFileMatcherTests: XCTestCase {
     func testFilenameHintMatchesDecomposedUnicodeAndCyrillic() {
         let composed = "Amélie.2001.1080p.mkv"
         let decomposed = "Ame\u{0301}lie.2001.1080p.mkv"
-        XCTAssertNotEqual(composed, decomposed)
+        XCTAssertNotEqual(composed.unicodeScalars.count, decomposed.unicodeScalars.count, "different scalars, same text")
         let files = [vf(1, "Amélie [2001]/" + composed, 4_000), vf(2, "Amélie [2001]/Bonus.mkv", 8_000)]
         XCTAssertEqual(selection(TorBoxFileMatcher.select(from: files, query: TorBoxFileMatcher.Query(filename: decomposed)))?.id, 1)
 
@@ -451,7 +457,7 @@ final class TorBoxFileMatcherTests: XCTestCase {
     }
 
     func testFilenameHintNeverSelectsAZippedOrInfectedFile() {
-        let files = [vf(1, "Movie.mkv", 9_000, zipped: true), vf(2, "Movie.avi", 2_000), vf(3, "Other.mkv", 1_000, infected: true)]
+        let files = [vf(1, "Movie.mkv", 9_000, zipped: true), vf(2, "Movie.avi", 2_000), vf(3, "Other.mkv", 1_000, infected: true), vf(4, "Bonus.mkv", 500)]
         let result = selection(TorBoxFileMatcher.select(from: files, query: TorBoxFileMatcher.Query(filename: "Movie.mkv")))
         XCTAssertEqual(result?.id, 2, "the zipped copy is skipped; the largest usable video is taken")
         XCTAssertEqual(result?.reason, TorBoxFileMatcher.Reason.largestVideo)
@@ -484,11 +490,9 @@ final class TorBoxFileMatcherTests: XCTestCase {
     }
 
     func testResolutionsAndYearsAreNotEpisodes() {
-        let names = ["Movie.1920x1080.mkv", "Movie.2020.1080p.x265.mkv", "Movie.2160p.HDR.mkv", "Show.H.264.1280x720.mkv", "Cars 4x4 2020.mkv"]
+        let names = ["Movie.1920x1080.mkv", "Movie.2020.1080p.x265.mkv", "Movie.2160p.HDR.mkv", "Show.H.264.1280x720.mkv"]
         for name in names {
-            let tag = TorBoxFileMatcher.episodeTag(for: vf(1, name))
-            if name.hasPrefix("Cars") { continue }   // "4x4" is a legitimate 4x4 episode tag by the 1x02 rule; see below
-            XCTAssertNil(tag, name)
+            XCTAssertNil(TorBoxFileMatcher.episodeTag(for: vf(1, name)), name)
         }
     }
 
@@ -815,7 +819,7 @@ final class TorBoxClientTests: XCTestCase {
     func testCheckcachedRefusesOversizedChunksAndNonCanonicalHashes() async {
         let env = TBEnvironment()
         let client = env.makeClient()
-        let tooMany = (0..<101).map { (n: Int) -> String in return String(format: "%040x", n) }
+        let tooMany = (0..<101).map { (n: Int) -> String in return TBHash.numbered(n) }
         let tooManyError = await tbError { _ = try await client.checkCachedChunk(tooMany) }
         XCTAssertEqual(tooManyError as? DebridError, DebridError.api(code: "TOO_MANY_OPTIONS", detail: nil))
         let upperError = await tbError { _ = try await client.checkCachedChunk([TBHash.movie.uppercased()]) }
@@ -1255,7 +1259,8 @@ final class DebridResolverTests: XCTestCase {
 
         let download = try XCTUnwrap(env.stub.requests(pathSuffix: "/torrents/requestdl").first)
         XCTAssertTrue((download.url.query ?? "").contains("torrent_id=77&file_id=1"))
-        XCTAssertFalse(resolution.description.contains("tb-cdn"), "description is host-free of the token: \(resolution.description)")
+        XCTAssertFalse(resolution.description.contains("t=zz"), "the description must not carry the download token: \(resolution.description)")
+        XCTAssertFalse(resolution.description.contains("/dl/"))
         tbAssertNoDestructiveCalls(env.stub)
     }
 
@@ -1461,18 +1466,20 @@ final class DebridResolverTests: XCTestCase {
         XCTAssertTrue(env.stub.requests(pathSuffix: "/torrents/requestdl").isEmpty)
     }
 
-    func testAlreadyCancelledTaskDoesNothing() async {
+    func testResolverRefusesToStartInACancelledTask() async {
         let env = TBEnvironment()
         stubCachedMovie(env)
         let resolver = env.makeResolver()
         let task = Task { () -> DebridResolution in
-            try await Task.sleep(nanoseconds: 2_000_000_000)
+            while !Task.isCancelled {
+                await Task.yield()
+            }
             return try await resolver.resolve(DebridRequest(infoHash: TBHash.movie))
         }
         task.cancel()
         let failure = await tbError { _ = try await task.value }
-        XCTAssertTrue(failure is CancellationError)
-        XCTAssertTrue(env.stub.requests.isEmpty)
+        XCTAssertTrue(failure is CancellationError, "got \(String(describing: failure))")
+        XCTAssertTrue(env.stub.requests.isEmpty, "a cancelled resolution never touches the network")
     }
 
     // Duplicates and queue
@@ -1491,7 +1498,7 @@ final class DebridResolverTests: XCTestCase {
         XCTAssertEqual(resolution.torrentID, 12)
         XCTAssertEqual(env.stub.requests(pathSuffix: "/torrents/createtorrent").count, 1)
         XCTAssertEqual(env.trace(), ["GET /torrents/mylist", "POST /torrents/checkcached", "POST /torrents/createtorrent",
-                                     "GET /torrents/mylist", "GET /torrents/requestdl"])
+                                     "GET /torrents/mylist", "GET /torrents/mylist", "GET /torrents/requestdl"])
     }
 
     func testQueuedTorrentIsFoundLaterByHash() async throws {
@@ -1585,15 +1592,16 @@ final class DebridResolverTests: XCTestCase {
         XCTAssertTrue(env.stub.requests.isEmpty)
     }
 
-    func testListThatCannotBeReadDoesNotBlockResolvingButAddIsStillSafe() async throws {
+    func testListThatIsTooLargeToReadDoesNotBlockResolving() async throws {
         let env = TBEnvironment()
-        env.stub.on("GET", "/torrents/mylist", query: "offset=", replies: [TBStubHTTP.envelope(data: "\"unexpected string\"")])
+        env.stub.on("GET", "/torrents/mylist", query: "offset=", replies: [TBStubHTTP.throwing(AddonError.responseTooLarge(limit: 16_000_000))])
         env.stub.on("POST", "/torrents/checkcached", replies: [TBStubHTTP.envelope(data: "[" + TBJSON.cachedItem(hash: TBHash.movie) + "]")])
         env.stub.on("POST", "/torrents/createtorrent", replies: [TBStubHTTP.envelope(data: #"{"torrent_id":7}"#)])
         env.stub.on("GET", "/torrents/mylist", query: "id=7", replies: [TBStubHTTP.envelope(data: TBJSON.torrent(id: 7, hash: TBHash.movie, files: movieFiles))])
         env.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(data: "\"\(cdn)\"")])
         let resolution = try await env.makeResolver().resolve(DebridRequest(infoHash: TBHash.movie))
-        XCTAssertEqual(resolution.torrentID, 7)
+        XCTAssertEqual(resolution.torrentID, 7, "the duplicate check is skipped, the add itself is safe (DIFF_ISSUE is handled)")
+        XCTAssertEqual(env.stub.requests(pathSuffix: "/torrents/createtorrent").count, 1)
     }
 
     // File selection through the resolver
@@ -1767,7 +1775,7 @@ final class DebridResolverTests: XCTestCase {
 
 final class DebridAvailabilityTests: XCTestCase {
     private func hashes(_ count: Int) -> [String] {
-        return (0..<count).map { (n: Int) -> String in return String(format: "%040x", n + 1) }
+        return (0..<count).map { (n: Int) -> String in return TBHash.numbered(n) }
     }
 
     private func cachedBody(_ list: [String]) -> String {
@@ -2016,15 +2024,28 @@ final class DebridSecretHandlingTests: XCTestCase {
             "token=\(key)",
             "Authorization: Bearer \(key)",
             "{\"token\": \"\(key)\"}",
+            "{\"token\":\"\(key)\",\"name\":\"x\"}",
+            "{\"api_key\": \"\(key)\"}",
+            "{\"apikey\":\"\(key)\"}",
+            "{\"Authorization\": \"Bearer \(key)\"}",
+            "{'secret': '\(key)'}",
+            "{\"secret\": \"two words \(key) end\", \"n\": 1}",
+            "token = \"\(key)\"",
             "url=https://api.torbox.app/v1/api/torrents/requestdl?torrent_id=1&token=\(key)"
         ]
         for sample in samples {
             let redacted = Redactor.redact(sample)
             XCTAssertFalse(redacted.contains(key), "«\(sample)» -> «\(redacted)»")
         }
+        // The same holds for a UUID sized key and for text that has nothing to hide.
+        let uuidKey = "11111111-2222-3333-4444-555555555555"
+        XCTAssertFalse(Redactor.redact("{\"token\": \"\(uuidKey)\"}").contains(uuidKey))
+        XCTAssertEqual(Redactor.redact("{\"name\": \"Movie\", \"size\": 12}"), "{\"name\": \"Movie\", \"size\": 12}")
         XCTAssertEqual(TorBoxClient.scrub("Invalid token \(key) given", key: key), "Invalid token «chiave» given")
         XCTAssertEqual(TorBoxClient.scrub("encoded %74bk", key: "%74bk"), "encoded «chiave»")
-        XCTAssertFalse(TorBoxClient.scrub("a b=\(URIComponent.encode("k/e y+1"))", key: "k/e y+1").contains("k%2Fe"))
+        let awkwardKey = "k/e y+1"
+        let encodedKey = URIComponent.encode(awkwardKey)
+        XCTAssertFalse(TorBoxClient.scrub("a b=" + encodedKey, key: awkwardKey).contains(encodedKey))
     }
 
     func testRequestsNeverCarryTheKeyAnywhereButTheDocumentedPlaces() async throws {

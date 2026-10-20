@@ -11,6 +11,8 @@ final class DetailViewModel: ObservableObject {
     @Published private(set) var watchedIDs = Set<String>()
     @Published private(set) var progress: [String: PlaybackProgress] = [:]
     @Published private(set) var canPlay = true
+    /// Credit lines for the services whose data was added to this meta (empty when nothing was added).
+    @Published private(set) var attributions: [String] = []
     @Published var selectedSeason: Int?
 
     let route: MetaRoute
@@ -35,6 +37,18 @@ final class DetailViewModel: ObservableObject {
         if selectedSeason == nil {
             selectedSeason = initialSeason()
         }
+        await enrich(env: env)
+    }
+
+    /// Adds what the user's own TMDB / TheTVDB keys know to the addon's meta, filling only what the addon left empty.
+    /// Silent: without a key, or when a service does not answer, the meta stays as the addon provided it.
+    private func enrich(env: AppEnvironment) async {
+        let base = meta
+        let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
+        guard let enrichment = await env.metadata.enrich(base, language: language), !Task.isCancelled, meta.id == base.id else { return }
+        attributions = enrichment.attributions(whenMergedInto: base)
+        meta = base.merging(enrichment: enrichment)
+        if selectedSeason == nil { selectedSeason = initialSeason() }
     }
 
     func refreshLibraryState(env: AppEnvironment) async {
@@ -359,6 +373,9 @@ struct DetailView: View {
             } else if !model.hadDetailProvider && !model.isLoading {
                 Text("Nessun addon fornisce i dettagli di questo titolo: mostro solo le informazioni del catalogo.")
                     .font(.caption).foregroundStyle(Color.aetherSecondary)
+            }
+            ForEach(model.attributions, id: \.self) { line in
+                Text(line).font(.caption2).foregroundStyle(Color.aetherSecondary)
             }
         }
         .padding(.horizontal, Theme.pageMargin)
