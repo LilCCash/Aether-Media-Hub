@@ -70,6 +70,7 @@ struct AdvancedSettingsView: View {
 struct PlayerStatusView: View {
     @EnvironmentObject private var settings: SettingsStore
     @State private var device = DeviceVideoCapabilities.conservative
+    @State private var mpvReport: PlaybackEngineFactory.MPVReport?
 
     var body: some View {
         List {
@@ -78,6 +79,11 @@ struct PlayerStatusView: View {
                 statusRow("AVPlayer (Apple)", "Disponibile", color: .green)
                 statusRow("MPV (libmpv)", PlaybackEngineFactory.mpvAvailable ? "Incluso in questa build" : "Non incluso in questa build",
                           color: PlaybackEngineFactory.mpvAvailable ? .green : .gray)
+                if let report = mpvReport {
+                    statusRow("Versione libmpv", report.initStatus >= 0 ? (report.mpvVersion ?? "sconosciuta") : "non si avvia (\(report.initStatus))",
+                              color: report.initStatus >= 0 ? .green : .orange)
+                    if let ffmpeg = report.ffmpegVersion, !ffmpeg.isEmpty { statusRow("Versione FFmpeg", ffmpeg, color: .green) }
+                }
                 statusRow("Picture in Picture", AVPictureInPictureSupport.isSupported ? "Disponibile (solo AVPlayer)" : "Non disponibile su questo dispositivo",
                           color: AVPictureInPictureSupport.isSupported ? .green : .orange)
                 statusRow("AirPlay", settings.value.casting.airPlayEnabled ? "Disponibile" : "Disattivato", color: settings.value.casting.airPlayEnabled ? .green : .gray)
@@ -101,7 +107,10 @@ struct PlayerStatusView: View {
             }
         }
         .navigationTitle("Stato dei player")
-        .onAppear { device = DeviceCapabilitiesReader.current() }
+        .onAppear {
+            device = DeviceCapabilitiesReader.current()
+            mpvReport = PlaybackEngineFactory.mpvSelfTest()
+        }
     }
 
     private func statusRow(_ title: String, _ value: String, color: Color) -> some View {
@@ -126,7 +135,8 @@ struct AboutView: View {
         let info = Bundle.main.infoDictionary
         let short = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
-        return "\(short) (\(build))"
+        let label = info?["AetherReleaseLabel"] as? String ?? ""
+        return label.isEmpty ? "\(short) (\(build))" : "\(short) \(label) (\(build))"
     }
 
     var body: some View {

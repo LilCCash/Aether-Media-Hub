@@ -76,6 +76,29 @@ final class LayoutUITests: AetherUITestCase {
         XCTAssertGreaterThanOrEqual(title.frame.minX, 8, "catalog title is outside the page margin")
     }
 
+    /// A broad sweep: on every main screen no button, text or picture may be wider than the screen. Scrolling containers
+    /// are excluded (their content is legitimately wider); the hero bug made one of the visible cards 1.65x the screen.
+    func testNoVisibleElementIsWiderThanTheScreen() {
+        let window = windowFrame
+        for tab in ["Home", "Scopri", "Cerca", "Libreria", "Altro"] {
+            let button = app.tabBars.buttons[tab]
+            guard button.waitForExistence(timeout: 10) else { continue }
+            button.tap()
+            RunLoop.current.run(until: Date().addingTimeInterval(2))
+            var offenders: [String] = []
+            for query in [app.buttons, app.staticTexts, app.images] {
+                let elements = query.allElementsBoundByIndex.prefix(120)
+                for element in elements where element.exists && element.isHittable {
+                    let frame = element.frame
+                    if frame.width > window.width + 1 {
+                        offenders.append("\(element.elementType.rawValue) '\(element.label.prefix(40))' w=\(Int(frame.width)) x=\(Int(frame.minX))")
+                    }
+                }
+            }
+            XCTAssertTrue(offenders.isEmpty, "\(tab): elements wider than the \(Int(window.width)) pt screen: \(offenders.prefix(5))")
+        }
+    }
+
     func testStreamPickerFitsTheScreenWidth() {
         openFixtureMovie()
         openStreamPicker()

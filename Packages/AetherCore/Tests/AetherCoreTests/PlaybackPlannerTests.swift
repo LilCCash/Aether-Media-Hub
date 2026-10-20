@@ -179,7 +179,7 @@ final class MPVOptionsTests: XCTestCase {
         XCTAssertEqual(value("vo", in: pairs), "gpu-next")
         XCTAssertEqual(value("gpu-api", in: pairs), "vulkan")
         XCTAssertEqual(value("gpu-context", in: pairs), "moltenvk")
-        XCTAssertEqual(value("hwdec", in: pairs), "videotoolbox")
+        XCTAssertEqual(value("hwdec", in: pairs), "videotoolbox,videotoolbox-copy")
         XCTAssertEqual(value("ao", in: pairs), "audiounit")
         XCTAssertEqual(value("audio-fallback-to-null", in: pairs), "yes")
         XCTAssertEqual(value("ytdl", in: pairs), "no")

@@ -16,9 +16,13 @@ final class PlaybackEngineTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(report.initStatus, 0, "mpv_initialize failed with \(report.initStatus)")
         XCTAssertTrue(report.mpvVersion?.hasPrefix("mpv") == true, "version: \(report.mpvVersion ?? "nil")")
         XCTAssertFalse((report.ffmpegVersion ?? "").isEmpty, "FFmpeg version missing")
-        let decoders = report.decoders.lowercased()
-        for codec in ["h264", "hevc", "av1", "vp9", "eac3", "ac3", "aac", "opus", "flac", "truehd", "dts", "subrip", "ass"] {
-            XCTAssertTrue(decoders.contains("\"\(codec)\"") || decoders.contains(codec), "decoder \(codec) missing from: \(decoders.prefix(400))")
+        // `decoder-list` is a JSON array of {codec, driver, description} for audio and video decoders.
+        let data = try XCTUnwrap(report.decoders.data(using: .utf8))
+        let entries = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]], "decoder-list is not a JSON array")
+        let codecs = Set(entries.compactMap { $0["codec"] as? String })
+        XCTAssertGreaterThan(codecs.count, 40, "suspiciously few decoders: \(codecs.sorted().prefix(20))")
+        for codec in ["h264", "hevc", "av1", "vp9", "vc1", "mpeg2video", "eac3", "ac3", "aac", "opus", "flac", "truehd", "dts", "mp3"] {
+            XCTAssertTrue(codecs.contains(codec), "decoder \(codec) missing; have: \(codecs.sorted().joined(separator: ","))")
         }
         let demuxers = report.demuxers.lowercased()
         for container in ["matroska", "avi", "mov", "mpegts", "flv", "hls"] {

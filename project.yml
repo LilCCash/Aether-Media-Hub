@@ -61,6 +61,7 @@ targets:
         CFBundleDisplayName: Aether
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        AetherReleaseLabel: "$(AETHER_RELEASE_LABEL)"
         CFBundleDevelopmentRegion: it
         CFBundleLocalizations: [it, en]
         UILaunchScreen:
