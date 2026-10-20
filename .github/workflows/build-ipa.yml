@@ -48,8 +48,6 @@ jobs:
     name: Unsigned IPA
     runs-on: macos-latest
     timeout-minutes: 45
-    permissions:
-      contents: write   # attach the IPA to a GitHub release when a v* tag is pushed
     steps:
       - uses: actions/checkout@v4
 
@@ -99,9 +97,14 @@ jobs:
           MINOS=$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$INFO")
           echo "bundle id $BUNDLE_ID, version $VERSION ($BUILD), minimum iOS $MINOS"
 
-          [ "$BUNDLE_ID" = "app.aether.mediahub" ] && check ok "bundle identifier" || check bad "unexpected bundle identifier: $BUNDLE_ID"
-          [ "$MINOS" = "17.0" ] && check ok "deployment target 17.0" || check bad "unexpected minimum iOS: $MINOS"
-          [ "$BUILD" = "${{ github.run_number }}" ] && check ok "build number = run number" || check bad "unexpected build number: $BUILD"
+          # Expectations come from the repository's own configuration, not from constants repeated here.
+          WANT_BUNDLE_ID=$(sed -nE 's/^APP_BUNDLE_ID[[:space:]]*=[[:space:]]*//p' Config/Shared.xcconfig | head -1)
+          WANT_VERSION=$(sed -nE 's/^MARKETING_VERSION[[:space:]]*=[[:space:]]*//p' Config/Shared.xcconfig | head -1)
+          WANT_MINOS=$(sed -nE 's/^[[:space:]]*iOS:[[:space:]]*"?([0-9.]+)"?.*/\1/p' project.yml | head -1)
+          [ "$BUNDLE_ID" = "$WANT_BUNDLE_ID" ] && check ok "bundle identifier $WANT_BUNDLE_ID" || check bad "bundle identifier is $BUNDLE_ID, expected $WANT_BUNDLE_ID"
+          [ "$VERSION" = "$WANT_VERSION" ] && check ok "marketing version $WANT_VERSION" || check bad "version is $VERSION, expected $WANT_VERSION"
+          [ "$MINOS" = "$WANT_MINOS" ] && check ok "deployment target $WANT_MINOS" || check bad "minimum iOS is $MINOS, expected $WANT_MINOS"
+          [ "$BUILD" = "${{ github.run_number }}" ] && check ok "build number = run number (${{ github.run_number }})" || check bad "build number is $BUILD, expected ${{ github.run_number }}"
 
           ARCHS=$(lipo -archs "$APP/Aether")
           [ "$ARCHS" = "arm64" ] && check ok "executable is arm64 only" || check bad "unexpected architectures: $ARCHS"
@@ -109,9 +112,17 @@ jobs:
           vtool -show-build "$APP/Aether" | grep -q "platform IOS$" && check ok "built for the iOS device platform" || check bad "binary is not a device (IOS) build"
 
           [ -d "$APP/Frameworks/GoogleCast.framework" ] && check ok "Google Cast framework embedded" || check bad "GoogleCast.framework is missing from Frameworks/"
-          [ -f "$APP/Assets.car" ] && check ok "asset catalog (icon, colours) compiled" || check bad "Assets.car is missing"
+          [ -f "$APP/Assets.car" ] && check ok "asset catalog compiled" || check bad "Assets.car is missing"
+          if xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep -q '"Name" : "AppIcon"' \
+             || /usr/libexec/PlistBuddy -c 'Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName' "$INFO" 2>/dev/null | grep -qx AppIcon; then
+            check ok "app icon is in the catalog"
+          else
+            check bad "no AppIcon found in Assets.car or Info.plist"
+            plutil -p "$INFO" | grep -i icon || true
+          fi
           [ -f "$APP/PrivacyInfo.xcprivacy" ] && check ok "privacy manifest present" || check bad "PrivacyInfo.xcprivacy is missing"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes' "$INFO" | grep -q "aether" && check ok "URL schemes registered" || check bad "URL schemes missing"
+          SCHEMES=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes' "$INFO" 2>/dev/null || true)
+          echo "$SCHEMES" | grep -qw aether && echo "$SCHEMES" | grep -qw stremio && check ok "URL schemes aether and stremio registered" || check bad "URL schemes aether/stremio missing"
           /usr/libexec/PlistBuddy -c 'Print :NSLocalNetworkUsageDescription' "$INFO" >/dev/null 2>&1 && check ok "local network usage description" || check bad "NSLocalNetworkUsageDescription missing"
 
           if codesign -dv "$APP" 2>&1 | grep -q "not signed at all"; then
@@ -127,14 +138,28 @@ jobs:
           name: Aether-unsigned-ipa
           path: Aether-unsigned.ipa
           if-no-files-found: error
+          overwrite: true
           retention-days: 30
 
-      - name: Attach the IPA to a GitHub release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+  release:
+    name: Attach the unsigned IPA to a GitHub release
+    needs: unsigned
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Aether-unsigned-ipa
+      - name: Create or update the release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
+          ls -lh Aether-unsigned.ipa
           NOTES="Unsigned IPA built by GitHub Actions from this tag. iOS will not install it as it is: re-sign it with your own Apple ID (AltStore, Sideloadly) or certificate. Build number ${{ github.run_number }}."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" Aether-unsigned.ipa --clobber
@@ -186,7 +211,14 @@ jobs:
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
           echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
-          SIGNING_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | head -1 | sed -E 's/.*"(.+)"/\1/')
+          IDENTITIES=$(security find-identity -v -p codesigning "$KEYCHAIN" | grep -E '^[[:space:]]*[0-9]+\)' || true)
+          COUNT=$(printf '%s\n' "$IDENTITIES" | grep -c . || true)
+          if [ "$COUNT" -ne 1 ]; then
+            echo "::error::Expected exactly one valid code-signing identity in the .p12, found $COUNT. Export a .p12 with only the certificate you want to use."
+            printf '%s\n' "$IDENTITIES"
+            exit 1
+          fi
+          SIGNING_IDENTITY=$(printf '%s\n' "$IDENTITIES" | sed -E 's/.*"(.+)"/\1/')
           echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
           echo "Signing identity: $SIGNING_IDENTITY / profile: $PROFILE_NAME"
 
@@ -195,6 +227,9 @@ jobs:
           printf 'DEVELOPMENT_TEAM = %s\nAPP_BUNDLE_ID = %s\n' "$APPLE_TEAM_ID" "$APP_BUNDLE_ID" > Config/Signing.local.xcconfig
           xcodegen generate
 
+      # The manual-signing settings are given on the command line because project.yml pins CODE_SIGN_STYLE for the
+      # project. Command-line settings reach every target, so they would break a Swift Package that ships resources;
+      # the Google Cast package is therefore pinned to an exact version (project.yml). Re-check this when bumping it.
       - name: Archive
         run: |
           set -o pipefail
@@ -213,16 +248,17 @@ jobs:
         env:
           EXPORT_METHOD: ${{ inputs.export_method }}
         run: |
-          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-            <key>method</key><string>$EXPORT_METHOD</string>
-            <key>teamID</key><string>$APPLE_TEAM_ID</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>provisioningProfiles</key><dict><key>$APP_BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>
-          </dict></plist>
-          EOF
+          python3 - <<'PY'
+          import os, plistlib
+          options = {
+              "method": os.environ["EXPORT_METHOD"],
+              "teamID": os.environ["APPLE_TEAM_ID"],
+              "signingStyle": "manual",
+              "provisioningProfiles": {os.environ["APP_BUNDLE_ID"]: os.environ["PROFILE_NAME"]},
+          }
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "ExportOptions.plist"), "wb") as handle:
+              plistlib.dump(options, handle)
+          PY
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Aether.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
