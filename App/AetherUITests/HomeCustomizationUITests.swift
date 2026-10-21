@@ -100,14 +100,6 @@ final class HomeCustomizationUITests: AetherUITestCase {
 
     // MARK: Settings screens
 
-    private func scrollUntilHittable(_ target: XCUIElement, maxSwipes: Int = 10) {
-        var swipes = 0
-        while !(target.exists && target.isHittable) && swipes < maxSwipes {
-            app.swipeUp()
-            swipes += 1
-        }
-    }
-
     private func openAppearance() {
         openMoreRoot()
         element("more.settings").tap()
