@@ -84,7 +84,7 @@ final class RelayRawClient: @unchecked Sendable {
         return _finished
     }
 
-    filefunc markFinished() {
+    func markFinished() {
         lock.lock()
         _finished = true
         lock.unlock()

@@ -17,6 +17,7 @@ struct AetherApp: App {
                 .environmentObject(env.network)
                 .environmentObject(env.downloads)
                 .environmentObject(env.casting)
+                .environmentObject(env.relay)
                 .environment(\.imageLoader, env.images)
                 .task { await env.bootstrap() }
                 .onOpenURL { env.router.handle(url: $0) }
@@ -67,6 +68,7 @@ struct RootView: View {
         .preferredColorScheme(settings.colorScheme)
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { env.persistForBackground() }
+            env.relay.appPhaseChanged(phase)
         }
         .fullScreenCover(item: $router.player) { request in
             PlayerView(request: request, env: env)

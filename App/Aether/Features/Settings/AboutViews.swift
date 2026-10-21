@@ -10,9 +10,27 @@ struct AdvancedSettingsView: View {
     @State private var logText = ""
     @State private var logURL: URL?
     @State private var serverIssue: String?
+    @State private var confirmingDirectLink = false
+
+    /// Turning the switch on asks first; turning it off is immediate.
+    private var directLinkBinding: Binding<Bool> {
+        Binding(get: { settings.value.advanced.sendDirectLinkToTV },
+                set: { wanted in
+                    if wanted { confirmingDirectLink = true } else { settings.value.advanced.sendDirectLinkToTV = false }
+                })
+    }
 
     var body: some View {
         Form {
+            Section(header: Text("Link diretto al televisore"),
+                    footer: Text("Spento (consigliato): per trasmettere un video TorBox o una sorgente con intestazioni speciali, il telefono fa da ponte: scarica il video con la tua chiave e lo passa al televisore senza mai dargliela. Il ponte usa batteria e Wi-Fi, e il telefono deve restare acceso con Aether aperto. Acceso: Aether invia al televisore il link originale, che contiene la tua chiave TorBox; il telefono non lavora, ma chiunque controlli il televisore o legga il traffico della tua rete Wi-Fi può usarla. Attivalo solo su reti e televisori tuoi. Le sorgenti con intestazioni HTTP passano sempre dal ponte. Non verificato su televisori reali.")) {
+                Toggle("Invia il link diretto al televisore", isOn: directLinkBinding)
+                    .accessibilityIdentifier("settings.sendDirectLink")
+                if settings.value.advanced.sendDirectLinkToTV {
+                    Label("Attivo: il televisore riceve la chiave TorBox.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote).foregroundStyle(.orange)
+                }
+            }
             Section(header: Text("Server di streaming esterno (sperimentale)"),
                     footer: Text("Aether non contiene un motore torrent. Se gestisci un server compatibile con Stremio (per esempio sul tuo computer), puoi indicarne l'indirizzo: le sorgenti torrent verranno richieste a quel server. Non verificato con hardware reale; spento per impostazione predefinita.")) {
                 Toggle("Usa un server esterno", isOn: settings.binding(\.advanced.useExternalStreamingServer))
@@ -44,6 +62,12 @@ struct AdvancedSettingsView: View {
         }
         .navigationTitle("Avanzate")
         .onAppear(perform: validateServer)
+        .confirmationDialog("Inviare la tua chiave al televisore?", isPresented: $confirmingDirectLink, titleVisibility: .visible) {
+            Button("Attiva comunque", role: .destructive) { settings.value.advanced.sendDirectLinkToTV = true }
+            Button("Annulla", role: .cancel) {}
+        } message: {
+            Text("Con questa opzione il link che Aether passa al televisore contiene la tua chiave TorBox. Chi controlla quel televisore, o legge il traffico della tua rete Wi-Fi, può usarla per scaricare a nome tuo finché non la sostituisci su TorBox. Con DLNA il link viaggia anche in chiaro. Aether ti chiederà conferma a ogni trasmissione.")
+        }
     }
 
     private func validateServer() {

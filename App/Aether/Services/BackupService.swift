@@ -64,7 +64,10 @@ enum BackupService {
         await env.library.refresh()
         var settingsApplied = false
         if applySettings, let settings = backup.settings {
-            env.settings.value = settings
+            // The switch that hands the TV the account key is never restored from a file: it must be turned on again on this phone.
+            var restored = settings
+            restored.advanced.sendDirectLinkToTV = false
+            env.settings.value = restored
             settingsApplied = true
         }
         return RestoreSummary(entries: backup.library.entries.count, progressRecords: backup.library.progress.count,

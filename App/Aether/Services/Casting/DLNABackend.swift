@@ -121,7 +121,8 @@ final class DLNABackend: CastBackend {
     private func publish() {
         devices = known.values
             .map { CastDevice(id: $0.id, name: $0.friendlyName, target: .dlna,
-                              detail: [$0.manufacturer, $0.modelName, $0.location.host].compactMap { $0 }.joined(separator: " · ")) }
+                              detail: [$0.manufacturer, $0.modelName, $0.location.host].compactMap { $0 }.joined(separator: " · "),
+                              address: $0.location.host) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         onDevicesChanged?()
     }

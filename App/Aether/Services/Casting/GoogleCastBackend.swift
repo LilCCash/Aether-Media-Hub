@@ -67,7 +67,8 @@ final class GoogleCastBackend: NSObject, CastBackend {
             let id = device.deviceID
             table[id] = device
             let friendly = device.friendlyName ?? "Dispositivo Cast"
-            list.append(CastDevice(id: id, name: friendly, target: .googleCast, detail: device.modelName))
+            list.append(CastDevice(id: id, name: friendly, target: .googleCast, detail: device.modelName,
+                                   address: device.networkAddress?.ipAddress))
         }
         knownDevices = table
         devices = list.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }

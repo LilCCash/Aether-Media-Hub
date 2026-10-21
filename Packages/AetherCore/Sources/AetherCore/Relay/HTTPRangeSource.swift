@@ -23,7 +23,7 @@ public extension RelayRangeFetcher {
 extension RelayError {
     /// Reduces any error to one of the relay's own, which hold integers only. The description and `userInfo` of the original are never
     /// read, because a URL error carries the failing address.
-    static func mapping(_ error: Error) -> RelayError {
+    public static func mapping(_ error: Error) -> RelayError {
         if let relay = error as? RelayError { return relay }
         let ns = error as NSError
         if ns.domain == NSURLErrorDomain { return .upstreamUnreachable(code: ns.code) }

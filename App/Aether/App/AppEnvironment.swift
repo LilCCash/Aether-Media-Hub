@@ -24,6 +24,7 @@ final class AppEnvironment: ObservableObject {
     let library: LibraryModel
     let router: AppRouter
     let downloads: DownloadManager
+    let relay: RelayService
     let casting: CastCoordinator
     /// Keys of the optional services (TorBox, TMDB, TheTVDB), kept in the Keychain.
     let credentials: ServiceCredentials
@@ -80,7 +81,9 @@ final class AppEnvironment: ObservableObject {
         library = LibraryModel(store: libraryStore)
         router = AppRouter()
         downloads = DownloadManager(paths: paths, snapshot: snapshot)
-        casting = CastCoordinator(settings: settings)
+        let relayService = RelayService(settings: settings, diagnostics: diagnostics)
+        relay = relayService
+        casting = CastCoordinator(settings: settings, relay: relayService)
         let serviceKeys = ServiceCredentials(secrets: secrets)
         credentials = serviceKeys
         // The UI tests point both services at their fixture server; a normal launch always uses the production APIs.
@@ -145,6 +148,7 @@ final class AppEnvironment: ObservableObject {
             addons.bumpRevision()
         }
         casting.settingsDidChange(new.casting)
+        casting.advancedDidChange(new.advanced)
         downloads.settingsDidChange()
     }
 
