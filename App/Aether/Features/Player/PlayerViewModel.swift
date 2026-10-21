@@ -434,7 +434,11 @@ final class PlayerViewModel: ObservableObject {
         if meta.videos.isEmpty || (currentVideo != nil && !meta.videos.contains(where: { $0.id == currentVideo?.id })) {
             let resolution = await env.service.meta(type: meta.type, id: meta.id, fallback: meta)
             meta = resolution.meta.merging(fallback: meta)
-            if let id = currentVideo?.id, let full = meta.videos.first(where: { $0.id == id }) { currentVideo = full }
+            if let id = currentVideo?.id, let full = meta.videos.first(where: { $0.id == id }) {
+                currentVideo = full
+                // A player opened from a download knew no season or episode until now.
+                if skipSegments.isEmpty { loadSkipSegments() }
+            }
         }
         updateNextEpisode()
     }
@@ -610,7 +614,10 @@ final class PlayerViewModel: ObservableObject {
 
     /// The segment whose button is on offer at the current position.
     var activeSkipSegment: SkipSegment? {
-        guard playback.skipSegmentsEnabled, failure == nil, !snapshot.isLive, !skipSegments.isEmpty else { return nil }
+        // Not while the file is still being opened or the next episode is being found: the playhead is then the previous
+        // episode's (or zero), and a tap would seek an engine that does not hold this episode yet.
+        guard playback.skipSegmentsEnabled, failure == nil, !snapshot.isLive, !skipSegments.isEmpty,
+              snapshot.isReady, !isOpeningSource, !isResolvingNext else { return nil }
         return skipSegments.active(at: snapshot.position, duration: snapshot.duration > 0 ? snapshot.duration : nil)
     }
 

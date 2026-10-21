@@ -238,13 +238,13 @@ struct PlaybackSettingsView: View {
             }
             Section(header: Text("Episodi")) {
                 Toggle("Riproduci automaticamente il prossimo episodio", isOn: settings.binding(\.playback.autoplayNextEpisode))
+                    .accessibilityIdentifier("settings.autoplay")
+                Stepper("Conto alla rovescia: \(settings.value.playback.nextEpisodeCountdownSeconds) s", value: settings.binding(\.playback.nextEpisodeCountdownSeconds), in: 0...30)
+                    .disabled(!settings.value.playback.autoplayNextEpisode)
                 Toggle("Mostra «Salta intro» e «Salta riassunto»", isOn: settings.binding(\.playback.skipSegmentsEnabled))
                     .accessibilityIdentifier("settings.skipSegments")
                 Text("Per sapere dove iniziano e finiscono, Aether chiede a IntroDB (introdb.app) i tempi dell'episodio inviando il codice IMDb del titolo, la stagione e l'episodio. Nessun account, nessun altro dato. I tempi sono inseriti dalla comunità e per una versione diversa del file possono essere sfasati di qualche secondo.")
                     .font(.footnote).foregroundStyle(Color.aetherSecondary)
-                    .accessibilityIdentifier("settings.autoplay")
-                Stepper("Conto alla rovescia: \(settings.value.playback.nextEpisodeCountdownSeconds) s", value: settings.binding(\.playback.nextEpisodeCountdownSeconds), in: 0...30)
-                    .disabled(!settings.value.playback.autoplayNextEpisode)
             }
             Section(header: Text("Lingue")) {
                 Picker("Audio preferito", selection: settings.binding(\.playback.preferredAudioLanguage)) {

@@ -378,7 +378,8 @@ const server = http.createServer((req, res) => {
   const variantMatch = /^\/(nosubs|opensubs)(\/.*)$/.exec(rawPath);
   const variant = variantMatch ? variantMatch[1] : null;
   const p = variantMatch ? variantMatch[2] : rawPath;
-  if (!p.startsWith('/__control/')) requests.push(p);
+  // The IntroDB stand-in takes its parameters in the query string, so that one is logged with it.
+  if (!p.startsWith('/__control/')) requests.push(p === '/introdb/segments' ? p + url.search : p);
 
   if (p === '/__control/offline') { offline = url.searchParams.get('on') === '1'; return send(res, 200, { offline }); }
   if (p === '/__control/media') { mediaOffline = url.searchParams.get('on') === '0'; return send(res, 200, { mediaOffline }); }
