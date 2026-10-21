@@ -80,7 +80,9 @@ struct AetherBackdrop: View {
     /// Drifting washes only move when nothing asks for calm: the animations switch, Reduce Motion, Low Power Mode, and a
     /// foreground app.
     private var isMoving: Bool {
+        // An endless animation keeps XCUITest from ever seeing the app idle, so the automated runs never move the washes.
         return settings.animationsEnabled && !reduceMotion && scenePhase == .active && !ProcessInfo.processInfo.isLowPowerModeEnabled
+            && !ProcessInfo.processInfo.arguments.contains("-AETHER_UITEST")
     }
 
     var body: some View {

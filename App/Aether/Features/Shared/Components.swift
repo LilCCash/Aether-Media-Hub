@@ -25,6 +25,7 @@ struct SectionHeader: View {
             }
         }
         .padding(.horizontal, Theme.pageMargin)
+        .repaintsWithTitleFont()
     }
 }
 
@@ -96,6 +97,7 @@ struct RatingBadge: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .background(.black.opacity(0.55), in: Capsule())
+        .repaintsWithTitleFont()
         .accessibilityLabel("Valutazione \(rating)")
     }
 }

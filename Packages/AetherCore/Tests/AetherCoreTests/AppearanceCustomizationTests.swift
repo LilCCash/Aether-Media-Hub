@@ -33,6 +33,22 @@ final class AppearanceCustomizationTests: XCTestCase {
         XCTAssertEqual(PosterSize.medium.rowWidth, 128)
     }
 
+    /// In 1.0 the Continue Watching and Next Up cards had a fixed width (240 pt): "Auto" must not make them follow a general
+    /// poster size the viewer chose for something else.
+    func testAutoSizeKeepsContinueWatchingAndNextUpAtMedium() {
+        for general in PosterSize.allCases {
+            XCTAssertEqual(HomeSectionConfig(id: HomeSectionConfig.continueWatching).effectiveSize(general: general), .medium)
+            XCTAssertEqual(HomeSectionConfig(id: HomeSectionConfig.nextUp).effectiveSize(general: general), .medium)
+            XCTAssertEqual(HomeSectionConfig(id: HomeSectionConfig.watchlist).effectiveSize(general: general), general)
+            XCTAssertEqual(HomeSectionConfig(id: HomeSectionConfig.catalogs).effectiveSize(general: general), general)
+        }
+    }
+
+    func testAChosenSizeWinsEverywhere() {
+        XCTAssertEqual(HomeSectionConfig(id: HomeSectionConfig.continueWatching, size: .large).effectiveSize(general: .small), .large)
+        XCTAssertEqual(HomeSectionConfig(id: HomeSectionConfig.catalogs, size: .small).effectiveSize(general: .large), .small)
+    }
+
     func testSizesGrowWithTheChoice() {
         XCTAssertLessThan(PosterSize.small.landscapeWidth, PosterSize.medium.landscapeWidth)
         XCTAssertLessThan(PosterSize.medium.landscapeWidth, PosterSize.large.landscapeWidth)

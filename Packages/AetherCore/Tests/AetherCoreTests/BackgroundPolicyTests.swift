@@ -138,6 +138,28 @@ final class BackgroundPolicyTests: XCTestCase {
         XCTAssertNotNil(availability.explanation)
     }
 
+    /// Once the file is open, "not possible" is a refusal by the system (a file without a picture, or a host such as a container):
+    /// telling the viewer to wait and retry would be a lie.
+    func testAnOpenFileThatTheSystemStillRefusesIsNotReadyYetNoMore() {
+        let waiting = PictureInPictureAvailability.evaluate(engine: .avPlayer, deviceSupportsPictureInPicture: true,
+                                                            controllerExists: true, isPossible: false, fileIsReady: false)
+        XCTAssertEqual(waiting, .notReadyYet)
+        let refused = PictureInPictureAvailability.evaluate(engine: .avPlayer, deviceSupportsPictureInPicture: true,
+                                                            controllerExists: true, isPossible: false, fileIsReady: true)
+        XCTAssertEqual(refused, .deviceUnsupported)
+        XCTAssertTrue(refused.explanation?.contains("LiveContainer") == true)
+        let possible = PictureInPictureAvailability.evaluate(engine: .avPlayer, deviceSupportsPictureInPicture: true,
+                                                             controllerExists: true, isPossible: true, fileIsReady: true)
+        XCTAssertEqual(possible, .available)
+    }
+
+    func testTheMPVMessageDoesNotPromiseThatAVPlayerWorks() {
+        let text = PictureInPictureAvailability.engineUnsupported(engine: "MPV").explanation ?? ""
+        XCTAssertTrue(text.contains("MPV"))
+        XCTAssertTrue(text.contains("può funzionare"), "AVPlayer may work, the system may still say no")
+        XCTAssertFalse(text.contains("MP4 e MOV sì"))
+    }
+
     func testNoControllerMeansTheDeviceOrLaunchDoesNotAllowIt() {
         for supported in [true, false] {
             let availability = PictureInPictureAvailability.evaluate(engine: .avPlayer, deviceSupportsPictureInPicture: supported,

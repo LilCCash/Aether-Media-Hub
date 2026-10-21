@@ -97,6 +97,7 @@ private struct HeroTextBlock: View {
             }
             .padding(.top, 4)
         }
+        .repaintsWithTitleFont()
     }
 }
 
@@ -295,7 +296,8 @@ struct ContinueCard: View {
                     .padding(10)
                 }
                 .frame(width: width, height: imageHeight)
-                .aetherCardChrome(cornerRadius: radius)
+                // The wide card had no hairline in 1.0; the poster-shaped one is framed like every poster.
+                .aetherCardChrome(cornerRadius: radius, hairline: isPortrait)
                 Text(progress.title).font(.system(.footnote, design: AetherTypography.design).weight(.semibold)).lineLimit(1).frame(width: width, alignment: .leading)
                 Text(subtitle).font(.aetherCaption()).foregroundStyle(Color.aetherSecondary).lineLimit(1).frame(width: width, alignment: .leading)
             }

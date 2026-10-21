@@ -107,8 +107,15 @@ public struct HomeSectionConfig: Codable, Hashable, Identifiable, Sendable {
         return allowed.first
     }
 
+    /// The size actually drawn. "Auto" follows the general poster size, except for the two sections whose cards were a fixed size
+    /// in 1.0 (Continue Watching and Next Up, 240 pt wide): they stay at medium so a viewer who chose another general poster
+    /// size does not see them change by themselves.
     public func effectiveSize(general: PosterSize) -> PosterSize {
-        return size ?? general
+        if let size = size { return size }
+        switch id {
+        case HomeSectionConfig.continueWatching, HomeSectionConfig.nextUp: return .medium
+        default: return general
+        }
     }
 
     public static let hero = "hero"

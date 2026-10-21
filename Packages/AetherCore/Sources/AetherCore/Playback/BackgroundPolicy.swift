@@ -94,16 +94,20 @@ public enum PictureInPictureAvailability: Equatable, Sendable {
     /// The device or the way the app is launched does not allow it.
     case deviceUnsupported
 
+    /// - Parameter fileIsReady: the file has been opened by the player. Once it has, "not possible" is no longer "not yet": the
+    ///   system refuses (a file without a picture, or a host such as a container that does not allow it) and waiting will not help.
     public static func evaluate(engine: PlaybackEngineKind,
                                 deviceSupportsPictureInPicture: Bool,
                                 controllerExists: Bool,
-                                isPossible: Bool) -> PictureInPictureAvailability {
+                                isPossible: Bool,
+                                fileIsReady: Bool = false) -> PictureInPictureAvailability {
         switch engine {
         case .mpv:
             return .engineUnsupported(engine: engine.displayName)
         case .avPlayer:
             guard deviceSupportsPictureInPicture, controllerExists else { return .deviceUnsupported }
-            return isPossible ? .available : .notReadyYet
+            if isPossible { return .available }
+            return fileIsReady ? .deviceUnsupported : .notReadyYet
         }
     }
 
@@ -120,9 +124,9 @@ public enum PictureInPictureAvailability: Equatable, Sendable {
         case .notReadyYet:
             return "Il Picture in Picture non è ancora pronto: aspetta che il video parta e riprova."
         case .engineUnsupported:
-            return "Con il motore MPV (MKV, AVI e altri formati) il Picture in Picture non è disponibile. Con MP4 e MOV sì."
+            return "Con il motore MPV (MKV, AVI e altri formati) il Picture in Picture non è disponibile. Con AVPlayer (MP4, MOV) può funzionare, se il sistema lo consente."
         case .deviceUnsupported:
-            return "Il Picture in Picture non è consentito qui. In LiveContainer può non funzionare: prova con l'app installata."
+            return "Il sistema non permette il Picture in Picture per questo video o in questo ambiente. In LiveContainer può non funzionare: prova con l'app installata."
         }
     }
 }

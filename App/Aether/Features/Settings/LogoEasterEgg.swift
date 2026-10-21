@@ -62,11 +62,17 @@ final class LogoEasterEggModel: ObservableObject {
         }
     }
 
+    /// The logo is left (or covered by another screen): stop everything and put the visible state back, so a banner or a heated
+    /// logo is not still there when the viewer returns.
     func stop() {
         coolTask?.cancel()
         bannerTask?.cancel()
         rainTask?.cancel()
         rain = nil
+        banner = nil
+        heat = 0
+        wobble = false
+        tracker.cooldownElapsed()
     }
 
     // MARK: Pieces
@@ -177,6 +183,10 @@ private struct LogoPressStyle: ButtonStyle {
 /// banner text is announced instead).
 struct LogoEasterEggOverlay: View {
     @ObservedObject var model: LogoEasterEggModel
+    @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var moving: Bool { settings.animationsEnabled && !reduceMotion }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -194,12 +204,12 @@ struct LogoEasterEggOverlay: View {
                     .aetherGlassCard(cornerRadius: 20)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 24)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(moving ? .move(edge: .bottom).combined(with: .opacity) : .identity)
                     .allowsHitTesting(false)
                     .accessibilityIdentifier("about.egg.message")
             }
         }
-        .animation(.easeOut(duration: 0.25), value: model.banner)
+        .animation(moving ? .easeOut(duration: 0.25) : nil, value: model.banner)
     }
 }
 

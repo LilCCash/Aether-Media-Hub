@@ -82,6 +82,9 @@ final class PlayerViewModel: ObservableObject {
     private let nowPlaying = NowPlayingService()
     private let audioSession = AudioSessionController()
     private var pictureInPictureGrace: Task<Void, Never>?
+    /// Playing when the app left the screen, and a phone call or similar in progress: used to resume after the grace.
+    private var wasPlayingWhenBackgrounded = false
+    private var isInterrupted = false
     private var statusClear: Task<Void, Never>?
 
     // MARK: Internals
@@ -171,10 +174,12 @@ final class PlayerViewModel: ObservableObject {
         audioSession.onInterruptionBegan = { [weak self] in
             guard let self = self else { return }
             self.wasPlayingBeforeInterruption = self.snapshot.isPlaying
+            self.isInterrupted = true
             self.engine.pause()
         }
         audioSession.onInterruptionEnded = { [weak self] shouldResume in
             guard let self = self else { return }
+            self.isInterrupted = false
             if shouldResume && self.wasPlayingBeforeInterruption { self.engine.play() }
         }
         audioSession.onRouteLost = { [weak self] in self?.engine.pause() }
@@ -238,6 +243,10 @@ final class PlayerViewModel: ObservableObject {
         debridStreamKey = nil
         skipSegmentsTask?.cancel()
         skipSegmentsTask = nil
+        pictureInPictureGrace?.cancel()
+        pictureInPictureGrace = nil
+        statusClear?.cancel()
+        statusClear = nil
         // Record the final position and write it to disk in one ordered step: a separate flush could run first.
         if !recordProgress(force: true, flushAfter: true) {
             Task { await env.libraryStore.flush() }
@@ -1342,6 +1351,8 @@ final class PlayerViewModel: ObservableObject {
     }
 
     private func applyBackgroundPolicy(phase: PlayerBackgroundPolicy.Phase, graceExpired: Bool) {
+        guard !tornDown else { return }
+        if phase == .background && !graceExpired { wasPlayingWhenBackgrounded = snapshot.isPlaying }
         let decision = PlayerBackgroundPolicy.decide(PlayerBackgroundPolicy.State(
             phase: phase,
             isPlaying: snapshot.isPlaying,
@@ -1355,7 +1366,11 @@ final class PlayerViewModel: ObservableObject {
         if decision.recordProgress { recordProgress(force: true) }
         switch decision.video {
         case .attach: engine.setVideoDetached(false)
-        case .detach: engine.setVideoDetached(true)          // keep the sound, drop the picture
+        case .detach:
+            engine.setVideoDetached(true)          // keep the sound, drop the picture
+            // The picture stayed attached for the grace period, and the system pauses a player that shows video when the app is
+            // no longer on screen: start it again so "continue the audio in the background" holds.
+            if graceExpired && wasPlayingWhenBackgrounded && !isInterrupted { engine.play() }
         case .keep: break
         }
         if decision.pause { engine.pause() }

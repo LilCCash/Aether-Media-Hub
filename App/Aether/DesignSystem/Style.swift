@@ -57,12 +57,15 @@ extension EnvironmentValues {
 /// The frame around a poster or card: hairline (default), accent outline, soft shadow or accent glow.
 struct CardChromeModifier: ViewModifier {
     var cornerRadius: CGFloat
+    /// The default frame is a 0.5 pt hairline. Cards that had none in 1.0 turn it off so the default look does not change.
+    var hairline: Bool = true
     @Environment(\.aetherStyle) private var style
     @EnvironmentObject private var settings: SettingsStore
 
     private var strokeColor: Color {
         switch style.chrome {
-        case .standard, .shadow: return Color.primary.opacity(0.10)
+        case .standard: return hairline ? Color.primary.opacity(0.10) : .clear
+        case .shadow: return Color.primary.opacity(0.10)
         case .outline: return settings.accentColor.opacity(0.85)
         case .glow: return settings.accentColor.opacity(0.35)
         }
@@ -102,8 +105,22 @@ struct CardChromeModifier: ViewModifier {
 
 extension View {
     /// Apply after the picture is clipped to its rounded shape.
-    func aetherCardChrome(cornerRadius: CGFloat) -> some View {
-        modifier(CardChromeModifier(cornerRadius: cornerRadius))
+    func aetherCardChrome(cornerRadius: CGFloat, hairline: Bool = true) -> some View {
+        modifier(CardChromeModifier(cornerRadius: cornerRadius, hairline: hairline))
+    }
+
+    /// For small views that draw text in Aether's typeface but hold no observed state of their own: they are rebuilt when the
+    /// viewer changes the title typeface, instead of keeping the old one until something else redraws them.
+    func repaintsWithTitleFont() -> some View {
+        modifier(TitleFontRepaintModifier())
+    }
+}
+
+private struct TitleFontRepaintModifier: ViewModifier {
+    @Environment(\.aetherStyle) private var style
+
+    func body(content: Content) -> some View {
+        content.id(style.titleFont)
     }
 }
 
