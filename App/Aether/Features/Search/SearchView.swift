@@ -466,6 +466,8 @@ struct SearchView: View {
             .autocorrectionDisabled()
             .onSubmit(of: .search) {
                 let text = model.query
+                // «Salva le ricerche recenti» (Impostazioni ▸ Contenuti) and the history switch of Privacy both stop the recording.
+                guard env.settings.value.content.saveSearchHistory, env.settings.value.privacy.recordHistory else { return }
                 Task { await env.libraryStore.addSearch(text) }
             }
             .task(id: model.runKey) { await model.run(env: env) }

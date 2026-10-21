@@ -4,7 +4,7 @@ Aether è un media center nativo (Swift / SwiftUI) per iPhone che parla il **pro
 È un progetto indipendente: codice, nome, interfaccia e icona sono originali (vedi [`NOTICE`](NOTICE) e [`docs/03-LICENSES.md`](docs/03-LICENSES.md)).
 Non fornisce contenuti: mostra e riproduce ciò che gli addon installati dall'utente restituiscono.
 
-> **Stato in una riga:** il codice compila e i test automatici girano su macOS in CI; **non è stato provato su un iPhone fisico**, non esiste un IPA firmato (il workflow *Build IPA* compone un IPA **non firmato**, da firmare con il tuo Apple ID), e alcune funzioni (AirPlay, Google Cast, DLNA, VoiceOver, Picture in Picture) sono implementate ma **non verificate con hardware reale**. Il dettaglio è in [Stato reale](#stato-reale).
+> **Stato in una riga (Alpha 2):** il codice compila e i test automatici girano su macOS in CI; **non è stato provato su un iPhone fisico**, non esiste un IPA firmato (il workflow *Build IPA* compone un IPA **non firmato**, da firmare con il tuo Apple ID; nel repository non sono configurate credenziali di firma), e molte funzioni (AirPlay, Google Cast, DLNA, VoiceOver, Picture in Picture, aspetto reale di HDR/Dolby Vision, **TorBox, TMDB e TheTVDB con un account reale**) sono implementate ma **non verificate con hardware o servizi reali**. Il dettaglio onesto è in [Stato reale](#stato-reale) e in [`docs/04-TESTING.md`](docs/04-TESTING.md); le note di questa versione sono in [`docs/08-ALPHA-2-NOTE.md`](docs/08-ALPHA-2-NOTE.md).
 
 ## Documentazione
 
@@ -14,6 +14,10 @@ Non fornisce contenuti: mostra e riproduce ciò che gli addon installati dall'ut
 | [`docs/02-ARCHITECTURE.md`](docs/02-ARCHITECTURE.md) | Architettura, moduli, sicurezza |
 | [`docs/03-LICENSES.md`](docs/03-LICENSES.md) | Licenza e obblighi di ogni dipendenza |
 | [`docs/04-TESTING.md`](docs/04-TESTING.md) | Scenari di test, fixture, cosa è stato davvero eseguito |
+| [`docs/05-SUBTITLES-RESEARCH.md`](docs/05-SUBTITLES-RESEARCH.md) | Ricerca sui sottotitoli da addon (OpenSubtitles) e decisioni |
+| [`docs/06-PLAYBACK.md`](docs/06-PLAYBACK.md) | Motori di riproduzione, HDR / Dolby Vision, matrice di test e limiti |
+| [`docs/07-SERVIZI.md`](docs/07-SERVIZI.md) | TorBox, TMDB, TheTVDB, OpenSubtitles: cosa è verificato e cosa no |
+| [`docs/08-ALPHA-2-NOTE.md`](docs/08-ALPHA-2-NOTE.md) | Note di rilascio di Alpha 2 e problemi noti |
 
 ## Struttura
 
@@ -23,7 +27,7 @@ Packages/AetherCore   Libreria Swift solo-Foundation: protocollo addon, rete sic
 App/Aether            App SwiftUI (MVVM): Home, Scopri, Cerca, Libreria, Download, Addon, Player, Casting, Impostazioni
 App/AetherTests       Test unitari dell'app (impostazioni, router, Portachiavi…)
 App/AetherUITests     Test UI contro un server di addon di prova (Tools/FixtureAddonServer)
-Tools/                Server addon di prova per i test UI
+Tools/                Server di prova per i test UI: addon Stremio (con finti TMDB/TheTVDB e file della matrice media) e TorBox
 Config/               xcconfig (firma, bundle id, versione)
 project.yml           Definizione del progetto per XcodeGen (il `.xcodeproj` non è versionato)
 ```
@@ -70,7 +74,7 @@ Il workflow **Build IPA** (`.github/workflows/build-ipa.yml`) compone il file `.
 
 | Modalità | Credenziali | Risultato | Stato |
 |---|---|---|---|
-| **Non firmato** (predefinita) | nessuna | artefatto `Aether-unsigned-ipa` con `Aether-unsigned.ipa` (arm64, Release, ~7,7 MB compresso); per pubblicarlo come *pre-release* di GitHub: esecuzione manuale con `publish_release` e un `release_tag` (es. `v1.0.0-alpha.1`), oppure push di un tag `v*`; se il tag non esiste viene creato sul commit compilato | ✅ eseguito in CI, anche dopo le correzioni della revisione: archivio Release per iPhone e pacchetto verificato (bundle id, versione 1.0.0 e build number presi dalla configurazione, deployment target, binario solo arm64 per dispositivo, Google Cast SDK incorporato, icona nel catalogo, privacy manifest, schemi `aether` e `stremio`, nessuna firma) |
+| **Non firmato** (predefinita) | nessuna | artefatto `Aether-unsigned-ipa` con `Aether-unsigned.ipa` (arm64, Release, ~20 MB compresso: include MPVKit/FFmpeg); per pubblicarlo come *pre-release* di GitHub: esecuzione manuale con `publish_release` e un `release_tag` (es. `v1.0.0-alpha.2`), oppure push di un tag `v*`; se il tag non esiste viene creato sul commit compilato | ✅ eseguito in CI, anche dopo le correzioni della revisione: archivio Release per iPhone e pacchetto verificato (bundle id, versione 1.0.0 e build number presi dalla configurazione, deployment target, binario solo arm64 per dispositivo, Google Cast SDK incorporato, icona nel catalogo, privacy manifest, schemi `aether` e `stremio`, nessuna firma) |
 | **Firmato** (spunta *sign* nell'esecuzione manuale) | i tuoi secret (sotto) | `Aether-signed-ipa`, installabile sui dispositivi del tuo profilo | 🟡 scritto ma **mai eseguito**: richiede il tuo certificato e il tuo profilo |
 
 L'IPA non firmato **non si installa così com'è**: iOS richiede una firma. Va firmato di nuovo con il tuo Apple ID (per esempio con AltStore o Sideloadly) o con un tuo certificato. Non ho potuto provare l'installazione su un iPhone reale.
@@ -100,12 +104,29 @@ Legenda: ✅ implementato e coperto da test automatici eseguiti in CI · 🟡 im
 ### Riproduzione
 | Funzione | Stato |
 |---|---|
-| Analisi delle sorgenti (qualità, codec, HDR, audio, lingue, dimensione) e ordinamento; sorgenti non riproducibili segnalate prima della riproduzione | ✅ |
+| Analisi delle sorgenti (qualità, codec, HDR, audio, lingue, dimensione) e ordinamento; sorgenti non riproducibili segnalate prima della riproduzione; i badge ricavati dal **nome** sono etichettati «(nel nome)» | ✅ |
 | AVPlayer: MP4/MOV/M4V/HLS, ripresa, salto avanti/indietro, velocità, gesti, blocco controlli, timer di spegnimento, riempi schermo | 🟡 |
+| **MPV (MPVKit, LGPL)** come secondo motore: MKV, AVI, TS… Il motore è scelto da **fatti letti dal file**, non dai nomi; se non apre il file si passa **una volta** all'altro motore riprendendo dalla stessa posizione | ✅ i file della matrice (H.264 MKV/AVI, HEVC HDR10/HLG, hev1) si riproducono nel simulatore in CI · 🟡 su iPhone |
+| HDR10 / HLG / Dolby Vision: rilevati dal file (box `hvcC`/`dvcC`/`dvvC`, primarie/trasferimento, `isDecodable`) e mostrati nel foglio «Informazioni sulla sorgente» separando *dichiarato*, *rilevato* e *atteso*. **Vero Dolby Vision solo con AVPlayer** (MP4/MOV/HLS); con MPV un file Dolby Vision è mappato su HDR10/SDR e descritto così, mai come Dolby Vision | ✅ logica con vettori costruiti dalla specifica · 🟡 l'aspetto su uno schermo HDR e i file Dolby Vision reali non sono stati provati (nessun encoder né dispositivo) — vedi [`docs/06-PLAYBACK.md`](docs/06-PLAYBACK.md) |
+| Impostazioni del player (Riproduzione): motore, uscita HDR, tone mapping, decodifica hardware, deband, luminosità/contrasto/saturazione/gamma, buffer, lingue audio/sottotitoli primarie e secondarie, tenere premuto per accelerare, pulizia dei sottotitoli per non udenti | ✅ (modello e logica) · 🟡 (resa sul dispositivo) |
 | Sottotitoli esterni SRT/VTT/ASS con rilevamento codifica, ritardo regolabile, stile persistente, importazione da file; tracce audio e sottotitoli incorporati | ✅ (parser) · 🟡 (resa nel player) |
+| **Sottotitoli da addon** (OpenSubtitles v3 consigliato in Addon, mai installato da solo): ricerca con nome file e hash calcolato sul dispositivo, classifica per lingua, gruppi per lingua con filtro, scelta automatica, lingua ricordata per la serie, stati vuoti ed errori onesti | ✅ logica Core · 🟡 interfaccia (alcuni test UI non passano: vedi `docs/04-TESTING.md`) |
 | Episodio successivo con prefetch delle sorgenti, conto alla rovescia, riproduzione automatica, continuità del gruppo di rilascio | ✅ (logica) · 🟡 (player) |
 | Picture in Picture, audio in background, schermata di blocco (Now Playing), interruzioni (telefonate), ripresa dopo perdita di rete | 🟡 |
-| MKV, AVI, WebM, DASH, torrent integrato, YouTube nel player, motore MPV/VLC | ❌ (le sorgenti sono segnalate come non riproducibili; l'architettura prevede `PlaybackEngine`) |
+| DASH, YouTube nel player, torrent integrato | ❌ (segnalati come non riproducibili; i torrent si riproducono solo tramite TorBox) |
+| Verifica dei certificati TLS dei flussi riprodotti da MPV | ❌ **libmpv non verifica i certificati** nella configurazione attuale (comportamento predefinito di mpv); AVPlayer sì. Problema noto, vedi `docs/08-ALPHA-2-NOTE.md` |
+
+### Servizi con la tua chiave (facoltativi)
+| Funzione | Stato |
+|---|---|
+| **TorBox**: chiave nel Portachiavi, verifica della connessione, controllo cache («In cache» / «Non in cache», mai «non in cache» se la verifica è fallita), riproduzione di un torrent già in cache, download su conferma esplicita con avanzamento, nessuna cancellazione automatica | ✅ Core con stub HTTP e test UI contro un server di prova · 🟡 **TorBox reale non è stato mai contattato** |
+| **TMDB** e **TheTVDB**: completano locandina, sfondo, logo, trama, cast, durata, titoli degli episodi **solo dove l'addon non li ha**, non sovrascrivono mai i dati dell'addon, mostrano l'attribuzione | ✅ Core con stub HTTP · 🟡 con una chiave reale non provato; logo TMDB non incluso (solo il testo di attribuzione) |
+
+### Cerca e Scopri
+| Funzione | Stato |
+|---|---|
+| Cerca: menu **Tipo** (Film, Serie TV e ogni altro tipo fornito dagli addon: TV, sport…), **Genere**, **Anno**, ordinamento; il filtro è mandato all'addon solo se il suo manifest lo dichiara, altrimenti è locale e l'interfaccia dice quanti risultati nasconde | ✅ Core e logica dell'app · 🟡 interfaccia (test UI in parte non passati) |
+| Scopri: tipi dinamici dagli addon, menu catalogo/genere/anno, e in *Impostazioni ▸ Aspetto ▸ Categorie di Scopri* mostra/nascondi e ordina | ✅ Core e logica dell'app · 🟡 interfaccia |
 
 ### Casting
 | Funzione | Stato |
