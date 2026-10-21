@@ -158,13 +158,13 @@ Solo `http`/`https`; niente credenziali negli URL; blocco di loopback/reti priva
 
 ## Test
 
-Ultima esecuzione completa in CI (macOS, Xcode 26.6, simulatore iPhone, iOS SDK 26.5) sul commit unito in `main`:
+Ultimo risultato completo in CI (macOS, Xcode 26.6, simulatore iPhone, iOS SDK 26.5) sul commit `57a5a04`; la release Alpha 2 è costruita da `4ff1d3b`, che aggiunge le correzioni dell'audit **compilate** dal workflow *Build IPA* ma i cui test non sono stati rieseguiti:
 
-| Suite | Test | Falliti |
+| Suite | Test | Esito |
 |---|---|---|
-| AetherCore (`swift test`) | 172 | 0 |
-| Unit dell'app | 42 | 0 |
-| UI contro addon di fixture (riproduzione reale di un MP4 H.264 nel simulatore) | 30 | 0 |
+| AetherCore (`swift test`) | 540 | tutti passati |
+| Unit dell'app | 222 | tutti passati |
+| UI contro addon di fixture | esecuzione interrotta dopo 90 minuti (ora divisa in gruppi paralleli) | molti passati (layout, esplorazione, addon, download, ripresa, cronologia, parte dei sottotitoli); **diversi non passano** — elenco e cause in [`docs/04-TESTING.md`](docs/04-TESTING.md) |
 
 [`docs/04-TESTING.md`](docs/04-TESTING.md) mappa ciascuno dei 20 scenari richiesti sul test che lo verifica e dice quali **non** sono stati eseguiti su hardware reale (AirPlay, Google Cast su Chromecast/Android TV, VoiceOver su dispositivo, DLNA su televisori, rete mobile).
 

@@ -71,7 +71,7 @@ Dalla documentazione di mpv (opzioni `--target-colorspace-hint`, `--tone-mapping
 Legenda: ✅ eseguito in CI con esito positivo · 🟡 coperto solo in parte · ⛔ non eseguibile qui (richiede hardware / contenuti reali) · — non applicabile.
 La colonna «Come» dice cosa dimostra il test. I file della matrice sono generati in CI con ffmpeg (immagini sintetiche; il segnale colore e i tag sono reali, i pixel no).
 
-(la tabella con gli esiti reali dell'ultima esecuzione è in fondo, sezione 7)
+(gli esiti reali dell'ultima esecuzione sono nella sezione 7)
 
 ## 6. Limiti dichiarati
 
@@ -84,7 +84,20 @@ La colonna «Come» dice cosa dimostra il test. I file della matrice sono genera
 
 ## 7. Esito dell'ultima esecuzione
 
-(compilato dopo l'esecuzione della CI: vedi docs/04-TESTING.md)
+Ultima esecuzione della matrice (CI, commit `57a5a04`, simulatore, file generati da ffmpeg; riproduzione = la posizione supera 2 s):
+
+| File | Motore scelto | Riproduzione | Fatti mostrati nel foglio Informazioni |
+|---|---|---|---|
+| H.264 in Matroska | MPV | ✅ | solo contenitore e motore (codec/gamma non visti) |
+| H.264 in AVI | MPV (atteso) | ❌ «il player non si apre» (causa non chiarita) | — |
+| HEVC Main10 HDR10 in MP4 | AVPlayer | ✅ | solo contenitore e motore |
+| HEVC Main10 HDR10 in MKV | MPV | ✅ | solo contenitore e motore |
+| HEVC Main10 HLG in MP4 | AVPlayer (atteso) | ❌ «il player non si apre» | — |
+| HEVC `hev1` HDR10 in MP4 | MPV (il pianificatore sceglie MPV) | ✅ | contenitore e motore |
+| HEVC 8 bit in MP4 | AVPlayer | ✅ | solo contenitore e motore |
+| uscita video reale di MPV (Metal/MoltenVK) | — | non confermata (test non passato) | — |
+
+Quindi: la **scelta del motore** e la **riproduzione** dei file sopra sono osservate; il **rilevamento reale di HDR10/HLG nel simulatore non è confermato** (le righe «Video» e «Gamma dinamica» non compaiono nel foglio durante il test), e **Dolby Vision non è stato provato** (nessun file). La logica di lettura dei box e di classificazione ha test unitari con vettori costruiti dalla specifica. Una nuova esecuzione con i test corretti era in corso alla pubblicazione.
 
 ## 8. Prossimi passi consigliati
 

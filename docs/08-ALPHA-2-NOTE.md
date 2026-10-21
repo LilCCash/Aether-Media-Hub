@@ -12,8 +12,7 @@ che prende esattamente lo spazio proposto e ritaglia; il carosello è una vista 
 pagina e distanza tra le pagine su più schermate (dettaglio film, dettaglio serie, scelta della sorgente, Home).
 
 **Riproduzione (HDR / Dolby Vision / formati).** Secondo motore **MPV (MPVKit, LGPL)** accanto ad AVPlayer, scelto da `PlaybackPlanner` in base a ciò che il file dichiara (contenitore, codec, tag `hvc1`/`hev1`, profilo Dolby Vision, `isDecodable`),
-con passaggio automatico all'altro motore, una volta, se il primo non apre il file. MKV, AVI, TS… ora si riproducono (provato nel simulatore in CI con file generati da ffmpeg: H.264 in Matroska e in AVI, HEVC Main10
-HDR10 e HLG, HEVC `hev1`, HEVC 8 bit). Il badge HDR/Dolby Vision viene dal file, non dal nome (i badge dal nome sono etichettati «nel nome»); il foglio «Informazioni sulla sorgente» separa dichiarato, rilevato e atteso.
+con passaggio automatico all'altro motore, una volta, se il primo non apre il file. MKV e gli altri contenitori non nativi vengono affidati a MPV. Provato nel simulatore in CI con file generati da ffmpeg: H.264 in Matroska, HEVC Main10 HDR10 in MP4 (AVPlayer) e in MKV (MPV), HEVC `hev1` (scelto MPV), HEVC 8 bit raggiungono la riproduzione. **AVI e HLG in MP4 non si sono aperti nell'ultima esecuzione** (causa non chiarita), e **non è confermato che il foglio informazioni mostri codec e gamma dinamica letti dal decoder** (mostra contenitore e motore). Il badge HDR/Dolby Vision viene dal file, non dal nome (i badge dal nome sono etichettati «nel nome»); il foglio «Informazioni sulla sorgente» separa dichiarato, rilevato e atteso.
 **Vero Dolby Vision solo con AVPlayer** (MP4/MOV/HLS, profili 5/8.x); con MPV un file Dolby Vision è mappato su HDR10 o SDR e descritto così. Nessun file Dolby Vision reale è stato provato (nessun encoder in CI) e l'aspetto
 reale su uno schermo HDR non è verificato. Matrice completa e limiti: [`06-PLAYBACK.md`](06-PLAYBACK.md).
 

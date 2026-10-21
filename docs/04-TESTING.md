@@ -60,15 +60,22 @@ Legenda: ✅ eseguito in CI con esito positivo · 🟡 coperto solo in parte (co
 
 ## Esiti dell'ultima esecuzione
 
-Ultima esecuzione completa (GitHub Actions, `macos-latest`, Xcode 26.6, SDK iOS 26.5, simulatore iPhone più recente della serie Pro Max disponibile sul runner):
+Commit `57a5a04` (GitHub Actions, `macos-latest`, Xcode 26.6, SDK iOS 26.5, simulatore iPhone). I test UI sono stati lanciati tutti insieme e il job è stato fermato dal limite di 90 minuti: i risultati sotto sono quelli delle classi arrivate in fondo; le classi `SettingsAndAccessibilityUITests` e quasi tutta `TorBoxUITests` **non sono state eseguite**. Da allora i test UI girano in gruppi paralleli (`ui_tests` accetta più bersagli separati da virgola).
 
-| Suite | Test eseguiti | Falliti |
+| Suite | Test eseguiti | Esito |
 |---|---|---|
-| AetherCore (`swift test`) | 172 | 0 |
-| Unit dell'app (`AetherTests`) | 42 | 0 |
-| UI (`AetherUITests`, ~13 minuti) | 30 | 0 |
+| AetherCore (`swift test`) | 540 | 0 falliti |
+| Unit dell'app (`AetherTests`) | 222 | 0 falliti |
+| UI (`AetherUITests`), parziale | ~60 | vedi sotto |
 
-Ogni esecuzione completa è nel registro di GitHub Actions (job «App (build, unit tests, UI tests)» e «AetherCore (swift test)»); i bundle `.xcresult` con screenshot e allegati sono salvati come artefatto per 7 giorni.
+**UI passati** (selezione significativa): installazione addon (6), esplorazione e dettagli (9, inclusi tipi dinamici e filtro per tipo), download e riproduzione offline (2), layout (dettaglio film, dettaglio serie, scelta sorgente, carosello Home, righe: 5), riproduzione (avvio, pausa, ripresa, cronologia, nessuna cronologia se disattivata, episodio successivo), sottotitoli (scelta lingua, chip, nessun addon, nessun sottotitolo, lingua preferita e secondaria, OpenSubtitles consigliato), matrice media: HEVC `hev1`.
+
+**UI non passati e perché (nessuno risolto con certezza):**
+* *Errori dei test, corretti dopo l'esecuzione e non riverificati:* le pagine di Impostazioni non erano raggiungibili dopo l'installazione di un addon (la pila di navigazione restava nell'elenco Addon) — 4 test Metadati, 1 TorBox, 3 di Scopri; l'elenco Informazioni sulla sorgente è una lista pigra e le righe sotto la piega non esistevano al momento della lettura; i fotogrammi dei biglietti della Home sono gonfiati dall'albero di accessibilità (escluso nel test di larghezza).
+* *Da capire:* 7 test di Cerca/Scopri con un secondo addon («addon non elencato dopo l'installazione» — ora il messaggio riporta cosa c'è sullo schermo); `testWatchlistAddsAndRemoves` (timeout di interrogazione); 5 test dei sottotitoli (episodio successivo con lingua ricordata, file rotti, ritardo, hash calcolato sul dispositivo: **non confermato che il secondo giro con l'hash parta davvero**); matrice media: **AVI e HLG MP4 «il player non si apre»** (non so se difetto o instabilità del runner), e **nel foglio Informazioni il decoder mostra contenitore e motore ma nessuna riga «Video» / «Gamma dinamica»** (non confermato che i fatti HDR arrivino fino allo schermo nel simulatore).
+* *Uscita video di MPV (Metal/MoltenVK) sul simulatore:* non confermata («Attiva» non osservato).
+
+Ogni esecuzione è nel registro di GitHub Actions; i bundle `.xcresult` sono salvati come artefatto per 7 giorni. Una nuova esecuzione a gruppi sul commit `2906c8b` (che contiene le correzioni dei test) era in corso al momento della pubblicazione; se completa, l'esito è nel registro.
 
 ### Problemi trovati dai test e corretti
 
