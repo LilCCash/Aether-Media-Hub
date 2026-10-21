@@ -119,6 +119,11 @@ final class PlayerViewModel: ObservableObject {
     private var debridStream: AddonStream?
     private var debridStreamKey: String?
     private var debridTask: Task<AddonStream, Error>?
+    /// Bumped by every start; a start that was overtaken (or outlived `teardown()`) must not load its source into an engine.
+    private var loadGeneration = 0
+    /// True from the moment the next episode is chosen until its source is loaded: the engine still holds the previous
+    /// episode then, and its position must not be saved under the new one.
+    private var progressSuspended = false
     private var debridGeneration = 0
     private var debridProgressSequence = 0
 
@@ -242,6 +247,8 @@ final class PlayerViewModel: ObservableObject {
     // MARK: Loading
 
     private func beginPlayback(startOverride: Double?) async {
+        loadGeneration += 1
+        let generation = loadGeneration
         failure = nil
         statusMessage = nil
         retriedAfterNetworkLoss = false
@@ -267,6 +274,7 @@ final class PlayerViewModel: ObservableObject {
             if DebridStreamLogic.isTorrent(stream) && env.debrid.isConfigured {
                 // A torrent has no address of its own: TorBox turns it into a direct link first (progress and errors show here).
                 guard let direct = await resolveTorrentWithTorBox(stream) else { return }
+                guard !tornDown, generation == loadGeneration else { return }
                 source = direct
                 guard adoptEngine(forResolved: direct) else { return }
             }
@@ -274,7 +282,9 @@ final class PlayerViewModel: ObservableObject {
                 handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: "Sorgente non riproducibile"))
                 return
             }
-            if let blocked = await env.validateMediaURL(resolved) {
+            let blocked = await env.validateMediaURL(resolved)
+            guard !tornDown, generation == loadGeneration else { return }
+            if let blocked = blocked {
                 handleFailure(PlaybackFailure(kind: .unknown, detail: blocked.message))
                 return
             }
@@ -289,6 +299,8 @@ final class PlayerViewModel: ObservableObject {
                 start = max(0, saved - Double(playback.resumeRewindSeconds))
             }
         }
+        guard !tornDown, generation == loadGeneration else { return }
+        progressSuspended = false
         lastRetryPosition = start ?? 0
         engine.setRate(playbackRate)
         engine.load(url: url, headers: headers, startAt: start, autoplay: true)
@@ -309,6 +321,10 @@ final class PlayerViewModel: ObservableObject {
         guard case .stream(let stream) = request.source else { return nil }
         return debridKey(for: stream) == key ? direct : nil
     }
+
+    /// True while the source that plays is a torrent turned into a link by TorBox (its address carries a token and is not
+    /// handed to Cast or DLNA receivers).
+    var isPlayingThroughTorBox: Bool { return currentDebridStream() != nil }
 
     private func forgetDebridLink() {
         debridStream = nil
@@ -449,6 +465,7 @@ final class PlayerViewModel: ObservableObject {
     /// Returns true when a write was scheduled.
     @discardableResult
     private func recordProgress(force: Bool, flushAfter: Bool = false) -> Bool {
+        guard !progressSuspended else { return false }
         guard snapshot.duration > 0 || force, snapshot.position > 0 else { return false }
         if !force && abs(snapshot.position - lastRecordedPosition) < 5 { return false }
         if snapshot.isLive { return false }
@@ -652,8 +669,11 @@ final class PlayerViewModel: ObservableObject {
         statusMessage = "Cerco la sorgente per \(video.episodeLabel ?? "l'episodio")…"
         defer { isResolvingNext = false }
 
-        // Persist where we left the current episode before moving on.
+        // Persist where we left the current episode before moving on, then stop recording until the new source is loaded:
+        // finding it (and, for a torrent, TorBox's answer) can take a while and the old episode would be saved as the new one.
         recordProgress(force: true)
+        progressSuspended = true
+        engine.pause()
 
         let result: (streams: [AddonStream], errors: [String: AddonError])
         if let prefetched = nextStreamsTask, video.id == nextEpisode?.id {

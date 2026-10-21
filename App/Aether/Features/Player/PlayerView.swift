@@ -755,8 +755,10 @@ struct PlayerView: View {
 
     private func prepareCast(to device: CastDevice) {
         guard let plan = model.castPlan() else {
-            castNotice = CastNotice(title: "Non trasmettibile",
-                                    message: "I file scaricati si trovano solo su questo telefono: il televisore non può leggerli. Usa AirPlay, oppure trasmetti la sorgente online.")
+            let reason = model.isPlayingThroughTorBox
+                ? "Il link di TorBox contiene un codice personale che Aether non consegna ai televisori. Usa AirPlay."
+                : "I file scaricati si trovano solo su questo telefono: il televisore non può leggerli. Usa AirPlay, oppure trasmetti la sorgente online."
+            castNotice = CastNotice(title: "Non trasmettibile", message: reason)
             return
         }
         let verdict = CastCompatibility.evaluate(url: plan.media.url, info: plan.info, headers: plan.headers,

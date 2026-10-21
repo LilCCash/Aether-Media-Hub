@@ -190,6 +190,11 @@ final class AppEnvironment: ObservableObject {
         await images.clearDisk()
         await diagnostics.clear()
         (secrets as? KeychainSecretStore)?.removeAll()
+        // The keys are gone from the Keychain: what the app remembers about them (saved-key flags, the TorBox connection and
+        // the links it prepared, the metadata services' failure memory) has to follow.
+        credentials.refresh()
+        debrid.credentialsDidChange()
+        await metadata.reset()
         settings.resetToDefaults()
         await addons.reload()
         await library.refresh()

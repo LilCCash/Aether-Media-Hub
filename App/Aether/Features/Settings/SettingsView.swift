@@ -540,7 +540,7 @@ struct AccountDataSettingsView: View {
                 Toggle("Consenti rete locale (addon, sorgenti, Cast)", isOn: settings.binding(\.privacy.allowLocalNetwork))
                     .accessibilityIdentifier("settings.allowLocal")
                 Toggle("Conserva il log diagnostico (solo su questo dispositivo)", isOn: settings.binding(\.privacy.keepDiagnosticLog))
-                Text("Aether non invia nessun dato a server propri: niente analytics, niente crash reporting. Le richieste partono solo verso gli addon che installi e verso gli indirizzi delle immagini e dei video che questi restituiscono.")
+                Text("Aether non invia nessun dato a server propri: niente analytics, niente crash reporting. Le richieste partono verso gli addon che installi, verso gli indirizzi delle immagini e dei video che questi restituiscono e, solo se inserisci una tua chiave in Servizi, verso TorBox, TMDB e TheTVDB. Per cercare i sottotitoli gli addon di sottotitoli ricevono il nome del file e, quando è calcolabile, l'impronta (hash) del video.")
                     .font(.footnote).foregroundStyle(Color.aetherSecondary)
             }
             Section(header: Text("Backup e ripristino"), footer: Text("Il backup contiene libreria, cronologia, impostazioni e l'elenco degli addon. Gli indirizzi degli addon possono contenere chiavi personali: inclusi solo se lo scegli, e il file non è cifrato.")) {

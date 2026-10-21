@@ -63,7 +63,7 @@ private struct TorBoxServiceSections: View {
         }
 
         Section {
-            Text("1. Apri torbox.app/settings e accedi al tuo account.\n2. Vai in Impostazioni > API e crea (o copia) la tua chiave.\n3. Incollala qui sopra e tocca Salva.")
+            Text("1. Apri torbox.app e accedi al tuo account.\n2. Nelle impostazioni dell'account cerca la sezione della chiave API (il nome della voce può cambiare) e crea o copia la tua chiave.\n3. Incollala nel campo della chiave e tocca Salva.")
                 .fixedSize(horizontal: false, vertical: true)
             Text("La chiave la crei tu: Aether non ne fornisce né ne condivide una, e non la scrive mai nei log.")
                 .font(.footnote)

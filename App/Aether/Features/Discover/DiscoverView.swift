@@ -696,7 +696,7 @@ struct DiscoverView: View {
                            message: "Questo catalogo non ha restituito contenuti per i filtri scelti.")
         } else {
             EmptyStateView(systemImage: "calendar", title: "Nessun titolo per questo anno",
-                           message: "Tra i \(model.items.count) titoli caricati nessuno corrisponde a «\(model.yearFilter?.label ?? "")».",
+                           message: (model.items.count == 1 ? "Il titolo caricato non corrisponde a" : "Tra i \(model.items.count) titoli caricati nessuno corrisponde a") + " «\(model.yearFilter?.label ?? "")».",
                            actionTitle: "Mostra tutti gli anni", action: { model.select(year: nil) })
                 .accessibilityIdentifier("discover.yearEmpty")
         }

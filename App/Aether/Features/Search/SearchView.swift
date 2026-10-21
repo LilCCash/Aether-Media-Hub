@@ -663,7 +663,7 @@ struct SearchView: View {
             if presentation.filteredOutCount > 0 {
                 EmptyStateView(systemImage: "line.3.horizontal.decrease.circle",
                                title: "Nessun risultato con questi filtri",
-                               message: "I filtri scelti nascondono \(presentation.filteredOutCount) risultati.",
+                               message: presentation.filteredOutCount == 1 ? "I filtri scelti nascondono 1 risultato." : "I filtri scelti nascondono \(presentation.filteredOutCount) risultati.",
                                actionTitle: "Reimposta filtri", action: { model.resetFilters() })
                     .accessibilityIdentifier("search.filteredOut")
             } else {
