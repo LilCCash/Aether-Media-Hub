@@ -893,7 +893,7 @@ final class TorBoxClientTests: XCTestCase {
         XCTAssertTrue(form.hasSuffix("&allow_zip=false"), form)
         XCTAssertFalse(form.contains("seed="))
         XCTAssertFalse(form.contains("as_queued"))
-        XCTAssertFalse(form.contains("add_only_if_cached"), "that field was never seen in any source")
+        XCTAssertFalse(form.contains("add_only_if_cached"), "a plain add (the user confirmed a download) does not ask for cached-only")
     }
 
     func testCreatetorrentResultCarriesIDsAndTheCachedCopyHint() async throws {
@@ -913,6 +913,25 @@ final class TorBoxClientTests: XCTestCase {
         XCTAssertFalse(queued.usedCachedCopy)
         await tbExpect(DebridError.invalidResponse("manca torrent_id nella risposta")) {
             try await client.createTorrent(magnet: "magnet:?xt=urn:btih:" + TBHash.movie)
+        }
+    }
+
+    func testCreatetorrentCachedOnlyAddsTheFieldAndAnUncachedAnswerIsTyped() async throws {
+        let env = TBEnvironment()
+        env.stub.on("POST", "/torrents/createtorrent", replies: [
+            TBStubHTTP.failure("DOWNLOAD_NOT_CACHED", status: 409, detail: "Torrent is not cached"),
+            TBStubHTTP.raw(status: 409, body: #"{"success":false,"detail":"Conflict"}"#),
+            TBStubHTTP.failure("COOLDOWN_LIMIT", status: 400, detail: "cool-down")
+        ])
+        let client = env.makeClient()
+        let magnet = "magnet:?xt=urn:btih:" + TBHash.movie
+        await tbExpect(DebridError.notCached) { try await client.createTorrent(magnet: magnet, onlyIfCached: true) }
+        await tbExpect(DebridError.notCached) { try await client.createTorrent(magnet: magnet, onlyIfCached: true) }
+        await tbExpect(DebridError.limitReached(.cooldown)) { try await client.createTorrent(magnet: magnet, onlyIfCached: true) }
+        let forms = env.stub.requests.map { tbBodyString($0) }
+        XCTAssertEqual(forms.count, 3)
+        for form in forms {
+            XCTAssertTrue(form.hasSuffix("&add_only_if_cached=true&allow_zip=false"), form)
         }
     }
 
@@ -1302,6 +1321,45 @@ final class DebridResolverTests: XCTestCase {
     }
 
     // cachedOnly
+
+    func testTheFirstAddIsAlwaysCachedOnlySoCachedContentWorksDuringACooldown() async throws {
+        let env = TBEnvironment()
+        stubCachedMovie(env)
+        let resolver = env.makeResolver()
+        _ = try await resolver.resolve(DebridRequest(infoHash: TBHash.movie, trackers: [], stremioID: "tt0000001"), onProgress: nil)
+        let creates = env.stub.requests(pathSuffix: "/torrents/createtorrent")
+        XCTAssertEqual(creates.count, 1)
+        let form = tbBodyString(try XCTUnwrap(creates.first))
+        XCTAssertTrue(form.contains("&add_only_if_cached=true"), form)
+    }
+
+    func testAnUncachedTorrentStartsARealDownloadOnlyWhenTheUserConfirmedIt() async throws {
+        let env = TBEnvironment()
+        env.stub.on("GET", "/torrents/mylist", query: "offset=", replies: [TBStubHTTP.envelope(data: "[]")])
+        env.stub.on("POST", "/torrents/createtorrent", replies: [
+            TBStubHTTP.failure("DOWNLOAD_NOT_CACHED", status: 409, detail: "not cached"),
+            TBStubHTTP.envelope(data: "{\"torrent_id\":5,\"hash\":\"\(TBHash.movie)\"}")
+        ])
+        env.stub.on("GET", "/torrents/mylist", query: "id=5", replies: [
+            TBStubHTTP.envelope(data: TBJSON.torrent(id: 5, hash: TBHash.movie, state: "completed", progress: 1, finished: true, present: true, files: movieFiles))
+        ])
+        env.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(data: "\"\(cdn)\"")])
+        let resolution = try await env.makeResolver().resolve(DebridRequest(infoHash: TBHash.movie, mode: .startIfNeeded))
+        XCTAssertEqual(resolution.torrentID, 5)
+        let forms = env.stub.requests(pathSuffix: "/torrents/createtorrent").map { tbBodyString($0) }
+        XCTAssertEqual(forms.count, 2, "cached-only first, then the confirmed download")
+        XCTAssertTrue(forms[0].contains("add_only_if_cached=true"), forms[0])
+        XCTAssertFalse(forms[1].contains("add_only_if_cached"), forms[1])
+
+        // Without the user's confirmation (cached-only mode) nothing but the cached-only add is ever sent.
+        let env2 = TBEnvironment()
+        env2.stub.on("GET", "/torrents/mylist", query: "offset=", replies: [TBStubHTTP.envelope(data: "[]")])
+        env2.stub.on("POST", "/torrents/checkcached", replies: [TBStubHTTP.envelope(data: "[" + TBJSON.cachedItem(hash: TBHash.movie, files: [("Movie.2020/Movie.2020.1080p.mkv", 8_000_000)]) + "]")])
+        env2.stub.on("POST", "/torrents/createtorrent", replies: [TBStubHTTP.failure("DOWNLOAD_NOT_CACHED", status: 409, detail: "not cached")])
+        let resolver2 = env2.makeResolver()
+        await tbExpect(DebridError.notCached) { try await resolver2.resolve(DebridRequest(infoHash: TBHash.movie)) }
+        XCTAssertEqual(env2.stub.requests(pathSuffix: "/torrents/createtorrent").count, 1)
+    }
 
     func testCachedOnlyThrowsNotCachedAndNeverAdds() async {
         let env = TBEnvironment()

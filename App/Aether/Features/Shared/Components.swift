@@ -28,6 +28,60 @@ struct SectionHeader: View {
     }
 }
 
+// MARK: - Symmetric card grid
+
+private struct CardGridWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+/// A grid whose cards fill every row symmetrically: at least `minColumns` columns, the same margin on both sides, and cards
+/// sized to the column (an adaptive grid with a fixed card width left the spare room of each column on one side).
+struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
+    let items: [Item]
+    var minColumns: Int = 3
+    var preferredWidth: CGFloat = 130
+    var spacing: CGFloat = 12
+    var rowSpacing: CGFloat = 18
+    var margin: CGFloat = Theme.pageMargin
+    @ViewBuilder var content: (Item, CGFloat) -> Content
+
+    @State private var containerWidth: CGFloat = 390
+
+    /// Columns and card width for a container of `containerWidth` points. Pure, so it is unit-tested.
+    static func layout(containerWidth: CGFloat, margin: CGFloat, spacing: CGFloat, minColumns: Int,
+                       preferredWidth: CGFloat) -> (columns: Int, cardWidth: CGFloat) {
+        let available = max(0, containerWidth - 2 * margin)
+        let fitting = Int(((available + spacing) / (preferredWidth + spacing)).rounded(.down))
+        let columns = max(max(1, minColumns), fitting)
+        let width = floor((available - spacing * CGFloat(columns - 1)) / CGFloat(columns))
+        return (columns, max(40, width))
+    }
+
+    var body: some View {
+        let metrics = AdaptiveCardGrid.layout(containerWidth: containerWidth, margin: margin, spacing: spacing,
+                                              minColumns: minColumns, preferredWidth: preferredWidth)
+        let columns: [GridItem] = Array(repeating: GridItem(.fixed(metrics.cardWidth), spacing: spacing, alignment: .top),
+                                        count: metrics.columns)
+        return VStack(spacing: 0) {
+            Color.clear
+                .frame(height: 0)
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: CardGridWidthKey.self, value: proxy.size.width)
+                })
+            LazyVGrid(columns: columns, alignment: .center, spacing: rowSpacing) {
+                ForEach(items) { item in
+                    content(item, metrics.cardWidth)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .onPreferenceChange(CardGridWidthKey.self) { width in
+            if width > 0, abs(width - containerWidth) > 0.5 { containerWidth = width }
+        }
+    }
+}
+
 // MARK: - Poster
 
 struct RatingBadge: View {

@@ -648,17 +648,13 @@ struct DiscoverView: View {
                 Label("Contenuti salvati: l'addon non risponde.", systemImage: "clock.arrow.circlepath")
                     .font(.footnote).foregroundStyle(Color.aetherSecondary).padding(.top, 6)
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: width, maximum: width + 40), spacing: spacing, alignment: .top)],
-                      spacing: spacing + 6) {
-                ForEach(state.items) { item in
-                    NavigationLink(value: MetaRoute(meta: item)) {
-                        PosterCard(meta: item, width: width, isInWatchlist: library.watchlistIDs.contains(item.id))
-                    }
-                    .buttonStyle(.plain)
-                    .task { await model.loadMoreIfNeeded(current: item) }
+            AdaptiveCardGrid(items: state.items, minColumns: 3, preferredWidth: width, spacing: spacing, rowSpacing: spacing + 6) { item, cardWidth in
+                NavigationLink(value: MetaRoute(meta: item)) {
+                    PosterCard(meta: item, width: cardWidth, isInWatchlist: library.watchlistIDs.contains(item.id))
                 }
+                .buttonStyle(.plain)
+                .task { await model.loadMoreIfNeeded(current: item) }
             }
-            .padding(.horizontal, Theme.pageMargin)
             .padding(.top, 8)
             if model.isLoading {
                 if model.items.isEmpty {

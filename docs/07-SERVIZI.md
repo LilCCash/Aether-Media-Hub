@@ -16,11 +16,12 @@ mostra percentuale, velocità e tempo stimato finché è pronto, o finché l'ute
 download per conto suo: risolve solo contenuti già in cache o già preparati dalla lista. Dall'episodio successivo in automatico Aether sceglie solo un torrent confermato in cache. Un contenuto TorBox non si può trasmettere con il casting
 (il link contiene un token che non viene consegnato ai ricevitori).
 
-**Cosa lascia nell'account.** Per un torrent già in cache TorBox riceve comunque una `createtorrent` perché l'elemento compaia nella lista dell'utente (è l'unico modo documentato per ottenere il link); un'attesa annullata lascia il torrent nell'account.
+**Cosa lascia nell'account.** Per ottenere il link di un torrent già in cache Aether invia una `createtorrent` con `add_only_if_cached=true` (come fa Nuvio): TorBox risponde con l'elemento solo se è davvero in cache (altrimenti HTTP 409) e **non avvia nessun nuovo download**,
+quindi funziona anche quando TorBox ha sospeso temporaneamente i *nuovi* download (periodo di attesa). Solo se l'utente ha confermato «Avvia il download su TorBox?» e il torrent non è in cache, Aether ripete l'aggiunta senza `add_only_if_cached`; un'attesa annullata lascia il torrent nell'account.
 Aether non cancella nulla.
 
 **Cos'è e cosa fa Aether.** TorBox è un servizio a pagamento che scarica torrent sui propri server e li serve in HTTPS. Aether, con la chiave dell'utente: (1) controlla se un torrent è già in cache (`checkcached`);
-(2) se lo è, ottiene il link di download del file giusto (`createtorrent` per far comparire l'elemento nella lista dell'utente se non c'è già, poi `mylist` e `requestdl`) e lo riproduce; (3) se non lo è, **solo dopo una conferma
+(2) se lo è, ottiene il link di download del file giusto (`createtorrent` con `add_only_if_cached=true` per far comparire l'elemento nella lista dell'utente se non c'è già, poi `mylist` e `requestdl`) e lo riproduce; (3) se non lo è, **solo dopo una conferma
 esplicita**, aggiunge il torrent e mostra l'avanzamento (percentuale, velocità, tempo stimato) finché è pronto. Aether non cancella, mette in pausa né «ripara» mai gli elementi dell'utente.
 
 **Terminologia.** Non esiste un endpoint «TorBox Instant». «Istantaneo» significa che il torrent è *in cache* (già scaricato da TorBox): il link è disponibile subito. Aether scrive «In cache» solo quando `checkcached` lo ha detto,
@@ -29,6 +30,8 @@ e non scrive nulla quando la verifica non è riuscita (un errore di rete non è 
 **Verificato (2026-10-20).** Specifica OpenAPI pubblica: percorsi `user/me`, `torrents/checkcached` (GET e POST), `createtorrent` (multipart), `mylist`, `requestdl` (`token`, `torrent_id`, `file_id`, `zip_link`, `user_ip`, `redirect`),
 `controltorrent`, `asynccreatetorrent`, `user/auth/device/*`. Errore con chiave non valida: HTTP 403 `{"success":false,"error":"AUTH_ERROR",...}`; senza intestazione `Authorization`: HTTP 401 `{"detail":"Not authenticated"}`.
 Intestazioni di limite: `x-ratelimit-limit: 300`, `x-ratelimit-remaining`, `x-ratelimit-reset`, `retry-after: 60`.
+
+**Riferimento (Nuvio).** Il flusso con `add_only_if_cached` è stato letto nel sorgente pubblico di Nuvio (GPL-3.0, usato solo come riferimento di lettura: nessun codice copiato). Nuvio invia `magnet`, `allow_zip=false` e `add_only_if_cached=true`; un HTTP 409 significa «non in cache». Ciò che Aether fa con la risposta è coperto da stub, **non da una prova con un account TorBox reale**.
 
 **Non verificato.** Le condizioni d'uso di TorBox (la pagina è renderizzata lato client e non si legge senza browser): l'uso di Aether è limitato a ciò che l'utente chiede, con la sua chiave, senza automatismi di massa.
 Il flusso «device code» (`user/auth/device/*`) esiste ma non è usato. I campi delle risposte con un account reale sono letti in modo tollerante e coperti da fixture, non da prove dal vivo. Piani e limiti dell'account dell'utente non sono interpretati.

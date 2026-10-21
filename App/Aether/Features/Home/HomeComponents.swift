@@ -131,6 +131,8 @@ struct ContinueWatchingRow: View {
 
 struct ContinueCard: View {
     let progress: PlaybackProgress
+    /// Card width; the picture is 16:9. Home rows use the default, the Library grid sizes it to its columns.
+    var width: CGFloat = 240
     @EnvironmentObject private var env: AppEnvironment
     @State private var picker: StreamPickerRequest?
 
@@ -140,8 +142,8 @@ struct ContinueCard: View {
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 ZStack(alignment: .bottomLeading) {
-                    RemoteImage(urlString: progress.background ?? progress.poster, width: 280, placeholderSeed: progress.title)
-                        .frame(width: 240, height: 135)
+                    RemoteImage(urlString: progress.background ?? progress.poster, width: max(280, width), placeholderSeed: progress.title)
+                        .frame(width: width, height: width * 9 / 16)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -152,9 +154,9 @@ struct ContinueCard: View {
                     }
                     .padding(10)
                 }
-                .frame(width: 240, height: 135)
-                Text(progress.title).font(.system(.footnote, design: .rounded).weight(.semibold)).lineLimit(1).frame(width: 240, alignment: .leading)
-                Text(subtitle).font(.aetherCaption()).foregroundStyle(Color.aetherSecondary).lineLimit(1).frame(width: 240, alignment: .leading)
+                .frame(width: width, height: width * 9 / 16)
+                Text(progress.title).font(.system(.footnote, design: .rounded).weight(.semibold)).lineLimit(1).frame(width: width, alignment: .leading)
+                Text(subtitle).font(.aetherCaption()).foregroundStyle(Color.aetherSecondary).lineLimit(1).frame(width: width, alignment: .leading)
             }
         }
         .buttonStyle(.plain)

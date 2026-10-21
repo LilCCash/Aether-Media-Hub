@@ -205,7 +205,7 @@ public actor DebridResolver: DebridProvider {
             // 3. Add it, only when it is not there yet.
             if existing == nil {
                 onProgress?(DebridProgress(phase: .adding))
-                trackedID = try await addTorrent(magnet: magnet, hash: hash)
+                trackedID = try await addTorrent(magnet: magnet, hash: hash, allowDownload: request.mode != .cachedOnly)
                 if trackedID == nil {
                     onProgress?(DebridProgress(phase: .queued, state: "queued"))
                 }
@@ -280,9 +280,20 @@ public actor DebridResolver: DebridProvider {
     }
 
     /// Adds the torrent. Returns the new `torrent_id`, or nil when TorBox queued it (or already holds it in its queue).
-    private func addTorrent(magnet: String, hash: String) async throws -> Int? {
+    ///
+    /// The first attempt is always "only if TorBox has it cached": it never starts a download, so it works for cached content
+    /// even while the account is in a cool-down or at its active-download limit. Only when TorBox says it is not cached AND the
+    /// caller allowed a download (the user confirmed it) is the plain add sent.
+    private func addTorrent(magnet: String, hash: String, allowDownload: Bool) async throws -> Int? {
         do {
-            let created = try await client.createTorrent(magnet: magnet)
+            let created: TorBoxCreateResult
+            do {
+                created = try await client.createTorrent(magnet: magnet, onlyIfCached: true)
+            } catch let refusal as DebridError where refusal == DebridError.notCached {
+                guard allowDownload else { throw refusal }
+                await note(.info, "non in cache: avvio il download confermato dall'utente")
+                created = try await client.createTorrent(magnet: magnet, onlyIfCached: false)
+            }
             availabilityCache.removeValue(forKey: hash)
             if let id = created.torrentID {
                 await note(.info, "torrent aggiunto\(created.usedCachedCopy ? " (copia in cache)" : "")")

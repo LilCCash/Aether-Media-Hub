@@ -108,7 +108,7 @@ struct PlayerView: View {
     private var presented: some View {
         stage
             .background(Color.black)
-            .statusBarHidden(!controlsVisible || isLocked)
+            .statusBarHidden(true)
             .persistentSystemOverlays(.hidden)
             .preferredColorScheme(.dark)
             .sheet(item: $sheet) { sheet in sheetContent(sheet) }
@@ -161,9 +161,13 @@ struct PlayerView: View {
 
                 gestureLayer(size: proxy.size)
 
-                if controlsVisible && !isLocked && model.failure == nil && !isCasting {
+                if !isLocked && model.failure == nil && !isCasting {
+                    // Always laid out, only faded: inserting and removing the controls re-created every button (and its glass),
+                    // which flickered, and a tap that landed during the fade went to the layer below.
                     controlsOverlay
-                        .transition(.opacity)
+                        .opacity(controlsVisible ? 1 : 0)
+                        .allowsHitTesting(controlsVisible)
+                        .accessibilityHidden(!controlsVisible)
                 }
                 if isLocked { lockOverlay }
                 if showsCenterSpinner {
@@ -172,6 +176,8 @@ struct PlayerView: View {
                 overlays(size: proxy.size)
             }
             .animation(animationsAllowed ? .easeInOut(duration: 0.2) : nil, value: controlsVisible)
+            // The "interactive" glass shimmer restarts every time the playhead moves (four times a second) and swallowed taps.
+            .environment(\.aetherGlassInteractive, false)
         }
     }
 
@@ -213,7 +219,7 @@ struct PlayerView: View {
     // MARK: Controls visibility
 
     private func showControls() {
-        withAnimation { controlsVisible = true }
+        if !controlsVisible { controlsVisible = true }
         scheduleHide()
     }
 
@@ -224,7 +230,7 @@ struct PlayerView: View {
         hideTask = Task {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled else { return }
-            withAnimation { controlsVisible = false }
+            controlsVisible = false
         }
     }
 
@@ -237,7 +243,7 @@ struct PlayerView: View {
             }
             return
         }
-        if controlsVisible { withAnimation { controlsVisible = false } } else { showControls() }
+        if controlsVisible { controlsVisible = false } else { showControls() }
     }
 
     // MARK: Subtitles
@@ -271,8 +277,13 @@ struct PlayerView: View {
             )
             .simultaneousGesture(dragGesture(size: size))
             .simultaneousGesture(
+                // True only after the finger has stayed down for 0.45 s and until it lifts. (A plain LongPressGesture state is
+                // true from the first touch, which sped playback up and flashed the HUD on every tap.)
                 LongPressGesture(minimumDuration: 0.45, maximumDistance: 30)
-                    .updating($holdPressing) { value, state, _ in state = value }
+                    .sequenced(before: DragGesture(minimumDistance: 0))
+                    .updating($holdPressing) { value, state, _ in
+                        if case .second(true, _) = value { state = true }
+                    }
             )
             .onChange(of: holdPressing) { _, pressing in
                 if pressing { beginHoldSpeed() } else { endHoldSpeed() }
@@ -282,7 +293,8 @@ struct PlayerView: View {
 
     /// Press and hold plays at the configured speed; releasing restores the speed the user had.
     private func beginHoldSpeed() {
-        guard playbackSettings.holdToSpeed, !isLocked, !isCasting, !model.snapshot.isLive, rateBeforeHold == nil else { return }
+        guard playbackSettings.holdToSpeed, !isLocked, !isCasting, !model.snapshot.isLive, model.snapshot.isPlaying,
+              rateBeforeHold == nil else { return }
         rateBeforeHold = model.playbackRate
         model.setRate(Float(playbackSettings.holdSpeed))
         hud = HUD(icon: "forward.fill", text: String(format: "%.3g×", playbackSettings.holdSpeed), fraction: nil)
@@ -311,7 +323,7 @@ struct PlayerView: View {
     private func dragGesture(size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 16)
             .onChanged { value in
-                guard playbackSettings.gesturesEnabled, !isLocked, !isCasting else { return }
+                guard playbackSettings.gesturesEnabled, !isLocked, !isCasting, rateBeforeHold == nil else { return }
                 if dragMode == nil {
                     let vertical = abs(value.translation.height) > abs(value.translation.width)
                     if vertical {
@@ -541,7 +553,7 @@ struct PlayerView: View {
                 .accessibilityHidden(true)
             }
             HStack(spacing: 10) {
-                bottomButton("lock.fill", "Blocca i controlli") { isLocked = true; withAnimation { controlsVisible = false } }
+                bottomButton("lock.fill", "Blocca i controlli") { isLocked = true; controlsVisible = false }
                 if model.playbackRate != 1 {
                     Text(rateLabel(model.playbackRate))
                         .font(.caption.weight(.bold))

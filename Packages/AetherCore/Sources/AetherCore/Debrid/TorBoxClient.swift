@@ -152,11 +152,23 @@ public struct TorBoxClient: Sendable {
     }
 
     /// `POST torrents/createtorrent` (form: `magnet`, `allow_zip=false`). Not retried automatically.
-    public func createTorrent(magnet: String) async throws -> TorBoxCreateResult {
-        let form = "magnet=" + URIComponent.encode(magnet) + "&allow_zip=false"
-        let envelope = try await call(TorBoxCreateResult.self, method: "POST", path: "/torrents/createtorrent",
+    ///
+    /// With `onlyIfCached` the form also carries `add_only_if_cached=true`: TorBox then adds the torrent only when it already
+    /// has it, never starts a download, and refuses with HTTP 409 otherwise (`DebridError.notCached`). This is how the
+    /// Nuvio app talks to TorBox (its source was read as a reference; nothing was copied), and it is what lets cached
+    /// content play while the account is in a cool-down for new downloads.
+    public func createTorrent(magnet: String, onlyIfCached: Bool = false) async throws -> TorBoxCreateResult {
+        var form = "magnet=" + URIComponent.encode(magnet)
+        if onlyIfCached { form += "&add_only_if_cached=true" }
+        form += "&allow_zip=false"
+        let envelope: TorBoxEnvelope<TorBoxCreateResult>
+        do {
+            envelope = try await call(TorBoxCreateResult.self, method: "POST", path: "/torrents/createtorrent",
                                       body: Data(form.utf8), contentType: "application/x-www-form-urlencoded",
                                       auth: .bearer, idempotent: false)
+        } catch DebridError.api(let code, _) where onlyIfCached && TorBoxClient.meansNotCached(code) {
+            throw DebridError.notCached
+        }
         guard var result = envelope.data, result.torrentID != nil || result.queuedID != nil else {
             throw DebridError.invalidResponse("manca torrent_id nella risposta")
         }
@@ -366,6 +378,12 @@ public struct TorBoxClient: Sendable {
         default:
             return DebridError.api(code: TorBoxClient.safeCode(code), detail: sanitize(detail, key: key))
         }
+    }
+
+    /// The refusal of a cached-only add: HTTP 409 (reported as `HTTP_409` when it has no code) or a code that names the cache.
+    static func meansNotCached(_ code: String) -> Bool {
+        let upper = code.uppercased()
+        return upper == "HTTP_409" || upper.contains("CACHE")
     }
 
     static func safeCode(_ code: String) -> String {

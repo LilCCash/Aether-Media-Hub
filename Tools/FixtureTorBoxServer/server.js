@@ -22,7 +22,7 @@
 //                                          small .nfo) and 2222…2222 (series: S01E01 and S01E02 as separate files). Every other
 //                                          hash is simply absent from the answer, as in the real service. File entries carry
 //                                          name and size only (no id: the ids come from mylist).
-//   POST /v1/api/torrents/createtorrent    Bearer. Form (urlencoded or multipart): magnet, allow_zip. A cached hash is added
+//   POST /v1/api/torrents/createtorrent    Bearer. Form (urlencoded or multipart): magnet, allow_zip, add_only_if_cached (cached hash: added; other: HTTP 409 DOWNLOAD_NOT_CACHED, assumed). A cached hash is added
 //                                          at once ("Found Cached Torrent. Using Cached Torrent."). 3333…3333 is not cached
 //                                          and downloads for --download-seconds (default 6). Any other hash is accepted and
 //                                          stays "stalled (no seeds)" forever (it exercises the app's give-up path). Adding a
@@ -397,6 +397,11 @@ async function handleCreateTorrent(req, res) {
     return sendApi(res, 400, failure('DIFF_ISSUE', 'This torrent is already in your account or queued.'));
   }
   const definition = definitionFor(hash);
+  // add_only_if_cached=true (what the Nuvio app sends): add the torrent only when it is cached, never start a download,
+  // otherwise refuse with HTTP 409. Assumed shape of the refusal; the real error code is not documented.
+  if (String(form.add_only_if_cached).toLowerCase() === 'true' && definition.kind !== 'ready') {
+    return sendApi(res, 409, failure('DOWNLOAD_NOT_CACHED', 'The torrent is not cached.'));
+  }
   const torrent = {
     id: state.nextId++, hash, kind: definition.kind, name: definition.name, files: definition.files, createdAt: Date.now(),
   };
