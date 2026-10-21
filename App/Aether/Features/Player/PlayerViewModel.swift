@@ -40,6 +40,8 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var snapshot = EngineSnapshot()
     @Published private(set) var failure: PlaybackFailure?
     @Published private(set) var statusMessage: String?
+    /// True from the start of a load until the engine has been given the file (TorBox may take seconds to answer first).
+    @Published private(set) var isOpeningSource = true
     @Published private(set) var sourceName: String
     @Published private(set) var currentVideo: Video?
     @Published private(set) var meta: MetaItem
@@ -73,6 +75,8 @@ final class PlayerViewModel: ObservableObject {
     private var request: PlayerRequest
     private let device: DeviceVideoCapabilities
     private var engineSwitches = 0
+    /// The engine was changed on purpose (a fallback) for the file now playing: a restart must keep it.
+    private var engineChosenByFallback = false
     private let nowPlaying = NowPlayingService()
     private let audioSession = AudioSessionController()
 
@@ -249,6 +253,7 @@ final class PlayerViewModel: ObservableObject {
     private func beginPlayback(startOverride: Double?) async {
         loadGeneration += 1
         let generation = loadGeneration
+        isOpeningSource = true
         failure = nil
         statusMessage = nil
         retriedAfterNetworkLoss = false
@@ -304,6 +309,7 @@ final class PlayerViewModel: ObservableObject {
         lastRetryPosition = start ?? 0
         engine.setRate(playbackRate)
         engine.load(url: url, headers: headers, startAt: start, autoplay: true)
+        isOpeningSource = false
         if start != nil && (start ?? 0) > 1 { statusMessage = "Riprendo da \(Format.duration(start ?? 0))" }
         scheduleStatusClear()
     }
@@ -381,6 +387,9 @@ final class PlayerViewModel: ObservableObject {
     /// The file TorBox returned decides the container, and so the engine (a Matroska file needs MPV). False when no engine can
     /// play it; the failure panel then says why.
     private func adoptEngine(forResolved direct: AddonStream) -> Bool {
+        // A restart after an engine fallback keeps the engine the fallback chose: planning again from the file name alone
+        // would put the engine that just failed back (and the same failure would repeat).
+        if engineChosenByFallback { return true }
         let container = StreamAnalyzer.analyze(direct, streamingServer: nil).container
         let plan = PlaybackPlanner.plan(container: container, facts: nil, device: device,
                                         mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: playback.engine,
@@ -503,6 +512,7 @@ final class PlayerViewModel: ObservableObject {
     }
 
     private func handleFailure(_ new: PlaybackFailure) {
+        isOpeningSource = false
         if tryEngineFallback(after: new) { return }
         // The engine's wording may quote the file's address, and a link resolved through TorBox carries a token: it is redacted
         // before it is shown or logged. A link the CDN refused (expired) is dropped, so that "Riprova" asks TorBox for a new one.
@@ -561,6 +571,7 @@ final class PlayerViewModel: ObservableObject {
     private func switchEngine(to kind: PlaybackEngineKind, reason: String) {
         guard !tornDown, kind != engine.kind else { return }
         engineSwitches += 1
+        engineChosenByFallback = true
         let position = max(snapshot.position, lastRetryPosition)
         engine.teardown()
         engine = PlaybackEngineFactory.make(kind, settings: playback, device: device)
@@ -575,6 +586,8 @@ final class PlayerViewModel: ObservableObject {
     // MARK: Transport commands
 
     func togglePlayPause() {
+        // Before the engine has the file there is nothing to play or pause: a tap would only set a false state.
+        guard !isOpeningSource else { return }
         if snapshot.isPlaying { engine.pause() } else { engine.play() }
     }
 
@@ -636,6 +649,7 @@ final class PlayerViewModel: ObservableObject {
         currentStream = item.stream
         sourceName = item.stream.name ?? item.stream.addonName ?? "Sorgente"
         request.source = .stream(item.stream)
+        engineChosenByFallback = false
         alternatives = alternatives.filter { $0.id != item.id }
         let position = max(snapshot.position, lastRetryPosition)
         failure = nil
@@ -694,6 +708,7 @@ final class PlayerViewModel: ObservableObject {
         sourceName = best.stream.name ?? best.stream.addonName ?? "Sorgente"
         request.video = video
         request.source = .stream(best.stream)
+        engineChosenByFallback = false
         alternatives = ranked.filter { $0.info.support.isPlayable && $0.id != best.id }
         resetSubtitleStateForNewVideo()
         lastRecordedPosition = -100

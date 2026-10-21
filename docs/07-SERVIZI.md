@@ -14,7 +14,7 @@ piano che non consente la funzione, limite di richieste, servizio irraggiungibil
 «In cache» / «Non in cache» (niente se la verifica non è riuscita); un tocco su «In cache» risolve il link (con avanzamento annullabile) e avvia la riproduzione; un tocco su «Non in cache» chiede «Avvia il download su TorBox?» e poi
 mostra percentuale, velocità e tempo stimato finché è pronto, o finché l'utente annulla. Senza chiave la riga resta «non riproducibile» con il suggerimento di configurare TorBox in *Impostazioni ▸ Servizi*. Il player non avvia mai un
 download per conto suo: risolve solo contenuti già in cache o già preparati dalla lista. Dall'episodio successivo in automatico Aether sceglie solo un torrent confermato in cache. Un contenuto TorBox non si può trasmettere con il casting
-(il link contiene un token che non viene consegnato ai ricevitori).
+(il link contiene un token che non viene consegnato a Google Cast né ai ricevitori DLNA; con AirPlay, invece, il ricevitore scelto riceve il link: usarlo solo su un dispositivo proprio).
 
 **Cosa lascia nell'account.** Per ottenere il link di un torrent già in cache Aether invia una `createtorrent` con `add_only_if_cached=true` (come fa Nuvio): TorBox risponde con l'elemento solo se è davvero in cache (altrimenti HTTP 409) e **non avvia nessun nuovo download**,
 quindi funziona anche quando TorBox ha sospeso temporaneamente i *nuovi* download (periodo di attesa). Solo se l'utente ha confermato «Avvia il download su TorBox?» e il torrent non è in cache, Aether ripete l'aggiunta senza `add_only_if_cached`; un'attesa annullata lascia il torrent nell'account.
@@ -45,7 +45,7 @@ contiene un token e non compare nei log né nei messaggi d'errore; `createtorren
 
 **Il link restituito può contenere la chiave (Beta 2).** `requestdl` è chiamato come fa Nuvio (`zip_link=false`, `redirect=false`, `append_name=false`, nessun `user_ip`). Con un account reale il link che TorBox restituisce conteneva la chiave dell'account
 e Nuvio lo riproduce così com'è: in Beta 1 Aether lo rifiutava («il link restituito contiene credenziali») e il video non partiva. Ora è accettato, ma trattato come un segreto: resta in memoria per la sola sessione di riproduzione, non viene
-scritto nei log né in nessun messaggio d'errore, non viene salvato, e non viene mai consegnato a un ricevitore di casting (i contenuti TorBox non si trasmettono). Un link con la chiave su **http** (non cifrato) è rifiutato.
+scritto nei log né in nessun messaggio d'errore, non viene salvato, e non viene consegnato a Google Cast né ai ricevitori DLNA (i contenuti TorBox non si trasmettono con questi). **Con AirPlay il ricevitore che scegli riceve il link, chiave compresa** (il sistema lo passa al televisore o all'Apple TV). Un link con la chiave su **http** (non cifrato) è rifiutato.
 **Limite noto:** i file che passano da MPV (MKV e altri contenitori non nativi) viaggiano senza verifica del certificato TLS (vedi `08-ALPHA-2-NOTE.md`): su una rete ostile un attaccante «man in the middle» potrebbe leggere la chiave dal link. Non provato su un dispositivo.
 
 ## TMDB

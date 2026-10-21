@@ -16,6 +16,8 @@ struct PlayerView: View {
     @State private var isLocked = false
     @State private var showUnlockHint = false
     @State private var hideTask: Task<Void, Never>?
+    @State private var tapRecognizer = SurfaceTapRecognizer()
+    @State private var pendingHideTask: Task<Void, Never>?
     @State private var isScrubbing = false
     @State private var sheet: PlayerSheet?
     @State private var importingSubtitle = false
@@ -172,6 +174,8 @@ struct PlayerView: View {
                 if isLocked { lockOverlay }
                 if showsCenterSpinner {
                     ProgressView().controlSize(.large).tint(.white)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
                 overlays(size: proxy.size)
             }
@@ -204,6 +208,7 @@ struct PlayerView: View {
 
     private func disappear() {
         hideTask?.cancel()
+        pendingHideTask?.cancel()
         hudTask?.cancel()
         casting.onRemoteSessionEnded = nil
         if casting.session != nil { casting.stop() }
@@ -219,6 +224,8 @@ struct PlayerView: View {
     // MARK: Controls visibility
 
     private func showControls() {
+        pendingHideTask?.cancel()
+        pendingHideTask = nil
         if !controlsVisible { controlsVisible = true }
         scheduleHide()
     }
@@ -272,8 +279,7 @@ struct PlayerView: View {
             .contentShape(Rectangle())
             .ignoresSafeArea()
             .gesture(
-                SpatialTapGesture(count: 2).onEnded { value in doubleTap(at: value.location, width: size.width) }
-                    .exclusively(before: SpatialTapGesture(count: 1).onEnded { _ in toggleControls() })
+                SpatialTapGesture(count: 1).onEnded { value in surfaceTapped(at: value.location, width: size.width) }
             )
             .simultaneousGesture(dragGesture(size: size))
             .simultaneousGesture(
@@ -305,6 +311,30 @@ struct PlayerView: View {
         rateBeforeHold = nil
         model.setRate(previous)
         hud = nil
+    }
+
+    /// A tap on the video (the rules are in `SurfaceTapRecognizer`).
+    private func surfaceTapped(at location: CGPoint, width: CGFloat) {
+        let outcome = tapRecognizer.register(at: Date(), canDoubleTap: playbackSettings.gesturesEnabled && !isLocked,
+                                             isLocked: isLocked, controlsVisible: controlsVisible)
+        pendingHideTask?.cancel()
+        pendingHideTask = nil
+        switch outcome {
+        case .toggleNow:
+            toggleControls()
+        case .hideNow:
+            controlsVisible = false
+        case .hideAfterWindow:
+            pendingHideTask = Task {
+                try? await Task.sleep(nanoseconds: UInt64(SurfaceTapRecognizer.doubleTapWindow * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                controlsVisible = false
+            }
+        case .doubleTap(let restoreHidden):
+            // A double tap pauses or skips; it does not leave the controls toggled by its first tap.
+            if restoreHidden { controlsVisible = false }
+            doubleTap(at: location, width: width)
+        }
     }
 
     private func doubleTap(at location: CGPoint, width: CGFloat) {
@@ -497,7 +527,7 @@ struct PlayerView: View {
                                 label: model.snapshot.isPlaying ? "Pausa" : "Riproduci", action: {
                     model.togglePlayPause(); showControls()
                 }) {
-                    if model.snapshot.isBuffering && !model.snapshot.isPlaying {
+                    if model.isOpeningSource || (model.snapshot.isBuffering && !model.snapshot.isPlaying) {
                         ProgressView().controlSize(.large).tint(.white)
                     } else {
                         Image(systemName: model.snapshot.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 34))
@@ -765,7 +795,7 @@ struct PlayerView: View {
     private func prepareCast(to device: CastDevice) {
         guard let plan = model.castPlan() else {
             let reason = model.isPlayingThroughTorBox
-                ? "Il link di TorBox contiene un codice personale che Aether non consegna ai televisori. Usa AirPlay."
+                ? "Il link di TorBox contiene un codice personale che Aether non consegna a Google Cast né ai ricevitori DLNA. Con AirPlay il link passa al ricevitore che scegli: usalo solo su un dispositivo tuo."
                 : "I file scaricati si trovano solo su questo telefono: il televisore non può leggerli. Usa AirPlay, oppure trasmetti la sorgente online."
             castNotice = CastNotice(title: "Non trasmettibile", message: reason)
             return
