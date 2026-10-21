@@ -2228,7 +2228,7 @@ final class TorBoxFixtureContractTests: XCTestCase {
         XCTAssertFalse(resolution.wasAlreadyInAccount)
 
         let download = try XCTUnwrap(env.stub.requests(pathSuffix: "/torrents/requestdl").first)
-        XCTAssertEqual(download.url.query, "token=test-key&torrent_id=101&file_id=32")
+        XCTAssertEqual(download.url.query, "token=test-key&torrent_id=101&file_id=32&zip_link=false&redirect=false&append_name=false")
         for sent in env.stub.requests {
             XCTAssertEqual(sent.url.host, "127.0.0.1")
             XCTAssertEqual(sent.url.port, 7778)

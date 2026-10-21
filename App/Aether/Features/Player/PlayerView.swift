@@ -827,11 +827,21 @@ private struct TransportButton<Content: View>: View {
     }
 }
 
-extension TransportButton where Content == Image {
+/// The symbol of a transport button.
+private struct TransportGlyph: View {
+    let symbol: String
+    let size: CGFloat
+
+    var body: some View {
+        Image(systemName: symbol).font(.system(size: size))
+    }
+}
+
+extension TransportButton where Content == TransportGlyph {
     init(size: CGFloat, symbol: String, symbolSize: CGFloat, identifier: String = "", label: String,
          action: @escaping () -> Void) {
         self.init(size: size, glass: false, identifier: identifier, label: label, action: action) {
-            Image(systemName: symbol).font(.system(size: symbolSize))
+            TransportGlyph(symbol: symbol, size: symbolSize)
         }
     }
 }

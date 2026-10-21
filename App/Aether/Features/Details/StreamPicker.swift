@@ -848,22 +848,17 @@ struct DebridBadgeRow: View {
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background(Color.primary.opacity(0.09), in: Capsule())
             if let badge = appearance.badge {
-                // Icon and words spelled out (a `Label` may drop its words, and inside this layout it was measured far taller
-                // than the "Torrent" pill), and the pill takes exactly the size of its content.
-                HStack(spacing: 4) {
-                    Image(systemName: badge.systemImage)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(color(for: badge))
-                    Text(badge.label)
-                        .foregroundStyle(.primary)
-                }
-                .font(.caption2.weight(.semibold))
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 7).padding(.vertical, 3)
-                .background(color(for: badge).opacity(0.16), in: Capsule())
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(badge.accessibilityText)
+                // Built like the "Torrent" pill beside it: ONE Text (icon and words inside it) with padding and a capsule, so it
+                // is sized by its content the same way. A device showed the earlier `Label` version as a tall capsule holding
+                // only the check mark; the cause was not reproduced in a unit test, this removes the `Label` altogether.
+                (Text(Image(systemName: badge.systemImage)).foregroundStyle(color(for: badge))
+                    + Text(" " + badge.label).foregroundStyle(.primary))
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(color(for: badge).opacity(0.16), in: Capsule())
+                    .accessibilityLabel(badge.accessibilityText)
             }
         }
     }
