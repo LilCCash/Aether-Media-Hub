@@ -6,7 +6,7 @@ import Foundation
 //                  A failure leaves the hashes `.unknown`; it is never reported as "not cached".
 //   resolve:       mylist (is the torrent already in the account?) -> [cachedOnly: fresh checkcached] -> createtorrent only
 //                  when needed -> poll mylist?id= no faster than every 3 s until download_present && download_finished ->
-//                  TorBoxFileMatcher -> requestdl (no redirect, no user_ip).
+//                  TorBoxFileMatcher -> requestdl (JSON answer, no user_ip).
 //
 // Hard rules: the resolver never deletes, pauses, stops or "repairs" an item of the user's account (the client has no such
 // call), never adds a torrent twice (DIFF_ISSUE / DUPLICATE_ITEM make it read the list again), and stops polling as soon as
@@ -241,7 +241,7 @@ public actor DebridResolver: DebridProvider {
             throw DebridError.invalidResponse("file senza identificativo")
         }
 
-        // 6. The link (no redirect, no user_ip). Never stored here.
+        // 6. The link (JSON answer, no user_ip). It can carry the account key: kept in memory only, never logged here.
         try Task.checkCancellation()
         onProgress?(DebridProgress(phase: .requestingLink, fraction: 1))
         let url = try await client.requestDownloadLink(torrentID: torrent.id, fileID: fileID)

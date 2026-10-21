@@ -838,7 +838,7 @@ final class TorBoxClientTests: XCTestCase {
         XCTAssertNotNil(result[TBHash.movie])
     }
 
-    func testRequestdlUsesTheTokenQueryAndNeitherBearerRedirectNorUserIP() async throws {
+    func testRequestdlUsesTheTokenQueryAndTheSameFlagsAsNuvioButNeitherBearerNorUserIP() async throws {
         let env = TBEnvironment()
         env.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(detail: "Requested", data: "\"https://store-1.tb-cdn.example/dl/abc/Movie.mkv?t=zzz\"")])
         let url = try await env.makeClient().requestDownloadLink(torrentID: 77, fileID: 0)
@@ -847,21 +847,35 @@ final class TorBoxClientTests: XCTestCase {
         let request = try XCTUnwrap(env.stub.requests.first)
         XCTAssertNil(request.headers["Authorization"], "requestdl authenticates with the token parameter")
         let query = request.url.query ?? ""
-        XCTAssertEqual(query, "token=" + TBKeys.valid + "&torrent_id=77&file_id=0")
-        XCTAssertFalse(query.contains("redirect"))
+        XCTAssertEqual(query, "token=" + TBKeys.valid + "&torrent_id=77&file_id=0&zip_link=false&redirect=false&append_name=false",
+                       "the same request the Nuvio app sends: a JSON answer, no zip, no appended name")
         XCTAssertFalse(query.contains("user_ip"))
-        XCTAssertFalse(query.contains("zip_link"))
     }
 
-    func testRequestdlRejectsALinkThatContainsTheKeyOrIsNotHTTP() async {
+    func testRequestdlAcceptsAnHTTPSLinkThatCarriesTheKey() async throws {
+        // TorBox's own link can carry the account key as its token (a real account showed it; Nuvio plays the same link).
         let env = TBEnvironment()
-        let permalink = "\"https://cdn.example/dl?token=" + TBKeys.valid + "&x=1\""
+        let link = "https://store-1.tb-cdn.example/dl/abc?token=" + TBKeys.valid
+        env.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(data: "\"" + link + "\"")])
+        let url = try await env.makeClient().requestDownloadLink(torrentID: 1, fileID: 1)
+        XCTAssertEqual(url.absoluteString, link)
+    }
+
+    func testRequestdlRefusesAKeyCarryingLinkOverPlainHTTPAndAnyNonHTTPLink() async {
+        let env = TBEnvironment()
+        let permalink = "\"http://cdn.example/dl?token=" + TBKeys.valid + "&x=1\""
         env.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(data: permalink)])
         let leaked = await tbError { _ = try await env.makeClient().requestDownloadLink(torrentID: 1, fileID: 1) }
         guard let error = leaked as? DebridError, case .invalidResponse = error else {
             return XCTFail("expected invalidResponse, got \(String(describing: leaked))")
         }
         XCTAssertFalse(error.message.contains(TBKeys.valid))
+        XCTAssertFalse(error.message.contains("cdn.example"), "the refused link is not quoted")
+
+        let plain = TBEnvironment()
+        plain.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(data: "\"http://cdn.example/dl/Movie.mkv?t=1\"")])
+        let accepted = try? await plain.makeClient().requestDownloadLink(torrentID: 1, fileID: 1)
+        XCTAssertNotNil(accepted, "a link without the key is not refused for being http")
 
         let other = TBEnvironment()
         other.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(data: "\"javascript:alert(1)\"")])
@@ -2010,9 +2024,9 @@ final class DebridSecretHandlingTests: XCTestCase {
         errors.append(("html", await tbError { _ = try await htmlClient.requestDownloadLink(torrentID: 1, fileID: 0) }))
 
         let linkEnv = TBEnvironment()
-        linkEnv.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(data: "\"\(urlWithKey)\"")])
+        linkEnv.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(data: "\"\(urlWithKey.replacingOccurrences(of: "https://", with: "http://"))\"")])
         let linkClient = linkEnv.makeClient()
-        errors.append(("permalink", await tbError { _ = try await linkClient.requestDownloadLink(torrentID: 1, fileID: 0) }))
+        errors.append(("key over http", await tbError { _ = try await linkClient.requestDownloadLink(torrentID: 1, fileID: 0) }))
 
         let authEnv = TBEnvironment()
         authEnv.stub.on("GET", "/user/me", replies: [TBStubHTTP.failure("AUTH_ERROR", status: 403, detail: echo)])
@@ -2073,6 +2087,25 @@ final class DebridSecretHandlingTests: XCTestCase {
         for entry in entries {
             XCTAssertFalse(entry.message.contains(key))
         }
+    }
+
+    func testAKeyCarryingLinkResolvesAndNeverReachesTheDiagnosticLog() async throws {
+        let key = TBKeys.valid
+        let log = DiagnosticLog(capacity: 500, minimumLevel: .debug, enabled: true)
+        let env = TBEnvironment()
+        env.stub.on("GET", "/torrents/mylist", query: "offset=", replies: [TBStubHTTP.envelope(data: "[]")])
+        env.stub.on("POST", "/torrents/checkcached", replies: [TBStubHTTP.envelope(data: "[" + TBJSON.cachedItem(hash: TBHash.movie) + "]")])
+        env.stub.on("POST", "/torrents/createtorrent", replies: [TBStubHTTP.envelope(data: #"{"torrent_id":77}"#)])
+        env.stub.on("GET", "/torrents/mylist", query: "id=77", replies: [TBStubHTTP.envelope(data: TBJSON.torrent(id: 77, hash: TBHash.movie, files: [TBJSON.file(1, "Movie.mkv", size: 100)]))])
+        let link = "https://store-1.tb-cdn.example/torrents/abc?token=" + key
+        env.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(data: "\"" + link + "\"")])
+        let resolution = try await env.makeResolver(log: log).resolve(DebridRequest(infoHash: TBHash.movie))
+        XCTAssertEqual(resolution.url.absoluteString, link, "the player gets the link exactly as TorBox returned it")
+        XCTAssertFalse(resolution.description.contains(key), "the description of a resolution never shows the link")
+
+        let export = await log.exportText()
+        XCTAssertFalse(export.contains(key))
+        XCTAssertFalse(export.contains("tb-cdn.example/torrents"))
     }
 
     func testRedactorHidesTheRequestdlUrlAndTheBearerHeader() {

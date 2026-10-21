@@ -483,44 +483,38 @@ struct PlayerView: View {
 
     private var centerControls: some View {
         AetherGlassGroup(spacing: 24) {
-            HStack(spacing: 34) {
+            HStack(spacing: 14) {
                 if model.previousEpisode != nil {
-                    Button { Task { await model.playPrevious() } } label: {
-                        Image(systemName: "backward.end.fill").font(.system(size: 24))
+                    TransportButton(size: 48, symbol: "backward.end.fill", symbolSize: 24, label: "Episodio precedente") {
+                        Task { await model.playPrevious() }
                     }
-                    .accessibilityLabel("Episodio precedente")
                 }
-                Button { model.skipBack(); showControls() } label: {
-                    Image(systemName: skipSymbol(seconds: playbackSettings.skipBackSeconds, forward: false)).font(.system(size: 30))
+                TransportButton(size: 56, symbol: skipSymbol(seconds: playbackSettings.skipBackSeconds, forward: false), symbolSize: 30,
+                                label: "Indietro di \(playbackSettings.skipBackSeconds) secondi") {
+                    model.skipBack(); showControls()
                 }
-                .accessibilityLabel("Indietro di \(playbackSettings.skipBackSeconds) secondi")
-                Button { model.togglePlayPause(); showControls() } label: {
-                    ZStack {
-                        if model.snapshot.isBuffering && !model.snapshot.isPlaying {
-                            ProgressView().controlSize(.large).tint(.white)
-                        } else {
-                            Image(systemName: model.snapshot.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 34))
-                        }
+                TransportButton(size: 78, glass: true, identifier: "player.playPause",
+                                label: model.snapshot.isPlaying ? "Pausa" : "Riproduci", action: {
+                    model.togglePlayPause(); showControls()
+                }) {
+                    if model.snapshot.isBuffering && !model.snapshot.isPlaying {
+                        ProgressView().controlSize(.large).tint(.white)
+                    } else {
+                        Image(systemName: model.snapshot.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 34))
                     }
-                    .frame(width: 78, height: 78)
-                    .aetherGlass(in: Circle(), interactive: true)
                 }
-                .accessibilityLabel(model.snapshot.isPlaying ? "Pausa" : "Riproduci")
-                .accessibilityIdentifier("player.playPause")
-                Button { model.skipForward(); showControls() } label: {
-                    Image(systemName: skipSymbol(seconds: playbackSettings.skipForwardSeconds, forward: true)).font(.system(size: 30))
+                TransportButton(size: 56, symbol: skipSymbol(seconds: playbackSettings.skipForwardSeconds, forward: true), symbolSize: 30,
+                                label: "Avanti di \(playbackSettings.skipForwardSeconds) secondi") {
+                    model.skipForward(); showControls()
                 }
-                .accessibilityLabel("Avanti di \(playbackSettings.skipForwardSeconds) secondi")
                 if model.nextEpisode != nil {
-                    Button { Task { await model.playNext() } } label: {
-                        Image(systemName: "forward.end.fill").font(.system(size: 24))
+                    TransportButton(size: 48, symbol: "forward.end.fill", symbolSize: 24, identifier: "player.next",
+                                    label: "Episodio successivo") {
+                        Task { await model.playNext() }
                     }
-                    .accessibilityLabel("Episodio successivo")
-                    .accessibilityIdentifier("player.next")
                 }
             }
         }
-        .buttonStyle(.plain)
     }
 
     private var bottomBar: some View {
@@ -570,6 +564,7 @@ struct PlayerView: View {
                         Label("Episodi", systemImage: "list.bullet").font(.subheadline.weight(.semibold))
                             .padding(.horizontal, 14).frame(height: 36)
                             .aetherGlassCapsule(interactive: true)
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("player.episodes")
@@ -583,6 +578,7 @@ struct PlayerView: View {
             Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
                 .frame(width: 36, height: 36)
                 .aetherGlass(in: Circle(), interactive: true)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
@@ -598,6 +594,7 @@ struct PlayerView: View {
                             .font(.subheadline.weight(.semibold))
                             .padding(.horizontal, 16).frame(height: 44)
                             .aetherGlassCapsule(interactive: true)
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("player.unlock")
@@ -797,5 +794,54 @@ struct PlayerView: View {
                 castNotice = CastNotice(title: "Trasmissione non riuscita", message: error.localizedDescription)
             }
         }
+    }
+}
+
+// MARK: - Transport buttons
+
+/// A round transport button whose whole frame is the touch target. A plain button only reacts where something is drawn: a
+/// finger that lands beside the glyph (the glass disc around play / pause is not part of the label) fell through to the
+/// surface below, which hides the controls, so taps seemed to be lost and the controls blinked.
+private struct TransportButton<Content: View>: View {
+    let size: CGFloat
+    var glass = false
+    var identifier = ""
+    let label: String
+    let action: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        let button = Button(action: action) {
+            content()
+                .frame(width: size, height: size)
+                .contentShape(Circle())
+        }
+        .buttonStyle(TransportButtonStyle())
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+        if glass {
+            button.aetherGlass(in: Circle(), interactive: true)
+        } else {
+            button
+        }
+    }
+}
+
+extension TransportButton where Content == Image {
+    init(size: CGFloat, symbol: String, symbolSize: CGFloat, identifier: String = "", label: String,
+         action: @escaping () -> Void) {
+        self.init(size: size, glass: false, identifier: identifier, label: label, action: action) {
+            Image(systemName: symbol).font(.system(size: symbolSize))
+        }
+    }
+}
+
+/// Visible feedback the moment the finger touches the button, without changing its layout.
+private struct TransportButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.88 : 1)
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }

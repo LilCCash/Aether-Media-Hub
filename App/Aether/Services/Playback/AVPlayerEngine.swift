@@ -215,6 +215,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     func play() {
         autoplay = true
         player.playImmediately(atRate: desiredRate)
+        // The system reports the new state a moment later; until then the button must not still say "play" (a second tap
+        // would then start nothing), as the MPV engine already does.
+        if item != nil { snapshot.isPlaying = true }
     }
 
     func pause() {

@@ -11,7 +11,8 @@ import Foundation
 //  * The base URL must be the production one (https://api.torbox.app) or, for UI-test fixtures, a loopback / private
 //    network address. A response whose final URL has another host than the request is discarded: if the HTTP client
 //    followed a redirect to a foreign host, nothing from that answer is used.
-//  * No redirect and no `user_ip` on `requestdl`; `createtorrent` is never retried automatically.
+//  * `requestdl` asks for a JSON answer (`redirect=false`, as the Nuvio app does) and sends no `user_ip`; `createtorrent` is
+//    never retried automatically.
 //  * Automatic retries (max 3 attempts, exponential backoff with jitter, `Retry-After` honoured up to a short wait) only
 //    for read requests and only on HTTP 429 / RATE_LIMIT_EXCEEDED / 5xx / non-JSON bodies.
 //  * Nothing here can delete, pause or re-add a user's items: there is no such method.
@@ -197,10 +198,17 @@ public struct TorBoxClient: Sendable {
         return torrents
     }
 
-    /// `GET torrents/requestdl?token=…&torrent_id=…&file_id=…` without `redirect` and without `user_ip`. The key travels
+    /// `GET torrents/requestdl?token=…&torrent_id=…&file_id=…&zip_link=false&redirect=false&append_name=false`, the same
+    /// call the Nuvio app makes (its source was read as a reference; nothing was copied), without `user_ip`. The key travels
     /// in the query string, so this URL is never logged. Returns the CDN URL from `data`.
+    ///
+    /// The link TorBox returns can carry the account key itself (a real account showed it, and Nuvio plays that same link),
+    /// so a key inside the link is expected, not an error. Such a link is a secret all the same: callers keep it in memory
+    /// for the playback session only and never log, cast, save or quote it. Over plain http the key would travel in the
+    /// clear, so that combination is refused.
     public func requestDownloadLink(torrentID: Int, fileID: Int) async throws -> URL {
-        let query: [(String, String)] = [("torrent_id", String(torrentID)), ("file_id", String(fileID))]
+        let query: [(String, String)] = [("torrent_id", String(torrentID)), ("file_id", String(fileID)),
+                                         ("zip_link", "false"), ("redirect", "false"), ("append_name", "false")]
         let envelope = try await call(TorBoxLinkPayload.self, method: "GET", path: "/torrents/requestdl",
                                       query: query, auth: .queryToken, idempotent: true)
         let key = try currentKey()
@@ -209,9 +217,9 @@ public struct TorBoxClient: Sendable {
               scheme == "https" || scheme == "http", let host = url.host, !host.isEmpty else {
             throw DebridError.invalidResponse("manca il link di download")
         }
-        // A link that contains the account key (a permalink) must never be handed to a player or a Cast receiver.
-        if raw.contains(key) || url.absoluteString.contains(key) {
-            throw DebridError.invalidResponse("il link restituito contiene credenziali")
+        if scheme != "https" && (raw.contains(key) || url.absoluteString.contains(key)
+                                 || raw.contains(URIComponent.encode(key))) {
+            throw DebridError.invalidResponse("il link di download non è cifrato (http)")
         }
         return url
     }

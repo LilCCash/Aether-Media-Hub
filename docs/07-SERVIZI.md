@@ -43,6 +43,11 @@ estensione: allora il contenitore viene dal nome del file (un MKV va a MPV se di
 **Sicurezza.** La chiave viaggia in `Authorization: Bearer` (tranne `requestdl`, che la richiede in query: quell'URL non viene mai registrato); il client rifiuta host diversi da `api.torbox.app` (https); l'URL di download restituito
 contiene un token e non compare nei log né nei messaggi d'errore; `createtorrent` non viene mai ritentato automaticamente.
 
+**Il link restituito può contenere la chiave (Beta 2).** `requestdl` è chiamato come fa Nuvio (`zip_link=false`, `redirect=false`, `append_name=false`, nessun `user_ip`). Con un account reale il link che TorBox restituisce conteneva la chiave dell'account
+e Nuvio lo riproduce così com'è: in Beta 1 Aether lo rifiutava («il link restituito contiene credenziali») e il video non partiva. Ora è accettato, ma trattato come un segreto: resta in memoria per la sola sessione di riproduzione, non viene
+scritto nei log né in nessun messaggio d'errore, non viene salvato, e non viene mai consegnato a un ricevitore di casting (i contenuti TorBox non si trasmettono). Un link con la chiave su **http** (non cifrato) è rifiutato.
+**Limite noto:** i file che passano da MPV (MKV e altri contenitori non nativi) viaggiano senza verifica del certificato TLS (vedi `08-ALPHA-2-NOTE.md`): su una rete ostile un attaccante «man in the middle» potrebbe leggere la chiave dal link. Non provato su un dispositivo.
+
 ## TMDB
 
 Metadati arricchiti (locandine, sfondi, logo, trama, cast, registi, durata, anno, titoli e trame degli episodi) **solo dove l'addon non li fornisce**: un dato dell'addon non viene mai sovrascritto, e la valutazione di TMDB non viene mai messa nel campo «IMDb».
