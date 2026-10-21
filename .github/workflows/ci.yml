@@ -12,11 +12,11 @@ on:
   workflow_dispatch:
     inputs:
       ui_tests:
-        description: "UI tests to run, as an -only-testing target (for example AetherUITests/LayoutUITests)"
+        description: "UI tests to run, as -only-testing targets separated by commas (for example AetherUITests/LayoutUITests,AetherUITests/BrowseUITests)"
         default: AetherUITests
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ inputs.ui_tests }}
   cancel-in-progress: true
 
 jobs:
@@ -155,12 +155,16 @@ jobs:
           UI_TESTS: ${{ inputs.ui_tests }}
         run: |
           set -o pipefail
+          # UI_TESTS may list several targets separated by commas (AetherUITests/LayoutUITests,AetherUITests/BrowseUITests).
+          ONLY=()
+          IFS=',' read -ra TARGETS <<< "${UI_TESTS:-AetherUITests}"
+          for target in "${TARGETS[@]}"; do ONLY+=("-only-testing:$target"); done
           TEST_RUNNER_AETHER_FIXTURE_LAN_HOST="${{ steps.fixture.outputs.lan_ip }}" \
           xcodebuild test-without-building \
             -project Aether.xcodeproj -scheme Aether \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            -only-testing:"${UI_TESTS:-AetherUITests}" \
+            "${ONLY[@]}" \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" 2>&1 | tee "$RUNNER_TEMP/ui.log"
 
       - name: Upload result bundles

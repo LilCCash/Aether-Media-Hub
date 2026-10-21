@@ -114,7 +114,11 @@ extension AetherUITestCase {
         let confirm = element("addon.install.confirm")
         XCTAssertTrue(confirm.waitForExistence(timeout: 30), "the install preview did not appear")
         confirm.tap()
-        XCTAssertTrue(element(rowID).waitForExistence(timeout: 20), "the addon was not listed after install")
+        if !element(rowID).waitForExistence(timeout: 20) {
+            let texts = app.staticTexts.allElementsBoundByIndex.prefix(30).map { $0.label }.joined(separator: " | ")
+            let buttons = app.buttons.allElementsBoundByIndex.prefix(20).map { $0.label }.joined(separator: " | ")
+            XCTFail("the addon was not listed after install. texts: \(texts) buttons: \(buttons)")
+        }
     }
 
     /// Removes an installed addon through its detail page and the confirmation.
@@ -141,10 +145,8 @@ extension AetherUITestCase {
 
     /// Altro > Impostazioni > Aspetto > Categorie di Scopri.
     func openDiscoverSettingsViaSettings() {
-        openTab("Altro")
-        let settingsEntry = element("more.settings")
-        XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "the settings entry is missing")
-        settingsEntry.tap()
+        openMoreRoot()
+        element("more.settings").tap()
         let appearance = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Aspetto'")).firstMatch
         XCTAssertTrue(appearance.waitForExistence(timeout: 10), "Aspetto is missing from the settings")
         appearance.tap()

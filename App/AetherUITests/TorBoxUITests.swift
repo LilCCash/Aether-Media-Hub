@@ -73,10 +73,8 @@ final class TorBoxUITests: AetherUITestCase {
     }
 
     private func openServices() {
-        openTab("Altro")
-        let settings = element("more.settings")
-        XCTAssertTrue(settings.waitForExistence(timeout: 10), "Impostazioni missing")
-        settings.tap()
+        openMoreRoot()
+        element("more.settings").tap()
         let services = element("settings.Servizi")
         var swipes = 0
         while !services.waitForExistence(timeout: 5) && swipes < 6 {

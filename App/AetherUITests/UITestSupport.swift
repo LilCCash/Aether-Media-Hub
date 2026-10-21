@@ -104,6 +104,18 @@ class AetherUITestCase: XCTestCase {
         return app.buttons.matching(predicate).firstMatch
     }
 
+    /// The Altro tab at its root. After an addon was installed the tab's stack still shows the Addons list, so the entries of
+    /// the root (Impostazioni, Informazioni) are not there until the list is left.
+    func openMoreRoot() {
+        openTab("Altro")
+        for _ in 0..<4 {
+            if element("more.settings").waitForExistence(timeout: 3) { return }
+            let back = app.navigationBars.buttons.element(boundBy: 0)
+            if back.exists && back.isHittable { back.tap() } else { break }
+        }
+        XCTAssertTrue(element("more.settings").waitForExistence(timeout: 5), "the Altro tab's root (with Impostazioni) is not reachable")
+    }
+
     func openTab(_ name: String) {
         let tab = app.tabBars.buttons[name]
         XCTAssertTrue(tab.waitForExistence(timeout: 10), "tab \(name) missing")

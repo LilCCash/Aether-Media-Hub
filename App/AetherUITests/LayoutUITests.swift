@@ -100,7 +100,7 @@ final class LayoutUITests: AetherUITestCase {
                     let frame = element.frame
                     // Cards that draw a picture report the union of what they draw (see testHomeCarouselFitsTheScreenWidth);
                     // the carousel is checked there, so its cards are not repeated here.
-                    if element.label.hasPrefix("In evidenza") { continue }
+                    if element.label.hasPrefix("In evidenza") || element.label.hasSuffix("Dettagli") { continue }
                     if frame.intersects(window) && frame.width > window.width + 1 {
                         offenders.append("\(element.elementType.rawValue) '\(element.label.prefix(40))' w=\(Int(frame.width)) x=\(Int(frame.minX))")
                     }

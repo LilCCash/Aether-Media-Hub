@@ -8,10 +8,8 @@ final class MetadataUITests: AetherUITestCase {
     private var metadataArguments: [String] { ["-AETHER_UITEST_METADATA_BASE", Fixture.base] }
 
     private func openServices() {
-        openTab("Altro")
-        let settings = element("more.settings")
-        XCTAssertTrue(settings.waitForExistence(timeout: 10), "Impostazioni missing")
-        settings.tap()
+        openMoreRoot()
+        element("more.settings").tap()
         let services = element("settings.Servizi")
         XCTAssertTrue(services.waitForExistence(timeout: 10), "the Servizi page is not listed in the settings")
         services.tap()

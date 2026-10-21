@@ -40,9 +40,9 @@ final class PlayerMatrixUITests: AetherUITestCase {
         for id in PlayerMatrixUITests.infoIDs {
             let row = element(id)
             var attempts = 0
-            while !row.exists && attempts < 4 {
-                let table = app.tables.firstMatch
-                if table.exists { table.swipeUp() } else { app.swipeUp() }
+            // Cells of a lazy List are created a moment after a swipe: wait for them instead of testing at once.
+            while !row.waitForExistence(timeout: 2) && attempts < 4 {
+                app.swipeUp()
                 attempts += 1
             }
             if row.exists { infoRows[id] = row.label }
