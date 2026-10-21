@@ -6,6 +6,11 @@ import AetherCore
 struct AirPlayRoutePicker: UIViewRepresentable {
     var tint: UIColor = .label
     var activeTint: UIColor = .systemBlue
+    /// The system list of devices is about to open / was closed.
+    var onWillPresent: (() -> Void)?
+    var onDidEnd: (() -> Void)?
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> AVRoutePickerView {
         let view = AVRoutePickerView()
@@ -15,12 +20,25 @@ struct AirPlayRoutePicker: UIViewRepresentable {
         view.isAccessibilityElement = true
         view.accessibilityLabel = "AirPlay"
         view.accessibilityHint = "Apre l'elenco dei dispositivi AirPlay"
+        view.delegate = context.coordinator
+        context.coordinator.onWillPresent = onWillPresent
+        context.coordinator.onDidEnd = onDidEnd
         return view
     }
 
     func updateUIView(_ view: AVRoutePickerView, context: Context) {
         view.tintColor = tint
         view.activeTintColor = activeTint
+        context.coordinator.onWillPresent = onWillPresent
+        context.coordinator.onDidEnd = onDidEnd
+    }
+
+    final class Coordinator: NSObject, AVRoutePickerViewDelegate {
+        var onWillPresent: (() -> Void)?
+        var onDidEnd: (() -> Void)?
+
+        func routePickerViewWillBeginPresentingRoutes(_ routePickerView: AVRoutePickerView) { onWillPresent?() }
+        func routePickerViewDidEndPresentingRoutes(_ routePickerView: AVRoutePickerView) { onDidEnd?() }
     }
 }
 
@@ -188,7 +206,7 @@ struct CastView: View {
                 Section { Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
             }
             Section(header: Text("AirPlay"),
-                    footer: Text("AirPlay è gestito da iOS: scegli lo schermo o l'altoparlante e il video passa lì. I sottotitoli esterni di Aether non vengono mostrati sul televisore; quelli incorporati nel file sì.")) {
+                    footer: Text("AirPlay è gestito da iOS: scegli lo schermo o l'altoparlante. I video riprodotti con il motore MPV (MKV e altri formati) arrivano al televisore solo come audio; per l'immagine usa Google Cast o DLNA. I sottotitoli esterni di Aether non vengono mostrati sul televisore; quelli incorporati nel file sì.")) {
                 if settings.value.casting.airPlayEnabled {
                     HStack {
                         Label("Scegli un dispositivo AirPlay", systemImage: "airplayvideo")

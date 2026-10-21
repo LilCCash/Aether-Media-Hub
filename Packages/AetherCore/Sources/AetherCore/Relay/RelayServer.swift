@@ -485,6 +485,19 @@ private enum ConnectionClosed: Error {
     case closed
 }
 
+/// A scheduled work item that can be cancelled from a `@Sendable` completion handler.
+private final class CancellableTimer: @unchecked Sendable {
+    private let item: DispatchWorkItem
+
+    init(_ item: DispatchWorkItem) {
+        self.item = item
+    }
+
+    func cancel() {
+        item.cancel()
+    }
+}
+
 /// One accepted connection. The fields marked "queue" are only touched on the server's queue; the rest is guarded by `lock`.
 fileprivate final class RelayConnection: @unchecked Sendable {
     let connection: NWConnection
@@ -593,11 +606,12 @@ fileprivate final class RelayConnection: @unchecked Sendable {
         let timeout = server?.queue
         let limit = writeStall
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let stall = DispatchWorkItem { [weak self] in
+            let item = DispatchWorkItem { [weak self] in
                 guard let self = self else { return }
                 self.server?.stalled(self)
             }
-            timeout?.asyncAfter(deadline: .now() + limit, execute: stall)
+            let stall = CancellableTimer(item)
+            timeout?.asyncAfter(deadline: .now() + limit, execute: item)
             let context: NWConnection.ContentContext = final ? .finalMessage : .defaultMessage
             connection.send(content: data.isEmpty ? nil : data, contentContext: context, isComplete: final, completion: .contentProcessed { error in
                 stall.cancel()

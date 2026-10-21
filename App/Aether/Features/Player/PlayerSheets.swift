@@ -376,7 +376,11 @@ struct PlayerInfoSheet: View {
                     if model.snapshot.duration > 0 { row("Durata", Format.duration(model.snapshot.duration)) }
                     row("Velocità", String(format: "%.2g×", Double(model.playbackRate)))
                     row("Rete", network.isOnline ? network.interfaceName + (network.isExpensive ? " (a consumo)" : "") : "Offline")
-                    if let route = model.airPlayRoute { row("AirPlay", route) }
+                    if case .audioOnlyBecauseMPV(let route) = model.airPlayAdvice {
+                        row("AirPlay", "Solo audio (\(route))", id: "info.airplay")
+                    } else if let route = model.airPlayRoute {
+                        row("AirPlay", route, id: "info.airplay")
+                    }
                 }
                 detectedSection
                 expectationSection
@@ -476,6 +480,8 @@ struct PlayerInfoSheet: View {
 
 /// Casting from the player: AirPlay (system picker) plus Google Cast / DLNA devices.
 struct PlayerCastSheet: View {
+    /// Replaces the usual AirPlay footnote when the playing file cannot have its picture sent (MPV).
+    var airPlayNote: String?
     let onSelect: (CastDevice) -> Void
     @EnvironmentObject private var casting: CastCoordinator
     @EnvironmentObject private var settings: SettingsStore
@@ -487,7 +493,7 @@ struct PlayerCastSheet: View {
                 if casting.session != nil {
                     Section(header: Text("Sessione attiva")) { CastSessionControls() }
                 }
-                Section(header: Text("AirPlay"), footer: Text("Per AirPlay il video passa dal sistema: scegli il dispositivo dal pulsante.")) {
+                Section(header: Text("AirPlay"), footer: Text(airPlayNote ?? "Per AirPlay il video passa dal sistema: scegli il dispositivo dal pulsante.")) {
                     HStack {
                         Label("Dispositivi AirPlay", systemImage: "airplayvideo")
                         Spacer()

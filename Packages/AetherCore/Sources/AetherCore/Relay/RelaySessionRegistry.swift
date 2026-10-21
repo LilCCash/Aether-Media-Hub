@@ -23,7 +23,7 @@ public enum RelayAuthorization: Sendable {
 /// Only the SHA-256 of a token is kept, so nothing that can be dumped from here is an address that works. A session ends when its owner
 /// asks, when a newer session of the same owner replaces it, when nobody ever used it within the armed window, or at the lifetime cap.
 public final class RelaySessionRegistry: @unchecked Sendable, CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
-    public static func systemRandomBytes(_ count: Int) -> [UInt8] {
+    public static let systemRandomBytes: @Sendable (Int) -> [UInt8] = { count in
         var generator = SystemRandomNumberGenerator()
         return (0..<count).map { _ in UInt8.random(in: 0...255, using: &generator) }
     }

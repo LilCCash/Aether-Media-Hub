@@ -45,6 +45,16 @@ final class PlaybackEngineTests: XCTestCase {
         mpv.teardown()
     }
 
+    func testExternalPlaybackCanBeSwitchedOffForAVPlayer() {
+        let engine = AVPlayerEngine()
+        XCTAssertTrue(engine.externalPlaybackAllowed, "AirPlay is allowed unless the app says otherwise")
+        engine.setExternalPlaybackAllowed(false)
+        XCTAssertFalse(engine.externalPlaybackAllowed)
+        engine.setExternalPlaybackAllowed(true)
+        XCTAssertTrue(engine.externalPlaybackAllowed)
+        engine.teardown()
+    }
+
     func testDeviceCapabilitiesAreReadFromTheSystem() {
         let capabilities = DeviceCapabilitiesReader.current()
         XCTAssertGreaterThanOrEqual(capabilities.edrHeadroom, 1.0)

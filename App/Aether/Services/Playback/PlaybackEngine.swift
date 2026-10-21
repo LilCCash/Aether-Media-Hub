@@ -71,6 +71,9 @@ protocol PlaybackEngine: AnyObject {
     func stopPictureInPicture()
     func setAutoPictureInPicture(_ enabled: Bool)
 
+    /// Whether the system may hand the picture to an AirPlay receiver (AVPlayer only; the other engines cannot).
+    func setExternalPlaybackAllowed(_ allowed: Bool)
+
     /// Detach video output while the app is in the background so audio keeps playing.
     func setVideoDetached(_ detached: Bool)
     func teardown()
@@ -80,4 +83,5 @@ extension PlaybackEngine {
     var identifier: String { kind.rawValue }
     var displayName: String { kind.displayName }
     func setEmbeddedSubtitleDelay(_ seconds: Double) {}
+    func setExternalPlaybackAllowed(_ allowed: Bool) {}
 }

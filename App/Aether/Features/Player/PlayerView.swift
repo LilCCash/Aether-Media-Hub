@@ -127,6 +127,15 @@ struct PlayerView: View {
             } message: { notice in
                 Text(notice.message)
             }
+            .alert(model.airPlayAlert?.title ?? "", isPresented: airPlayAlertBinding, presenting: model.airPlayAlert) { _ in
+                Button("Trasmetti con Cast / DLNA") {
+                    model.acknowledgeAirPlayAlert()
+                    sheet = .cast
+                }
+                Button("Va bene così", role: .cancel) { model.acknowledgeAirPlayAlert() }
+            } message: { alert in
+                Text(alert.message)
+            }
             .confirmationDialog(pendingCast.map { "Trasmettere a «\($0.device.name)»?" } ?? "",
                                 isPresented: pendingCastBinding, titleVisibility: .visible, presenting: pendingCast) { pending in
                 Button("Invia comunque") { performCast(to: pending.device) }
@@ -140,6 +149,10 @@ struct PlayerView: View {
         Binding(get: { castNotice != nil }, set: { if !$0 { castNotice = nil } })
     }
 
+    private var airPlayAlertBinding: Binding<Bool> {
+        Binding(get: { model.airPlayAlert != nil }, set: { if !$0 && model.airPlayAlert != nil { model.acknowledgeAirPlayAlert() } })
+    }
+
     private var pendingCastBinding: Binding<Bool> {
         Binding(get: { pendingCast != nil }, set: { if !$0 { pendingCast = nil } })
     }
@@ -151,7 +164,11 @@ struct PlayerView: View {
         case .episodes: PlayerEpisodesSheet(model: model)
         case .info: PlayerInfoSheet(model: model)
         case .sources: PlayerSourcesSheet(model: model)
-        case .cast: PlayerCastSheet(onSelect: { prepareCast(to: $0) })
+        case .cast:
+            PlayerCastSheet(airPlayNote: model.engine.kind == .mpv
+                                ? "Con questo file (motore MPV) AirPlay invia solo l'audio. Per il video usa Google Cast o DLNA qui sotto."
+                                : nil,
+                            onSelect: { prepareCast(to: $0) })
         }
     }
 
@@ -458,7 +475,8 @@ struct PlayerView: View {
                             .aetherGlassCapsule()
                             .accessibilityLabel("Timer di spegnimento: \(Format.duration(remaining))")
                     }
-                    AirPlayRoutePicker(tint: .white, activeTint: UIColor(settings.accentColor))
+                    AirPlayRoutePicker(tint: .white, activeTint: UIColor(settings.accentColor),
+                                       onWillPresent: { model.airPlayPickerWillPresent() })
                         .frame(width: 44, height: 44)
                         .aetherGlass(in: Circle(), interactive: true)
                     GlassIconButton(systemName: "tv.and.mediabox", accessibilityLabel: "Trasmetti su Google Cast o DLNA") {
@@ -589,10 +607,7 @@ struct PlayerView: View {
                         .padding(.horizontal, 10).frame(height: 34)
                         .aetherGlassCapsule()
                 }
-                if let route = model.airPlayRoute {
-                    Label(route, systemImage: "airplayvideo").font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10).frame(height: 34).aetherGlassCapsule()
-                }
+                airPlayChip
                 Spacer()
                 if model.meta.videos.count > 1 && model.currentVideo != nil {
                     Button { sheet = .episodes } label: {
@@ -604,6 +619,26 @@ struct PlayerView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("player.episodes")
                 }
+            }
+        }
+    }
+
+    /// Where the AirPlay output is, said honestly: with MPV the sound goes to the device and the picture stays on the phone.
+    @ViewBuilder
+    private var airPlayChip: some View {
+        switch model.airPlayAdvice {
+        case .audioOnlyBecauseMPV(let route), .audioOnlyBecauseKeyProtected(let route):
+            Label("Solo audio · \(route)", systemImage: "speaker.wave.2.fill").font(.caption.weight(.semibold))
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 10).frame(height: 34).aetherGlassCapsule()
+                .accessibilityIdentifier("player.airplay.audioOnly")
+        case .videoViaRelay:
+            Label("AirPlay · tramite Aether", systemImage: "airplayvideo").font(.caption.weight(.semibold))
+                .padding(.horizontal, 10).frame(height: 34).aetherGlassCapsule()
+        case .none:
+            if let route = model.airPlayRoute {
+                Label(route, systemImage: "airplayvideo").font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10).frame(height: 34).aetherGlassCapsule()
             }
         }
     }

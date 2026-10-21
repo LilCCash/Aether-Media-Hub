@@ -68,6 +68,9 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var mediaInfo: MediaFormatInfo?
     @Published private(set) var playbackPlan: PlaybackPlan?
     @Published private(set) var airPlayRoute: String?
+    /// What the viewer should know about AirPlay right now (with MPV the sound goes to the device and the picture stays on the phone).
+    @Published private(set) var airPlayAdvice: AirPlayAdvice = .none
+    @Published var airPlayAlert: AirPlayAlert?
     @Published private(set) var didFinish = false
     @Published var isFill = false
     @Published var playbackRate: Float = 1
@@ -183,6 +186,7 @@ final class PlayerViewModel: ObservableObject {
             if shouldResume && self.wasPlayingBeforeInterruption { self.engine.play() }
         }
         audioSession.onRouteLost = { [weak self] in self?.engine.pause() }
+        audioSession.onRouteChanged = { [weak self] _ in self?.refreshAirPlayRoute() }
         audioSession.activate()
         UIApplication.shared.isIdleTimerDisabled = true
 
@@ -493,11 +497,8 @@ final class PlayerViewModel: ObservableObject {
             scheduleStatusClear(after: 4)
             env.diagnostics.logDetached(.warning, "player", "Picture in Picture non avviato: \(failure)")
         }
-        if new.isReady && !wasReady {
-            refreshTracks()
-            airPlayRoute = AudioSessionController.airPlayRouteName()
-        }
-        if new.isExternalPlaybackActive { airPlayRoute = AudioSessionController.airPlayRouteName() } else { airPlayRoute = nil }
+        if new.isReady && !wasReady { refreshTracks() }
+        if new.isReady != old.isReady || new.isExternalPlaybackActive != old.isExternalPlaybackActive { refreshAirPlayRoute() }
         nowPlaying.updateProgress(position: new.position, duration: new.duration, rate: new.isPlaying ? new.rate : 0, isLive: new.isLive)
         if new.isPlaying { lastRetryPosition = new.position }
         recordProgress(force: false)
@@ -896,6 +897,7 @@ final class PlayerViewModel: ObservableObject {
             }
         }
         publishSubtitleOptions()
+        refreshAirPlayRoute()
     }
 
     // MARK: Subtitles
@@ -1362,7 +1364,7 @@ final class PlayerViewModel: ObservableObject {
             autoPictureInPicture: playback.autoPictureInPicture,
             allowBackgroundAudio: playback.allowBackgroundAudio,
             pictureInPictureGraceExpired: graceExpired))
-        if phase == .active { airPlayRoute = AudioSessionController.airPlayRouteName() }
+        if phase == .active { refreshAirPlayRoute() }
         if decision.recordProgress { recordProgress(force: true) }
         switch decision.video {
         case .attach: engine.setVideoDetached(false)
@@ -1385,6 +1387,49 @@ final class PlayerViewModel: ObservableObject {
                 self.applyBackgroundPolicy(phase: .background, graceExpired: true)
             }
         }
+    }
+
+    // MARK: AirPlay
+
+    /// Where the sound goes, read from the audio session. Replaceable for tests.
+    var airPlayRouteProvider: () -> String? = { AudioSessionController.airPlayRouteName() }
+    /// The screen is being mirrored or recorded (then the picture reaches the TV whatever the engine).
+    var screenMirroredProvider: () -> Bool = {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.first?.screen.isCaptured ?? false
+    }
+    private var acknowledgedAirPlayRoutes: Set<String> = []
+
+    /// Reads the AirPlay route again and works out what the viewer should be told. With MPV the route is the audio session's: the
+    /// engine never reports external playback, so it must not be wiped when the engine says "not active".
+    func refreshAirPlayRoute() {
+        let route = airPlayRouteProvider()
+        if engine.kind == .avPlayer && !snapshot.isExternalPlaybackActive {
+            airPlayRoute = nil
+        } else {
+            airPlayRoute = route
+        }
+        let advice = AirPlayAdvice.evaluate(engine: engine.kind, routeName: airPlayRoute, externalPlaybackActive: snapshot.isExternalPlaybackActive,
+                                            screenMirrored: screenMirroredProvider(), externalPlaybackBlockedForKey: false, relayServing: false)
+        guard advice != airPlayAdvice else { return }
+        airPlayAdvice = advice
+        if case .audioOnlyBecauseMPV(let name) = advice {
+            env.diagnostics.logDetached(.info, "player", "AirPlay con MPV: solo audio")
+            if !acknowledgedAirPlayRoutes.contains(name) { airPlayAlert = AirPlayAlert.mpvAudioOnly() }
+        }
+    }
+
+    /// The viewer read the alert: it does not come back for this device during this player session.
+    func acknowledgeAirPlayAlert() {
+        if case .audioOnlyBecauseMPV(let name) = airPlayAdvice { acknowledgedAirPlayRoutes.insert(name) }
+        airPlayAlert = nil
+    }
+
+    /// The system picker is about to open.
+    func airPlayPickerWillPresent() {
+        guard engine.kind == .mpv else { return }
+        statusMessage = "AirPlay con questo file: solo audio."
+        scheduleStatusClear(after: 4)
     }
 
     // MARK: Hand-off to a remote receiver
@@ -1481,5 +1526,19 @@ final class PlayerViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
             self?.statusMessage = nil
         }
+    }
+}
+
+
+/// The explanation shown the first time the sound of an MPV video goes to an AirPlay device.
+struct AirPlayAlert: Identifiable, Equatable {
+    let id = UUID()
+    var title: String
+    var message: String
+
+    static func mpvAudioOnly() -> AirPlayAlert {
+        return AirPlayAlert(
+            title: "AirPlay: sul televisore va solo l'audio",
+            message: "Questo video usa il motore MPV, che non sa inviare l'immagine via AirPlay: il suono esce dal dispositivo AirPlay, l'immagine resta sul telefono. Se è un altoparlante va bene così. Per vedere il video sul televisore usa Google Cast o DLNA, scegli una sorgente MP4 o HLS, oppure usa «Duplica schermo» dal Centro di Controllo (mostra lo schermo del telefono; qualità inferiore, non provato con MPV).")
     }
 }

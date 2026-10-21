@@ -21,7 +21,9 @@ public final class URLSessionRangeFetcher: RelayRangeFetcher, @unchecked Sendabl
         configuration.timeoutIntervalForRequest = 30
         configuration.timeoutIntervalForResource = 180
         configuration.httpMaximumConnectionsPerHost = 3
+        #if os(iOS)
         configuration.multipathServiceType = .none
+        #endif
         configuration.tlsMinimumSupportedProtocolVersion = .TLSv12
         return configuration
     }
@@ -68,11 +70,14 @@ public final class URLSessionRangeFetcher: RelayRangeFetcher, @unchecked Sendabl
         session.invalidateAndCancel()
     }
 
-    private func run(range: ClosedRange<Int64>, kind: FetchKind) async throws -> FetchOutcome {
+    private var isInvalidated: Bool {
         stateLock.lock()
-        let gone = invalidated
-        stateLock.unlock()
-        if gone { throw RelayError.upstreamUnreachable(code: NSURLErrorCancelled) }
+        defer { stateLock.unlock() }
+        return invalidated
+    }
+
+    private func run(range: ClosedRange<Int64>, kind: FetchKind) async throws -> FetchOutcome {
+        if isInvalidated { throw RelayError.upstreamUnreachable(code: NSURLErrorCancelled) }
 
         try await gate.acquire()
         defer { gate.release() }
@@ -311,12 +316,16 @@ final class AsyncGate: @unchecked Sendable {
         self.permits = max(1, permits)
     }
 
+    private func takeTicket() -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        nextID += 1
+        return nextID
+    }
+
     func acquire() async throws {
         try Task.checkCancellation()
-        lock.lock()
-        nextID += 1
-        let id = nextID
-        lock.unlock()
+        let id = takeTicket()
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 lock.lock()
