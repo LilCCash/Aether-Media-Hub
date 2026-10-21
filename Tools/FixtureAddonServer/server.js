@@ -23,6 +23,7 @@
 //   /subs/missing.srt, /subs/garbage.srt a subtitle that answers 404 and one that is not a subtitle (the error paths); offered by "Broken Captions"
 //   /nosubs/…, /opensubs/…               this same server as an addon without a `subtitles` resource, and as one posing as the official OpenSubtitles v3 id
 //   /poster/{n}.png, /backdrop/{n}.png, /logo/{n}.png   generated portrait posters, 16:9 backdrops, wide RGBA logos
+//   /introdb/segments                   stand-in for the IntroDB read API (metadata.js): skip intro / recap times of tt9100001 S1E1 and S1E2
 //   /tmdb/3/…, /tvdb/v4/…               stand-ins for the TMDB and TheTVDB APIs (metadata.js); tt9300001 is a bare movie searched as "Sparse"
 //   tt9400001 / tt9400002 / tt9400003    "Torbox Cached Film", "Torbox Download Film", "Torbox Cached Series" (searched for as "Torbox"): a single torrent
 //                                        source each, with the hashes the TorBox fixture (Tools/FixtureTorBoxServer) reports as cached / not cached

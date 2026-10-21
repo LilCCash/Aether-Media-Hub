@@ -42,6 +42,8 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var statusMessage: String?
     /// True from the start of a load until the engine has been given the file (TorBox may take seconds to answer first).
     @Published private(set) var isOpeningSource = true
+    /// The intro and recap of the episode now playing, when IntroDB knows them (see `activeSkipSegment`).
+    @Published private(set) var skipSegments = EpisodeSkipSegments.none
     @Published private(set) var sourceName: String
     @Published private(set) var currentVideo: Video?
     @Published private(set) var meta: MetaItem
@@ -130,6 +132,7 @@ final class PlayerViewModel: ObservableObject {
     private var progressSuspended = false
     private var debridGeneration = 0
     private var debridProgressSequence = 0
+    private var skipSegmentsTask: Task<Void, Never>?
 
     private var playback: PlaybackSettings { env.settings.value.playback }
 
@@ -186,6 +189,7 @@ final class PlayerViewModel: ObservableObject {
         }
         // The video id is known already: asking the subtitle addons does not wait for the full metadata.
         Task { await loadSubtitleOptions() }
+        loadSkipSegments()
         startCueTimer()
     }
 
@@ -230,6 +234,8 @@ final class PlayerViewModel: ObservableObject {
         debridTask = nil
         debridStream = nil
         debridStreamKey = nil
+        skipSegmentsTask?.cancel()
+        skipSegmentsTask = nil
         // Record the final position and write it to disk in one ordered step: a separate flush could run first.
         if !recordProgress(force: true, flushAfter: true) {
             Task { await env.libraryStore.flush() }
@@ -585,6 +591,36 @@ final class PlayerViewModel: ObservableObject {
 
     // MARK: Transport commands
 
+    // MARK: Skip intro / recap
+
+    /// Asks IntroDB for the episode now playing (IMDb id, season and episode: nothing else leaves the device). Nothing is
+    /// shown when the setting is off, the title has no IMDb id, or the service knows nothing.
+    private func loadSkipSegments() {
+        skipSegmentsTask?.cancel()
+        skipSegments = .none
+        guard playback.skipSegmentsEnabled, !tornDown, let video = currentVideo, let season = video.season, let episode = video.episode,
+              let imdb = ExternalIDs.imdbID(fromMetaID: meta.id) else { return }
+        let videoID = video.id
+        skipSegmentsTask = Task { [weak self, skipSegmentsService = env.skipSegments] in
+            let found = await skipSegmentsService.segments(imdbID: imdb, season: season, episode: episode)
+            guard !Task.isCancelled, let self = self, !self.tornDown, self.currentVideo?.id == videoID else { return }
+            self.skipSegments = found ?? .none
+        }
+    }
+
+    /// The segment whose button is on offer at the current position.
+    var activeSkipSegment: SkipSegment? {
+        guard playback.skipSegmentsEnabled, failure == nil, !snapshot.isLive, !skipSegments.isEmpty else { return nil }
+        return skipSegments.active(at: snapshot.position, duration: snapshot.duration > 0 ? snapshot.duration : nil)
+    }
+
+    /// Jumps to the end of the segment on offer.
+    func skipActiveSegment() {
+        guard let segment = activeSkipSegment else { return }
+        let target = snapshot.duration > 0 ? min(segment.end, snapshot.duration) : segment.end
+        engine.seek(to: target, precise: true)
+    }
+
     func togglePlayPause() {
         // Before the engine has the file there is nothing to play or pause: a tap would only set a false state.
         guard !isOpeningSource else { return }
@@ -711,6 +747,7 @@ final class PlayerViewModel: ObservableObject {
         engineChosenByFallback = false
         alternatives = ranked.filter { $0.info.support.isPlayable && $0.id != best.id }
         resetSubtitleStateForNewVideo()
+        loadSkipSegments()
         lastRecordedPosition = -100
         didFinish = false
         nextStreamsTask = nil

@@ -31,6 +31,8 @@ final class AppEnvironment: ObservableObject {
     let metadata: MetadataEnricher
     /// TorBox: connection status, cache check and resolution of torrent streams into playable links (user-supplied key).
     let debrid: DebridService
+    /// "Salta intro" / "Salta riassunto": the timing of an episode's intro and recap, from IntroDB (no key, nothing stored on disk).
+    let skipSegments: SkipSegmentsService
 
     /// `arguments` exist so unit tests can build an isolated environment (see `UITestHooks`).
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
@@ -91,6 +93,11 @@ final class AppEnvironment: ObservableObject {
         // The UI tests point TorBox at their fixture server (a loopback address); a normal launch always uses api.torbox.app.
         let torboxBase = hooks.torboxServerURL.flatMap { DebridService.fixtureAPIBase(from: $0) } ?? TorBoxClient.productionBaseURL
         debrid = DebridService(credentials: serviceKeys, http: http, baseURL: torboxBase, log: diagnostics)
+        // The UI tests point IntroDB at their fixture server too (and, without one, at a port nobody listens on, so a test never
+        // asks the real service); a normal launch always asks api.introdb.app.
+        let introDBBase = hooks.metadataBaseURL.flatMap { URL(string: $0 + "/introdb") }
+            ?? (hooks.isActive ? URL(string: "http://127.0.0.1:9")! : IntroDBClient.productionBaseURL)
+        skipSegments = SkipSegmentsService(client: IntroDBClient(http: http, baseURL: introDBBase))
 
         credentials.onChange = { [weak self] in
             guard let self = self else { return }
@@ -195,6 +202,7 @@ final class AppEnvironment: ObservableObject {
         credentials.refresh()
         debrid.credentialsDidChange()
         await metadata.reset()
+        await skipSegments.reset()
         settings.resetToDefaults()
         await addons.reload()
         await library.refresh()
@@ -207,7 +215,7 @@ final class AppEnvironment: ObservableObject {
 ///   -AETHER_UITEST_RESET          wipe that namespace (and stored settings) before starting
 ///   -AETHER_UITEST_SETTINGS <json> partial AppSettings JSON applied on top of the defaults
 ///   -AETHER_UITEST_OPENURL <url>  handled like a deep link once the app has started
-///   -AETHER_UITEST_METADATA_BASE <url>  base of the fixture server that stands in for the TMDB (/tmdb/3) and TheTVDB (/tvdb/v4) APIs
+///   -AETHER_UITEST_METADATA_BASE <url>  base of the fixture server that stands in for the TMDB (/tmdb/3), TheTVDB (/tvdb/v4) and IntroDB (/introdb) APIs
 ///   -AETHER_UITEST_TORBOX_URL <url>  address of the TorBox fixture server (for example http://127.0.0.1:7778); the app adds /v1/api.
 ///                                    Only loopback and private-network addresses are accepted, so the key can never go elsewhere.
 /// In this mode loopback addresses are allowed so the tests can talk to the fixture server.

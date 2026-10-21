@@ -159,7 +159,7 @@ struct AboutView: View {
                     .font(.footnote)
             }
             Section(header: Text("Privacy")) {
-                Text("Nessun account, nessun analytics, nessun invio di dati a server di Aether. Cronologia, libreria e impostazioni restano sul dispositivo; gli indirizzi degli addon (che possono contenere chiavi) sono nel Portachiavi.")
+                Text("Nessun account, nessun analytics, nessun invio di dati a server di Aether. Cronologia, libreria e impostazioni restano sul dispositivo; gli indirizzi degli addon (che possono contenere chiavi) sono nel Portachiavi. Per «Salta intro» Aether chiede a IntroDB i tempi dell'episodio (codice IMDb, stagione ed episodio); si può spegnere in Impostazioni ▸ Riproduzione.")
                     .font(.footnote)
             }
             Section(header: Text("Cosa non c'è")) {

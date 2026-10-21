@@ -676,6 +676,19 @@ struct PlayerView: View {
             failurePanel(failure)
         }
 
+        if model.failure == nil, !isCasting, !isLocked, let segment = model.activeSkipSegment {
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    skipSegmentButton(segment)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, controlsVisible ? 120 : 30)
+            .transition(.opacity)
+        }
+
         if model.failure == nil, !isCasting, let next = model.nextEpisode, shouldShowNextCard {
             VStack {
                 Spacer()
@@ -691,6 +704,27 @@ struct PlayerView: View {
         if let session = casting.session {
             castingOverlay(session)
         }
+    }
+
+    /// "Salta intro" / "Salta riassunto": on screen only while the playhead is inside that part of the episode.
+    private func skipSegmentButton(_ segment: SkipSegment) -> some View {
+        let title = segment.kind == .recap ? "Salta riassunto" : "Salta intro"
+        return Button {
+            model.skipActiveSegment()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "forward.end.fill").font(.system(size: 14, weight: .bold))
+                Text(title).font(.subheadline.weight(.semibold))
+            }
+            .padding(.horizontal, 18)
+            .frame(height: 46)
+            .aetherGlassCapsule(interactive: true)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier("player.skipSegment")
     }
 
     private var shouldShowNextCard: Bool {

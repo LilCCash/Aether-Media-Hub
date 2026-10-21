@@ -48,6 +48,18 @@ e Nuvio lo riproduce così com'è: in Beta 1 Aether lo rifiutava («il link rest
 scritto nei log né in nessun messaggio d'errore, non viene salvato, e non viene consegnato a Google Cast né ai ricevitori DLNA (i contenuti TorBox non si trasmettono con questi). **Con AirPlay il ricevitore che scegli riceve il link, chiave compresa** (il sistema lo passa al televisore o all'Apple TV). Un link con la chiave su **http** (non cifrato) è rifiutato.
 **Limite noto:** i file che passano da MPV (MKV e altri contenitori non nativi) viaggiano senza verifica del certificato TLS (vedi `08-ALPHA-2-NOTE.md`): su una rete ostile un attaccante «man in the middle» potrebbe leggere la chiave dal link. Non provato su un dispositivo.
 
+## IntroDB («Salta intro» e «Salta riassunto»)
+
+Il pulsante compare durante l'intro e durante il riassunto di un episodio, e porta alla fine di quella parte. I tempi vengono da **IntroDB** (introdb.app), un database di tempi inseriti dalla comunità: nessun account, nessuna chiave.
+
+**Cosa viene inviato.** Solo il codice IMDb del titolo (`tt…`), la stagione e l'episodio, a `https://api.introdb.app`. Niente identificativi del dispositivo, niente nome del file, niente indirizzi di sorgenti. Si spegne in *Impostazioni ▸ Riproduzione ▸ Episodi* («Mostra Salta intro e Salta riassunto»); da spento non parte nessuna richiesta. Il codice IMDb si ricava dall'id del titolo: per titoli di cataloghi che non usano IMDb (per esempio `kitsu:`) il pulsante non compare.
+
+**Verificato (2026-10-21, da un runner di GitHub, senza credenziali).** `GET https://api.introdb.app/segments?imdb_id=tt0944947&season=1&episode=1` risponde HTTP 200 `application/json` con `intro`, `recap`, `outro`, `post_credits` (oggetti con `start_sec`, `end_sec`, `start_ms`, `end_ms`, `confidence`, `submission_count`, `updated_at`, oppure `null`) e i flag `no_intro`, `no_recap`, `no_outro`. Per quell'episodio l'intro va da 437 s a 531 s. Esiste anche `GET /intro` (solo intro). Il test `SkipSegmentsTests` usa quella risposta reale.
+
+**Cosa fa Aether con la risposta.** Usa solo intro e riassunto (i titoli di coda non sono usati). Scarta i tempi privi di senso (fine prima dell'inizio, meno di 3 s, più di 10 minuti). Offre il pulsante da 1 s prima dell'inizio fino a 1 s prima della fine, e non lo offre se il segmento finisce oltre la durata del file (un'altra versione dell'episodio). Le risposte restano in memoria (24 ore se trovate, 6 ore se IntroDB non sa nulla), richieste uguali contemporanee diventano una sola, e dopo un errore o un limite di richieste Aether smette di chiedere per un po'. Un errore non mostra nulla: semplicemente non c'è il pulsante.
+
+**Non verificato.** Le condizioni d'uso e i limiti di richieste di IntroDB (la pagina di documentazione è lato client e non si legge senza browser). La qualità dei dati: sono contributi della comunità per un certo montaggio dell'episodio, e con un file diverso i tempi possono essere sfasati di alcuni secondi o mancare. Sul dispositivo non è stato provato. Esiste un servizio con nome simile, TheIntroDB (theintrodb.org), con un'altra API; da un runner di GitHub risponde con una pagina di verifica di Cloudflare, quindi non è usato.
+
 ## TMDB
 
 Metadati arricchiti (locandine, sfondi, logo, trama, cast, registi, durata, anno, titoli e trame degli episodi) **solo dove l'addon non li fornisce**: un dato dell'addon non viene mai sovrascritto, e la valutazione di TMDB non viene mai messa nel campo «IMDb».

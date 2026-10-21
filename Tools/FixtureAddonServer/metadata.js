@@ -42,6 +42,28 @@ function handle(req, res, p, url, base, tools) {
   // ---- image host standing in for image.tmdb.org -------------------------------------------------------------
   if (p.startsWith('/tmdb-img/')) { send(res, 200, poster(7), 'image/png'); return true; }
 
+  // ---- IntroDB (api.introdb.app): the data behind "Salta intro" / "Salta riassunto" -----------------------------------
+  // GET /introdb/segments?imdb_id=tt…&season=N&episode=M, no key, the shape the real service answered on 2026-10-21.
+  // Only the fixture series (tt9100001) is known: episode 1 has an intro (6 s to 30 s), episode 2 a recap (2 s to 20 s)
+  // and an intro (40 s to 70 s); anything else is a 404.
+  if (p === '/introdb/segments') {
+    const imdb = url.searchParams.get('imdb_id');
+    const season = Number(url.searchParams.get('season'));
+    const episode = Number(url.searchParams.get('episode'));
+    const part = (a, b) => ({ start_sec: a, end_sec: b, start_ms: a * 1000, end_ms: b * 1000, confidence: 1, submission_count: 3,
+      updated_at: '2026-01-01T00:00:00.000Z' });
+    const answer = { imdb_id: imdb, media_type: 'tv', is_movie: false, season, episode, outro: null, post_credits: null,
+      no_intro: false, no_recap: false, no_outro: true };
+    if (imdb === 'tt9100001' && season === 1 && episode === 1) {
+      send(res, 200, { ...answer, intro: part(6, 30), recap: null, no_recap: true });
+    } else if (imdb === 'tt9100001' && season === 1 && episode === 2) {
+      send(res, 200, { ...answer, intro: part(40, 70), recap: part(2, 20) });
+    } else {
+      send(res, 404, { error: 'not found' });
+    }
+    return true;
+  }
+
   // ---- TMDB ---------------------------------------------------------------------------------------------------
   if (p.startsWith('/tmdb/3/')) {
     const key = url.searchParams.get('api_key');

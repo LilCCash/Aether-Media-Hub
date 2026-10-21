@@ -313,6 +313,9 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     /// Press and hold on the picture to play at `holdSpeed`, release to go back.
     public var holdToSpeed: Bool = true
     public var holdSpeed: Double = 2
+    /// Offers "Salta intro" / "Salta riassunto" on episodes IntroDB knows the timing of. Looking it up sends the show's IMDb
+    /// code, the season and the episode to introdb.app (no account, no key).
+    public var skipSegmentsEnabled: Bool = true
 
     public init() {}
 
@@ -322,7 +325,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly
-        case gesturesEnabled, watchedThreshold
+        case gesturesEnabled, watchedThreshold, skipSegmentsEnabled
     }
 
     public init(from decoder: Decoder) throws {
@@ -354,6 +357,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         stripHearingImpairedTags = c.value(.stripHearingImpairedTags, default: false)
         holdToSpeed = c.value(.holdToSpeed, default: true)
         holdSpeed = min(4, max(1.25, c.value(.holdSpeed, default: 2.0)))
+        skipSegmentsEnabled = c.value(.skipSegmentsEnabled, default: true)
     }
 }
 
