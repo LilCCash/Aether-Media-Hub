@@ -51,6 +51,16 @@ Legenda: ✅ eseguito in CI con esito positivo · 🟡 coperto solo in parte (co
 | 19 | Cache e memoria | `ImageLoaderTests` (coalescing, disco, ridimensionamento, limite), core: `MiscTests`/`ServiceTests` (ResponseCache, stale-on-error) | ✅ |
 | 20 | VoiceOver e accessibilità | `testMainScreensPassTheAccessibilityAudit` (audit automatico di Apple su Home, Altro, Cerca), `testPlayerControlsHaveAccessibilityLabels`. **La navigazione con VoiceOver su un dispositivo non è stata eseguita** | 🟡 audit automatico superato per descrizioni, aree di tocco e trait; restano note sul contrasto (sotto); VoiceOver su dispositivo non eseguito |
 
+## Verificato su un iPhone reale (riferito dall'utente, 2026-10-21)
+
+Queste conferme non vengono da un test automatico né da una prova mia: le ha date il proprietario del progetto usando l'app su un iPhone, dopo la Beta 2.
+- **Player:** il tasto play/pausa risponde al tocco (in Beta 1 il tocco si perdeva).
+- **TorBox:** la riproduzione di un torrent in cache parte (in Beta 1 compariva «il link restituito contiene credenziali»). Verifica della cache, aggiunta e richiesta del link funzionano con un account reale.
+- **Elenco sorgenti:** la pillola dello stato della cache ha l'aspetto atteso (compatta, con testo).
+- **Cerca e Scopri:** i filtri per genere e per anno funzionano. Ne segue che i test UI dei filtri che in CI falliscono sono da riesaminare come difetti dei test e non dell'app (non ancora fatto).
+
+Restano **non confermati su dispositivo**: «Salta intro / Salta riassunto» (Beta 3), le griglie di Scopri e Libreria (Beta 1), AirPlay, Google Cast, DLNA, Picture in Picture, HDR / Dolby Vision, VoiceOver.
+
 ## Cosa i test non possono dire
 
 * Nessuna prova su iPhone fisico: prestazioni reali, PiP, riproduzione in background con schermo bloccato, interruzioni telefoniche, Cast/AirPlay/DLNA verso televisori reali, Local Network prompt.
