@@ -8,6 +8,8 @@
 
 // Endpoints (all JSON unless noted):
 //   /manifest.json                       valid manifest (catalogs movie+series with search, meta, stream, subtitles)
+//   /extra/manifest.json                 a second addon with types 'tv' and 'sports' (one catalog each, with genre options; search on the
+//                                        TV catalog only), served under /extra/catalog/{type}/{id}[/{extra}].json
 //   /bad/manifest.json                   JSON that is not a manifest (missing required fields)
 //   /html/manifest.json                  an HTML page instead of JSON
 //   /catalog/{type}/{id}[/{extra}].json  catalogs (search=…, skip=…)
@@ -18,7 +20,13 @@
 //   /media/<file>                        any file of --media-dir (the CI "media matrix": MKV, HDR10, HLG, hev1, …), with Range support;
 //                                        each one that exists is also listed as a title in the "Fixture Matrix" catalog
 //   /subs/it.srt, /subs/en.vtt           subtitle files
+//   /subs/missing.srt, /subs/garbage.srt a subtitle that answers 404 and one that is not a subtitle (the error paths); offered by "Broken Captions"
+//   /nosubs/…, /opensubs/…               this same server as an addon without a `subtitles` resource, and as one posing as the official OpenSubtitles v3 id
 //   /poster/{n}.png, /backdrop/{n}.png, /logo/{n}.png   generated portrait posters, 16:9 backdrops, wide RGBA logos
+//   /introdb/segments                   stand-in for the IntroDB read API (metadata.js): skip intro / recap times of tt9100001 S1E1 and S1E2
+//   /tmdb/3/…, /tvdb/v4/…               stand-ins for the TMDB and TheTVDB APIs (metadata.js); tt9300001 is a bare movie searched as "Sparse"
+//   tt9400001 / tt9400002 / tt9400003    "Torbox Cached Film", "Torbox Download Film", "Torbox Cached Series" (searched for as "Torbox"): a single torrent
+//                                        source each, with the hashes the TorBox fixture (Tools/FixtureTorBoxServer) reports as cached / not cached
 //   /__control/offline?on=1|0            make every addon endpoint answer 503 (tests the "addon offline" path)
 //   /__control/media?on=0|1              make /media/* answer 503 (tests offline playback of a downloaded file)
 //   /__control/requests                  JSON array of the paths requested so far (for assertions)
@@ -26,6 +34,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const metadataFixture = require('./metadata');
 
 const args = process.argv.slice(2);
 function arg(name, fallback) {
@@ -47,9 +56,19 @@ const movies = [
   { id: 'tt9000002', name: 'Aether Fixture Two', year: 2022, genres: ['Fixture', 'Comedy'], runtime: '1 min', rating: '6.4' },
   { id: 'tt9000003', name: 'Unsupported Format', year: 2020, genres: ['Fixture'], runtime: '90 min', rating: '5.0' },
   { id: 'tt9000004', name: 'Nothing To Watch', year: 2019, genres: ['Fixture'], runtime: '90 min', rating: '4.1' },
+  // Subtitle scenarios, listed only when searched for: a title the addon has no subtitles for, and one whose subtitle files are unusable.
+  { id: 'tt9000005', name: 'Silent Feature', year: 2018, genres: ['Fixture'], runtime: '1 min', rating: '5.5', hidden: true },
+  { id: 'tt9000006', name: 'Broken Captions', year: 2017, genres: ['Fixture'], runtime: '1 min', rating: '5.1', hidden: true },
+  // A bare meta (name only), listed only when searched for: what the TMDB / TheTVDB stand-ins (metadata.js) can fill in.
+  { id: 'tt9300001', name: 'Sparse Fixture Movie', year: 2020, genres: [], runtime: '', rating: '', hidden: true, sparse: true },
+  // TorBox scenarios (the stand-in for the service is Tools/FixtureTorBoxServer): each title has one torrent source, listed only when
+  // searched for. Their names avoid the words other searches use.
+  { id: 'tt9400001', name: 'Torbox Cached Film', year: 2024, genres: ['Torbox'], runtime: '1 min', rating: '6.0', hidden: true },
+  { id: 'tt9400002', name: 'Torbox Download Film', year: 2024, genres: ['Torbox'], runtime: '1 min', rating: '6.0', hidden: true },
 ];
 const series = [
   { id: 'tt9100001', name: 'Fixture Series', year: 2023, genres: ['Fixture', 'Sci-Fi'], rating: '8.2' },
+  { id: 'tt9400003', name: 'Torbox Cached Series', year: 2024, genres: ['Torbox'], rating: '6.0', hidden: true },
 ];
 const episodes = [
   { id: 'tt9100001:1:1', title: 'Pilot', season: 1, episode: 1 },
@@ -57,6 +76,7 @@ const episodes = [
 ];
 
 function metaPreview(item, type, index) {
+  if (item.sparse) return { id: item.id, type, name: item.name };
   return {
     id: item.id, type, name: item.name, poster: `${BASE}/poster/${index}.png`,
     background: `${BASE}/backdrop/${index}.png`, logo: `${BASE}/logo/${index}.png`,
@@ -65,13 +85,15 @@ function metaPreview(item, type, index) {
 }
 
 function metaFull(item, type, index) {
+  if (item.sparse) return metaPreview(item, type, index);
   const meta = {
     ...metaPreview(item, type, index),
     description: `${item.name} is a controlled fixture title used by Aether's automated tests.`,
     runtime: item.runtime, cast: ['Test Actor One', 'Test Actor Two'], director: ['Test Director'],
   };
   if (type === 'series') {
-    meta.videos = episodes.map((e) => ({
+    // The episode ids carry the id of the series (tt9100001:1:2), whichever series it is.
+    meta.videos = episodes.map((e) => ({ ...e, id: e.id.replace('tt9100001', item.id) })).map((e) => ({
       id: e.id, title: e.title, season: e.season, episode: e.episode,
       released: '2023-01-0' + e.episode + 'T00:00:00.000Z', thumbnail: `${BASE}/poster/${index}.png`,
     }));
@@ -109,6 +131,52 @@ const manifest = {
   behaviorHints: { configurable: false },
 };
 
+// Variants of this server under /<name>/…: the same addon without a `subtitles` resource, and one posing as the official
+// OpenSubtitles v3 id (tests of the "recommended addon" entry and of the "no subtitles addon installed" state).
+const variantManifests = {
+  nosubs: { ...manifest, resources: ['catalog', 'meta', 'stream'] },
+  opensubs: {
+    id: 'org.stremio.opensubtitlesv3', version: '1.0.0', name: 'OpenSubtitles v3 (fixture)',
+    description: 'Stands in for the official OpenSubtitles v3 addon in automated tests',
+    resources: ['subtitles'], types: ['movie', 'series'], idPrefixes: ['tt'], catalogs: [],
+  },
+};
+
+// A second, tiny addon (live TV and sports) that proves content types appear and disappear with the installed addons.
+// `extra-tv` declares optional `genre` and `search`, so a search can carry the genre too (and the server honours it);
+// `extra-sports` is browse-only (no search). One channel has neither a year nor a genre, to exercise the
+// "hidden because the data is missing" counts of the local filters.
+const extraManifest = {
+  id: 'org.aether.fixture.extra', version: '1.0.0', name: 'Aether Fixture Extra',
+  description: 'Second controlled addon: live TV and sports catalogs',
+  resources: ['catalog'],
+  types: ['tv', 'sports'],
+  catalogs: [
+    { type: 'tv', id: 'extra-tv', name: 'Fixture Canali',
+      extra: [{ name: 'genre', options: ['News', 'Kids'] }, { name: 'search' }, { name: 'skip' }] },
+    { type: 'sports', id: 'extra-sports', name: 'Fixture Sport',
+      extra: [{ name: 'genre', options: ['Calcio', 'Tennis'] }, { name: 'skip' }] },
+  ],
+  behaviorHints: { configurable: false },
+};
+const extraItems = {
+  'extra-tv': [
+    { id: 'fxtv-news', name: 'Fixture News Live', year: 2020, genres: ['News'] },
+    { id: 'fxtv-kids', name: 'Fixture Kids Channel', year: 2018, genres: ['Kids'] },
+    { id: 'fxtv-night', name: 'Fixture Night Channel', year: null, genres: [] },
+  ],
+  'extra-sports': [
+    { id: 'fxsp-derby', name: 'Fixture Derby Highlights', year: 2024, genres: ['Calcio'] },
+    { id: 'fxsp-final', name: 'Fixture Open Final', year: 2024, genres: ['Tennis'] },
+  ],
+};
+
+function extraPreview(item, type, index) {
+  const meta = { id: item.id, type, name: item.name, poster: `${BASE}/poster/${index}.png`, genres: item.genres };
+  if (item.year) meta.releaseInfo = String(item.year);
+  return meta;
+}
+
 function streamsFor(id) {
   const m = matrix.find((entry) => entry.id === id);
   if (m) {
@@ -125,6 +193,25 @@ function streamsFor(id) {
     ];
   }
   if (id === 'tt9000004') return [];
+  // TorBox scenarios: one torrent each, with the hash the TorBox fixture reports as cached (1…1: a movie; 2…2: a season pack with
+  // S01E01 and S01E02) or as not cached (3…3: it downloads for a few seconds once the user confirms). No trackers: nothing is contacted.
+  if (id === 'tt9400001') {
+    return [{ name: 'Torbox Cached 1080p', title: 'Cached.Movie.2024.1080p.mkv', infoHash: '1'.repeat(40),
+      behaviorHints: { bingeGroup: 'torbox-cached', filename: 'Cached.Movie.2024.1080p.mkv' } }];
+  }
+  if (id === 'tt9400002') {
+    return [{ name: 'Torbox Download 720p', title: 'Slow.Download.2024.720p.mkv', infoHash: '3'.repeat(40),
+      behaviorHints: { bingeGroup: 'torbox-download', filename: 'Slow.Download.2024.720p.mkv' } }];
+  }
+  if (id === 'tt9400003') {
+    return [{ name: 'Torbox Cached Pack 1080p', title: 'Cached.Series.S01.1080p', infoHash: '2'.repeat(40),
+      behaviorHints: { bingeGroup: 'torbox-series' } }];
+  }
+  // The subtitle-scenario titles carry no subtitles inside the stream: only the addon's `subtitles` resource decides.
+  if (id === 'tt9000005' || id === 'tt9000006') {
+    return [{ name: 'Fixture 720p', title: `${id} 720p MP4 H.264`, url: `${BASE}/media/sample.mp4?q=720`,
+      behaviorHints: { bingeGroup: 'fixture-720p', filename: 'sample.mp4' } }];
+  }
   return [
     { name: 'Fixture 1080p', title: `${id} 1080p MP4 H.264`, url: `${BASE}/media/sample.mp4?q=1080`, subtitles: sub,
       behaviorHints: { bingeGroup: 'fixture-1080p', filename: 'sample.mp4' } },
@@ -287,19 +374,26 @@ function decodeExtra(segment) {
 const server = http.createServer((req, res) => {
   BASE = `http://${req.headers.host || `127.0.0.1:${PORT}`}`;
   const url = new URL(req.url, BASE);
-  const p = decodeURIComponent(url.pathname);
-  if (!p.startsWith('/__control/')) requests.push(p);
+  const rawPath = decodeURIComponent(url.pathname);
+  const variantMatch = /^\/(nosubs|opensubs)(\/.*)$/.exec(rawPath);
+  const variant = variantMatch ? variantMatch[1] : null;
+  const p = variantMatch ? variantMatch[2] : rawPath;
+  // The IntroDB stand-in takes its parameters in the query string, so that one is logged with it.
+  if (!p.startsWith('/__control/')) requests.push(p === '/introdb/segments' ? p + url.search : p);
 
   if (p === '/__control/offline') { offline = url.searchParams.get('on') === '1'; return send(res, 200, { offline }); }
   if (p === '/__control/media') { mediaOffline = url.searchParams.get('on') === '0'; return send(res, 200, { mediaOffline }); }
   if (p === '/__control/requests') return send(res, 200, requests);
   if (p === '/__control/reset') { requests.length = 0; offline = false; mediaOffline = false; return send(res, 200, { ok: true }); }
 
+  if (metadataFixture.handle(req, res, p, url, BASE, { send, poster })) return;
   if (p.startsWith('/poster/')) return send(res, 200, poster(parseInt(p.split('/')[2], 10) || 0), 'image/png');
   if (p.startsWith('/backdrop/')) return send(res, 200, backdrop(parseInt(p.split('/')[2], 10) || 0), 'image/png');
   if (p.startsWith('/logo/')) return send(res, 200, logo(), 'image/png');
   if (p === '/subs/it.srt') return send(res, 200, SRT, 'application/x-subrip');
   if (p === '/subs/en.vtt') return send(res, 200, VTT, 'text/vtt');
+  if (p === '/subs/missing.srt') { res.writeHead(404); return res.end('no such subtitle'); }
+  if (p === '/subs/garbage.srt') return send(res, 200, 'This is not a subtitle file.\n', 'text/plain');
   if (p.startsWith('/media/') && mediaOffline) { res.writeHead(503); return res.end('media offline'); }
   if (p === '/media/sample.mp4') return serveVideo(req, res);
   if (p.startsWith('/media/')) return serveMatrixFile(req, res, p.slice('/media/'.length));
@@ -308,7 +402,24 @@ const server = http.createServer((req, res) => {
 
   if (p === '/bad/manifest.json') return send(res, 200, { id: 'org.bad', version: 'not-semver-but-ok' });
   if (p === '/html/manifest.json') return send(res, 200, '<html><body>Not an addon</body></html>', 'text/html');
-  if (p === '/manifest.json') return send(res, 200, manifest);
+  if (p === '/manifest.json') return send(res, 200, variant ? variantManifests[variant] : manifest);
+  if (p === '/extra/manifest.json') return send(res, 200, extraManifest);
+  if (p.startsWith('/extra/catalog/')) {
+    const [, , type, id, extraSegment] = p.replace(/\.json$/, '').split('/').filter(Boolean);
+    const list = extraItems[id];
+    if (!list) return send(res, 200, { metas: [] });
+    const extra = extraSegment ? decodeExtra(extraSegment) : {};
+    if (extra.skip && parseInt(extra.skip, 10) > 0) return send(res, 200, { metas: [] });
+    let items = list;
+    if (extra.search) {
+      const q = extra.search.toLowerCase();
+      items = items.filter((item) => item.name.toLowerCase().includes(q));
+    }
+    if (extra.genre) items = items.filter((item) => item.genres.includes(extra.genre));
+    const offset = id === 'extra-sports' ? 30 : 20;
+    return send(res, 200, { metas: items.map((item, i) => extraPreview(item, type, offset + i + 1)) });
+  }
+  if (p.startsWith('/extra/')) return send(res, 404, { error: 'unknown route', path: p });
 
   const parts = p.replace(/\.json$/, '').split('/').filter(Boolean);
   const [resource, type, id, extraSegment] = parts;
@@ -317,7 +428,8 @@ const server = http.createServer((req, res) => {
     const list = id === 'fixture-matrix' ? matrix : (type === 'movie' ? movies : series);
     const extra = extraSegment ? decodeExtra(extraSegment) : {};
     if (extra.skip && parseInt(extra.skip, 10) > 0) return send(res, 200, { metas: [] });
-    let items = list.map((item, i) => metaPreview(item, type, i + 1 + (type === 'series' ? 10 : 0)));
+    const visible = list.filter((item) => !item.hidden || extra.search);
+    let items = visible.map((item, i) => metaPreview(item, type, i + 1 + (type === 'series' ? 10 : 0)));
     if (extra.search) {
       const q = extra.search.toLowerCase();
       items = items.filter((m) => m.name.toLowerCase().includes(q));
@@ -335,6 +447,14 @@ const server = http.createServer((req, res) => {
     return send(res, 200, { streams: streamsFor(baseId) });
   }
   if (resource === 'subtitles') {
+    // Subtitle scenarios: nothing at all for one title, files that cannot be used for the other.
+    if (id === 'tt9000005') return send(res, 200, { subtitles: [] });
+    if (id === 'tt9000006') {
+      return send(res, 200, { subtitles: [
+        { id: 'missing', url: `${BASE}/subs/missing.srt`, lang: 'ita' },
+        { id: 'garbage', url: `${BASE}/subs/garbage.srt`, lang: 'eng' },
+      ] });
+    }
     return send(res, 200, { subtitles: [
       { id: 'it-addon', url: `${BASE}/subs/it.srt`, lang: 'ita' },
       { id: 'en-addon', url: `${BASE}/subs/en.vtt`, lang: 'eng' },

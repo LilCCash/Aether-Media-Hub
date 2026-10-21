@@ -16,6 +16,8 @@ struct PlayerView: View {
     @State private var isLocked = false
     @State private var showUnlockHint = false
     @State private var hideTask: Task<Void, Never>?
+    @State private var tapRecognizer = SurfaceTapRecognizer()
+    @State private var pendingHideTask: Task<Void, Never>?
     @State private var isScrubbing = false
     @State private var sheet: PlayerSheet?
     @State private var importingSubtitle = false
@@ -79,7 +81,12 @@ struct PlayerView: View {
     }
 
     private func scenePhaseChanged(_ phase: ScenePhase) {
-        model.scenePhaseChanged(isActive: phase == .active)
+        switch phase {
+        case .active: model.scenePhaseChanged(.active)
+        case .inactive: model.scenePhaseChanged(.inactive)
+        case .background: model.scenePhaseChanged(.background)
+        @unknown default: model.scenePhaseChanged(.inactive)
+        }
     }
 
     private func networkChanged() {
@@ -108,7 +115,7 @@ struct PlayerView: View {
     private var presented: some View {
         stage
             .background(Color.black)
-            .statusBarHidden(!controlsVisible || isLocked)
+            .statusBarHidden(true)
             .persistentSystemOverlays(.hidden)
             .preferredColorScheme(.dark)
             .sheet(item: $sheet) { sheet in sheetContent(sheet) }
@@ -161,17 +168,25 @@ struct PlayerView: View {
 
                 gestureLayer(size: proxy.size)
 
-                if controlsVisible && !isLocked && model.failure == nil && !isCasting {
+                if !isLocked && model.failure == nil && !isCasting {
+                    // Always laid out, only faded: inserting and removing the controls re-created every button (and its glass),
+                    // which flickered, and a tap that landed during the fade went to the layer below.
                     controlsOverlay
-                        .transition(.opacity)
+                        .opacity(controlsVisible ? 1 : 0)
+                        .allowsHitTesting(controlsVisible)
+                        .accessibilityHidden(!controlsVisible)
                 }
                 if isLocked { lockOverlay }
                 if showsCenterSpinner {
                     ProgressView().controlSize(.large).tint(.white)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
                 overlays(size: proxy.size)
             }
             .animation(animationsAllowed ? .easeInOut(duration: 0.2) : nil, value: controlsVisible)
+            // The "interactive" glass shimmer restarts every time the playhead moves (four times a second) and swallowed taps.
+            .environment(\.aetherGlassInteractive, false)
         }
     }
 
@@ -198,6 +213,7 @@ struct PlayerView: View {
 
     private func disappear() {
         hideTask?.cancel()
+        pendingHideTask?.cancel()
         hudTask?.cancel()
         casting.onRemoteSessionEnded = nil
         if casting.session != nil { casting.stop() }
@@ -213,7 +229,9 @@ struct PlayerView: View {
     // MARK: Controls visibility
 
     private func showControls() {
-        withAnimation { controlsVisible = true }
+        pendingHideTask?.cancel()
+        pendingHideTask = nil
+        if !controlsVisible { controlsVisible = true }
         scheduleHide()
     }
 
@@ -224,7 +242,7 @@ struct PlayerView: View {
         hideTask = Task {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled else { return }
-            withAnimation { controlsVisible = false }
+            controlsVisible = false
         }
     }
 
@@ -237,7 +255,7 @@ struct PlayerView: View {
             }
             return
         }
-        if controlsVisible { withAnimation { controlsVisible = false } } else { showControls() }
+        if controlsVisible { controlsVisible = false } else { showControls() }
     }
 
     // MARK: Subtitles
@@ -266,13 +284,17 @@ struct PlayerView: View {
             .contentShape(Rectangle())
             .ignoresSafeArea()
             .gesture(
-                SpatialTapGesture(count: 2).onEnded { value in doubleTap(at: value.location, width: size.width) }
-                    .exclusively(before: SpatialTapGesture(count: 1).onEnded { _ in toggleControls() })
+                SpatialTapGesture(count: 1).onEnded { value in surfaceTapped(at: value.location, width: size.width) }
             )
             .simultaneousGesture(dragGesture(size: size))
             .simultaneousGesture(
+                // True only after the finger has stayed down for 0.45 s and until it lifts. (A plain LongPressGesture state is
+                // true from the first touch, which sped playback up and flashed the HUD on every tap.)
                 LongPressGesture(minimumDuration: 0.45, maximumDistance: 30)
-                    .updating($holdPressing) { value, state, _ in state = value }
+                    .sequenced(before: DragGesture(minimumDistance: 0))
+                    .updating($holdPressing) { value, state, _ in
+                        if case .second(true, _) = value { state = true }
+                    }
             )
             .onChange(of: holdPressing) { _, pressing in
                 if pressing { beginHoldSpeed() } else { endHoldSpeed() }
@@ -282,7 +304,8 @@ struct PlayerView: View {
 
     /// Press and hold plays at the configured speed; releasing restores the speed the user had.
     private func beginHoldSpeed() {
-        guard playbackSettings.holdToSpeed, !isLocked, !isCasting, !model.snapshot.isLive, rateBeforeHold == nil else { return }
+        guard playbackSettings.holdToSpeed, !isLocked, !isCasting, !model.snapshot.isLive, model.snapshot.isPlaying,
+              rateBeforeHold == nil else { return }
         rateBeforeHold = model.playbackRate
         model.setRate(Float(playbackSettings.holdSpeed))
         hud = HUD(icon: "forward.fill", text: String(format: "%.3g×", playbackSettings.holdSpeed), fraction: nil)
@@ -293,6 +316,30 @@ struct PlayerView: View {
         rateBeforeHold = nil
         model.setRate(previous)
         hud = nil
+    }
+
+    /// A tap on the video (the rules are in `SurfaceTapRecognizer`).
+    private func surfaceTapped(at location: CGPoint, width: CGFloat) {
+        let outcome = tapRecognizer.register(at: Date(), canDoubleTap: playbackSettings.gesturesEnabled && !isLocked,
+                                             isLocked: isLocked, controlsVisible: controlsVisible)
+        pendingHideTask?.cancel()
+        pendingHideTask = nil
+        switch outcome {
+        case .toggleNow:
+            toggleControls()
+        case .hideNow:
+            controlsVisible = false
+        case .hideAfterWindow:
+            pendingHideTask = Task {
+                try? await Task.sleep(nanoseconds: UInt64(SurfaceTapRecognizer.doubleTapWindow * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                controlsVisible = false
+            }
+        case .doubleTap(let restoreHidden):
+            // A double tap pauses or skips; it does not leave the controls toggled by its first tap.
+            if restoreHidden { controlsVisible = false }
+            doubleTap(at: location, width: width)
+        }
     }
 
     private func doubleTap(at location: CGPoint, width: CGFloat) {
@@ -311,7 +358,7 @@ struct PlayerView: View {
     private func dragGesture(size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 16)
             .onChanged { value in
-                guard playbackSettings.gesturesEnabled, !isLocked, !isCasting else { return }
+                guard playbackSettings.gesturesEnabled, !isLocked, !isCasting, rateBeforeHold == nil else { return }
                 if dragMode == nil {
                     let vertical = abs(value.translation.height) > abs(value.translation.width)
                     if vertical {
@@ -418,9 +465,9 @@ struct PlayerView: View {
                         sheet = .cast
                     }
                     .accessibilityIdentifier("player.cast")
-                    if model.supportsPictureInPicture {
-                        GlassIconButton(systemName: "pip.enter", accessibilityLabel: "Picture in Picture") { model.startPictureInPicture() }
-                    }
+                    GlassIconButton(systemName: "pip.enter", accessibilityLabel: "Picture in Picture") { model.startPictureInPicture() }
+                        .opacity(model.pictureInPictureAvailability.canStart ? 1 : 0.55)
+                        .accessibilityIdentifier("player.pip")
                     GlassIconButton(systemName: "captions.bubble", accessibilityLabel: "Audio e sottotitoli") { sheet = .tracks }
                         .accessibilityIdentifier("player.tracks")
                     moreMenu
@@ -471,44 +518,38 @@ struct PlayerView: View {
 
     private var centerControls: some View {
         AetherGlassGroup(spacing: 24) {
-            HStack(spacing: 34) {
+            HStack(spacing: 14) {
                 if model.previousEpisode != nil {
-                    Button { Task { await model.playPrevious() } } label: {
-                        Image(systemName: "backward.end.fill").font(.system(size: 24))
+                    TransportButton(size: 48, symbol: "backward.end.fill", symbolSize: 24, label: "Episodio precedente") {
+                        Task { await model.playPrevious() }
                     }
-                    .accessibilityLabel("Episodio precedente")
                 }
-                Button { model.skipBack(); showControls() } label: {
-                    Image(systemName: skipSymbol(seconds: playbackSettings.skipBackSeconds, forward: false)).font(.system(size: 30))
+                TransportButton(size: 56, symbol: skipSymbol(seconds: playbackSettings.skipBackSeconds, forward: false), symbolSize: 30,
+                                label: "Indietro di \(playbackSettings.skipBackSeconds) secondi") {
+                    model.skipBack(); showControls()
                 }
-                .accessibilityLabel("Indietro di \(playbackSettings.skipBackSeconds) secondi")
-                Button { model.togglePlayPause(); showControls() } label: {
-                    ZStack {
-                        if model.snapshot.isBuffering && !model.snapshot.isPlaying {
-                            ProgressView().controlSize(.large).tint(.white)
-                        } else {
-                            Image(systemName: model.snapshot.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 34))
-                        }
+                TransportButton(size: 78, glass: true, identifier: "player.playPause",
+                                label: model.snapshot.isPlaying ? "Pausa" : "Riproduci", action: {
+                    model.togglePlayPause(); showControls()
+                }) {
+                    if model.isOpeningSource || (model.snapshot.isBuffering && !model.snapshot.isPlaying) {
+                        ProgressView().controlSize(.large).tint(.white)
+                    } else {
+                        Image(systemName: model.snapshot.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 34))
                     }
-                    .frame(width: 78, height: 78)
-                    .aetherGlass(in: Circle(), interactive: true)
                 }
-                .accessibilityLabel(model.snapshot.isPlaying ? "Pausa" : "Riproduci")
-                .accessibilityIdentifier("player.playPause")
-                Button { model.skipForward(); showControls() } label: {
-                    Image(systemName: skipSymbol(seconds: playbackSettings.skipForwardSeconds, forward: true)).font(.system(size: 30))
+                TransportButton(size: 56, symbol: skipSymbol(seconds: playbackSettings.skipForwardSeconds, forward: true), symbolSize: 30,
+                                label: "Avanti di \(playbackSettings.skipForwardSeconds) secondi") {
+                    model.skipForward(); showControls()
                 }
-                .accessibilityLabel("Avanti di \(playbackSettings.skipForwardSeconds) secondi")
                 if model.nextEpisode != nil {
-                    Button { Task { await model.playNext() } } label: {
-                        Image(systemName: "forward.end.fill").font(.system(size: 24))
+                    TransportButton(size: 48, symbol: "forward.end.fill", symbolSize: 24, identifier: "player.next",
+                                    label: "Episodio successivo") {
+                        Task { await model.playNext() }
                     }
-                    .accessibilityLabel("Episodio successivo")
-                    .accessibilityIdentifier("player.next")
                 }
             }
         }
-        .buttonStyle(.plain)
     }
 
     private var bottomBar: some View {
@@ -541,7 +582,7 @@ struct PlayerView: View {
                 .accessibilityHidden(true)
             }
             HStack(spacing: 10) {
-                bottomButton("lock.fill", "Blocca i controlli") { isLocked = true; withAnimation { controlsVisible = false } }
+                bottomButton("lock.fill", "Blocca i controlli") { isLocked = true; controlsVisible = false }
                 if model.playbackRate != 1 {
                     Text(rateLabel(model.playbackRate))
                         .font(.caption.weight(.bold))
@@ -558,6 +599,7 @@ struct PlayerView: View {
                         Label("Episodi", systemImage: "list.bullet").font(.subheadline.weight(.semibold))
                             .padding(.horizontal, 14).frame(height: 36)
                             .aetherGlassCapsule(interactive: true)
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("player.episodes")
@@ -571,6 +613,7 @@ struct PlayerView: View {
             Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
                 .frame(width: 36, height: 36)
                 .aetherGlass(in: Circle(), interactive: true)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
@@ -586,6 +629,7 @@ struct PlayerView: View {
                             .font(.subheadline.weight(.semibold))
                             .padding(.horizontal, 16).frame(height: 44)
                             .aetherGlassCapsule(interactive: true)
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("player.unlock")
@@ -621,9 +665,12 @@ struct PlayerView: View {
             if let message = model.statusMessage {
                 Text(message)
                     .font(.footnote.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 14).padding(.vertical, 8)
                     .aetherGlassCapsule()
                     .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
                     .padding(.top, 14)
                     .transition(.opacity)
                     .accessibilityAddTraits(.updatesFrequently)
@@ -635,6 +682,19 @@ struct PlayerView: View {
 
         if let failure = model.failure {
             failurePanel(failure)
+        }
+
+        if model.failure == nil, !isCasting, !isLocked, let segment = model.activeSkipSegment {
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    skipSegmentButton(segment)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, controlsVisible ? 120 : 30)
+            .transition(.opacity)
         }
 
         if model.failure == nil, !isCasting, let next = model.nextEpisode, shouldShowNextCard {
@@ -652,6 +712,27 @@ struct PlayerView: View {
         if let session = casting.session {
             castingOverlay(session)
         }
+    }
+
+    /// "Salta intro" / "Salta riassunto": on screen only while the playhead is inside that part of the episode.
+    private func skipSegmentButton(_ segment: SkipSegment) -> some View {
+        let title = segment.kind == .recap ? "Salta riassunto" : "Salta intro"
+        return Button {
+            model.skipActiveSegment()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "forward.end.fill").font(.system(size: 14, weight: .bold))
+                Text(title).font(.subheadline.weight(.semibold))
+            }
+            .padding(.horizontal, 18)
+            .frame(height: 46)
+            .aetherGlassCapsule(interactive: true)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier("player.skipSegment")
     }
 
     private var shouldShowNextCard: Bool {
@@ -755,8 +836,10 @@ struct PlayerView: View {
 
     private func prepareCast(to device: CastDevice) {
         guard let plan = model.castPlan() else {
-            castNotice = CastNotice(title: "Non trasmettibile",
-                                    message: "I file scaricati si trovano solo su questo telefono: il televisore non può leggerli. Usa AirPlay, oppure trasmetti la sorgente online.")
+            let reason = model.isPlayingThroughTorBox
+                ? "Il link di TorBox contiene un codice personale che Aether non consegna a Google Cast né ai ricevitori DLNA. Con AirPlay il link passa al ricevitore che scegli: usalo solo su un dispositivo tuo."
+                : "I file scaricati si trovano solo su questo telefono: il televisore non può leggerli. Usa AirPlay, oppure trasmetti la sorgente online."
+            castNotice = CastNotice(title: "Non trasmettibile", message: reason)
             return
         }
         let verdict = CastCompatibility.evaluate(url: plan.media.url, info: plan.info, headers: plan.headers,
@@ -783,5 +866,64 @@ struct PlayerView: View {
                 castNotice = CastNotice(title: "Trasmissione non riuscita", message: error.localizedDescription)
             }
         }
+    }
+}
+
+// MARK: - Transport buttons
+
+/// A round transport button whose whole frame is the touch target. A plain button only reacts where something is drawn: a
+/// finger that lands beside the glyph (the glass disc around play / pause is not part of the label) fell through to the
+/// surface below, which hides the controls, so taps seemed to be lost and the controls blinked.
+private struct TransportButton<Content: View>: View {
+    let size: CGFloat
+    var glass = false
+    var identifier = ""
+    let label: String
+    let action: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        let button = Button(action: action) {
+            content()
+                .frame(width: size, height: size)
+                .contentShape(Circle())
+        }
+        .buttonStyle(TransportButtonStyle())
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+        if glass {
+            button.aetherGlass(in: Circle(), interactive: true)
+        } else {
+            button
+        }
+    }
+}
+
+/// The symbol of a transport button.
+private struct TransportGlyph: View {
+    let symbol: String
+    let size: CGFloat
+
+    var body: some View {
+        Image(systemName: symbol).font(.system(size: size))
+    }
+}
+
+extension TransportButton where Content == TransportGlyph {
+    init(size: CGFloat, symbol: String, symbolSize: CGFloat, identifier: String = "", label: String,
+         action: @escaping () -> Void) {
+        self.init(size: size, glass: false, identifier: identifier, label: label, action: action) {
+            TransportGlyph(symbol: symbol, size: symbolSize)
+        }
+    }
+}
+
+/// Visible feedback the moment the finger touches the button, without changing its layout.
+private struct TransportButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.88 : 1)
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }

@@ -12,11 +12,11 @@ on:
   workflow_dispatch:
     inputs:
       ui_tests:
-        description: "UI tests to run, as an -only-testing target (for example AetherUITests/LayoutUITests)"
+        description: "UI tests to run, as -only-testing targets separated by commas (for example AetherUITests/LayoutUITests,AetherUITests/BrowseUITests)"
         default: AetherUITests
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ inputs.ui_tests }}
   cancel-in-progress: true
 
 jobs:
@@ -138,7 +138,10 @@ jobs:
           "$RUNNER_TEMP/makevideo" "$RUNNER_TEMP/sample.mp4" 150
           # Listen on every interface: the download test reaches the server through the machine's LAN address.
           nohup node Tools/FixtureAddonServer/server.js --port 7777 --host 0.0.0.0 --video "$RUNNER_TEMP/sample.mp4" --media-dir "$RUNNER_TEMP/media" > "$RUNNER_TEMP/fixture.log" 2>&1 &
+          # Stand-in for the TorBox API (the app is pointed at it by -AETHER_UITEST_TORBOX_URL); loopback only, serves the same sample video.
+          nohup node Tools/FixtureTorBoxServer/server.js --port 7778 --video "$RUNNER_TEMP/sample.mp4" > "$RUNNER_TEMP/torbox-fixture.log" 2>&1 &
           sleep 2
+          curl -fsS http://127.0.0.1:7778/ | head -c 200
           LAN_IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || true)
           echo "LAN address: ${LAN_IP:-none}"
           echo "lan_ip=$LAN_IP" >> "$GITHUB_OUTPUT"
@@ -152,12 +155,16 @@ jobs:
           UI_TESTS: ${{ inputs.ui_tests }}
         run: |
           set -o pipefail
+          # UI_TESTS may list several targets separated by commas (AetherUITests/LayoutUITests,AetherUITests/BrowseUITests).
+          ONLY=()
+          IFS=',' read -ra TARGETS <<< "${UI_TESTS:-AetherUITests}"
+          for target in "${TARGETS[@]}"; do ONLY+=("-only-testing:$target"); done
           TEST_RUNNER_AETHER_FIXTURE_LAN_HOST="${{ steps.fixture.outputs.lan_ip }}" \
           xcodebuild test-without-building \
             -project Aether.xcodeproj -scheme Aether \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            -only-testing:"${UI_TESTS:-AetherUITests}" \
+            "${ONLY[@]}" \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" 2>&1 | tee "$RUNNER_TEMP/ui.log"
 
       - name: Upload result bundles
@@ -184,6 +191,8 @@ jobs:
           grep -E "Executed [0-9]+ tests?" "$RUNNER_TEMP/ui.log" | tail -2 || true
           grep -E "Test Case .* (passed|failed)" "$RUNNER_TEMP/ui.log" | sed -E 's/.*Test Case .-\[AetherUITests\.//' | head -60 || true
           grep -E "error: -\[" "$RUNNER_TEMP/ui.log" | sort -u | head -40 || true
+          echo "=== media matrix (what the info sheet showed) ==="
+          grep -h "MATRIX-LINE" "$RUNNER_TEMP/ui.log" | sort -u | head -40 || true
           echo "=== accessibility audit notes ==="
           grep -h "A11Y-ISSUE" "$RUNNER_TEMP/ui.log" | sort -u | head -30 || true
           echo "=== fixture server ==="

@@ -42,6 +42,12 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private var itemCancellables = Set<AnyCancellable>()
     private var timeObserver: Any?
     private var pip: AVPictureInPictureController?
+    /// The controller is made once the audio session is active (see `load`); asking earlier gives "not possible".
+    private var pipAttempted = false
+    /// The system has begun moving the picture into the floating window but has not finished: it must not be detached now.
+    private var pipStarting = false
+    private var wantsAutoPictureInPicture = true
+    private var pipPossibleCancellable: AnyCancellable?
     private var audioGroup: AVMediaSelectionGroup?
     private var legibleGroup: AVMediaSelectionGroup?
     private var pendingStart: Double?
@@ -76,11 +82,22 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             MainActor.assumeIsolated { self?.timeTick(time) }
         }
 
-        if AVPictureInPictureController.isPictureInPictureSupported() {
-            let controller = AVPictureInPictureController(playerLayer: view.playerLayer)
-            controller?.delegate = self
-            pip = controller
-        }
+    }
+
+    /// Creates the Picture in Picture controller on first use. It is done when a file is loaded, not in `init`: the audio session
+    /// category `.playback` has to be in place first or the system keeps answering "not possible".
+    private func ensurePictureInPictureController() {
+        guard !pipAttempted else { return }
+        pipAttempted = true
+        guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        guard let controller = AVPictureInPictureController(playerLayer: view.playerLayer) else { return }
+        controller.delegate = self
+        controller.canStartPictureInPictureAutomaticallyFromInline = wantsAutoPictureInPicture
+        pip = controller
+        snapshot.isPictureInPicturePossible = controller.isPictureInPicturePossible
+        pipPossibleCancellable = controller.publisher(for: \.isPictureInPicturePossible)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] possible in self?.snapshot.isPictureInPicturePossible = possible }
     }
 
     deinit {
@@ -90,6 +107,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     // MARK: Loading
 
     func load(url: URL, headers: [String: String], startAt: Double?, autoplay: Bool) {
+        ensurePictureInPictureController()
         teardownItem()
         self.autoplay = autoplay
         pendingStart = (startAt ?? 0) > 1 ? startAt : nil
@@ -104,7 +122,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         mediaInfo = nil
         newItem.canUseNetworkResourcesForLiveStreamingWhilePaused = false
         item = newItem
-        snapshot = EngineSnapshot(rate: desiredRate)
+        var fresh = EngineSnapshot(rate: desiredRate)
+        fresh.isPictureInPictureActive = snapshot.isPictureInPictureActive
+        fresh.isPictureInPicturePossible = snapshot.isPictureInPicturePossible
+        snapshot = fresh
         observe(newItem)
         player.replaceCurrentItem(with: newItem)
         if autoplay { player.playImmediately(atRate: desiredRate) }
@@ -215,6 +236,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     func play() {
         autoplay = true
         player.playImmediately(atRate: desiredRate)
+        // The system reports the new state a moment later; until then the button must not still say "play" (a second tap
+        // would then start nothing), as the MPV engine already does.
+        if item != nil { snapshot.isPlaying = true }
     }
 
     func pause() {
@@ -302,10 +326,22 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
 
     // MARK: Picture in Picture / background
 
-    var supportsPictureInPicture: Bool { pip != nil }
+    /// What the engine can do in principle on this device; `pictureInPictureAvailability` says whether it can right now.
+    var supportsPictureInPicture: Bool { AVPictureInPictureController.isPictureInPictureSupported() }
+
+    var pictureInPictureAvailability: PictureInPictureAvailability {
+        return PictureInPictureAvailability.evaluate(engine: .avPlayer,
+                                                     deviceSupportsPictureInPicture: AVPictureInPictureController.isPictureInPictureSupported(),
+                                                     controllerExists: pip != nil || !pipAttempted,
+                                                     isPossible: pip?.isPictureInPicturePossible ?? false,
+                                                     fileIsReady: snapshot.isReady)
+    }
 
     func startPictureInPicture() {
+        ensurePictureInPictureController()
         guard let pip = pip, pip.isPictureInPicturePossible else { return }
+        snapshot.pictureInPictureFailure = nil
+        view.playerLayer.player = player
         pip.startPictureInPicture()
     }
 
@@ -314,12 +350,16 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     }
 
     func setAutoPictureInPicture(_ enabled: Bool) {
+        wantsAutoPictureInPicture = enabled
         pip?.canStartPictureInPictureAutomaticallyFromInline = enabled
     }
 
     func setVideoDetached(_ detached: Bool) {
         if detached {
-            if !snapshot.isPictureInPictureActive { view.playerLayer.player = nil }
+            // Not while Picture in Picture is on or on its way: the controller's own flag is checked as well, because the
+            // snapshot is updated one hop later than the delegate callback.
+            if snapshot.isPictureInPictureActive || pipStarting || pip?.isPictureInPictureActive == true { return }
+            view.playerLayer.player = nil
         } else {
             view.playerLayer.player = player
         }
@@ -336,6 +376,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     }
 
     func teardown() {
+        pipPossibleCancellable = nil
         pip?.stopPictureInPicture()
         player.pause()
         teardownItem()
@@ -349,12 +390,34 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
 }
 
 extension AVPlayerEngine: AVPictureInPictureControllerDelegate {
+    nonisolated func pictureInPictureControllerWillStartPictureInPicture(_ controller: AVPictureInPictureController) {
+        Task { @MainActor in self.pipStarting = true }
+    }
+
     nonisolated func pictureInPictureControllerDidStartPictureInPicture(_ controller: AVPictureInPictureController) {
-        Task { @MainActor in self.snapshot.isPictureInPictureActive = true }
+        Task { @MainActor in
+            self.pipStarting = false
+            self.snapshot.isPictureInPictureActive = true
+        }
     }
 
     nonisolated func pictureInPictureControllerDidStopPictureInPicture(_ controller: AVPictureInPictureController) {
-        Task { @MainActor in self.snapshot.isPictureInPictureActive = false }
+        Task { @MainActor in
+            self.pipStarting = false
+            self.snapshot.isPictureInPictureActive = false
+        }
+    }
+
+    nonisolated func pictureInPictureController(_ controller: AVPictureInPictureController,
+                                                failedToStartPictureInPictureWithError error: Error) {
+        let message = (error as NSError).localizedDescription
+        Task { @MainActor in
+            self.pipStarting = false
+            self.snapshot.pictureInPictureFailure = message
+            // The app already left the screen while the window was starting: fall back to sound only (the view model resumes
+            // the sound if the system paused it).
+            if UIApplication.shared.applicationState == .background { self.view.playerLayer.player = nil }
+        }
     }
 
     nonisolated func pictureInPictureController(_ controller: AVPictureInPictureController,

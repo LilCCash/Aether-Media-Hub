@@ -80,9 +80,13 @@ public enum AudioCodec: String, Codable, Sendable {
 /// answered for the engines that are really present.
 public struct PlaybackCapabilities: Equatable, Sendable {
     public var mpvAvailable: Bool
+    /// A debrid service (TorBox) with a key saved by the user is available, so a torrent stream can be turned into a direct
+    /// link before playback. This says nothing about the key being valid or the torrent being in the provider's cache.
+    public var debridAvailable: Bool
 
-    public init(mpvAvailable: Bool = false) {
+    public init(mpvAvailable: Bool = false, debridAvailable: Bool = false) {
         self.mpvAvailable = mpvAvailable
+        self.debridAvailable = debridAvailable
     }
 
     public static let avPlayerOnly = PlaybackCapabilities()
@@ -271,7 +275,10 @@ public enum StreamAnalyzer {
             support = .unsupported(.youtube)
         case .torrent:
             kind = .torrent
-            if streamingServer != nil {
+            if capabilities.debridAvailable {
+                // The file inside the torrent, and so the container, is only known once the provider has been asked.
+                support = .unknown
+            } else if streamingServer != nil {
                 support = .unknown
                 warnings.append("Torrent tramite server esterno (sperimentale).")
             } else {

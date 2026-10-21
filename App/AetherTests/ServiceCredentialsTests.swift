@@ -48,6 +48,18 @@ final class ServiceCredentialsTests: XCTestCase {
         XCTAssertNil(try store.get(ServiceKind.tvdb.pinKeychainKey))
     }
 
+    func testChangingAKeyTellsTheObserverSoThatServicesCanTryAgain() throws {
+        let credentials = ServiceCredentials(secrets: InMemorySecretStore())
+        var calls = 0
+        credentials.onChange = { calls += 1 }
+        try credentials.save("k1", for: .tmdb)
+        try credentials.save("k2", for: .tmdb)
+        credentials.remove(.tmdb)
+        XCTAssertEqual(calls, 3)
+        XCTAssertThrowsError(try credentials.save(" ", for: .tmdb))
+        XCTAssertEqual(calls, 3, "a rejected key changes nothing")
+    }
+
     func testKeychainAccountsAreDistinctAndOutsideTheAddonNamespace() {
         let accounts = ServiceKind.allCases.flatMap { [$0.keychainKey, $0.pinKeychainKey] }
         XCTAssertEqual(Set(accounts).count, accounts.count)

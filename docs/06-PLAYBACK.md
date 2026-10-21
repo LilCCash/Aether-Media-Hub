@@ -71,20 +71,35 @@ Dalla documentazione di mpv (opzioni `--target-colorspace-hint`, `--tone-mapping
 Legenda: ✅ eseguito in CI con esito positivo · 🟡 coperto solo in parte · ⛔ non eseguibile qui (richiede hardware / contenuti reali) · — non applicabile.
 La colonna «Come» dice cosa dimostra il test. I file della matrice sono generati in CI con ffmpeg (immagini sintetiche; il segnale colore e i tag sono reali, i pixel no).
 
-(la tabella con gli esiti reali dell'ultima esecuzione è in fondo, sezione 7)
+(gli esiti reali dell'ultima esecuzione sono nella sezione 7)
 
 ## 6. Limiti dichiarati
 
 * **Nessun test su iPhone fisico**: l'aspetto reale di HDR10 / HLG / Dolby Vision, la luminosità di picco, la resa del tone mapping, il consumo, la fluidità a 4K e le prestazioni della decodifica software di AV1/VP9 non sono verificati.
 * L'uscita video di MPV (Metal via MoltenVK) è provata in CI solo nella misura indicata dalla matrice; la patch Metal di mpv è non ufficiale (lo dice il README di MPVKit).
 * Dolby Vision: l'analisi dei box `dvcC`/`dvvC` è provata con vettori costruiti dalla specifica (test unitari), **non** con file Dolby Vision reali (nessun encoder disponibile in CI). Dolby Vision profilo 7 FEL non ha un percorso nativo.
-* Il Picture-in-Picture è solo AVPlayer. Con MPV l'audio continua in background (il video viene sospeso), ma non c'è PiP.
+* Il Picture-in-Picture è solo AVPlayer. Con MPV (MKV, AVI, TS e la maggior parte delle sorgenti TorBox) l'audio continua in background (il video viene sospeso), ma **non c'è PiP**: dalla 1.1 il pulsante c'è comunque e, se premuto, lo dice invece di non fare nulla.
+* **Come il player gestisce l'uscita dall'app (1.1).** iOS passa da *inattiva* prima di *background*: succede anche andando alla Home, ed è il momento in cui il sistema apre da solo il PiP dal video che vede. Fino alla 1.0 il player staccava l'immagine già in *inattiva*, e così il PiP automatico non poteva partire. Ora *inattiva* non tocca l'immagine; in *background* il player lascia stare tutto se il PiP o AirPlay sono attivi, aspetta 0,8 s che il sistema apra il PiP se è possibile e attivo l'automatico, altrimenti tiene solo l'audio (o mette in pausa se «Continua l'audio in background» è spento). La regola è `PlayerBackgroundPolicy` nel Core, con test.
+* **Contenitori come LiveContainer.** Il PiP dipende dal processo che ospita l'app (entitlement e sessione audio): in un contenitore iOS può rifiutarlo anche con AVPlayer. Aether lo dice nel messaggio del pulsante e scrive nel registro diagnostico se il sistema considera il PiP «possibile» e perché un tentativo non è partito; **non posso verificarlo da qui**, serve la prova con l'app installata direttamente.
 * Dolby Atmos: AVPlayer lo riproduce se il file lo contiene e l'uscita lo supporta; con MPV E-AC-3/TrueHD sono decodificati a canali (nessun oggetto). Non verificato su dispositivo.
 * DASH (`.mpd`) resta «non supportato»: FFmpeg lo apre, ma non è stato provato.
 
 ## 7. Esito dell'ultima esecuzione
 
-(compilato dopo l'esecuzione della CI: vedi docs/04-TESTING.md)
+Ultima esecuzione della matrice (CI, commit `57a5a04`, simulatore, file generati da ffmpeg; riproduzione = la posizione supera 2 s):
+
+| File | Motore scelto | Riproduzione | Fatti mostrati nel foglio Informazioni |
+|---|---|---|---|
+| H.264 in Matroska | MPV | ✅ | solo contenitore e motore (codec/gamma non visti) |
+| H.264 in AVI | MPV (atteso) | ❌ «il player non si apre» (causa non chiarita) | — |
+| HEVC Main10 HDR10 in MP4 | AVPlayer | ✅ | solo contenitore e motore |
+| HEVC Main10 HDR10 in MKV | MPV | ✅ | solo contenitore e motore |
+| HEVC Main10 HLG in MP4 | AVPlayer (atteso) | ❌ «il player non si apre» | — |
+| HEVC `hev1` HDR10 in MP4 | MPV (il pianificatore sceglie MPV) | ✅ | contenitore e motore |
+| HEVC 8 bit in MP4 | AVPlayer | ✅ | solo contenitore e motore |
+| uscita video reale di MPV (Metal/MoltenVK) | — | non confermata (test non passato) | — |
+
+Quindi: la **scelta del motore** e la **riproduzione** dei file sopra sono osservate; il **rilevamento reale di HDR10/HLG nel simulatore non è confermato** (le righe «Video» e «Gamma dinamica» non compaiono nel foglio durante il test), e **Dolby Vision non è stato provato** (nessun file). La logica di lettura dei box e di classificazione ha test unitari con vettori costruiti dalla specifica. Una nuova esecuzione con i test corretti era in corso alla pubblicazione.
 
 ## 8. Prossimi passi consigliati
 

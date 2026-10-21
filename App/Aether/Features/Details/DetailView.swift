@@ -11,6 +11,8 @@ final class DetailViewModel: ObservableObject {
     @Published private(set) var watchedIDs = Set<String>()
     @Published private(set) var progress: [String: PlaybackProgress] = [:]
     @Published private(set) var canPlay = true
+    /// Credit lines for the services whose data was added to this meta (empty when nothing was added).
+    @Published private(set) var attributions: [String] = []
     @Published var selectedSeason: Int?
 
     let route: MetaRoute
@@ -35,6 +37,18 @@ final class DetailViewModel: ObservableObject {
         if selectedSeason == nil {
             selectedSeason = initialSeason()
         }
+        await enrich(env: env)
+    }
+
+    /// Adds what the user's own TMDB / TheTVDB keys know to the addon's meta, filling only what the addon left empty.
+    /// Silent: without a key, or when a service does not answer, the meta stays as the addon provided it.
+    private func enrich(env: AppEnvironment) async {
+        let base = meta
+        let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
+        guard let enrichment = await env.metadata.enrich(base, language: language), !Task.isCancelled, meta.id == base.id else { return }
+        attributions = enrichment.creditLines(whenMergedInto: base)
+        meta = base.merging(enrichment: enrichment)
+        if selectedSeason == nil { selectedSeason = initialSeason() }
     }
 
     func refreshLibraryState(env: AppEnvironment) async {
@@ -177,7 +191,7 @@ struct DetailView: View {
             if let runtime = model.meta.runtime { Text("· \(runtime)") }
             if let rating = model.meta.imdbRating { Label(rating, systemImage: "star.fill").labelStyle(.titleAndIcon).foregroundStyle(.yellow) }
         }
-        .font(.system(.footnote, design: .rounded).weight(.medium))
+        .font(.system(.footnote, design: AetherTypography.design).weight(.medium))
         .foregroundStyle(Color.aetherSecondary)
     }
 
@@ -295,7 +309,7 @@ struct DetailView: View {
                         }
                     } label: {
                         Label(seasonTitle(model.selectedSeason), systemImage: "chevron.up.chevron.down")
-                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                             .padding(.horizontal, 12).padding(.vertical, 7)
                             .aetherGlassCapsule(interactive: true)
                     }
@@ -360,6 +374,9 @@ struct DetailView: View {
                 Text("Nessun addon fornisce i dettagli di questo titolo: mostro solo le informazioni del catalogo.")
                     .font(.caption).foregroundStyle(Color.aetherSecondary)
             }
+            ForEach(model.attributions, id: \.self) { line in
+                Text(line).font(.caption2).foregroundStyle(Color.aetherSecondary)
+            }
         }
         .padding(.horizontal, Theme.pageMargin)
     }
@@ -389,7 +406,7 @@ struct EpisodeRow: View {
                         if let episode = video.episode { Text("\(episode).").foregroundStyle(Color.aetherSecondary) }
                         Text(video.title.isEmpty ? "Episodio" : video.title).lineLimit(2)
                     }
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                     if let overview = video.overview, !overview.isEmpty {
                         Text(overview).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(2)
                     }

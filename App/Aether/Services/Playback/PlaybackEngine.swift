@@ -21,6 +21,10 @@ struct EngineSnapshot: Equatable {
     var videoSize: CGSize = .zero
     var isExternalPlaybackActive = false
     var isPictureInPictureActive = false
+    /// The system says the picture can be moved into a floating window now (AVPlayer only).
+    var isPictureInPicturePossible = false
+    /// Why the last attempt to open the floating window failed, in the system's own words (nil when there was none).
+    var pictureInPictureFailure: String?
     var isLive = false
 }
 
@@ -61,6 +65,8 @@ protocol PlaybackEngine: AnyObject {
     func selectEmbeddedSubtitle(id: String?)
 
     var supportsPictureInPicture: Bool { get }
+    /// Whether the floating-window button can work right now, and if not why (shown to the viewer as is).
+    var pictureInPictureAvailability: PictureInPictureAvailability { get }
     func startPictureInPicture()
     func stopPictureInPicture()
     func setAutoPictureInPicture(_ enabled: Bool)

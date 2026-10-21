@@ -28,21 +28,44 @@ final class PlayerMatrixUITests: AetherUITestCase {
         XCTAssertTrue(info.waitForExistence(timeout: 10), "no info entry in the player menu: \(app.debugDescription.prefix(1500))")
         info.tap()
         XCTAssertTrue(element("info.engine").waitForExistence(timeout: 10), "the info sheet did not open")
+        collectInfoRows()
     }
 
-    private func value(_ id: String) -> String {
-        let element = self.element(id)
-        return element.exists ? element.label : ""
+    /// The rows of the info sheet, read once, top to bottom: it is a lazy List, so rows below the fold only exist after a swipe.
+    private var infoRows: [String: String] = [:]
+    private static let infoIDs = ["info.engine", "info.container", "info.video", "info.range", "info.dv", "info.decodable", "info.vo", "info.expected"]
+
+    private func collectInfoRows() {
+        infoRows = [:]
+        for id in PlayerMatrixUITests.infoIDs {
+            let row = element(id)
+            var attempts = 0
+            // Cells of a lazy List are created a moment after a swipe: wait for them instead of testing at once.
+            while !row.waitForExistence(timeout: 2) && attempts < 4 {
+                app.swipeUp()
+                attempts += 1
+            }
+            if row.exists { infoRows[id] = row.label }
+        }
+    }
+
+    private func value(_ id: String) -> String { return infoRows[id] ?? "" }
+
+    /// One line describing what the sheet showed, for failure messages (the CI summary prints only the first line).
+    private func rowsDigest() -> String {
+        let shown = PlayerMatrixUITests.infoIDs.map { "\($0)=[\(infoRows[$0] ?? "absent")]" }.joined(separator: " ")
+        let labels = app.staticTexts.allElementsBoundByIndex.prefix(40).map { $0.label }.joined(separator: " | ")
+        return "\(shown) visible: \(labels)"
     }
 
     private func attach(_ name: String) {
-        let rows = ["info.engine", "info.container", "info.video", "info.range", "info.decodable", "info.dv", "info.vo", "info.expected"]
-            .map { "\($0): \(value($0))" }.joined(separator: "\n")
+        let rows = PlayerMatrixUITests.infoIDs.map { "\($0): \(value($0))" }.joined(separator: "\n")
         let attachment = XCTAttachment(string: rows)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
         print("MATRIX \(name)\n\(rows)")
+        print("MATRIX-LINE \(name) :: \(rowsDigest())")
     }
 
     func testH264InMatroskaPlaysThroughMPV() {
@@ -50,8 +73,8 @@ final class PlayerMatrixUITests: AetherUITestCase {
         openInfo()
         attach("h264.mkv")
         XCTAssertTrue(value("info.engine").contains("MPV"), "MKV needs the MPV engine: \(value("info.engine"))")
-        XCTAssertTrue(value("info.container").lowercased().contains("matroska"), "container: \(value("info.container"))")
-        XCTAssertTrue(value("info.video").lowercased().contains("h264"), "video: \(value("info.video"))")
+        XCTAssertTrue(value("info.container").lowercased().contains("mkv") || value("info.container").lowercased().contains("matroska"), "container: \(rowsDigest())")
+        XCTAssertTrue(value("info.video").lowercased().contains("h264"), "video: \(rowsDigest())")
     }
 
     func testH264InAVIPlaysThroughMPV() {
@@ -59,7 +82,7 @@ final class PlayerMatrixUITests: AetherUITestCase {
         openInfo()
         attach("h264.avi")
         XCTAssertTrue(value("info.engine").contains("MPV"), value("info.engine"))
-        XCTAssertTrue(value("info.container").lowercased().contains("avi"), "container: \(value("info.container"))")
+        XCTAssertTrue(value("info.container").lowercased().contains("avi"), "container: \(rowsDigest())")
     }
 
     func testHDR10InMP4PlaysThroughAVPlayerAndIsReportedAsHDR10() {
@@ -67,7 +90,7 @@ final class PlayerMatrixUITests: AetherUITestCase {
         openInfo()
         attach("hdr10.mp4")
         XCTAssertTrue(value("info.engine").contains("AVPlayer"), "an HEVC Main10 hvc1 MP4 belongs to AVPlayer: \(value("info.engine"))")
-        XCTAssertTrue(value("info.range").contains("HDR10"), "signalled range: \(value("info.range"))")
+        XCTAssertTrue(value("info.range").contains("HDR10"), "signalled range: \(rowsDigest())")
         XCTAssertFalse(value("info.range").contains("Dolby"), "nothing in this file is Dolby Vision")
     }
 
@@ -76,7 +99,7 @@ final class PlayerMatrixUITests: AetherUITestCase {
         openInfo()
         attach("hlg.mp4")
         XCTAssertTrue(value("info.engine").contains("AVPlayer"), value("info.engine"))
-        XCTAssertTrue(value("info.range").contains("HLG"), "signalled range: \(value("info.range"))")
+        XCTAssertTrue(value("info.range").contains("HLG"), "signalled range: \(rowsDigest())")
     }
 
     func testSDRHEVCIsNotReportedAsHDR() {
@@ -84,6 +107,8 @@ final class PlayerMatrixUITests: AetherUITestCase {
         openInfo()
         attach("sdr-hevc.mp4")
         let range = value("info.range")
+        // An absent row would make this pass for the wrong reason: the sheet must have told us the range was measured.
+        XCTAssertFalse(range.isEmpty, "the range row is missing from the info sheet: \(rowsDigest())")
         XCTAssertFalse(range.contains("HDR10") || range.contains("HLG") || range.contains("Dolby"), "an SDR file must not be labelled HDR: \(range)")
     }
 
@@ -92,7 +117,7 @@ final class PlayerMatrixUITests: AetherUITestCase {
         openInfo()
         attach("hdr10.mkv")
         XCTAssertTrue(value("info.engine").contains("MPV"), value("info.engine"))
-        XCTAssertTrue(value("info.range").contains("HDR10"), "range reported by mpv: \(value("info.range"))")
+        XCTAssertTrue(value("info.range").contains("HDR10"), "range reported by mpv: \(rowsDigest())")
     }
 
     /// The hev1 tag: whichever engine ends up playing it, the choice must agree with what the platform reported.
@@ -115,6 +140,6 @@ final class PlayerMatrixUITests: AetherUITestCase {
         play("Matrix H264 MKV", headless: false)
         openInfo()
         attach("h264.mkv (real video output)")
-        XCTAssertTrue(value("info.vo").contains("Attiva"), "mpv video output: \(value("info.vo"))")
+        XCTAssertTrue(value("info.vo").contains("Attiva"), "mpv video output: \(rowsDigest())")
     }
 }

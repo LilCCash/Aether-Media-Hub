@@ -25,6 +25,61 @@ struct SectionHeader: View {
             }
         }
         .padding(.horizontal, Theme.pageMargin)
+        .repaintsWithTitleFont()
+    }
+}
+
+// MARK: - Symmetric card grid
+
+private struct CardGridWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+/// A grid whose cards fill every row symmetrically: at least `minColumns` columns, the same margin on both sides, and cards
+/// sized to the column (an adaptive grid with a fixed card width left the spare room of each column on one side).
+struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
+    let items: [Item]
+    var minColumns: Int = 3
+    var preferredWidth: CGFloat = 130
+    var spacing: CGFloat = 12
+    var rowSpacing: CGFloat = 18
+    var margin: CGFloat = Theme.pageMargin
+    @ViewBuilder var content: (Item, CGFloat) -> Content
+
+    @State private var containerWidth: CGFloat = 390
+
+    /// Columns and card width for a container of `containerWidth` points. Pure, so it is unit-tested.
+    static func layout(containerWidth: CGFloat, margin: CGFloat, spacing: CGFloat, minColumns: Int,
+                       preferredWidth: CGFloat) -> (columns: Int, cardWidth: CGFloat) {
+        let available = max(0, containerWidth - 2 * margin)
+        let fitting = Int(((available + spacing) / (preferredWidth + spacing)).rounded(.down))
+        let columns = max(max(1, minColumns), fitting)
+        let width = floor((available - spacing * CGFloat(columns - 1)) / CGFloat(columns))
+        return (columns, max(40, width))
+    }
+
+    var body: some View {
+        let metrics = AdaptiveCardGrid.layout(containerWidth: containerWidth, margin: margin, spacing: spacing,
+                                              minColumns: minColumns, preferredWidth: preferredWidth)
+        let columns: [GridItem] = Array(repeating: GridItem(.fixed(metrics.cardWidth), spacing: spacing, alignment: .top),
+                                        count: metrics.columns)
+        return VStack(spacing: 0) {
+            Color.clear
+                .frame(height: 0)
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: CardGridWidthKey.self, value: proxy.size.width)
+                })
+            LazyVGrid(columns: columns, alignment: .center, spacing: rowSpacing) {
+                ForEach(items) { item in
+                    content(item, metrics.cardWidth)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .onPreferenceChange(CardGridWidthKey.self) { width in
+            if width > 0, abs(width - containerWidth) > 0.5 { containerWidth = width }
+        }
     }
 }
 
@@ -36,12 +91,13 @@ struct RatingBadge: View {
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: "star.fill").font(.system(size: 9))
-            Text(rating).font(.system(size: 11, weight: .semibold, design: .rounded))
+            Text(rating).font(.system(size: 11, weight: .semibold, design: AetherTypography.design))
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .background(.black.opacity(0.55), in: Capsule())
+        .repaintsWithTitleFont()
         .accessibilityLabel("Valutazione \(rating)")
     }
 }
@@ -52,6 +108,7 @@ struct PosterCard: View {
     var showsTitle: Bool = true
     var isInWatchlist: Bool = false
     var progress: Double? = nil
+    @Environment(\.aetherStyle) private var style
 
     private var height: CGFloat { width / CGFloat(meta.posterShape.aspectRatio) }
 
@@ -60,9 +117,8 @@ struct PosterCard: View {
             ZStack(alignment: .topLeading) {
                 RemoteImage(urlString: meta.poster ?? meta.background, width: width, placeholderSeed: meta.name)
                     .frame(width: width, height: height)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous)
-                        .stroke(Color.primary.opacity(0.10), lineWidth: 0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: style.posterRadius, style: .continuous))
+                    .aetherCardChrome(cornerRadius: style.posterRadius)
                     .overlay(alignment: .bottom) {
                         if let progress = progress, progress > 0 {
                             ProgressBar(value: progress).padding(8)
@@ -84,7 +140,7 @@ struct PosterCard: View {
             }
             if showsTitle {
                 Text(meta.name)
-                    .font(.system(.footnote, design: .rounded).weight(.semibold))
+                    .font(.system(.footnote, design: AetherTypography.design).weight(.semibold))
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                     .frame(width: width, alignment: .leading)
@@ -169,13 +225,15 @@ struct SkeletonBlock: View {
 struct SkeletonRow: View {
     var posterWidth: CGFloat = 128
     var count: Int = 6
+    /// Width over height of one card: 0.675 for a poster, 16/9 for a wide card.
+    var aspectRatio: CGFloat = 0.675
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
                 ForEach(0..<count, id: \.self) { _ in
                     VStack(alignment: .leading, spacing: 6) {
-                        SkeletonBlock().frame(width: posterWidth, height: posterWidth / 0.675)
+                        SkeletonBlock().frame(width: posterWidth, height: posterWidth / aspectRatio)
                         SkeletonBlock(cornerRadius: 4).frame(width: posterWidth * 0.8, height: 10)
                     }
                 }
@@ -266,7 +324,7 @@ struct FilterChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .foregroundStyle(isSelected ? Color.white : Color.primary)
@@ -285,7 +343,7 @@ struct GenreChips: View {
             HStack(spacing: 8) {
                 ForEach(genres, id: \.self) { genre in
                     Text(genre)
-                        .font(.system(.caption, design: .rounded).weight(.semibold))
+                        .font(.system(.caption, design: AetherTypography.design).weight(.semibold))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(Color.primary.opacity(0.08), in: Capsule())

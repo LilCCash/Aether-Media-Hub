@@ -7,7 +7,7 @@
 2. **Interfacce sostituibili** (protocolli) per: rete (`HTTPClient`), segreti (`SecretStore`), persistenza (`JSONFileStore`),
    motore di riproduzione (`PlaybackEngine`), casting (`CastBackend`). Una sincronizzazione cloud non è implementata: nessuna interfaccia vuota è stata lasciata a fingere il contrario.
 3. **Swift 5 language mode**, `async/await`, `actor` per lo stato condiviso, `@MainActor` solo nei view-model/UI.
-4. **Nessuna dipendenza di terzi** salvo il Google Cast SDK (binario ufficiale, necessario per Chromecast / Android TV con Cast).
+4. **Due dipendenze di terzi nell'app**: il Google Cast SDK (binario ufficiale, per Chromecast / Android TV con Cast) e, da Alpha 2, MPVKit (libmpv + FFmpeg, prodotto LGPL) per i formati che AVPlayer non apre. AetherCore non ne ha nessuna.
 5. **Nessun codice eseguito da addon**: gli addon sono solo JSON dichiarativo trattato come input non fidato.
 
 ## Struttura del repository
@@ -18,10 +18,15 @@ Packages/AetherCore/            Swift Package (Foundation-only)
     Models/       Manifest, Meta, Stream, Subtitle, risposte tolleranti (LossyArray, FlexString)
     Net/          HTTPClient (URLSession), NetworkPolicy (SSRF/redirect/size/timeout), ResponseCache
     Addons/       AddonURL, ResourceURLBuilder, AddonClient, AddonRegistry (actor), AddonService (aggregazione), RequestPlanner
-    Catalog/      CatalogPager (paginazione, filtri); i tipi/cataloghi effettivi li calcola RequestPlanner
+    Catalog/      CatalogPager; ContentTypes (nomi/icone dei tipi), CatalogCapabilities (cosa può fare ogni catalogo installato), ResultFilters (filtri locali che dichiarano
+                  quanti risultati nascondono), DiscoverLayout (ordine/visibilità dei tipi in Scopri)
     Search/       SearchService (concorrente, dedupe), LocalSearch
     Library/      LibraryStore (actor), progressi, cronologia, watchlist, Backup/merge
-    Playback/     StreamAnalyzer (qualità/codec/compatibilità), StreamSelector, NextEpisode, Subtitle parser (SRT/VTT/ASS)
+    Playback/     StreamAnalyzer (qualità/codec/compatibilità, capacità del dispositivo), StreamSelector, NextEpisode, Subtitle parser (SRT/VTT/ASS), LanguageCodes;
+      Media/      MediaFormat (fatti letti dal file), PlaybackPlanner (sceglie il motore da fatti), MPVOptions, MPVErrorMapper
+    Subtitles/    SubtitleCatalog (classifica/raggruppa), OpenSubtitlesHash, SubtitleHashProbe
+    Debrid/       TorBoxClient, TorBoxFileMatcher, DebridResolver (cache → link, avanzamento, mai cancella)
+    Metadata/     TMDBClient, TVDBClient, MetadataEnricher (completa, non sovrascrive), ExternalIDs
     Casting/      Compatibilità cast, UPnP/DLNA (descrizione, SOAP AVTransport, DIDL-Lite, SSDP)
     Downloads/    DownloadPlanner, DownloadStore (in Downloads.swift)
     Settings/     AppSettings (Codable, versionato)
@@ -31,12 +36,14 @@ App/Aether/                     App SwiftUI (iOS 17+, Liquid Glass su iOS 26+)
   App/            @main + AppDelegate (AetherApp.swift), composition root (AppEnvironment), AppRouter (deep link), AddonStore, LibraryModel
   DesignSystem/   Colori, tipografia, AetherGlass (Liquid Glass nativo con fallback materiale), componenti
   Features/       Home, Discover, Search, Library, Details, Player, Casting, Addons, Downloads, Settings (+ Informazioni e licenze)
-  Services/       KeychainSecretStore, ImageLoader, NetworkMonitor, SettingsStore, BackupService, DownloadManager,
-                  Playback/ (AVPlayerEngine, NowPlayingService, AudioSessionController), Casting/ (CastCoordinator, GoogleCastBackend, DLNABackend, SSDPScanner)
+  Services/       KeychainSecretStore, ServiceCredentials, ImageLoader, NetworkMonitor, SettingsStore, BackupService, DownloadManager, Debrid/ (DebridService),
+                  Playback/ (PlaybackEngine, AVPlayerEngine, MPV/MPVEngine, MediaProbe, DeviceCapabilitiesReader, PlaybackEngineFactory, NowPlayingService, AudioSessionController),
+                  Casting/ (CastCoordinator, GoogleCastBackend, DLNABackend, SSDPScanner)
   Resources/      Assets.xcassets (icona, colori, logo), Info.plist, PrivacyInfo.xcprivacy
 App/AetherTests/                Unit test che richiedono il bundle app (Keychain, view-model)
 App/AetherUITests/              Test UI (XCUITest) contro il server di fixture
-Tools/FixtureAddonServer/       Server Node di fixture (manifest, cataloghi, meta, stream, sottotitoli, addon lento/offline/invalido)
+Tools/FixtureAddonServer/       Server Node di fixture (manifest, cataloghi, meta, stream, sottotitoli, addon lento/offline/invalido, file della "matrice media", finti TMDB/TheTVDB)
+Tools/FixtureTorBoxServer/      Server Node che imita gli endpoint documentati di TorBox (test double, vedi docs/07-SERVIZI.md)
 Scripts/                        Generazione icona, bootstrap
 project.yml                     XcodeGen (sorgente di verità del progetto Xcode)
 .github/workflows/ci.yml        macOS: swift test, build app, unit test e UI test su simulatore
@@ -57,8 +64,9 @@ cache con TTL (`cacheMaxAge`, `stale-if-error`), paginazione `skip`, stop quando
 stream da **tutti** gli addon compatibili in parallelo, risultati incrementali → `StreamAnalyzer` annota qualità/codec/lingua/compatibilità →
 `StreamSelector` ordina e propone binge-group.
 
-**Riproduzione** → `PlayerViewModel` (App) crea l'engine dietro il protocollo `PlaybackEngine` (oggi solo `AVPlayerEngine`: AVPlayer + `AVPlayerLayer` per PiP/AirPlay) →
-snapshot di stato immutabili (`EngineSnapshot`) → `LibraryStore.recordProgress` (throttled) → fine episodio → `NextEpisodeResolver`.
+**Riproduzione** → `PlayerViewModel` (App) chiede a `PlaybackPlanner` quale motore usare (da fatti: contenitore, `MediaProbe`, capacità del dispositivo; vedi `docs/06-PLAYBACK.md`) e crea l'engine dietro il protocollo
+`PlaybackEngine`: `AVPlayerEngine` (AVPlayer + `AVPlayerLayer` per PiP/AirPlay, vero Dolby Vision) oppure `MPVEngine` (libmpv, MKV/AVI/TS…); se il motore scelto non apre il file passa **una volta** all'altro riprendendo dalla stessa posizione →
+snapshot di stato immutabili (`EngineSnapshot`) → `LibraryStore.recordProgress` (throttled) → fine episodio → `NextEpisodeResolver`. Una sorgente torrent passa prima da `DebridService` (TorBox) che restituisce un link diretto.
 Sottotitoli esterni: parser Core → cue → overlay SwiftUI con stile utente (AVPlayer non stila SRT esterni).
 
 **Casting** → `CastCoordinator` possiede un'unica sessione remota e due backend dietro il protocollo `CastBackend`: Google Cast (SDK ufficiale, inizializzato
@@ -89,5 +97,5 @@ solo alla prima ricerca per non anticipare il permesso «Rete locale») e DLNA/U
 
 ## Cosa è deliberatamente fuori ambito (dichiarato)
 
-Account Stremio/Nuvio, Trakt/Simkl, debrid, torrent in-process, plugin JS, notifiche episodi in background, widget, motore MPV/VLC.
+Account Stremio/Nuvio, Trakt/Simkl, debrid diversi da TorBox, torrent in-process, plugin JS, notifiche episodi in background, widget, motori VLC/AetherEngine.
 Vedi `docs/01-RESEARCH-MATRIX.md` §2 e `README.md` → "Stato reale".

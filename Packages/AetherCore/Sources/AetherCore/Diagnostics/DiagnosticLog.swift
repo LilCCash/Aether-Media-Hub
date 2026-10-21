@@ -5,8 +5,10 @@ import Foundation
 public enum Redactor {
     private static let urlPattern = try! NSRegularExpression(
         pattern: "(?i)\\b(https?|stremio|ftp|rtmp)://(\\[[^\\]]+\\]|[^/\\s:?#\"'<>]+)(:\\d+)?[^\\s\"'<>]*", options: [])
+    /// `name=value`, `name: value` (query strings, headers) and the JSON / dictionary spellings `"name": "value"` and
+    /// `'name': 'value'`. A quoted value is masked as a whole (spaces included); the quote after the name is kept.
     private static let secretPairPattern = try! NSRegularExpression(
-        pattern: "(?i)\\b(api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|pwd|authorization|bearer|auth|session|cookie|key)\\b\\s*[=:]\\s*[^\\s&,;\"']+", options: [])
+        pattern: "(?i)\\b(api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|pwd|authorization|bearer|auth|session|cookie|key)\\b([\"']?)\\s*[=:]\\s*(?:\"[^\"]*\"|'[^']*'|[\"']?[^\\s&,;\"']+)", options: [])
     private static let bearerPattern = try! NSRegularExpression(
         pattern: "(?i)\\b(bearer|basic)\\s+[A-Za-z0-9._~+/=\\-]+", options: [])
     private static let emailPattern = try! NSRegularExpression(
@@ -18,7 +20,7 @@ public enum Redactor {
         var result = text
         result = replace(urlPattern, in: result, template: "$1://$2$3/…")
         result = replace(bearerPattern, in: result, template: "$1 «redatto»")
-        result = replace(secretPairPattern, in: result, template: "$1=«redatto»")
+        result = replace(secretPairPattern, in: result, template: "$1$2=«redatto»")
         result = replace(emailPattern, in: result, template: "«email»")
         result = replace(longTokenPattern, in: result, template: "«token»")
         return result

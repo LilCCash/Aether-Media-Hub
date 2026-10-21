@@ -3,6 +3,18 @@ import SwiftUI
 // Native Liquid Glass (iOS 26+) with a material fallback for earlier systems or when the user asked for
 // reduced visual effects / Reduce Transparency. Gated at compile time so the project also builds with older SDKs.
 
+private struct AetherGlassInteractiveKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    /// Whether glass surfaces may use the touch-reactive ("interactive") effect. The player turns it off.
+    var aetherGlassInteractive: Bool {
+        get { self[AetherGlassInteractiveKey.self] }
+        set { self[AetherGlassInteractiveKey.self] = newValue }
+    }
+}
+
 extension View {
     /// Floating glass surface in the given shape.
     @ViewBuilder
@@ -25,6 +37,7 @@ private struct AetherGlassModifier<S: Shape>: ViewModifier {
     let interactive: Bool
     @EnvironmentObject private var settings: SettingsStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.aetherGlassInteractive) private var allowsInteractive
 
     func body(content: Content) -> some View {
         if settings.reduceEffects || reduceTransparency {
@@ -48,7 +61,7 @@ private struct AetherGlassModifier<S: Shape>: ViewModifier {
     private var glass: Glass {
         var glass = Glass.regular
         if let tint = tint { glass = glass.tint(tint.opacity(0.35)) }
-        if interactive { glass = glass.interactive() }
+        if interactive && allowsInteractive { glass = glass.interactive() }
         return glass
     }
     #endif

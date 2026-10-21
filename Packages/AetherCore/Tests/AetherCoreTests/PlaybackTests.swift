@@ -177,7 +177,7 @@ final class StreamSelectorTests: XCTestCase {
 
     func testLanguageHelpers() {
         XCTAssertEqual(LanguageCodes.normalise("ita"), "it")
-        XCTAssertEqual(LanguageCodes.normalise("pt-BR"), "pt")
+        XCTAssertEqual(LanguageCodes.normalise("pt-BR"), "pt-BR", "Brazilian Portuguese is no longer folded into plain Portuguese")
         XCTAssertEqual(LanguageCodes.normalise("Italian"), "it")
         XCTAssertEqual(LanguageCodes.normalise("xx"), "xx")
         XCTAssertTrue(LanguageCodes.matches("fre", "fr"))

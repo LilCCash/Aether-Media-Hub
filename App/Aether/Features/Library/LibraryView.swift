@@ -74,10 +74,11 @@ struct LibraryView: View {
                 emptyState("play.circle", "Niente da riprendere", "Quando interrompi un film o un episodio lo trovi qui, con il punto esatto.")
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 14)], spacing: 18) {
-                        ForEach(items) { ContinueCard(progress: $0) }
+                    // At least two cards per row, sized to the columns so that both sides have the same margin.
+                    AdaptiveCardGrid(items: items, minColumns: 2, preferredWidth: 240, spacing: 14, rowSpacing: 18) { item, cardWidth in
+                        ContinueCard(progress: item, width: cardWidth)
                     }
-                    .padding(Theme.pageMargin)
+                    .padding(.vertical, Theme.pageMargin)
                 }
             }
         case .watchlist:
@@ -118,21 +119,19 @@ struct LibraryView: View {
             } else {
                 ScrollView {
                     let width = CGFloat(settings.value.appearance.posterSize.rowWidth)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: width, maximum: width + 40), spacing: 14, alignment: .top)], spacing: 20) {
-                        ForEach(entries) { entry in
-                            NavigationLink(value: MetaRoute(meta: entry.asMeta)) {
-                                PosterCard(meta: entry.asMeta, width: width)
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    library.toggleWatchlist(entry.asMeta)
-                                } label: { Label("Rimuovi dalla watchlist", systemImage: "bookmark.slash") }
-                                .disabled(!entry.inWatchlist)
-                            }
+                    AdaptiveCardGrid(items: entries, minColumns: 3, preferredWidth: width, spacing: 12, rowSpacing: 20) { entry, cardWidth in
+                        NavigationLink(value: MetaRoute(meta: entry.asMeta)) {
+                            PosterCard(meta: entry.asMeta, width: cardWidth)
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                library.toggleWatchlist(entry.asMeta)
+                            } label: { Label("Rimuovi dalla watchlist", systemImage: "bookmark.slash") }
+                            .disabled(!entry.inWatchlist)
                         }
                     }
-                    .padding(Theme.pageMargin)
+                    .padding(.vertical, Theme.pageMargin)
                 }
                 .accessibilityIdentifier("library.grid")
             }
@@ -156,7 +155,7 @@ struct HistoryRow: View {
                 .frame(width: 44, height: 64)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.title).font(.system(.subheadline, design: .rounded).weight(.semibold)).lineLimit(1)
+                Text(item.title).font(.system(.subheadline, design: AetherTypography.design).weight(.semibold)).lineLimit(1)
                 if let label = item.episodeLabel {
                     Text([label, item.episodeTitle].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(1)

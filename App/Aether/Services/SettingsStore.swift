@@ -30,6 +30,7 @@ final class SettingsStore: ObservableObject {
     @Published var value: AppSettings {
         didSet {
             guard value != oldValue else { return }
+            AetherTypography.design = AetherTypography.fontDesign(for: value.appearance.titleFont)
             persist()
             snapshot.set(value)
             onChange?(value, oldValue)
@@ -49,6 +50,7 @@ final class SettingsStore: ObservableObject {
         }
         self.value = loaded
         self.snapshot = SettingsSnapshot(loaded)
+        AetherTypography.design = AetherTypography.fontDesign(for: loaded.appearance.titleFont)
     }
 
     private func persist() {

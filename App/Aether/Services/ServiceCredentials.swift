@@ -27,6 +27,8 @@ enum ServiceKind: String, CaseIterable, Identifiable {
 @MainActor
 final class ServiceCredentials: ObservableObject {
     @Published private(set) var configured: Set<ServiceKind> = []
+    /// Called after a key was saved, replaced or removed, so that services that remember a failure can try again.
+    var onChange: (() -> Void)?
     private let secrets: SecretStore
 
     init(secrets: SecretStore) {
@@ -54,12 +56,14 @@ final class ServiceCredentials: ObservableObject {
             try? secrets.remove(kind.pinKeychainKey)
         }
         refresh()
+        onChange?()
     }
 
     func remove(_ kind: ServiceKind) {
         try? secrets.remove(kind.keychainKey)
         try? secrets.remove(kind.pinKeychainKey)
         refresh()
+        onChange?()
     }
 
     /// Reads the secret from the Keychain right now. Hand `provider(for:)` to Core clients instead of copying the value.

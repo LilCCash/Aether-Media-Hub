@@ -603,6 +603,7 @@ final class MPVEngine: NSObject, PlaybackEngine {
     // MARK: Picture in Picture / background
 
     var supportsPictureInPicture: Bool { false }
+    var pictureInPictureAvailability: PictureInPictureAvailability { .engineUnsupported(engine: kind.displayName) }
     func startPictureInPicture() {}
     func stopPictureInPicture() {}
     func setAutoPictureInPicture(_ enabled: Bool) {}
