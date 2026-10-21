@@ -49,7 +49,6 @@ final class AppRouter: ObservableObject {
     @Published var detail: MetaRoute?
     @Published var pendingAddonInput: String?
     @Published var pendingSearch: String?
-    @Published var showCasting = false
 
     func openDetail(_ meta: MetaItem) {
         detail = MetaRoute(meta: meta)

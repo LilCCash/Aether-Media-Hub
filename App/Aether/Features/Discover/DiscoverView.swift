@@ -60,7 +60,7 @@ struct FilterMenuLabel: View {
 
     var body: some View {
         Label(title, systemImage: systemImage)
-            .font(.system(.footnote, design: .rounded).weight(.semibold))
+            .font(.system(.footnote, design: AetherTypography.design).weight(.semibold))
             .lineLimit(1)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)

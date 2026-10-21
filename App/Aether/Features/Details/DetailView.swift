@@ -191,7 +191,7 @@ struct DetailView: View {
             if let runtime = model.meta.runtime { Text("· \(runtime)") }
             if let rating = model.meta.imdbRating { Label(rating, systemImage: "star.fill").labelStyle(.titleAndIcon).foregroundStyle(.yellow) }
         }
-        .font(.system(.footnote, design: .rounded).weight(.medium))
+        .font(.system(.footnote, design: AetherTypography.design).weight(.medium))
         .foregroundStyle(Color.aetherSecondary)
     }
 
@@ -309,7 +309,7 @@ struct DetailView: View {
                         }
                     } label: {
                         Label(seasonTitle(model.selectedSeason), systemImage: "chevron.up.chevron.down")
-                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                             .padding(.horizontal, 12).padding(.vertical, 7)
                             .aetherGlassCapsule(interactive: true)
                     }
@@ -406,7 +406,7 @@ struct EpisodeRow: View {
                         if let episode = video.episode { Text("\(episode).").foregroundStyle(Color.aetherSecondary) }
                         Text(video.title.isEmpty ? "Episodio" : video.title).lineLimit(2)
                     }
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                     if let overview = video.overview, !overview.isEmpty {
                         Text(overview).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(2)
                     }

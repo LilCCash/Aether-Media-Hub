@@ -148,7 +148,7 @@ struct AddonRow: View {
                 .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(addon.displayName).font(.system(.body, design: .rounded).weight(.semibold)).lineLimit(1)
+                    Text(addon.displayName).font(.system(.body, design: AetherTypography.design).weight(.semibold)).lineLimit(1)
                     Text("v\(addon.manifest.version)").font(.caption2).foregroundStyle(Color.aetherSecondary)
                     if addon.isOfficial { Image(systemName: "checkmark.seal.fill").font(.caption).foregroundStyle(.blue).accessibilityLabel("Ufficiale") }
                 }

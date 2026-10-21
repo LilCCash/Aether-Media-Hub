@@ -81,6 +81,8 @@ final class PlayerViewModel: ObservableObject {
     private var engineChosenByFallback = false
     private let nowPlaying = NowPlayingService()
     private let audioSession = AudioSessionController()
+    private var pictureInPictureGrace: Task<Void, Never>?
+    private var statusClear: Task<Void, Never>?
 
     // MARK: Internals
     private var currentStream: AddonStream?
@@ -469,7 +471,19 @@ final class PlayerViewModel: ObservableObject {
 
     private func handle(_ new: EngineSnapshot) {
         let wasReady = snapshot.isReady
+        let old = snapshot
         snapshot = new
+        if new.isPictureInPicturePossible != old.isPictureInPicturePossible {
+            env.diagnostics.logDetached(.info, "player", "Il sistema dice Picture in Picture possibile: \(new.isPictureInPicturePossible)")
+        }
+        if new.isPictureInPictureActive != old.isPictureInPictureActive {
+            env.diagnostics.logDetached(.info, "player", "Picture in Picture attivo: \(new.isPictureInPictureActive)")
+        }
+        if let failure = new.pictureInPictureFailure, failure != old.pictureInPictureFailure {
+            statusMessage = "Il Picture in Picture non si è aperto."
+            scheduleStatusClear(after: 4)
+            env.diagnostics.logDetached(.warning, "player", "Picture in Picture non avviato: \(failure)")
+        }
         if new.isReady && !wasReady {
             refreshTracks()
             airPlayRoute = AudioSessionController.airPlayRouteName()
@@ -649,8 +663,20 @@ final class PlayerViewModel: ObservableObject {
         engine.setFillScreen(isFill)
     }
 
-    func startPictureInPicture() { engine.startPictureInPicture() }
-    var supportsPictureInPicture: Bool { engine.supportsPictureInPicture }
+    var pictureInPictureAvailability: PictureInPictureAvailability { engine.pictureInPictureAvailability }
+
+    /// The button is always there; when the floating window cannot open the viewer is told why instead of nothing happening.
+    func startPictureInPicture() {
+        let availability = engine.pictureInPictureAvailability
+        guard availability.canStart else {
+            statusMessage = availability.explanation
+            scheduleStatusClear(after: 5)
+            env.diagnostics.logDetached(.info, "player", "Picture in Picture richiesto ma non possibile (\(availability), motore \(engine.kind.rawValue))")
+            return
+        }
+        env.diagnostics.logDetached(.info, "player", "Picture in Picture richiesto")
+        engine.startPictureInPicture()
+    }
 
     private func configureRemoteCommands() {
         let handlers = NowPlayingService.Handlers(
@@ -1307,18 +1333,42 @@ final class PlayerViewModel: ObservableObject {
 
     // MARK: Background / scene
 
-    func scenePhaseChanged(isActive: Bool) {
-        if isActive {
-            engine.setVideoDetached(false)
-            airPlayRoute = AudioSessionController.airPlayRouteName()
-            return
+    /// What to do with the picture and the sound when the app changes phase. The rule itself (and why `.inactive` must not
+    /// touch the picture) lives in `PlayerBackgroundPolicy`.
+    func scenePhaseChanged(_ phase: PlayerBackgroundPolicy.Phase) {
+        pictureInPictureGrace?.cancel()
+        pictureInPictureGrace = nil
+        applyBackgroundPolicy(phase: phase, graceExpired: false)
+    }
+
+    private func applyBackgroundPolicy(phase: PlayerBackgroundPolicy.Phase, graceExpired: Bool) {
+        let decision = PlayerBackgroundPolicy.decide(PlayerBackgroundPolicy.State(
+            phase: phase,
+            isPlaying: snapshot.isPlaying,
+            isPictureInPictureActive: snapshot.isPictureInPictureActive,
+            isExternalPlaybackActive: snapshot.isExternalPlaybackActive,
+            isPictureInPicturePossible: snapshot.isPictureInPicturePossible,
+            autoPictureInPicture: playback.autoPictureInPicture,
+            allowBackgroundAudio: playback.allowBackgroundAudio,
+            pictureInPictureGraceExpired: graceExpired))
+        if phase == .active { airPlayRoute = AudioSessionController.airPlayRouteName() }
+        if decision.recordProgress { recordProgress(force: true) }
+        switch decision.video {
+        case .attach: engine.setVideoDetached(false)
+        case .detach: engine.setVideoDetached(true)          // keep the sound, drop the picture
+        case .keep: break
         }
-        recordProgress(force: true)
-        if snapshot.isPictureInPictureActive || snapshot.isExternalPlaybackActive { return }
-        if playback.allowBackgroundAudio {
-            engine.setVideoDetached(true)          // keep the sound, drop the picture
-        } else {
-            engine.pause()
+        if decision.pause { engine.pause() }
+        if phase == .background {
+            env.diagnostics.logDetached(.info, "player", "App in background: PiP attivo \(snapshot.isPictureInPictureActive), PiP possibile \(snapshot.isPictureInPicturePossible), automatico \(playback.autoPictureInPicture), attesa PiP \(decision.waitForPictureInPicture), video \(decision.video), pausa \(decision.pause)")
+        }
+        if decision.waitForPictureInPicture {
+            pictureInPictureGrace = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(PlayerBackgroundPolicy.pictureInPictureGrace * 1_000_000_000))
+                guard !Task.isCancelled, let self = self else { return }
+                self.pictureInPictureGrace = nil
+                self.applyBackgroundPolicy(phase: .background, graceExpired: true)
+            }
         }
     }
 
@@ -1408,9 +1458,12 @@ final class PlayerViewModel: ObservableObject {
 
     func clearStatusSoon() { scheduleStatusClear() }
 
-    private func scheduleStatusClear() {
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 3_500_000_000)
+    /// A newer message replaces the older one's timer, so a long message is not cut short by an earlier schedule.
+    private func scheduleStatusClear(after seconds: Double = 3.5) {
+        statusClear?.cancel()
+        statusClear = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            guard !Task.isCancelled else { return }
             self?.statusMessage = nil
         }
     }

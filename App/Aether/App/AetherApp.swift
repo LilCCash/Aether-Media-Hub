@@ -8,7 +8,7 @@ struct AetherApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            ThemedRoot()
                 .environmentObject(env)
                 .environmentObject(env.settings)
                 .environmentObject(env.router)

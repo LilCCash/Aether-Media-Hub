@@ -31,6 +31,7 @@ struct MoreView: View {
                     NavigationLink(value: Destination.about) {
                         rowLabel("Informazioni e licenze", "info.circle.fill", .blue, detail: nil)
                     }
+                    .accessibilityIdentifier("more.about")
                 }
             }
             .navigationTitle("Altro")
@@ -107,7 +108,6 @@ struct SettingsRootView: View {
 
 struct AppearanceSettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
-    @Environment(\.editMode) private var editMode
 
     var body: some View {
         Form {
@@ -136,8 +136,23 @@ struct AppearanceSettingsView: View {
                 }
                 .padding(.vertical, 4)
             }
+            Section(header: Text("Personalizza"),
+                    footer: Text("Scegli quali sezioni mostra la Home, in che ordine, come sono fatte le schede e quanto sono grandi; poi atmosfera, sfondo, cornici e caratteri.")) {
+                NavigationLink {
+                    HomeLayoutSettingsView()
+                } label: {
+                    Label("Personalizza la Home", systemImage: "rectangle.3.group")
+                }
+                .accessibilityIdentifier("settings.homeLayout")
+                NavigationLink {
+                    StyleSettingsView()
+                } label: {
+                    Label("Stile e grafica", systemImage: "sparkles")
+                }
+                .accessibilityIdentifier("settings.style")
+            }
             Section(header: Text("Cataloghi")) {
-                Picker("Dimensione dei poster", selection: settings.binding(\.appearance.posterSize)) {
+                Picker("Dimensione delle schede", selection: settings.binding(\.appearance.posterSize)) {
                     ForEach(PosterSize.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 Picker("Densità", selection: settings.binding(\.appearance.density)) {
@@ -149,27 +164,12 @@ struct AppearanceSettingsView: View {
                 Toggle("Riduci gli effetti visivi", isOn: settings.binding(\.appearance.reduceVisualEffects))
                     .accessibilityIdentifier("settings.reduceEffects")
             }
-            Section(header: Text("Sezioni della Home"), footer: Text("Trascina per riordinare, usa l'interruttore per nascondere. Le sezioni vuote non vengono mai mostrate.")) {
-                ForEach(settings.value.appearance.homeSections) { section in
-                    Toggle(HomeSectionConfig.title(for: section.id), isOn: Binding(
-                        get: { section.isVisible },
-                        set: { value in
-                            if let index = settings.value.appearance.homeSections.firstIndex(where: { $0.id == section.id }) {
-                                settings.value.appearance.homeSections[index].isVisible = value
-                            }
-                        }))
-                }
-                .onMove { source, destination in
-                    settings.value.appearance.homeSections.move(fromOffsets: source, toOffset: destination)
-                }
-            }
             Section(footer: Text("Quali tipi di contenuto mostra Scopri (film, serie, TV, sport…) e in che ordine. I tipi arrivano dagli addon installati.")) {
                 NavigationLink("Categorie di Scopri") { DiscoverSettingsView() }
                     .accessibilityIdentifier("settings.discover")
             }
         }
         .navigationTitle("Aspetto")
-        .toolbar { EditButton() }
     }
 }
 
@@ -277,7 +277,7 @@ struct PlaybackSettingsView: View {
                 Toggle("Preferisci sorgenti nella lingua audio", isOn: settings.binding(\.playback.preferStreamsInPreferredAudioLanguage))
                 Toggle("Scegli automaticamente la sorgente migliore", isOn: settings.binding(\.playback.autoSelectStream))
             }
-            Section(header: Text("Sistema"), footer: Text("L'audio in background richiede la capability «Audio, AirPlay e Picture in Picture» (già attiva). Il video si interrompe se lasci l'app, salvo Picture-in-Picture.")) {
+            Section(header: Text("Sistema"), footer: Text("L'audio in background richiede la capability «Audio, AirPlay e Picture in Picture» (già attiva). Il video si interrompe se lasci l'app, salvo Picture-in-Picture. Il Picture-in-Picture funziona con i file aperti da AVPlayer (MP4, MOV); MKV, AVI e gli altri formati passano da MPV, che non lo supporta. Se usi Aether dentro un contenitore come LiveContainer, iOS può non consentirlo.")) {
                 Toggle("Picture-in-Picture automatico", isOn: settings.binding(\.playback.autoPictureInPicture))
                 Toggle("Continua l'audio in background", isOn: settings.binding(\.playback.allowBackgroundAudio))
                 Picker("Timer di spegnimento predefinito", selection: settings.binding(\.playback.defaultSleepTimerMinutes)) {

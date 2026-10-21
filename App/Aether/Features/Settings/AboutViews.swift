@@ -75,7 +75,7 @@ struct PlayerStatusView: View {
     var body: some View {
         List {
             Section(header: Text("Motori"),
-                    footer: Text("AVPlayer è il player di Apple: HLS, MP4, MOV e M4V; è l'unico che può mostrare il vero Dolby Vision (profili 5 e 8.x). MPV (libmpv + FFmpeg, licenza LGPL-3.0) apre MKV, AVI, WebM, TS e altri; il Dolby Vision viene mappato su HDR10 o SDR, non mostrato come Dolby Vision.")) {
+                    footer: Text("AVPlayer è il player di Apple: HLS, MP4, MOV e M4V; è l'unico che può mostrare il vero Dolby Vision (profili 5 e 8.x) e il Picture in Picture. MPV (libmpv + FFmpeg, licenza LGPL-3.0) apre MKV, AVI, WebM, TS e altri; il Dolby Vision viene mappato su HDR10 o SDR, non mostrato come Dolby Vision. «Disponibile» per il Picture in Picture è ciò che dichiara iOS: in un contenitore come LiveContainer il sistema può comunque rifiutarlo.")) {
                 statusRow("AVPlayer (Apple)", "Disponibile", color: .green)
                 statusRow("MPV (libmpv)", PlaybackEngineFactory.mpvAvailable ? "Incluso in questa build" : "Non incluso in questa build",
                           color: PlaybackEngineFactory.mpvAvailable ? .green : .gray)
@@ -131,6 +131,8 @@ enum AVPictureInPictureSupport {
 // MARK: - About & licences
 
 struct AboutView: View {
+    @StateObject private var egg = LogoEasterEggModel()
+
     private var version: String {
         let info = Bundle.main.infoDictionary
         let short = info?["CFBundleShortVersionString"] as? String ?? "?"
@@ -143,14 +145,15 @@ struct AboutView: View {
         List {
             Section {
                 VStack(spacing: 8) {
-                    Image("LaunchLogo").resizable().scaledToFit().frame(width: 84, height: 84)
-                        .accessibilityHidden(true)
-                    Text("Aether").font(.aetherTitle(26))
-                    Text("Versione \(version)").font(.footnote).foregroundStyle(Color.aetherSecondary)
+                    AboutLogoView(model: egg)
+                    VStack(spacing: 8) {
+                        Text("Aether").font(.aetherTitle(26))
+                        Text("Versione \(version)").font(.footnote).foregroundStyle(Color.aetherSecondary)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .accessibilityElement(children: .combine)
             }
             Section(header: Text("Cos'è")) {
                 Text("Aether è un media center per iPhone che parla il protocollo degli addon Stremio. È un'app indipendente: codice, nome, interfaccia e icona sono originali e non è affiliata a Stremio né a Nuvio.")
@@ -174,6 +177,9 @@ struct AboutView: View {
             }
         }
         .navigationTitle("Informazioni")
+        .coordinateSpace(name: AboutLogoView.space)
+        .overlay { LogoEasterEggOverlay(model: egg) }
+        .onDisappear { egg.stop() }
     }
 
     static let notImplemented = [

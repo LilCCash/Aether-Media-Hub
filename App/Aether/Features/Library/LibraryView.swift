@@ -155,7 +155,7 @@ struct HistoryRow: View {
                 .frame(width: 44, height: 64)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.title).font(.system(.subheadline, design: .rounded).weight(.semibold)).lineLimit(1)
+                Text(item.title).font(.system(.subheadline, design: AetherTypography.design).weight(.semibold)).lineLimit(1)
                 if let label = item.episodeLabel {
                     Text([label, item.episodeTitle].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(1)

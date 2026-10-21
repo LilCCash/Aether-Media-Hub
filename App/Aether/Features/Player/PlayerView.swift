@@ -81,7 +81,12 @@ struct PlayerView: View {
     }
 
     private func scenePhaseChanged(_ phase: ScenePhase) {
-        model.scenePhaseChanged(isActive: phase == .active)
+        switch phase {
+        case .active: model.scenePhaseChanged(.active)
+        case .inactive: model.scenePhaseChanged(.inactive)
+        case .background: model.scenePhaseChanged(.background)
+        @unknown default: model.scenePhaseChanged(.inactive)
+        }
     }
 
     private func networkChanged() {
@@ -460,9 +465,9 @@ struct PlayerView: View {
                         sheet = .cast
                     }
                     .accessibilityIdentifier("player.cast")
-                    if model.supportsPictureInPicture {
-                        GlassIconButton(systemName: "pip.enter", accessibilityLabel: "Picture in Picture") { model.startPictureInPicture() }
-                    }
+                    GlassIconButton(systemName: "pip.enter", accessibilityLabel: "Picture in Picture") { model.startPictureInPicture() }
+                        .opacity(model.pictureInPictureAvailability.canStart ? 1 : 0.55)
+                        .accessibilityIdentifier("player.pip")
                     GlassIconButton(systemName: "captions.bubble", accessibilityLabel: "Audio e sottotitoli") { sheet = .tracks }
                         .accessibilityIdentifier("player.tracks")
                     moreMenu
@@ -660,9 +665,12 @@ struct PlayerView: View {
             if let message = model.statusMessage {
                 Text(message)
                     .font(.footnote.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 14).padding(.vertical, 8)
                     .aetherGlassCapsule()
                     .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
                     .padding(.top, 14)
                     .transition(.opacity)
                     .accessibilityAddTraits(.updatesFrequently)

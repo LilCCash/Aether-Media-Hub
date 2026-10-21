@@ -49,6 +49,15 @@ public enum PosterSize: String, Codable, CaseIterable, Sendable {
         case .large: return 156
         }
     }
+
+    /// Width in points of a wide (16:9) card. `medium` is the width "Continua a guardare" has always had.
+    public var landscapeWidth: Double {
+        switch self {
+        case .small: return 200
+        case .medium: return 240
+        case .large: return 290
+        }
+    }
 }
 
 public enum CatalogDensity: String, Codable, CaseIterable, Sendable {
@@ -65,10 +74,41 @@ public enum CatalogDensity: String, Codable, CaseIterable, Sendable {
 public struct HomeSectionConfig: Codable, Hashable, Identifiable, Sendable {
     public var id: String
     public var isVisible: Bool
+    /// How the section's cards look. `nil` = the section's own default (see `HomeCardStyle.defaultStyle(for:)`).
+    public var style: HomeCardStyle?
+    /// Card size. `nil` = follow the general poster size of the appearance settings.
+    public var size: PosterSize?
 
-    public init(id: String, isVisible: Bool = true) {
+    public init(id: String, isVisible: Bool = true, style: HomeCardStyle? = nil, size: PosterSize? = nil) {
         self.id = id
         self.isVisible = isVisible
+        self.style = style
+        self.size = size
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, isVisible, style, size
+    }
+
+    /// Hand-written on purpose: a synthesized decoder would reject every section stored by 1.0 (no `style`, `size`), the lossy
+    /// array around it would drop them all and the viewer's order and hidden sections would silently reset.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        isVisible = c.value(.isVisible, default: true)
+        style = c.lenient(HomeCardStyle.self, forKey: .style)
+        size = c.lenient(PosterSize.self, forKey: .size)
+    }
+
+    /// The style actually drawn: the chosen one if this section offers it, otherwise the section's default.
+    public var effectiveStyle: HomeCardStyle? {
+        let allowed = HomeCardStyle.allowed(for: id)
+        if let style = style, allowed.contains(style) { return style }
+        return allowed.first
+    }
+
+    public func effectiveSize(general: PosterSize) -> PosterSize {
+        return size ?? general
     }
 
     public static let hero = "hero"
@@ -102,11 +142,27 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var animationsEnabled: Bool = true
     public var reduceVisualEffects: Bool = false
     public var homeSections: [HomeSectionConfig] = HomeSectionConfig.defaultOrder
+    // 1.1
+    public var heroStyle: HeroStyle = .card
+    /// The featured carousel turns pages by itself (still subject to Reduce Motion and the animations switch).
+    public var heroAutoScroll: Bool = true
+    public var palette: AppPalette = .aether
+    public var backdrop: BackdropStyle = .aurora
+    public var cardChrome: CardChrome = .standard
+    public var cornerStyle: CornerStyle = .standard
+    public var titleFont: TitleFont = .rounded
+    public var greetingEnabled: Bool = false
+    /// Shown in the greeting. Stored in the settings backup like everything else, unencrypted.
+    public var greetingName: String = ""
+    /// Raw ids of the hidden extras found so far (`AppSecret`).
+    public var unlockedSecrets: [String] = []
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case theme, accent, posterSize, density, animationsEnabled, reduceVisualEffects, homeSections
+        case heroStyle, heroAutoScroll, palette, backdrop, cardChrome, cornerStyle, titleFont
+        case greetingEnabled, greetingName, unlockedSecrets
     }
 
     public init(from decoder: Decoder) throws {
@@ -119,6 +175,51 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         reduceVisualEffects = c.value(.reduceVisualEffects, default: false)
         let stored = c.lossyArray(HomeSectionConfig.self, forKey: .homeSections)
         homeSections = AppearanceSettings.normalise(sections: stored)
+        heroStyle = c.value(.heroStyle, default: .card)
+        heroAutoScroll = c.value(.heroAutoScroll, default: true)
+        backdrop = c.value(.backdrop, default: .aurora)
+        cardChrome = c.value(.cardChrome, default: .standard)
+        cornerStyle = c.value(.cornerStyle, default: .standard)
+        titleFont = c.value(.titleFont, default: .rounded)
+        greetingEnabled = c.value(.greetingEnabled, default: false)
+        let name: String = c.value(.greetingName, default: "")
+        greetingName = Greeting.sanitizedName(name)
+        unlockedSecrets = AppearanceSettings.dedupe(c.stringList(.unlockedSecrets))
+        // The secrets are read first: a palette that needs one is only honoured if it is unlocked.
+        let chosen: AppPalette = c.value(.palette, default: .aether)
+        palette = isAvailable(chosen) ? chosen : .aether
+    }
+
+    // MARK: Secrets
+
+    public func isUnlocked(_ secret: AppSecret) -> Bool {
+        return unlockedSecrets.contains(secret.rawValue)
+    }
+
+    /// Whether `palette` can be chosen now.
+    public func isAvailable(_ palette: AppPalette) -> Bool {
+        guard let secret = palette.requiredSecret else { return true }
+        return isUnlocked(secret)
+    }
+
+    /// Returns true only the first time.
+    @discardableResult
+    public mutating func unlock(_ secret: AppSecret) -> Bool {
+        guard !isUnlocked(secret) else { return false }
+        unlockedSecrets.append(secret.rawValue)
+        return true
+    }
+
+    private static func dedupe(_ ids: [String]) -> [String] {
+        var seen = Set<String>()
+        return ids.filter { seen.insert($0).inserted }
+    }
+
+    // MARK: Sections
+
+    /// The stored configuration of one section (the default when it is not stored, which `normalise` prevents).
+    public func section(_ id: String) -> HomeSectionConfig {
+        return homeSections.first(where: { $0.id == id }) ?? HomeSectionConfig(id: id)
     }
 
     /// Keeps known sections, preserves stored order/visibility, appends any new section at the end.
@@ -126,7 +227,8 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         let known = Set(HomeSectionConfig.defaultOrder.map { $0.id })
         var result: [HomeSectionConfig] = []
         var seen = Set<String>()
-        for section in stored where known.contains(section.id) && seen.insert(section.id).inserted {
+        for var section in stored where known.contains(section.id) && seen.insert(section.id).inserted {
+            if let style = section.style, !HomeCardStyle.allowed(for: section.id).contains(style) { section.style = nil }
             result.append(section)
         }
         for section in HomeSectionConfig.defaultOrder where !seen.contains(section.id) {

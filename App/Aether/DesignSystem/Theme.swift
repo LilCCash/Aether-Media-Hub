@@ -39,7 +39,7 @@ extension Color {
 }
 
 extension Font {
-    /// Rounded bold title that follows Dynamic Type: the point size only picks the closest text style.
+    /// Bold title in the chosen typeface (rounded by default) that follows Dynamic Type: the point size only picks the closest text style.
     static func aetherTitle(_ size: CGFloat = 28) -> Font {
         let style: Font.TextStyle
         switch size {
@@ -49,27 +49,84 @@ extension Font {
         case 18..<21: style = .title3
         default: style = .headline
         }
-        return .system(style, design: .rounded).weight(.bold)
+        return .system(style, design: AetherTypography.design).weight(.bold)
     }
-    static func aetherHeadline() -> Font { .system(.headline, design: .rounded).weight(.semibold) }
-    static func aetherCaption() -> Font { .system(.caption, design: .rounded) }
+    static func aetherHeadline() -> Font { .system(.headline, design: AetherTypography.design).weight(.semibold) }
+    static func aetherCaption() -> Font { .system(.caption, design: AetherTypography.design) }
 }
 
-/// Page backdrop: a soft aurora wash behind scrolling content.
+/// Page backdrop: soft colour washes behind scrolling content, in the palette and motion the viewer chose. Washes never go
+/// above `AppPalette.maxWashOpacity`, the opacity at which every palette is checked for text contrast.
 struct AetherBackdrop: View {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.aetherStyle) private var style
     @EnvironmentObject private var settings: SettingsStore
+
+    private var primary: Color {
+        if let washes = style.palette.washes { return Color(hex: washes.primary) }
+        return settings.accentColor
+    }
+
+    private var secondary: Color {
+        if let washes = style.palette.washes { return Color(hex: washes.secondary) }
+        return .cyan
+    }
+
+    private var strong: Double { scheme == .dark ? 0.28 : 0.14 }
+    private var soft: Double { scheme == .dark ? 0.16 : 0.08 }
+
+    /// Drifting washes only move when nothing asks for calm: the animations switch, Reduce Motion, Low Power Mode, and a
+    /// foreground app.
+    private var isMoving: Bool {
+        return settings.animationsEnabled && !reduceMotion && scenePhase == .active && !ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
 
     var body: some View {
         ZStack {
             Color(scheme == .dark ? UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: 1) : UIColor.systemGroupedBackground)
             if !settings.reduceEffects {
-                RadialGradient(colors: [settings.accentColor.opacity(scheme == .dark ? 0.28 : 0.14), .clear],
-                               center: .topTrailing, startRadius: 20, endRadius: 420)
-                RadialGradient(colors: [Color.cyan.opacity(scheme == .dark ? 0.16 : 0.08), .clear],
-                               center: .bottomLeading, startRadius: 20, endRadius: 380)
+                washes
             }
         }
         .ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private var washes: some View {
+        switch style.backdrop {
+        case .plain:
+            EmptyView()
+        case .aurora:
+            RadialGradient(colors: [primary.opacity(strong), .clear], center: .topTrailing, startRadius: 20, endRadius: 420)
+            RadialGradient(colors: [secondary.opacity(soft), .clear], center: .bottomLeading, startRadius: 20, endRadius: 380)
+        case .spotlight:
+            RadialGradient(colors: [primary.opacity(min(strong * 1.6, AppPalette.maxWashOpacity)), .clear],
+                           center: UnitPoint(x: 0.5, y: -0.05), startRadius: 10, endRadius: 600)
+            RadialGradient(colors: [secondary.opacity(soft), .clear], center: .bottom, startRadius: 20, endRadius: 360)
+        case .flow:
+            if isMoving {
+                TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { context in
+                    flow(at: context.date.timeIntervalSinceReferenceDate)
+                }
+            } else {
+                flow(at: 0)
+            }
+        }
+    }
+
+    private func flow(at t: Double) -> some View {
+        ZStack {
+            RadialGradient(colors: [primary.opacity(strong), .clear],
+                           center: UnitPoint(x: 0.85 + 0.12 * sin(t / 8), y: 0.05 + 0.08 * cos(t / 6)),
+                           startRadius: 20, endRadius: 420)
+            RadialGradient(colors: [secondary.opacity(soft), .clear],
+                           center: UnitPoint(x: 0.10 + 0.14 * cos(t / 10), y: 0.95 - 0.10 * sin(t / 7)),
+                           startRadius: 20, endRadius: 380)
+            RadialGradient(colors: [primary.opacity(soft * 0.6), .clear],
+                           center: UnitPoint(x: 0.5 + 0.30 * sin(t / 12), y: 0.5 + 0.25 * cos(t / 9)),
+                           startRadius: 10, endRadius: 300)
+        }
     }
 }

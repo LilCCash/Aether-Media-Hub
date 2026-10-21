@@ -58,7 +58,7 @@ struct DownloadRow: View {
                 .frame(width: 44, height: 64)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.title).font(.system(.subheadline, design: .rounded).weight(.semibold)).lineLimit(1)
+                Text(item.title).font(.system(.subheadline, design: AetherTypography.design).weight(.semibold)).lineLimit(1)
                 if let subtitle = item.subtitle, !subtitle.isEmpty {
                     Text(subtitle).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(1)
                 }

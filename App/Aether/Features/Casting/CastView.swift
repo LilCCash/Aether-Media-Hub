@@ -162,9 +162,25 @@ struct CastSessionControls: View {
 struct CastView: View {
     @EnvironmentObject private var casting: CastCoordinator
     @EnvironmentObject private var settings: SettingsStore
+    /// The sheet opened from the Home button explains how casting starts; the Settings page does not repeat it.
+    var showsHowTo = false
 
     var body: some View {
         List {
+            if showsHowTo {
+                Section(header: Text("Come si trasmette"),
+                        footer: Text("Se usi Aether dentro un contenitore come LiveContainer, la ricerca dei dispositivi Google Cast e DLNA può non funzionare perché il permesso «Rete locale» appartiene al contenitore; AirPlay resta disponibile.")) {
+                    Label("Apri un film o un episodio e avvia la riproduzione.", systemImage: "1.circle")
+                    Label("Nel player premi AirPlay oppure il pulsante Cast.", systemImage: "2.circle")
+                    Label("Scegli il televisore dall'elenco: il video passa lì.", systemImage: "3.circle")
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    } label: {
+                        Label("Apri le impostazioni di iOS (Rete locale)", systemImage: "gearshape")
+                    }
+                    .accessibilityIdentifier("cast.openSettings")
+                }
+            }
             if casting.session != nil {
                 Section(header: Text("Sessione attiva")) { CastSessionControls() }
             }
@@ -207,5 +223,24 @@ struct CastView: View {
         }
         .onAppear { casting.beginDiscovery() }
         .onDisappear { casting.endDiscovery() }
+    }
+}
+
+/// What the Cast button on the Home opens: the same devices and controls as Settings ▸ Casting, in a sheet.
+struct CastSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            CastView(showsHowTo: true)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Fine") { dismiss() }
+                            .accessibilityIdentifier("cast.sheet.done")
+                    }
+                }
+        }
+        .presentationDetents([.medium, .large])
+        .accessibilityIdentifier("cast.sheet")
     }
 }
