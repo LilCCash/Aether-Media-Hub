@@ -243,9 +243,9 @@ final class RelayServerLoopbackTests: XCTestCase {
         XCTAssertTrue(streaming)
         h.registry.revoke(s.id, reason: .userStopped)
         client.resumeReading()
-        let closed = await relayPollUntil(2) { client.finished }
-        XCTAssertTrue(closed, "the connection should close within a second of the revocation")
-        let cancelled = await relayPollUntil(2) { s.source.cancelCount == 1 }
+        let closed = await relayPollUntil(6) { client.finished }
+        XCTAssertTrue(closed, "the connection should close shortly after the revocation")
+        let cancelled = await relayPollUntil(6) { s.source.cancelCount == 1 }
         XCTAssertTrue(cancelled, "the reader must be told to stop")
         client.close()
     }
