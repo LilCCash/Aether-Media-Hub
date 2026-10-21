@@ -266,3 +266,42 @@ public enum RelayMime {
     /// The extensions a `video.<ext>` leaf may have.
     public static let allowedExtensions: Set<String> = ["mkv", "mp4", "m4v", "mov", "webm", "ts", "avi", "mp3", "m4a"]
 }
+
+/// A `Content-Range` response header: `bytes 0-99/1000`, `bytes 0-99/*` or `bytes */1000`.
+public struct RelayContentRange: Equatable, Sendable {
+    /// Nil for the `bytes */<total>` form (an unsatisfiable request).
+    public var range: ClosedRange<Int64>?
+    /// Nil when the source does not know the size (`*`).
+    public var total: Int64?
+
+    public init(range: ClosedRange<Int64>?, total: Int64?) {
+        self.range = range
+        self.total = total
+    }
+
+    public static func parse(_ value: String?) -> RelayContentRange? {
+        guard let value = value?.trimmingCharacters(in: .whitespaces), value.hasPrefix("bytes ") else { return nil }
+        let spec = value.dropFirst("bytes ".count).trimmingCharacters(in: .whitespaces)
+        let halves = spec.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+        guard halves.count == 2 else { return nil }
+        func number(_ text: String) -> Int64? {
+            guard !text.isEmpty, text.count <= 18, text.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+            return Int64(text)
+        }
+        let total: Int64?
+        if halves[1] == "*" {
+            total = nil
+        } else {
+            guard let parsed = number(halves[1]) else { return nil }
+            total = parsed
+        }
+        if halves[0] == "*" {
+            guard total != nil else { return nil }
+            return RelayContentRange(range: nil, total: total)
+        }
+        let ends = halves[0].split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+        guard ends.count == 2, let first = number(ends[0]), let last = number(ends[1]), last >= first else { return nil }
+        if let total = total, last >= total { return nil }
+        return RelayContentRange(range: first...last, total: total)
+    }
+}
