@@ -61,6 +61,19 @@ Queste conferme non vengono da un test automatico né da una prova mia: le ha da
 
 Restano **non confermati su dispositivo**: «Salta intro / Salta riassunto» (Beta 3), le griglie di Scopri e Libreria (Beta 1), AirPlay, Google Cast, DLNA, Picture in Picture, HDR / Dolby Vision, VoiceOver.
 
+## 1.1 Beta 1: cosa è stato eseguito (CI, simulatore, 2026-10-21)
+
+| Suite | Test | Esito |
+|---|---|---|
+| AetherCore (`swift test`) | 610 | tutti passati (nuovi: `BackgroundPolicyTests`, `AppearanceCustomizationTests`) |
+| Unit dell'app | 274 | tutti passati (nuovi: `AppearanceStyleTests`, `LogoEasterEggTests`) |
+| UI `HomeCustomizationUITests` | 17 | tutti passati |
+| UI `LayoutUITests`, `BrowseUITests`, `SettingsAndAccessibilityUITests` | 22 | tutti passati |
+
+Un controllo indipendente del codice (sei revisori) ha trovato difetti prima della release; sono stati corretti e coperti da test. Il controllo automatico di accessibilità segnala ancora **note sul contrasto** del testo secondario sul catalogo di prova (già presenti in 1.0).
+
+**Non verificato:** l'aspetto reale di atmosfere, sfondi, cornici e schermo intero; il Picture in Picture (anche in contenitori come LiveContainer); l'easter egg con aptica e VoiceOver su un dispositivo; il tasto Cast con dispositivi veri.
+
 ## Cosa i test non possono dire
 
 * Nessuna prova su iPhone fisico: prestazioni reali, PiP, riproduzione in background con schermo bloccato, interruzioni telefoniche, Cast/AirPlay/DLNA verso televisori reali, Local Network prompt.
