@@ -65,11 +65,14 @@ final class HomeCardMetricsTests: XCTestCase {
         XCTAssertLessThan(HomeCardMetrics.width(style: .landscape, size: .small), HomeCardMetrics.width(style: .landscape, size: .large))
     }
 
-    /// At least one and a half wide cards must be visible at the largest size on the narrowest iPhone, so a swipe is the obvious
-    /// next gesture and the row does not look like a single oversized card.
+    /// On the narrowest iPhone iOS 17 runs on (SE, 375 pt) the largest wide card must leave a visible edge of the next one, so a
+    /// swipe is the obvious next gesture and the row does not look like a single oversized card.
     func testTheLargestWideCardLeavesRoomForTheNextOne() {
-        let narrowest: CGFloat = 320
-        XCTAssertLessThan(HomeCardMetrics.width(style: .landscape, size: .large), narrowest - 16 - 14)
+        let narrowest: CGFloat = 375
+        let margin: CGFloat = 16
+        let spacing: CGFloat = 14
+        let visibleEdge: CGFloat = 40
+        XCTAssertLessThanOrEqual(HomeCardMetrics.width(style: .landscape, size: .large) + margin + spacing + visibleEdge, narrowest)
     }
 
     func testAspectRatios() {
