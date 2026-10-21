@@ -18,6 +18,7 @@ Non fornisce contenuti: mostra e riproduce ciò che gli addon installati dall'ut
 | [`docs/06-PLAYBACK.md`](docs/06-PLAYBACK.md) | Motori di riproduzione, HDR / Dolby Vision, matrice di test e limiti |
 | [`docs/07-SERVIZI.md`](docs/07-SERVIZI.md) | TorBox, TMDB, TheTVDB, OpenSubtitles: cosa è verificato e cosa no |
 | [`docs/08-ALPHA-2-NOTE.md`](docs/08-ALPHA-2-NOTE.md) | Note di rilascio di Alpha 2 e problemi noti |
+| [`docs/09-PERSONALIZZAZIONE.md`](docs/09-PERSONALIZZAZIONE.md) | Personalizzazione della Home e della grafica (1.1): cosa c'è, dove è salvato, garanzie di compatibilità |
 
 ## Struttura
 
@@ -151,7 +152,7 @@ Android TV è trattato come caso distinto: compare in Google Cast solo con «Chr
 | Widget, notifiche di nuovi episodi | ❌ |
 
 ### Interfaccia
-Home (hero, continua, prossimi, watchlist, cataloghi), Scopri (tipo/catalogo/genere), Cerca, Libreria, Download, Addon, Impostazioni; skeleton di caricamento, nessuna sezione vuota, tema chiaro/scuro/automatico, accento, dimensione locandine. Liquid Glass applicato a barre e controlli flottanti, con alternativa a materiale quando l'utente attiva «Riduci effetti» o «Riduci trasparenza». Etichette e azioni di accessibilità sono presenti, ma **VoiceOver non è stato provato su un dispositivo**.
+Home (hero, continua, prossimi, watchlist, cataloghi), Scopri (tipo/catalogo/genere), Cerca, Libreria, Download, Addon, Impostazioni; skeleton di caricamento, nessuna sezione vuota, tema chiaro/scuro/automatico, accento, dimensione locandine. **Dalla 1.1 la Home è personalizzabile** (ordine, schede verticali o orizzontali e loro dimensione per sezione, «In evidenza» a card o a schermo intero, saluto) e c'è un livello grafico con atmosfere, sfondi, cornici, angoli e carattere dei titoli: vedi [`docs/09-PERSONALIZZAZIONE.md`](docs/09-PERSONALIZZAZIONE.md). Liquid Glass applicato a barre e controlli flottanti, con alternativa a materiale quando l'utente attiva «Riduci effetti» o «Riduci trasparenza». Etichette e azioni di accessibilità sono presenti, ma **VoiceOver non è stato provato su un dispositivo**.
 
 ### Sicurezza e privacy
 Solo `http`/`https`; niente credenziali negli URL; blocco di loopback/reti private/link-local/CGNAT/multicast (anche IPv4 mappato su IPv6, numeri decimali/esadecimali e rebinding DNS) salvo opt-in «rete locale»; redirect rivalidati (max 5, mai https→http); limiti di dimensione (manifest 1 MiB, risposte 8 MiB, sottotitoli 4 MiB); URL degli addon (che possono contenere chiavi) nel Portachiavi; log con redazione; nessun analytics e nessun invio di dati a server di Aether; nessun codice eseguito dagli addon.
