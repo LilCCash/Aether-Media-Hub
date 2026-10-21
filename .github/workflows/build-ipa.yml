@@ -125,6 +125,10 @@ jobs:
           LABEL=$(/usr/libexec/PlistBuddy -c 'Print :AetherReleaseLabel' "$INFO" 2>/dev/null || true)
           [ "$LABEL" = "$WANT_LABEL" ] && check ok "release label \"$WANT_LABEL\"" || check bad "release label is \"$LABEL\", expected \"$WANT_LABEL\""
 
+          # Picture in Picture and background sound need the "audio" background mode; Google Cast discovery needs its Bonjour services.
+          plutil -extract UIBackgroundModes json -o - "$INFO" 2>/dev/null | grep -q '"audio"' && check ok "background mode audio (sound in the background, Picture in Picture)" || check bad "UIBackgroundModes does not contain audio"
+          plutil -extract NSBonjourServices json -o - "$INFO" 2>/dev/null | grep -q '_googlecast._tcp' && check ok "Bonjour service _googlecast._tcp declared (Google Cast discovery)" || check bad "NSBonjourServices does not declare _googlecast._tcp"
+
           # MPVKit (libmpv + FFmpeg) is linked statically; its presence shows as FFmpeg's version string. Information only.
           if strings -a "$APP/Aether" | grep -q "Lavc"; then echo "  info  FFmpeg (libavcodec) is linked into the executable"; else echo "  info  no libavcodec version string found in the executable"; fi
           echo "  info  executable size $(du -h "$APP/Aether" | cut -f1), package $(du -h Aether-unsigned.ipa | cut -f1)"
