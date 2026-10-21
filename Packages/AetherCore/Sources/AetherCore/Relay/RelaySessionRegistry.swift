@@ -31,7 +31,8 @@ public final class RelaySessionRegistry: @unchecked Sendable, CustomStringConver
     private struct Session {
         let id: RelaySessionID
         let tokenHash: String
-        let leaf: String
+        /// The file name the session serves; nil when the source decides which names exist (HLS pieces).
+        let leaf: String?
         let source: RelaySource
         let owner: RelayOwner
         let peerRule: RelayPeerRule
@@ -98,7 +99,7 @@ public final class RelaySessionRegistry: @unchecked Sendable, CustomStringConver
 
     /// Creates a session for `owner`. A session the same owner already has is revoked with `.replaced`. Throws `tooManySessions` when
     /// that would leave more than `limits.maxSessions`; nothing is changed then.
-    public func create(source: RelaySource, leaf: String, owner: RelayOwner, peerRule: RelayPeerRule) throws -> (id: RelaySessionID, token: String) {
+    public func create(source: RelaySource, leaf: String?, owner: RelayOwner, peerRule: RelayPeerRule) throws -> (id: RelaySessionID, token: String) {
         var replaced: Session?
         var created: (id: RelaySessionID, token: String)?
         try locked {
@@ -160,8 +161,8 @@ public final class RelaySessionRegistry: @unchecked Sendable, CustomStringConver
             if let reason = endReason(of: session, at: clock()) {
                 sessions.remove(at: index)
                 ended = (session, reason)
-            } else if session.leaf == leaf && allows(peer, for: session) {
-                result = .granted(RelayGrant(id: session.id, leaf: session.leaf, source: session.source))
+            } else if (session.leaf == nil || session.leaf == leaf) && allows(peer, for: session) {
+                result = .granted(RelayGrant(id: session.id, leaf: leaf, source: session.source))
             }
         }
         if let ended = ended { finish([ended]) }
