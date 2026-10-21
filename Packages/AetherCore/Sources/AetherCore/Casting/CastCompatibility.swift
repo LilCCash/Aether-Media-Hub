@@ -66,20 +66,32 @@ public enum CastCompatibility {
     private static let castContainers: Set<String> = ["mp4", "m4v", "webm", "m3u8", "mpd", "mp3", "m4a", "aac", "mkv"]
     private static let dlnaContainers: Set<String> = ["mp4", "m4v", "mkv", "avi", "ts", "mov", "mp3", "m4a", "aac", "mpg", "mpeg", "wmv", "flac", "wav"]
 
+    /// - Parameter delivery: how the address reaches the receiver. With `.relay` the phone serves the video itself, so `url` is the
+    ///   address of the *real source* (which only the phone contacts): the receiver neither needs to reach it nor to receive headers.
     public static func evaluate(url: URL, info: StreamInfo, headers: [String: String] = [:],
-                                target: CastTarget, hasExternalSubtitles: Bool = false) -> CastVerdict {
+                                target: CastTarget, hasExternalSubtitles: Bool = false,
+                                delivery: CastDelivery = .direct) -> CastVerdict {
         var warnings: [String] = []
-        switch hostKind(of: url) {
+        let relayed = delivery == .relay
+        let host = hostKind(of: url)
+        switch host {
         case .loopback:
             return .blocked("L'indirizzo punta a questo telefono (localhost): il televisore non può raggiungerlo.")
         case .localNetwork:
-            warnings.append("La sorgente è nella rete locale: il televisore deve essere nella stessa rete.")
+            if !relayed { warnings.append("La sorgente è nella rete locale: il televisore deve essere nella stessa rete.") }
         case .publicInternet:
             break
         }
         let scheme = url.scheme?.lowercased() ?? ""
         guard scheme == "http" || scheme == "https" else {
             return .blocked("Protocollo «\(scheme)» non inviabile al televisore.")
+        }
+        if relayed && scheme == "http" && host == .publicInternet {
+            return .blocked(CastRefusal.plainHTTPNeedsRelay.message)
+        }
+        if delivery == .directWithKey {
+            warnings.append("Il televisore riceverà il link con la tua chiave TorBox (scelta fatta in Impostazioni ▸ Avanzate).")
+            if target == .dlna { warnings.append("Con DLNA il link viene inviato in chiaro sulla rete locale.") }
         }
 
         let container = info.container ?? ""
@@ -95,7 +107,7 @@ public enum CastCompatibility {
                 warnings.append("I sottotitoli esterni di Aether non vengono mostrati sul televisore in AirPlay (solo tracce incorporate).")
             }
         case .googleCast:
-            if !headers.isEmpty {
+            if !headers.isEmpty && !relayed {
                 return .blocked("Questa sorgente richiede header HTTP personalizzati, che Google Cast non può inviare.")
             }
             switch info.kind {
@@ -119,14 +131,14 @@ public enum CastCompatibility {
             if info.codec == .hevc {
                 warnings.append("HEVC è supportato solo da Chromecast Ultra / Google TV.")
             }
-            if scheme == "http" {
+            if scheme == "http" && !relayed {
                 warnings.append("Sorgente non cifrata (HTTP): alcuni ricevitori la bloccano.")
             }
             if hasExternalSubtitles {
                 warnings.append("I sottotitoli esterni di Aether non vengono inviati a Google Cast in questa versione: sul televisore compaiono solo le tracce già incorporate nel file.")
             }
         case .dlna:
-            if !headers.isEmpty {
+            if !headers.isEmpty && !relayed {
                 return .blocked("Questa sorgente richiede header HTTP personalizzati, che DLNA non può inviare.")
             }
             if case .unsupported(let reason) = info.support, info.kind != .file {
@@ -140,7 +152,7 @@ public enum CastCompatibility {
             } else if !container.isEmpty && !dlnaContainers.contains(container) {
                 warnings.append("Formato .\(container) non verificato per DLNA.")
             }
-            if scheme == "https" {
+            if scheme == "https" && !relayed {
                 warnings.append("Molti televisori DLNA non gestiscono HTTPS: se non parte, serve una sorgente HTTP.")
             }
             if hasExternalSubtitles {
