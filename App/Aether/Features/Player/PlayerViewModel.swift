@@ -1450,23 +1450,67 @@ final class PlayerViewModel: ObservableObject {
         return selected.isEmbedded ? 0 : 1
     }
 
-    struct CastPlan {
-        var media: CastMedia
+    /// Everything needed to start a remote session for the video that plays now.
+    struct CastPreparation: CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
+        var request: CastRequest
+        var delivery: CastDelivery
+        /// The real address of the source, for the compatibility check only. It may carry the account key: it is never stored or shown.
+        var evaluationURL: URL
         var info: StreamInfo
         var headers: [String: String]
+
+        var description: String { return "CastPreparation" }
+        var debugDescription: String { return "CastPreparation" }
+        var customMirror: Mirror { return Mirror(self, children: [], displayStyle: .struct) }
     }
 
-    /// Everything needed to send the current video to a remote receiver, or nil when it cannot be sent
-    /// (downloaded files only exist on this phone; AirPlay is the way to put them on a TV).
-    func castPlan() -> CastPlan? {
-        guard case .stream(let stream) = request.source,
-              let url = StreamResolver.playbackURL(for: stream, streamingServer: env.streamPreferences().streamingServer) else { return nil }
-        let info = StreamAnalyzer.analyze(stream, streamingServer: env.streamPreferences().streamingServer)
+    enum CastPreparationOutcome {
+        case ready(CastPreparation)
+        case refused(title: String, message: String)
+    }
+
+    /// Decides how the current video reaches a Google Cast or DLNA receiver and builds the request, or says why it cannot be sent.
+    /// A video resolved through TorBox is sent from the link TorBox produced (never from the torrent's own address), and because that
+    /// link carries the viewer's key it goes through the relay unless the viewer chose, in Settings, to send the link itself.
+    func castPreparation(for target: CastTarget, sendDirectLinkToTV: Bool, relay: RelayAvailability) -> CastPreparationOutcome {
+        guard case .stream(let stream) = request.source else {
+            return .refused(title: CastRefusal.localFile.title, message: CastRefusal.localFile.message)
+        }
+        let streamingServer = env.streamPreferences().streamingServer
+        let debrid = currentDebridStream()
+        let playing = debrid ?? stream
+        let server = debrid == nil ? streamingServer : nil
+        guard let url = StreamResolver.playbackURL(for: playing, streamingServer: server) else {
+            return .refused(title: "Non trasmettibile",
+                            message: "Questa sorgente non ha un indirizzo che il televisore possa leggere (per esempio è un torrent non ancora risolto). Avvia prima la riproduzione sul telefono.")
+        }
+        let headers = playing.behaviorHints.proxyRequestHeaders
+        let traits = CastSourceTraits(isLocalFile: false, carriesAccountKey: debrid != nil, hasRequestHeaders: !headers.isEmpty)
+        let delivery: CastDelivery
+        switch CastDeliveryPlanner.decide(traits, target: target, sendDirectLinkToTV: sendDirectLinkToTV, relay: relay) {
+        case .refuse(let refusal):
+            return .refused(title: refusal.title, message: refusal.message)
+        case .deliver(let decided):
+            delivery = decided
+        }
+        let info = StreamAnalyzer.analyze(playing, streamingServer: server)
+        let container = info.container ?? ""
+        if delivery == .relay && (container == "m3u8" || container == "mpd") {
+            return .refused(title: "Serve il ponte sul telefono",
+                            message: "Le sorgenti HLS o DASH che richiedono la tua chiave o intestazioni speciali non possono passare dal ponte in questa versione.")
+        }
         let artwork = (currentVideo?.thumbnail ?? meta.poster ?? meta.background).flatMap { URL.lenient($0) }
-        let media = CastMedia(url: url, title: meta.name, subtitle: episodeSubtitle(), artworkURL: artwork,
-                              contentType: CastMedia.contentType(forContainer: info.container),
-                              isLive: snapshot.isLive, startPosition: max(snapshot.position, 0))
-        return CastPlan(media: media, info: info, headers: stream.behaviorHints.proxyRequestHeaders)
+        let source: CastSource
+        switch delivery {
+        case .direct: source = .direct(url)
+        case .directWithKey: source = .directWithKey(url)
+        case .relay: source = .relay(RelayUpstream(url: url, headers: headers))
+        }
+        let request = CastRequest(title: meta.name, subtitle: episodeSubtitle(), artworkURL: artwork,
+                                  contentType: CastMedia.contentType(forContainer: info.container), isLive: snapshot.isLive,
+                                  startPosition: max(snapshot.position, 0), source: source,
+                                  fileExtension: RelayMime.allowedExtensions.contains(container) ? container : "mp4")
+        return .ready(CastPreparation(request: request, delivery: delivery, evaluationURL: url, info: info, headers: headers))
     }
 
     var currentStreamInfo: StreamInfo? {

@@ -40,6 +40,27 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(entries.filter { $0.inWatchlist }.map { $0.id }, ["tt9000001"])
     }
 
+    func testRestoringNeverTurnsOnTheDirectLinkToTheTV() async throws {
+        let source = makeEnvironment()
+        let skip = source.settings.value.playback.skipForwardSeconds
+        defer {
+            source.settings.value.playback.skipForwardSeconds = skip
+            source.settings.value.advanced.sendDirectLinkToTV = false
+        }
+        source.settings.value.advanced.sendDirectLinkToTV = true
+        source.settings.value.playback.skipForwardSeconds = skip == 45 ? 30 : 45
+        let wanted = source.settings.value.playback.skipForwardSeconds
+        let file = try await BackupService.makeBackup(env: source, includeAddonURLs: false)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let target = makeEnvironment()
+        target.settings.value.advanced.sendDirectLinkToTV = false
+        let summary = try await BackupService.restore(data: try Data(contentsOf: file), env: target, mode: .replace, applySettings: true)
+        XCTAssertTrue(summary.settingsApplied)
+        XCTAssertEqual(target.settings.value.playback.skipForwardSeconds, wanted, "the other settings are restored")
+        XCTAssertFalse(target.settings.value.advanced.sendDirectLinkToTV, "the key switch must be turned on again on this phone")
+    }
+
     func testMergeKeepsWhatIsAlreadyOnTheDevice() async throws {
         let source = makeEnvironment()
         await source.libraryStore.load()

@@ -6,6 +6,7 @@ struct PlayerView: View {
     @StateObject private var model: PlayerViewModel
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var casting: CastCoordinator
+    @EnvironmentObject private var relayService: RelayService
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var router: AppRouter
     @Environment(\.scenePhase) private var scenePhase
@@ -50,6 +51,7 @@ struct PlayerView: View {
         let id = UUID()
         var device: CastDevice
         var warnings: [String]
+        var delivery: CastDelivery = .direct
     }
 
     init(request: PlayerRequest, env: AppEnvironment) {
@@ -136,9 +138,13 @@ struct PlayerView: View {
             } message: { alert in
                 Text(alert.message)
             }
-            .confirmationDialog(pendingCast.map { "Trasmettere a «\($0.device.name)»?" } ?? "",
+            .confirmationDialog(pendingCast.map { $0.delivery == .directWithKey ? "Trasmettere a «\($0.device.name)» con il link diretto?" : "Trasmettere a «\($0.device.name)»?" } ?? "",
                                 isPresented: pendingCastBinding, titleVisibility: .visible, presenting: pendingCast) { pending in
-                Button("Invia comunque") { performCast(to: pending.device) }
+                if pending.delivery == .directWithKey {
+                    Button("Invia con la chiave", role: .destructive) { performCast(to: pending.device) }
+                } else {
+                    Button(pending.delivery == .relay ? "Trasmetti" : "Invia comunque") { performCast(to: pending.device) }
+                }
                 Button("Annulla", role: .cancel) {}
             } message: { pending in
                 Text(pending.warnings.joined(separator: "\n\n"))
@@ -846,6 +852,20 @@ struct PlayerView: View {
             VStack(spacing: 18) {
                 Image(systemName: "tv.and.mediabox.fill").font(.system(size: 44)).foregroundStyle(settings.accentColor)
                 Text("Riproduzione su \(session.device.name)").font(.title3.weight(.semibold))
+                switch session.delivery {
+                case .relay:
+                    Label("Ponte attivo · il televisore non vede la tua chiave", systemImage: "lock.shield.fill")
+                        .font(.footnote.weight(.semibold)).multilineTextAlignment(.center)
+                        .accessibilityIdentifier("player.cast.relayBadge")
+                    Text("Non bloccare il telefono e non chiudere Aether: il video passa da qui.")
+                        .font(.footnote).foregroundStyle(.white.opacity(0.75)).multilineTextAlignment(.center)
+                case .directWithKey:
+                    Label("Link diretto con la tua chiave", systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote.weight(.semibold)).foregroundStyle(.orange)
+                        .accessibilityIdentifier("player.cast.directKeyBadge")
+                case .direct:
+                    EmptyView()
+                }
                 CastSessionControls()
                     .padding(16)
                     .aetherGlassCard(cornerRadius: 22)
@@ -870,32 +890,47 @@ struct PlayerView: View {
     // MARK: Casting
 
     private func prepareCast(to device: CastDevice) {
-        guard let plan = model.castPlan() else {
-            let reason = model.isPlayingThroughTorBox
-                ? "Il link di TorBox contiene un codice personale che Aether non consegna a Google Cast né ai ricevitori DLNA. Con AirPlay il link passa al ricevitore che scegli: usalo solo su un dispositivo tuo."
-                : "I file scaricati si trovano solo su questo telefono: il televisore non può leggerli. Usa AirPlay, oppure trasmetti la sorgente online."
-            castNotice = CastNotice(title: "Non trasmettibile", message: reason)
-            return
-        }
-        let verdict = CastCompatibility.evaluate(url: plan.media.url, info: plan.info, headers: plan.headers,
-                                                 target: device.target, hasExternalSubtitles: model.externalSubtitleCount() > 0)
-        switch verdict {
-        case .blocked(let message):
-            castNotice = CastNotice(title: "Questa sorgente non può essere trasmessa", message: message)
-        case .warning(let messages):
-            pendingCast = PendingCast(device: device, warnings: messages)
-        case .ok:
-            performCast(to: device)
+        let outcome = model.castPreparation(for: device.target, sendDirectLinkToTV: settings.value.advanced.sendDirectLinkToTV,
+                                            relay: relayService.availability)
+        switch outcome {
+        case .refused(let title, let message):
+            castNotice = CastNotice(title: title, message: message)
+        case .ready(let preparation):
+            let verdict = CastCompatibility.evaluate(url: preparation.evaluationURL, info: preparation.info, headers: preparation.headers,
+                                                     target: device.target, hasExternalSubtitles: model.externalSubtitleCount() > 0,
+                                                     delivery: preparation.delivery)
+            switch verdict {
+            case .blocked(let message):
+                castNotice = CastNotice(title: "Questa sorgente non può essere trasmessa", message: message)
+            case .warning(let messages):
+                pendingCast = PendingCast(device: device, warnings: castNotes(for: preparation.delivery) + messages, delivery: preparation.delivery)
+            case .ok:
+                if preparation.delivery == .direct {
+                    performCast(to: device)
+                } else {
+                    pendingCast = PendingCast(device: device, warnings: castNotes(for: preparation.delivery), delivery: preparation.delivery)
+                }
+            }
         }
     }
 
+    /// What the viewer should know before a video leaves through the relay.
+    private func castNotes(for delivery: CastDelivery) -> [String] {
+        if delivery == .relay {
+            return ["Aether farà da ponte: scarica il video con la tua chiave e lo passa al televisore, che non la riceve. Tieni il telefono acceso, con Aether aperto e nella stessa rete Wi-Fi."]
+        }
+        return []
+    }
+
     private func performCast(to device: CastDevice) {
-        guard var plan = model.castPlan() else { return }
-        plan.media.startPosition = model.snapshot.position
+        guard case .ready(var preparation) = model.castPreparation(for: device.target, sendDirectLinkToTV: settings.value.advanced.sendDirectLinkToTV,
+                                                                    relay: relayService.availability) else { return }
+        preparation.request.startPosition = model.snapshot.position
         let position = model.snapshot.position
+        let request = preparation.request
         Task {
             do {
-                try await casting.cast(plan.media, to: device, localPosition: position)
+                try await casting.cast(request, to: device, localPosition: position)
                 model.castDidStart()
             } catch {
                 castNotice = CastNotice(title: "Trasmissione non riuscita", message: error.localizedDescription)
