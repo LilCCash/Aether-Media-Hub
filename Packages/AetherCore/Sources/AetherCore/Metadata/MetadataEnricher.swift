@@ -18,6 +18,8 @@ public actor MetadataEnricher {
 
     private var imageConfiguration: TMDBImageConfiguration?
     private var inFlight: [String: Task<MetadataEnrichment?, Never>] = [:]
+    private var inFlightRich: [String: Task<TitleRichDetails?, Never>] = [:]
+    private var imdbMemo: [String: String] = [:]
     private var pausedUntil: [MetadataService: Date] = [:]
 
     public init(tmdb: TMDBClient?, tvdb: TVDBClient?, cache: ResponseCache? = nil, ttl: TimeInterval = 24 * 3600,
@@ -132,16 +134,7 @@ public actor MetadataEnricher {
                           needs: [EpisodeKey]) async throws -> (enrichment: MetadataEnrichment, complete: Bool) {
         let configuration = await imageConfiguration(client)
 
-        var tmdbID = ids.tmdb
-        if tmdbID == nil, let imdb = ids.imdb {
-            let found = try await client.find(externalID: imdb, source: "imdb_id")
-            tmdbID = (kind == .movie ? found.movieResults : found.tvResults).compactMap { $0.id }.first
-        }
-        if tmdbID == nil, kind == .tv, let tvdb = ids.tvdb {
-            let found = try await client.find(externalID: String(tvdb), source: "tvdb_id")
-            tmdbID = found.tvResults.compactMap { $0.id }.first
-        }
-        guard let id = tmdbID else { throw MetadataError.notFound }
+        let id = try await resolveTMDBID(client, kind: kind, ids: ids)
 
         let details = try await client.details(kind: kind, id: id, language: language)
         var enrichment = MetadataEnrichment(sources: [.tmdb])
@@ -194,6 +187,21 @@ public actor MetadataEnricher {
         return (enrichment, complete)
     }
 
+    /// The TMDB id of a title: the one already known, else found through its IMDb id (or, for a series, its TheTVDB id).
+    private func resolveTMDBID(_ client: TMDBClient, kind: TMDBClient.Kind, ids: ExternalIDs) async throws -> Int {
+        var tmdbID = ids.tmdb
+        if tmdbID == nil, let imdb = ids.imdb {
+            let found = try await client.find(externalID: imdb, source: "imdb_id")
+            tmdbID = (kind == .movie ? found.movieResults : found.tvResults).compactMap { $0.id }.first
+        }
+        if tmdbID == nil, kind == .tv, let tvdb = ids.tvdb {
+            let found = try await client.find(externalID: String(tvdb), source: "tvdb_id")
+            tmdbID = found.tvResults.compactMap { $0.id }.first
+        }
+        guard let id = tmdbID else { throw MetadataError.notFound }
+        return id
+    }
+
     private func imageConfiguration(_ client: TMDBClient) async -> TMDBImageConfiguration {
         if let known = imageConfiguration { return known }
         if let fetched = try? await client.configuration() {
@@ -210,10 +218,76 @@ public actor MetadataEnricher {
             if usable.backdropSizes.isEmpty { usable.backdropSizes = TMDBImageConfiguration().backdropSizes }
             if usable.logoSizes.isEmpty { usable.logoSizes = TMDBImageConfiguration().logoSizes }
             if usable.stillSizes.isEmpty { usable.stillSizes = TMDBImageConfiguration().stillSizes }
+            if usable.profileSizes.isEmpty { usable.profileSizes = TMDBImageConfiguration().profileSizes }
             imageConfiguration = usable
             return usable
         }
         return TMDBImageConfiguration()
+    }
+
+    // MARK: Title page
+
+    /// True when a TMDB key is stored (the title page offers to add one when it is not).
+    public var tmdbConfigured: Bool { return tmdb?.isConfigured == true }
+
+    /// The cast with photos, producers, trailers, facts and similar titles of `meta`, from TMDB.
+    /// - Returns: nil when there is nothing to show (no key, unsupported type, unknown title, failure). Never throws.
+    public func richDetails(for meta: MetaItem, language: String) async -> TitleRichDetails? {
+        guard let kind = MetadataEnricher.kind(forType: meta.type), let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb) else { return nil }
+        let ids = ExternalIDs.fromMetaID(meta.id).filling(from: meta.externalIDs)
+        if ids.isEmpty { return nil }
+        let identity = ids.tmdb.map { "tmdb\($0)" } ?? ids.imdb ?? ids.tvdb.map { "tvdb\($0)" } ?? "unknown"
+        let key = "metadata:rich:v1:\(kind.rawValue):\(identity):\(language.lowercased())"
+
+        if let cache = cache, let hit = await cache.lookup(key), hit.isFresh,
+           let stored = try? JSONDecoder().decode(TitleRichDetails.self, from: hit.data) {
+            return stored.isEmpty ? nil : stored
+        }
+        if let running = inFlightRich[key] { return await running.value }
+
+        let task = Task<TitleRichDetails?, Never> { [self] in
+            await self.loadRich(tmdb, kind: kind, ids: ids, language: language, cacheKey: key)
+        }
+        inFlightRich[key] = task
+        let result = await task.value
+        inFlightRich[key] = nil
+        return result
+    }
+
+    private func loadRich(_ client: TMDBClient, kind: TMDBClient.Kind, ids: ExternalIDs, language: String, cacheKey: String) async -> TitleRichDetails? {
+        do {
+            let configuration = await imageConfiguration(client)
+            let id = try await resolveTMDBID(client, kind: kind, ids: ids)
+            let details = try await client.richDetails(kind: kind, id: id, language: language)
+            let rich = TitleRichDetails.make(from: details, tmdbID: id, isMovie: kind == .movie, configuration: configuration, language: language)
+            if let cache = cache, let data = try? JSONEncoder().encode(rich) {
+                await cache.store(key: cacheKey, data: data, kind: .meta, hints: CacheHints(maxAge: ttl, staleError: 0))
+            }
+            return rich.isEmpty ? nil : rich
+        } catch let error as MetadataError {
+            note(error, service: .tmdb)
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
+    /// The IMDb id of a TMDB title (what a catalog address is made of), so that a similar title can be opened like any other.
+    /// Nil when TMDB does not know one or the service does not answer.
+    public func imdbID(forTMDBID id: Int, metaType: String) async -> String? {
+        guard let kind = MetadataEnricher.kind(forType: metaType), let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb) else { return nil }
+        let memo = "\(kind.rawValue):\(id)"
+        if let known = imdbMemo[memo] { return known }
+        do {
+            let ids = try await tmdb.externalIDs(kind: kind, id: id)
+            if let imdb = ids.imdbID { imdbMemo[memo] = imdb }
+            return ids.imdbID
+        } catch let error as MetadataError {
+            note(error, service: .tmdb)
+            return nil
+        } catch {
+            return nil
+        }
     }
 
     // MARK: TheTVDB

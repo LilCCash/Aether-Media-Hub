@@ -63,6 +63,21 @@ public struct TMDBClient: Sendable {
         ])
     }
 
+    /// Everything the title page shows, in one request.
+    func richDetails(kind: Kind, id: Int, language: String) async throws -> TMDBRichDetails {
+        let videoLanguages = [String(language.prefix(2)), "en", "null"].joined(separator: ",")
+        let ratings = kind == .movie ? "release_dates" : "content_ratings"
+        return try await get("/\(kind.rawValue)/\(id)", query: [
+            ("language", language),
+            ("append_to_response", "credits,videos,similar,external_ids,\(ratings)"),
+            ("include_video_language", videoLanguages),
+        ])
+    }
+
+    func externalIDs(kind: Kind, id: Int) async throws -> TMDBExternalIDs {
+        return try await get("/\(kind.rawValue)/\(id)/external_ids", query: [])
+    }
+
     func season(tvID: Int, number: Int, language: String) async throws -> TMDBSeason {
         return try await get("/tv/\(tvID)/season/\(number)", query: [("language", language)])
     }
