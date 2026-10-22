@@ -6,7 +6,7 @@
 
 <p align="center">
   <em>Il tuo media center per iPhone, fatto a modo tuo.</em><br>
-  Versione 1.3 Beta 1 · iOS 17 o successivo · licenza MIT
+  Versione 1.3 rev2 · iOS 17 o successivo · licenza MIT
 </p>
 
 ---
@@ -20,7 +20,7 @@ Aether **non fornisce nessun contenuto**: sei tu a installare gli addon che vuoi
 ## Cosa sa fare
 
 - **Home su misura.** Scegli quali sezioni vedere e in che ordine, se le locandine sono verticali o orizzontali e quanto grandi, e se «In evidenza» è una card oppure un'immagine a tutta larghezza con la sfumatura. Puoi anche farti salutare per nome.
-- **Theater Mode.** Dalla Home, un'interfaccia a schermo intero in orizzontale in stile cinema: barra laterale, locandine orizzontali, pagina del titolo immersiva e un'introduzione con fascio di proiettore e sipario (si può saltare o spegnere). Palette, sfondi, angoli e bagliore si regolano in *Impostazioni ▸ Aspetto ▸ Theater Mode*.
+- **Theater Mode.** Dalla Home, un'interfaccia a schermo intero in orizzontale in stile cinema: barra laterale, locandine orizzontali, pagina del titolo immersiva e un'introduzione con fascio di proiettore e sipario (si può saltare o spegnere). Anche scelta della sorgente, episodi, impostazioni e player restano nello stile di Theater, con il colore che scegli. Palette, sfondi, angoli e bagliore si regolano in *Impostazioni ▸ Aspetto ▸ Theater Mode*.
 - **Un po' di fantasia.** Atmosfere di colore, sfondi (anche in movimento), cornici, angoli e caratteri a scelta, con un'anteprima. E se tocchi più volte il logo in *Altro ▸ Informazioni*… prova.
 - **Scopri e Cerca** con filtri per tipo, genere e anno.
 - **Libreria** con watchlist, preferiti, cronologia e «Continua a guardare».
