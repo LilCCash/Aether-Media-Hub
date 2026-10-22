@@ -20,6 +20,41 @@ final class StreamAnalyzerTests: XCTestCase {
         XCTAssertEqual(info.badges.prefix(3), ["4K", "HEVC", "Dolby Vision (nel nome)"], "name-derived HDR must be labelled as unverified")
     }
 
+    func testTheFormatLabelNamesTheFileFormat() {
+        let cases: [(String, String)] = [("mkv", "MKV"), ("avi", "AVI"), ("mp4", "MP4"), ("mov", "MOV"), ("m4v", "M4V"), ("ts", "TS"), ("webm", "WEBM")]
+        for (ext, label) in cases {
+            XCTAssertEqual(StreamAnalyzer.analyze(stream("https://cdn.test/file.\(ext)?sig=1")).formatLabel, label, ext)
+        }
+        XCTAssertEqual(StreamAnalyzer.analyze(stream("https://cdn.test/master.m3u8?token=1")).formatLabel, "HLS", "HLS is shown as HLS, not as m3u8")
+        XCTAssertEqual(StreamAnalyzer.analyze(stream("https://cdn.test/manifest.mpd")).formatLabel, "DASH")
+    }
+
+    func testTheFormatLabelFallsBackToTheDeclaredFileName() {
+        let hints = StreamBehaviorHints(filename: "Movie.2160p.x265.mkv")
+        XCTAssertEqual(StreamAnalyzer.analyze(stream("https://cdn.test/download/123", hints: hints)).formatLabel, "MKV")
+        let torrent = AddonStream(source: .torrent(infoHash: "0123456789abcdef0123456789abcdef01234567", fileIndex: nil, trackers: []),
+                                  name: "T", details: nil, behaviorHints: hints)
+        XCTAssertEqual(StreamAnalyzer.analyze(torrent).formatLabel, "MKV", "a torrent's declared file name says what the file is")
+    }
+
+    func testTheFormatLabelIsAbsentWhenTheFormatIsNotKnown() {
+        XCTAssertNil(StreamAnalyzer.analyze(stream("https://cdn.test/stream/123")).formatLabel)
+        XCTAssertNil(StreamAnalyzer.analyze(stream("https://cdn.test/play.php")).formatLabel, "an extension that is not a video format says nothing")
+        XCTAssertNil(StreamAnalyzer.analyze(stream("https://cdn.test/x", hints: StreamBehaviorHints(filename: "Movie.2160p"))).formatLabel,
+                     "a quality tag after the last dot is not an extension")
+        let torrent = AddonStream(source: .torrent(infoHash: "0123456789abcdef0123456789abcdef01234567", fileIndex: nil, trackers: []),
+                                  name: "T", details: nil, behaviorHints: StreamBehaviorHints())
+        XCTAssertNil(StreamAnalyzer.analyze(torrent).formatLabel)
+        XCTAssertNil(StreamAnalyzer.analyze(AddonStream(source: .external("https://x.test"), name: "E", details: nil,
+                                                        behaviorHints: StreamBehaviorHints(filename: "a.mkv"))).formatLabel)
+    }
+
+    func testTheFormatIsNotPartOfTheBadgesSoTheirOrderIsUnchanged() {
+        let info = StreamAnalyzer.analyze(stream("https://cdn.test/a.mkv", details: "2160p x265 DV"))
+        XCTAssertFalse(info.badges.contains("MKV"))
+        XCTAssertEqual(info.badges.prefix(3), ["4K", "HEVC", "Dolby Vision (nel nome)"])
+    }
+
     func testDolbyVisionDoesNotImplyDolbyDigitalAudio() {
         let info = StreamAnalyzer.analyze(stream("https://cdn.test/a.mp4", details: "1080p Dolby Vision HEVC"))
         XCTAssertFalse(info.audio.contains(.ac3))

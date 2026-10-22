@@ -167,6 +167,9 @@ public struct StreamInfo: Sendable {
     public var needsHeaders: Bool
     /// The engine this source needs when it cannot use the default one (for example MKV needs MPV).
     public var requiredEngine: PlaybackEngineKind?
+    /// The file format to show next to the source ("MKV", "MP4", "HLS"…), nil when it cannot be told. It comes from the link's extension
+    /// or the file name the addon declares, never from guessing, and is only a label: what is played is decided by `container`.
+    public var formatLabel: String?
 
     /// One-line badge summary, e.g. "1080p · HEVC · HDR10 (nel nome) · Dolby Digital+".
     /// HDR entries are marked as coming from the name because they have not been verified.
@@ -298,9 +301,33 @@ public enum StreamAnalyzer {
             support = .unsupported(.invalidURL)
         }
 
+        let format = formatLabel(kind: kind, container: container, filename: stream.behaviorHints.filename)
         return StreamInfo(quality: quality, codec: codec, hdr: hdr, audio: audio, languages: languages,
                           sizeBytes: size, kind: kind, container: container, support: support,
-                          warnings: warnings, needsHeaders: needsHeaders, requiredEngine: requiredEngine)
+                          warnings: warnings, needsHeaders: needsHeaders, requiredEngine: requiredEngine, formatLabel: format)
+    }
+
+    /// Names shown for the file extensions that are video (or streaming) formats.
+    static let formatNames: [String: String] = [
+        "mkv": "MKV", "avi": "AVI", "mp4": "MP4", "mov": "MOV", "m4v": "M4V", "ts": "TS", "m2ts": "M2TS", "webm": "WEBM",
+        "wmv": "WMV", "flv": "FLV", "mpg": "MPEG", "mpeg": "MPEG", "ogv": "OGV", "ogm": "OGM", "vob": "VOB", "divx": "DIVX",
+        "rmvb": "RMVB", "3gp": "3GP", "asf": "ASF", "m3u8": "HLS", "mpd": "DASH"
+    ]
+
+    /// HLS and DASH are named by what they are, a file by its extension (the link's, else the declared file name's). Torrents and
+    /// debrid sources have no link to the file yet, so the declared file name is all there is; anything not recognised gives nothing.
+    static func formatLabel(kind: StreamKind, container: String?, filename: String?) -> String? {
+        switch kind {
+        case .hls: return "HLS"
+        case .dash: return "DASH"
+        case .file:
+            guard let container = container else { return nil }
+            return formatNames[container.lowercased()]
+        case .torrent:
+            return formatNames[filenameExtension(filename)]
+        default:
+            return nil
+        }
     }
 
     // MARK: Detection

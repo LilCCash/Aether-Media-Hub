@@ -1010,14 +1010,22 @@ struct FlowBadges: View {
         let badges = info.badges
             + info.languages.map { LanguageCodes.displayName($0) }
             + [info.sizeLabel].compactMap { $0 }
-            + [info.kind == .hls ? "HLS" : nil, info.container?.uppercased()].compactMap { $0 }
-        if !badges.isEmpty {
+        if !badges.isEmpty || info.formatLabel != nil {
             WrappingHStack(spacing: 6) {
                 ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
                     Text(badge)
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .padding(.horizontal, 7).padding(.vertical, 3)
                         .background(Color.primary.opacity(0.09), in: Capsule())
+                }
+                if let format = info.formatLabel {
+                    // The file format, drawn as an outline so it reads apart from quality, codec and language.
+                    Text(format)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.35), lineWidth: 1))
+                        .accessibilityLabel("Formato \(format)")
+                        .accessibilityIdentifier("stream.format")
                 }
             }
         }
