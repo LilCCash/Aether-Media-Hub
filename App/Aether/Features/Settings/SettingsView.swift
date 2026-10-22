@@ -72,6 +72,7 @@ struct SettingsRootView: View {
         List {
             Section {
                 link("Aspetto", "paintpalette.fill", .pink) { AppearanceSettingsView() }
+                link("Theater Mode", "film.stack.fill", .yellow) { TheaterSettingsView() }
                 link("Riproduzione", "play.rectangle.fill", .orange) { PlaybackSettingsView() }
                 link("Contenuti e scoperta", "square.grid.2x2.fill", .green) { ContentSettingsView() }
                 link("Casting", "tv.and.mediabox.fill", .teal) { CastingSettingsView() }
