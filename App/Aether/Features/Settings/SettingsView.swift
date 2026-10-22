@@ -285,7 +285,7 @@ struct PlaybackSettingsView: View {
                 Toggle("Preferisci sorgenti nella lingua audio", isOn: settings.binding(\.playback.preferStreamsInPreferredAudioLanguage))
                 Toggle("Scegli automaticamente la sorgente migliore", isOn: settings.binding(\.playback.autoSelectStream))
             }
-            Section(header: Text("Sistema"), footer: Text("L'audio in background richiede la capability «Audio, AirPlay e Picture in Picture» (già attiva). Il video si interrompe se lasci l'app, salvo Picture-in-Picture. Il Picture-in-Picture funziona con i file aperti da AVPlayer (MP4, MOV); MKV, AVI e gli altri formati passano da MPV, che non lo supporta. Se usi Aether dentro un contenitore come LiveContainer, iOS può non consentirlo.")) {
+            Section(header: Text("Sistema"), footer: Text("L'audio in background richiede la capability «Audio, AirPlay e Picture in Picture» (già attiva). Il video si interrompe se lasci l'app, salvo Picture-in-Picture. Il Picture-in-Picture funziona con i file aperti da AVPlayer (MP4, MOV, HLS, e gli MKV se scegli il player AVPlayer o attivi «Converti i file MKV per AVPlayer»); AVI e gli altri formati passano da MPV, che non lo supporta. Se usi Aether dentro un contenitore come LiveContainer, iOS può non consentirlo.")) {
                 Toggle("Picture-in-Picture automatico", isOn: settings.binding(\.playback.autoPictureInPicture))
                 Toggle("Continua l'audio in background", isOn: settings.binding(\.playback.allowBackgroundAudio))
                 Picker("Timer di spegnimento predefinito", selection: settings.binding(\.playback.defaultSleepTimerMinutes)) {
