@@ -268,7 +268,7 @@ final class RelayServerLoopbackTests: XCTestCase {
         let closed = await relayPollUntil(6) { client.finished }
         XCTAssertTrue(closed, "the connection should end shortly after the revocation (received \(client.count) bytes, server holds "
                       + "\(h.server.activeConnectionCount) connections, \(h.server.abortedConnectionCount) aborts, \(s.source.cancelCount) reader cancels; "
-                      + "log: \(h.log.messages.suffix(8)))")
+                      + "client: \(client.notes); log: \(h.log.messages.suffix(8)))")
         client.close()
     }
 

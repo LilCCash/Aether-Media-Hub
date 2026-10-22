@@ -600,7 +600,11 @@ fileprivate final class RelayConnection: @unchecked Sendable {
         markClosed()
         headTimer?.cancel()
         server?.noteAbort()
-        connection.forceCancel()
+        // A graceful close first: what is already queued goes out and the receiver sees the end of the connection. A receiver that has
+        // stopped reading would hold that close up for ever, so the connection is torn down for good a moment later.
+        connection.cancel()
+        let closing = connection
+        server?.queue.asyncAfter(deadline: .now() + 2) { closing.forceCancel() }
         server?.forget(self)
     }
 

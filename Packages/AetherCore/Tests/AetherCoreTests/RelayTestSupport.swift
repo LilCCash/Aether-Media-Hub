@@ -59,6 +59,7 @@ final class RelayRawClient: @unchecked Sendable {
     private var _finished = false
     private var readLimit: Int?
     private let retainBytes: Bool
+    private var _notes: [String] = []
 
     init(host: String = "127.0.0.1", port: UInt16, readLimit: Int? = nil, retainBytes: Bool = true) {
         connection = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port)!, using: .tcp)
@@ -90,6 +91,19 @@ final class RelayRawClient: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// What this client saw happen to its connection, for the message of a failed assertion.
+    var notes: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _notes
+    }
+
+    private func note(_ text: String) {
+        lock.lock()
+        _notes.append(text)
+        lock.unlock()
+    }
+
     func connect(timeout: TimeInterval = 3) async -> Bool {
         return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
             let once = RelayOnce()
@@ -99,6 +113,7 @@ final class RelayRawClient: @unchecked Sendable {
                     if once.take() { continuation.resume(returning: true) }
                     self?.beginReading()
                 case .waiting, .failed, .cancelled:
+                    self?.note("state \(state)")
                     self?.markFinished()
                     if once.take() { continuation.resume(returning: false) }
                 default:
@@ -124,6 +139,7 @@ final class RelayRawClient: @unchecked Sendable {
                 if reachedLimit { return }      // stop reading: the sender is left to the kernel's buffers
             }
             if isComplete || error != nil {
+                self.note("receive ended: complete=\(isComplete) error=\(String(describing: error))")
                 self.markFinished()
             } else {
                 self.beginReading()
