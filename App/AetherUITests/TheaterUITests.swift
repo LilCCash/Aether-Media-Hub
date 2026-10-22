@@ -37,7 +37,7 @@ final class TheaterUITests: AetherUITestCase {
         let card = button(labelContaining: "Aether Fixture One")
         XCTAssertTrue(card.waitForExistence(timeout: 30), "no title card in the Film section")
         card.tap()
-        XCTAssertTrue(element("theater.detail").waitForExistence(timeout: 15), "the immersive page did not open: \(seen())")
+        XCTAssertTrue(element("theater.detail.play").waitForExistence(timeout: 15), "the immersive page did not open: \(seen())")
         element("theater.detail.play").tap()
         XCTAssertTrue(element("detail.title").waitForExistence(timeout: 20), "Riproduci should continue in the normal details")
     }

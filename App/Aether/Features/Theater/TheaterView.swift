@@ -70,7 +70,8 @@ struct TheaterView: View {
         .fullScreenCover(item: Binding(get: { router.player }, set: { router.player = $0 })) { request in
             PlayerView(request: request, env: env)
         }
-        .accessibilityIdentifier("theater.root")
+        // A marker, not an identifier on the container: an identifier on a container replaces those of everything inside it.
+        .background(Color.clear.accessibilityElement().accessibilityIdentifier("theater.root"))
     }
 
     private func openTitle(_ meta: MetaItem) {

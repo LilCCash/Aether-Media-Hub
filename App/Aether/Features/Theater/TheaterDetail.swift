@@ -76,7 +76,6 @@ struct TheaterDetail: View {
         .foregroundStyle(.white)
         .task { await load() }
         .onAppear { withAnimation(.easeOut(duration: 0.45).delay(0.2)) { shown = true } }
-        .accessibilityIdentifier("theater.detail")
     }
 
     private var info: some View {
