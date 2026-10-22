@@ -21,7 +21,7 @@ televisore ──http──▶ iPhone (NWListener sull'indirizzo Wi‑Fi)  /r/<t
 * **Il segreto è l'indirizzo**: 256 bit casuali; il registro tiene solo lo SHA‑256 del token. Un indirizzo sbagliato, scaduto, revocato o di un altro file dà sempre la stessa risposta 404 (stessi byte).
 * **Protezione dalla sorgente**: solo `https` (e `http` solo per un server della tua rete, con il permesso attivo); mai `127.0.0.1`, indirizzi di collegamento locale, multicast o il telefono stesso; ogni risposta DNS deve essere interamente pubblica; al più 3 reindirizzamenti, mai da https a http; le intestazioni dell'addon vanno solo all'origine esatta, non a dove ti reindirizza.
 * **Fine di una sessione**: stop, cambio di televisore, la sorgente che risponde 401/403/404/410 (link scaduto), cambio di rete, scadenza (nessuna richiesta in 3 minuti; 12 ore al massimo). Il telefono chiude la connessione con garbo e, dopo 2 s, con la forza.
-* **Impostazione «Invia il link diretto al televisore»** (Avanzate, spenta): è l'unico modo di dare al televisore un link con la chiave. Non viene mai ripristinata da un backup e, se la spegni mentre trasmetti così, la trasmissione si ferma.
+* **Impostazione «Invia il link diretto al televisore»** (Impostazioni › Avanzate, spenta): è l'unico modo di dare al televisore un link con la chiave. Non viene mai ripristinata da un backup e, se la spegni mentre trasmetti così, la trasmissione si ferma.
 * Con il permesso «Rete locale» spento il ponte non esiste, e le trasmissioni che ci passavano si fermano.
 
 ## 2. La conversione al volo (MKV → HLS)
