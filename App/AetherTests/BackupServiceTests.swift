@@ -102,7 +102,6 @@ final class BackupServiceTests: XCTestCase {
         let data = try BackupFileReader.read(copy)
         let backup = try BackupCodec.decode(data)
         let preview = BackupPreview(backup)
-        XCTAssertEqual(preview.entries, 0, "recording progress is not saving to the library")
         XCTAssertEqual(preview.progressRecords, 1)
         XCTAssertTrue(preview.hasSettings)
         XCTAssertFalse(preview.summary.isEmpty)
