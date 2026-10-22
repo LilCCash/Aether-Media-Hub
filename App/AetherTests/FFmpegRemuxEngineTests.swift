@@ -30,20 +30,21 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         return try Data(contentsOf: try XCTUnwrap(url, "fixture \(name).mkv is not in the test bundle"))
     }
 
-    private func engine(_ name: String, minimumSegment: Double = 4) throws -> FFmpegRemuxEngine {
+    private func engine(_ name: String, minimumSegment: Double = 4, audio: RemuxAudioChoice = .standard) throws -> FFmpegRemuxEngine {
         let data = try fixture(name)
-        return FFmpegRemuxEngine(fetcher: MemoryFetcher(data), totalBytes: Int64(data.count), minimumSegment: minimumSegment)
+        return FFmpegRemuxEngine(fetcher: MemoryFetcher(data), totalBytes: Int64(data.count), minimumSegment: minimumSegment, audio: audio)
     }
 
     // MARK: Planning
 
-    func testAnH264FileWithThreeAudioTracksIsPlanned() async throws {
+    func testAnH264FileWithThreeAudioTracksIsPlannedWithOne() async throws {
         let engine = try engine("remux-h264-3audio")
         defer { engine.close() }
         let prepared = try await engine.prepare()
         XCTAssertEqual(prepared.plan.video.codec, "h264")
-        XCTAssertEqual(prepared.plan.audio.map { $0.codec }, ["aac", "ac3", "eac3"])
-        XCTAssertEqual(prepared.plan.audio.map { $0.language }, ["ita", "eng", "fra"])
+        XCTAssertEqual(prepared.plan.audio.map { $0.codec }, ["aac"], "the first track unless asked otherwise")
+        XCTAssertEqual(prepared.plan.audioChoices.map { $0.codec }, ["aac", "ac3", "eac3"])
+        XCTAssertEqual(prepared.plan.audioChoices.map { $0.language }, ["ita", "eng", "fra"])
         XCTAssertTrue(prepared.plan.droppedAudio.isEmpty)
         XCTAssertEqual(prepared.duration, 8.0, accuracy: 0.2)
         XCTAssertEqual(prepared.segments.count, 2, "keyframes every 2 s with a 4 s minimum")
@@ -53,10 +54,26 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         XCTAssertEqual(prepared.master.height, 90)
         XCTAssertEqual(prepared.master.frameRate ?? 0, 24, accuracy: 0.01)
         XCTAssertTrue(prepared.master.codecs[0].hasPrefix("avc1."), "\(prepared.master.codecs)")
+        XCTAssertEqual(prepared.master.codecs.count, 2, "one video and the one audio track: \(prepared.master.codecs)")
         XCTAssertTrue(prepared.master.codecs.contains("mp4a.40.2"))
-        XCTAssertTrue(prepared.master.codecs.contains("ac-3"))
-        XCTAssertTrue(prepared.master.codecs.contains("ec-3"))
         XCTAssertEqual(prepared.master.range, .sdr)
+    }
+
+    func testTheChosenAudioTrackIsTheOneThatIsConverted() async throws {
+        for (languages, codec, string) in [(["en"], "ac3", "ac-3"), (["fr"], "eac3", "ec-3"), (["it"], "aac", "mp4a.40.2")] {
+            let engine = try engine("remux-h264-3audio", audio: .automatic(languages: languages))
+            defer { engine.close() }
+            let prepared = try await engine.prepare()
+            XCTAssertEqual(prepared.plan.audio.map { $0.codec }, [codec], "\(languages)")
+            XCTAssertTrue(prepared.master.codecs.contains(string), "\(prepared.master.codecs)")
+            XCTAssertEqual(prepared.plan.audioChoices.count, 3)
+            let initSegment = try await engine.initSegment()
+            XCTAssertEqual(MP4Fragment.trackTimescales(in: initSegment).count, 2, "the video and the chosen audio track only")
+        }
+        let byIndex = try engine("remux-h264-3audio", audio: .track(index: 3))
+        defer { byIndex.close() }
+        let prepared = try await byIndex.prepare()
+        XCTAssertEqual(prepared.plan.audio.map { $0.language }, ["fra"])
     }
 
     func testAnHEVCTenBitFileGetsAnHEVCCodecString() async throws {
@@ -97,7 +114,7 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         let initSegment = try await engine.initSegment()
         XCTAssertEqual(MP4Fragment.boxes(in: initSegment).map { $0.type }, ["ftyp", "moov"])
         let scales = MP4Fragment.trackTimescales(in: initSegment)
-        XCTAssertEqual(scales.count, 4, "one video and three audio tracks")
+        XCTAssertEqual(scales.count, 2, "one video and one audio track")
         let videoScale = try XCTUnwrap(scales[1])
         let audioScale = try XCTUnwrap(scales[2])
 
@@ -107,7 +124,7 @@ final class FFmpegRemuxEngineTests: XCTestCase {
             XCTAssertEqual(MP4Fragment.boxes(in: piece).map { $0.type }.first, "moof")
             XCTAssertFalse(MP4Fragment.boxes(in: piece).contains { $0.type == "mfra" })
             let times = MP4Fragment.decodeTimes(in: piece)
-            XCTAssertEqual(Set(times.keys), [1, 2, 3, 4])
+            XCTAssertEqual(Set(times.keys), [1, 2])
             starts.append(Double(try XCTUnwrap(times[1])) / Double(videoScale))
             // Audio starts together with the video of the same piece (within a frame or two), after the shift.
             let audioStart = Double(try XCTUnwrap(times[2])) / Double(audioScale)
@@ -189,9 +206,8 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(kinds.filter { $0 == .audio }.count, 1, "tracks seen by the player: \(kinds.map { $0.rawValue })")
         let group = try await item.asset.loadMediaSelectionGroup(for: .audible)
         let names = group?.options.map { $0.displayName } ?? []
-        // How many audio choices the system player offers for tracks muxed into one variant (a probe: it decides whether the audio
-        // tracks need their own renditions or one track is chosen before the file is converted).
-        XCTAssertEqual(names.count, 3, "PROBE audio choices \(names.count): \(names); tracks seen: \(kinds.map { $0.rawValue })")
+        // The file is converted with one audio track, so the player has one to play (and nothing to choose from).
+        XCTAssertLessThanOrEqual(names.count, 1, "audio choices: \(names); tracks seen: \(kinds.map { $0.rawValue })")
         XCTContext.runActivity(named: "REMUX-AV tracks \(kinds.map { $0.rawValue }) audio choices \(names)") { _ in }
     }
 

@@ -411,6 +411,9 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     /// Whether the order of the addons decides the order of the sources, or the best ones come first whatever addon they are from.
     public var streamOrdering: StreamOrdering = .byAddon
     public var autoSelectStream: Bool = false
+    /// With the Automatic engine, Matroska files are converted on the fly for AVPlayer instead of being opened with MPV: AVPlayer can
+    /// then float the picture (Picture in Picture) and send it to an AirPlay receiver. The AVPlayer engine always converts them.
+    public var convertMatroskaForAVPlayer: Bool = false
     public var controlsAutoHideSeconds: Int = 4
     public var landscapeOnly: Bool = true
     public var gesturesEnabled: Bool = true
@@ -436,7 +439,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly
-        case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering
+        case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering, convertMatroskaForAVPlayer
     }
 
     public init(from decoder: Decoder) throws {
@@ -459,6 +462,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         preferStreamsInPreferredAudioLanguage = c.value(.preferStreamsInPreferredAudioLanguage, default: true)
         streamOrdering = c.value(.streamOrdering, default: .byAddon)
         autoSelectStream = c.value(.autoSelectStream, default: false)
+        convertMatroskaForAVPlayer = c.value(.convertMatroskaForAVPlayer, default: false)
         controlsAutoHideSeconds = min(15, max(2, c.value(.controlsAutoHideSeconds, default: 4)))
         landscapeOnly = c.value(.landscapeOnly, default: true)
         gesturesEnabled = c.value(.gesturesEnabled, default: true)
@@ -516,11 +520,15 @@ public struct CastingSettings: Codable, Equatable, Sendable {
     public var ssdpDiscoveryEnabled: Bool = false
     public var resumeLocallyOnDisconnect: Bool = true
     public var manualDLNAHosts: [String] = []
+    /// Matroska files sent to Google Cast are converted by the phone into HLS (video and audio copied, not re-encoded), which every
+    /// Cast receiver reads; without it the receiver is given the MKV as it is and many refuse it.
+    public var convertMatroskaForGoogleCast: Bool = true
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case airPlayEnabled, googleCastEnabled, dlnaEnabled, ssdpDiscoveryEnabled, resumeLocallyOnDisconnect, manualDLNAHosts
+        case convertMatroskaForGoogleCast
     }
 
     public init(from decoder: Decoder) throws {
@@ -531,6 +539,7 @@ public struct CastingSettings: Codable, Equatable, Sendable {
         ssdpDiscoveryEnabled = c.value(.ssdpDiscoveryEnabled, default: false)
         resumeLocallyOnDisconnect = c.value(.resumeLocallyOnDisconnect, default: true)
         manualDLNAHosts = c.value(.manualDLNAHosts, default: [])
+        convertMatroskaForGoogleCast = c.value(.convertMatroskaForGoogleCast, default: true)
     }
 }
 

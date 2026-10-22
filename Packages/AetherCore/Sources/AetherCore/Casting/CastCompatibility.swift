@@ -68,9 +68,11 @@ public enum CastCompatibility {
 
     /// - Parameter delivery: how the address reaches the receiver. With `.relay` the phone serves the video itself, so `url` is the
     ///   address of the *real source* (which only the phone contacts): the receiver neither needs to reach it nor to receive headers.
+    /// - Parameter remuxed: the phone converts the Matroska file into HLS before the receiver sees it, so the receiver is judged on the
+    ///   HLS it gets (video and audio copied from the file), not on the container of the original.
     public static func evaluate(url: URL, info: StreamInfo, headers: [String: String] = [:],
                                 target: CastTarget, hasExternalSubtitles: Bool = false,
-                                delivery: CastDelivery = .direct) -> CastVerdict {
+                                delivery: CastDelivery = .direct, remuxed: Bool = false) -> CastVerdict {
         var warnings: [String] = []
         let relayed = delivery == .relay
         let host = hostKind(of: url)
@@ -94,7 +96,7 @@ public enum CastCompatibility {
             if target == .dlna { warnings.append("Con DLNA il link viene inviato in chiaro sulla rete locale.") }
         }
 
-        let container = info.container ?? ""
+        let container = remuxed ? "m3u8" : (info.container ?? "")
         switch target {
         case .airPlay:
             if case .unsupported(let reason) = info.support {
@@ -122,7 +124,7 @@ public enum CastCompatibility {
             if container == "mkv" {
                 warnings.append("MKV è supportato solo da alcuni dispositivi (Chromecast Ultra, Google TV, Android TV).")
             }
-            if container == "m3u8" || container == "mpd" {
+            if (container == "m3u8" || container == "mpd") && !remuxed {
                 warnings.append("HLS/DASH su Google Cast richiedono che il server invii gli header CORS.")
             }
             if container.isEmpty {

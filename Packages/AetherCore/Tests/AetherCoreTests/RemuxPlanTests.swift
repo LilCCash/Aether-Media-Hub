@@ -14,20 +14,44 @@ final class RemuxPlannerTests: XCTestCase {
         return RemuxStreamInfo(index: index, kind: .subtitle, codec: "subrip")
     }
 
-    private func plan(_ streams: [RemuxStreamInfo]) throws -> RemuxPlan {
-        switch RemuxPlanner.plan(streams) {
+    private func plan(_ streams: [RemuxStreamInfo], audio choice: RemuxAudioChoice = .standard) throws -> RemuxPlan {
+        switch RemuxPlanner.plan(streams, audio: choice) {
         case .success(let plan): return plan
         case .failure(let refusal): throw refusal
         }
     }
 
-    func testH264WithAACAndAC3IsCopiedAsItIs() throws {
+    func testH264WithAACAndAC3IsCopiedAsItIsOneAudioTrackAtATime() throws {
         let result = try plan([video(), audio("aac", index: 1, language: "ita"), audio("ac3", index: 2, language: "eng"), subtitle(3)])
         XCTAssertEqual(result.video.index, 0)
-        XCTAssertEqual(result.audio.map { $0.index }, [1, 2])
+        XCTAssertEqual(result.audio.map { $0.index }, [1], "the first track unless asked otherwise")
+        XCTAssertEqual(result.audioChoices.map { $0.index }, [1, 2], "the viewer can still switch to the other one")
         XCTAssertTrue(result.droppedAudio.isEmpty)
         XCTAssertEqual(result.subtitleCount, 1)
-        XCTAssertEqual(result.notes, ["I sottotitoli incorporati non passano in questo modo: usa quelli di Aether."])
+        XCTAssertEqual(result.notes, ["Il file ha 2 tracce audio: ne passa una alla volta, la cambi dal pannello Audio.",
+                                      "I sottotitoli incorporati non passano in questo modo: usa quelli di Aether."])
+    }
+
+    func testTheAudioTrackFollowsTheLanguagesInOrder() throws {
+        let streams = [video(), audio("aac", index: 1, language: "eng"), audio("ac3", index: 2, language: "ita"), audio("eac3", index: 3, language: "fra")]
+        XCTAssertEqual(try plan(streams, audio: .automatic(languages: ["it"])).audio.map { $0.index }, [2])
+        XCTAssertEqual(try plan(streams, audio: .automatic(languages: ["fr", "it"])).audio.map { $0.index }, [3], "the first language wanted that exists")
+        XCTAssertEqual(try plan(streams, audio: .automatic(languages: ["ja", "en"])).audio.map { $0.index }, [1], "a language the file lacks is skipped")
+        XCTAssertEqual(try plan(streams, audio: .automatic(languages: ["ja"])).audio.map { $0.index }, [1], "nothing wanted: the first track")
+        XCTAssertEqual(try plan(streams, audio: .automatic(languages: ["ita"])).audio.map { $0.index }, [2], "three-letter codes match too")
+    }
+
+    func testTheFileDefaultWinsWhenNoLanguageIsWanted() throws {
+        let streams = [video(), audio("aac", index: 1, language: "eng"),
+                       RemuxStreamInfo(index: 2, kind: .audio, codec: "ac3", channels: 6, language: "ita", isDefault: true)]
+        XCTAssertEqual(try plan(streams).audio.map { $0.index }, [2])
+    }
+
+    func testAnExplicitTrackIsUsedAndAnUnusableOneFallsBack() throws {
+        let streams = [video(), audio("aac", index: 1, language: "eng"), audio("ac3", index: 2, language: "ita"), audio("dts", index: 3, language: "fra")]
+        XCTAssertEqual(try plan(streams, audio: .track(index: 2)).audio.map { $0.index }, [2])
+        XCTAssertEqual(try plan(streams, audio: .track(index: 3)).audio.map { $0.index }, [1], "DTS cannot be copied: the automatic choice")
+        XCTAssertEqual(try plan(streams, audio: .track(index: 9)).audio.map { $0.index }, [1], "a track the file does not have")
     }
 
     func testHEVCTenBitIsAccepted() throws {
@@ -37,6 +61,7 @@ final class RemuxPlannerTests: XCTestCase {
     func testTracksTheSystemPlayerCannotReadAreLeftOutAndSaid() throws {
         let result = try plan([video(), audio("dts", index: 1, language: "ita"), audio("eac3", index: 2, language: "eng"), audio("truehd", index: 3)])
         XCTAssertEqual(result.audio.map { $0.index }, [2])
+        XCTAssertEqual(result.audioChoices.map { $0.index }, [2])
         XCTAssertEqual(result.droppedAudio.map { $0.index }, [1, 3])
         XCTAssertEqual(result.notes, ["Tracce audio non incluse perché il lettore di sistema non le legge: DTS (ita), Dolby TrueHD."])
     }
@@ -81,7 +106,8 @@ final class RemuxPlannerTests: XCTestCase {
         let streams = [video(index: 0, isDefault: false), video(index: 1, isDefault: true)] + (2..<12).map { audio("aac", index: $0) }
         let result = try plan(streams)
         XCTAssertEqual(result.video.index, 1)
-        XCTAssertEqual(result.audio.count, RemuxPlanner.maxAudioTracks)
+        XCTAssertEqual(result.audio.count, 1)
+        XCTAssertEqual(result.audioChoices.count, RemuxPlanner.maxAudioTracks)
         XCTAssertEqual(result.droppedAudio.count, 10 - RemuxPlanner.maxAudioTracks)
     }
 }

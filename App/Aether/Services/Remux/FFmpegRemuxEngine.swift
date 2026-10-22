@@ -181,10 +181,13 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     private let stateLock = NSLock()
     private var closed = false
 
-    init(fetcher: RelayRangeFetcher, totalBytes: Int64, minimumSegment: Double = 6) {
+    private let audioChoice: RemuxAudioChoice
+
+    init(fetcher: RelayRangeFetcher, totalBytes: Int64, minimumSegment: Double = 6, audio: RemuxAudioChoice = .standard) {
         self.input = RangeInput(fetcher: fetcher, total: totalBytes)
         self.totalBytes = totalBytes
         self.minimumSegment = minimumSegment
+        self.audioChoice = audio
     }
 
     deinit {
@@ -293,7 +296,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             infos.append(describe(stream: stream, parameters: par, index: index))
         }
         let plan: RemuxPlan
-        switch RemuxPlanner.plan(infos) {
+        switch RemuxPlanner.plan(infos, audio: audioChoice) {
         case .success(let decided): plan = decided
         case .failure(let refusal): throw RemuxError.refused(refusal)
         }

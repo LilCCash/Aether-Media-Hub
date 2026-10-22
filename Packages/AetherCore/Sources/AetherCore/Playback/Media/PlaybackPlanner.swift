@@ -53,9 +53,26 @@ public struct PlaybackPlan: Equatable, Sendable {
     public var engine: PlaybackEngineKind?
     public var output: ExpectedOutput
     public var notes: [PlaybackNote]
+    /// The file is a Matroska one that AVPlayer plays through the on-the-fly conversion (HLS made by the phone).
+    public var usesRemux: Bool = false
 
     public var canPlay: Bool { engine != nil }
     public var blockingMessage: String? { notes.first(where: { $0.severity == .blocking })?.text }
+}
+
+/// Whether and when Matroska files may be converted on the fly for AVPlayer.
+public struct RemuxRouting: Equatable, Sendable {
+    /// The converter is part of this build.
+    public var available: Bool
+    /// The viewer asked for Matroska to be converted for AVPlayer even with the Automatic engine.
+    public var matroskaForAVPlayer: Bool
+
+    public init(available: Bool, matroskaForAVPlayer: Bool) {
+        self.available = available
+        self.matroskaForAVPlayer = matroskaForAVPlayer
+    }
+
+    public static let unavailable = RemuxRouting(available: false, matroskaForAVPlayer: false)
 }
 
 /// What the device can do, read at run time by the app (`AVPlayer.availableHDRModes`, VideoToolbox, `UIScreen`).
@@ -107,8 +124,11 @@ public enum PlaybackPlanner {
                             device: DeviceVideoCapabilities,
                             mpvAvailable: Bool,
                             choice: PlayerEngineChoice,
-                            forceSDR: Bool = false) -> PlaybackPlan {
+                            forceSDR: Bool = false,
+                            remux: RemuxRouting = .unavailable) -> PlaybackPlan {
         var notes: [PlaybackNote] = []
+        let isMatroska = (container ?? "").lowercased() == "mkv"
+        var usesRemux = false
         let video = facts?.primaryVideo
         let nativeContainer = isNativeToAVFoundation(container: container)
         let avFoundationRefuses = facts?.source == .avFoundation
@@ -118,7 +138,10 @@ public enum PlaybackPlanner {
         switch choice {
         case .avPlayer:
             engine = .avPlayer
-            if !nativeContainer {
+            if !nativeContainer && isMatroska && remux.available {
+                usesRemux = true
+                notes.append(PlaybackNote(.info, "Il file MKV viene convertito al volo per AVPlayer (video e audio sono copiati, non ricodificati)."))
+            } else if !nativeContainer {
                 let name = (container ?? "").uppercased()
                 notes.append(PlaybackNote(.blocking, "AVPlayer non apre i file \(name). Scegli «Automatico» o «MPV» in Impostazioni → Riproduzione."))
                 engine = nil
@@ -133,7 +156,11 @@ public enum PlaybackPlanner {
                 notes.append(PlaybackNote(.blocking, "Il motore MPV non è incluso in questa build."))
             }
         case .automatic:
-            if !nativeContainer {
+            if !nativeContainer && isMatroska && remux.available && remux.matroskaForAVPlayer {
+                engine = .avPlayer
+                usesRemux = true
+                notes.append(PlaybackNote(.info, "Il file MKV viene convertito al volo per AVPlayer (video e audio sono copiati, non ricodificati)."))
+            } else if !nativeContainer {
                 if mpvAvailable {
                     engine = .mpv
                     notes.append(PlaybackNote(.info, "Contenitore \((container ?? "").uppercased()) non supportato da AVPlayer: uso MPV."))
@@ -165,7 +192,7 @@ public enum PlaybackPlanner {
         }
 
         let output = expectedOutput(engine: engine, video: video, device: device, forceSDR: forceSDR, notes: &notes)
-        return PlaybackPlan(engine: engine, output: output, notes: notes)
+        return PlaybackPlan(engine: engine, output: output, notes: notes, usesRemux: usesRemux && engine == .avPlayer)
     }
 
     static func expectedOutput(engine: PlaybackEngineKind?, video: VideoTrackFacts?, device: DeviceVideoCapabilities,

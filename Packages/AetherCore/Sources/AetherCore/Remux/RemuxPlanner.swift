@@ -42,11 +42,24 @@ public struct RemuxStreamInfo: Equatable, Sendable {
     }
 }
 
+/// Which audio track of the file goes into the converted video. A player is given one at a time: a file muxed with several audio
+/// tracks in one variant plays the first on most receivers, and the others cannot be chosen from the receiver.
+public enum RemuxAudioChoice: Equatable, Sendable {
+    /// The first track in one of these languages (tried in order), else the file's default track, else the first one that can be copied.
+    case automatic(languages: [String])
+    /// This track of the file (its index in the container); if it cannot be copied, the automatic choice is used.
+    case track(index: Int)
+
+    public static let standard = RemuxAudioChoice.automatic(languages: [])
+}
+
 /// What will be copied and what will be left out.
 public struct RemuxPlan: Equatable, Sendable {
     public var video: RemuxStreamInfo
-    /// Audio tracks copied as they are, in the file's order.
+    /// The audio track copied as it is: none for a file without sound, otherwise exactly one.
     public var audio: [RemuxStreamInfo]
+    /// Every audio track that could be copied, in the file's order (the chosen one included): what the viewer can switch to.
+    public var audioChoices: [RemuxStreamInfo] = []
     /// Audio tracks left out because the system player cannot read their codec.
     public var droppedAudio: [RemuxStreamInfo]
     /// Embedded subtitle tracks (left out: the app draws its own).
@@ -61,6 +74,9 @@ public struct RemuxPlan: Equatable, Sendable {
                 return track.language.map { "\(name) (\($0))" } ?? name
             }
             result.append("Tracce audio non incluse perché il lettore di sistema non le legge: \(names.joined(separator: ", ")).")
+        }
+        if audioChoices.count > 1 {
+            result.append("Il file ha \(audioChoices.count) tracce audio: ne passa una alla volta, la cambi dal pannello Audio.")
         }
         if subtitleCount > 0 {
             result.append("I sottotitoli incorporati non passano in questo modo: usa quelli di Aether.")
@@ -130,7 +146,7 @@ public enum RemuxPlanner {
     public static let copyableAudio: Set<String> = ["aac", "ac3", "eac3", "mp3"]
     public static let maxAudioTracks = 6
 
-    public static func plan(_ streams: [RemuxStreamInfo]) -> Result<RemuxPlan, RemuxRefusal> {
+    public static func plan(_ streams: [RemuxStreamInfo], audio choice: RemuxAudioChoice = .standard) -> Result<RemuxPlan, RemuxRefusal> {
         let videos = streams.filter { $0.kind == .video }
         guard let video = videos.first(where: { $0.isDefault }) ?? videos.first else { return .failure(.noVideo) }
 
@@ -146,15 +162,28 @@ public enum RemuxPlanner {
         if video.dolbyVisionProfile == 5 { return .failure(.dolbyVisionProfile5) }
 
         let audioTracks = streams.filter { $0.kind == .audio }
-        var copied: [RemuxStreamInfo] = []
+        var copyable: [RemuxStreamInfo] = []
         var dropped: [RemuxStreamInfo] = []
         for track in audioTracks {
             let usable = copyableAudio.contains(track.codec.lowercased()) && (track.channels ?? 2) <= 8
-            if usable && copied.count < maxAudioTracks { copied.append(track) } else { dropped.append(track) }
+            if usable && copyable.count < maxAudioTracks { copyable.append(track) } else { dropped.append(track) }
         }
-        if copied.isEmpty && !audioTracks.isEmpty {
+        if copyable.isEmpty && !audioTracks.isEmpty {
             return .failure(.noUsableAudio(Array(Set(audioTracks.map { $0.codec.lowercased() })).sorted()))
         }
-        return .success(RemuxPlan(video: video, audio: copied, droppedAudio: dropped, subtitleCount: streams.filter { $0.kind == .subtitle }.count))
+        let chosen = pick(copyable, choice)
+        return .success(RemuxPlan(video: video, audio: chosen.map { [$0] } ?? [], audioChoices: copyable, droppedAudio: dropped,
+                                  subtitleCount: streams.filter { $0.kind == .subtitle }.count))
+    }
+
+    /// The track that goes into the converted video.
+    static func pick(_ tracks: [RemuxStreamInfo], _ choice: RemuxAudioChoice) -> RemuxStreamInfo? {
+        if case .track(let index) = choice, let exact = tracks.first(where: { $0.index == index }) { return exact }
+        var languages: [String] = []
+        if case .automatic(let wanted) = choice { languages = wanted }
+        for language in languages {
+            if let match = tracks.first(where: { track in track.language.map { LanguageCodes.matches($0, language) } ?? false }) { return match }
+        }
+        return tracks.first(where: { $0.isDefault }) ?? tracks.first
     }
 }
