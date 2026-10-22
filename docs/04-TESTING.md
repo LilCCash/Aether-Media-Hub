@@ -128,3 +128,10 @@ CI su `79358fd` (macOS, Xcode 26): **Core 881 test, app 349 test, 0 falliti**. T
 
 I tre test sulle chiavi TMDB / TheTVDB (`MetadataUITests`) fallivano già in 1.1 Beta 1 (l'etichetta letta era «Warning»); con lo stato della chiave esposto come un unico elemento di accessibilità ora passano.
 Non è stato eseguito nulla su un iPhone né con un televisore.
+
+## 1.3 Beta 1 — esiti (CI, simulatore)
+
+- CI (Core + App con test unitari) verde sul commit `313b7b4`.
+- UI `TheaterUITests` (entrata, sezioni della barra, uscita, pagina immersiva → dettagli): passati su `313b7b4`. Un primo tentativo falliva perché l'identificatore sul contenitore sostituiva quelli dei pulsanti interni; corretto.
+- UI Home personalizzabile 17/17, Impostazioni/Accessibilità/Layout/Esplora e Cerca passati su `7caa40c`.
+- Non verificato: aspetto e animazioni di Theater Mode su schermo, AirPlay con Apple TV. Fallimenti noti invariati (TorBox ×2, hash sottotitoli, matrice media).
