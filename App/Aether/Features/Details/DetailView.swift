@@ -61,7 +61,7 @@ final class DetailViewModel: ObservableObject {
 
     /// The page can offer to add a key only for the types TMDB covers.
     var suggestsTMDBKey: Bool {
-        return !tmdbConfigured && !isLoading && MetadataEnricher.kind(forType: meta.type) != nil
+        return !tmdbConfigured && !isLoading && MetadataEnricher.isCovered(type: meta.type)
     }
 
     /// Every trailer to offer: TMDB's when there are some, else the ones the addon listed.

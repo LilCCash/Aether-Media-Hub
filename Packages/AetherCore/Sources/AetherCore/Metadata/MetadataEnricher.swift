@@ -336,6 +336,11 @@ public actor MetadataEnricher {
         var token: String { return "\(season):\(episode)" }
     }
 
+    /// Whether TMDB covers this kind of meta (films and series).
+    public static func isCovered(type: String) -> Bool {
+        return kind(forType: type) != nil
+    }
+
     static func kind(forType type: String) -> TMDBClient.Kind? {
         switch type.lowercased() {
         case "movie": return .movie
