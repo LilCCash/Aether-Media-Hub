@@ -41,7 +41,25 @@ struct TheaterFeature: View {
                         LinearGradient(colors: [.clear, .black], startPoint: .center, endPoint: .bottom)
                     )
             }
+            // A spotlight from above, and the poster standing on the right like a one-sheet outside a cinema.
+            RadialGradient(colors: [Color(red: 1, green: 0.85, blue: 0.5).opacity(0.22), .clear],
+                           center: .topTrailing, startRadius: 10, endRadius: 360)
+                .allowsHitTesting(false)
+            HStack {
+                Spacer()
+                RemoteImage(urlString: meta.poster ?? meta.background, width: 118, placeholderSeed: meta.name)
+                    .frame(width: 118, height: 177)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white.opacity(0.5), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.7), radius: 14, y: 8)
+                    .rotation3DEffect(.degrees(-8), axis: (x: 0, y: 1, z: 0))
+                    .padding(.trailing, 36).padding(.bottom, 24)
+                    .accessibilityHidden(true)
+            }
             VStack(alignment: .leading, spacing: 8) {
+                Text("★  IN SCENA")
+                    .font(.caption2.weight(.bold)).tracking(4)
+                    .foregroundStyle(Color(red: 1, green: 0.82, blue: 0.45))
                 Text(meta.name)
                     .font(.system(size: 34, weight: .bold, design: .serif))
                     .lineLimit(2)
@@ -111,7 +129,11 @@ struct TheaterRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.headline).foregroundStyle(.white.opacity(0.9)).padding(.leading, 28)
+            Text(title.uppercased())
+                .font(.caption.weight(.bold)).tracking(3)
+                .foregroundStyle(Color(red: 1, green: 0.82, blue: 0.45))
+                .padding(.leading, 28)
+            FilmSprockets()
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 14) {
                     ForEach(Array(items.prefix(40).enumerated()), id: \.offset) { _, item in
@@ -124,6 +146,7 @@ struct TheaterRow: View {
                 .padding(.horizontal, 28)
             }
             .scrollClipDisabled()
+            FilmSprockets()
         }
         .onAppear { selection.offer(items.first) }
     }

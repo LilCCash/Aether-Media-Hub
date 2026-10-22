@@ -14,7 +14,7 @@ struct TheaterView: View {
     @StateObject private var model = HomeViewModel()
     @StateObject private var selection = TheaterSelection()
     @State private var path: [MetaRoute] = []
-    @State private var curtain = true
+    @State private var introDone = false
 
     private var animated: Bool { settings.animationsEnabled && !reduceMotion }
 
@@ -28,8 +28,7 @@ struct TheaterView: View {
                     stage
                 }
                 exitButton
-                // The lights come up: a curtain of black that fades (instantly with reduced motion).
-                Color.black.ignoresSafeArea().opacity(curtain ? 1 : 0).allowsHitTesting(false)
+                if !introDone { TheaterIntro(animated: animated) { introDone = true } }
             }
             .navigationBarHidden(true)
             .navigationDestination(for: MetaRoute.self) { DetailView(route: $0) }
@@ -38,7 +37,6 @@ struct TheaterView: View {
         .task(id: "\(addons.revision)#\(network.reconnectToken)") { await model.reload(env: env, mode: .normal) }
         .onAppear {
             OrientationController.set(.landscape)
-            withAnimation(animated ? .easeOut(duration: 0.9).delay(0.25) : nil) { curtain = false }
         }
         .onDisappear { OrientationController.set(.portrait) }
         // The player gives the orientation back to portrait when it closes: Theater Mode asks for landscape again.
@@ -80,7 +78,6 @@ struct TheaterView: View {
             LinearGradient(colors: [Color.black, settings.accentColor.opacity(0.18)], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
         )
-        .scaleEffect(curtain && animated ? 1.04 : 1)
     }
 
     private var emptyState: some View {
