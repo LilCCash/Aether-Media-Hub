@@ -42,6 +42,7 @@ public final class RelayServer: @unchecked Sendable {
 
     private let stateLock = NSLock()
     private var _port: UInt16?
+    private var aborted = 0
 
     // Confined to `queue`.
     private var listener: NWListener?
@@ -74,6 +75,19 @@ public final class RelayServer: @unchecked Sendable {
 
     /// How many receivers are connected right now (tests wait on it to see a connection being closed from this side).
     var activeConnectionCount: Int { return queue.sync { connections.count } }
+
+    /// How many connections this server ended by force (a revoked session, a stalled receiver, a short body); tests read it.
+    var abortedConnectionCount: Int {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return aborted
+    }
+
+    fileprivate func noteAbort() {
+        stateLock.lock()
+        aborted += 1
+        stateLock.unlock()
+    }
 
     /// Starts listening (idempotent) and returns the port. Waits for the listener to be ready, at most five seconds.
     @discardableResult
@@ -585,6 +599,7 @@ fileprivate final class RelayConnection: @unchecked Sendable {
     func abort() {
         markClosed()
         headTimer?.cancel()
+        server?.noteAbort()
         connection.forceCancel()
         server?.forget(self)
     }
