@@ -47,6 +47,7 @@ enum TheaterSound {
                 v += sin(2 * Double.pi * 92 * tau) * exp(-tau * 1.7) * 0.45
                 v += noise() * exp(-tau * 9) * 0.35
                 v += sin(2 * Double.pi * 1760 * tau) * exp(-tau * 5) * 0.05
+            }
             let fade = t > seconds - 0.15 ? max(0, (seconds - t) / 0.15) : 1
             samples[i] = Int16(max(-1, min(1, v * 0.8 * fade)) * Double(Int16.max))
         }
