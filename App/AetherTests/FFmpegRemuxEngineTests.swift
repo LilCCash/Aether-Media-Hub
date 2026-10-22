@@ -189,8 +189,9 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(kinds.filter { $0 == .audio }.count, 1, "tracks seen by the player: \(kinds.map { $0.rawValue })")
         let group = try await item.asset.loadMediaSelectionGroup(for: .audible)
         let names = group?.options.map { $0.displayName } ?? []
-        // Reported rather than required for now: how many audio choices a player offers for tracks muxed into one variant.
-        XCTAssertGreaterThanOrEqual(names.count, 0, "audio choices: \(names)")
+        // How many audio choices the system player offers for tracks muxed into one variant (a probe: it decides whether the audio
+        // tracks need their own renditions or one track is chosen before the file is converted).
+        XCTAssertEqual(names.count, 3, "PROBE audio choices \(names.count): \(names); tracks seen: \(kinds.map { $0.rawValue })")
         XCTContext.runActivity(named: "REMUX-AV tracks \(kinds.map { $0.rawValue }) audio choices \(names)") { _ in }
     }
 
