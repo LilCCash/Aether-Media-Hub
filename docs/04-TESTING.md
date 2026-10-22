@@ -109,3 +109,22 @@ Ogni esecuzione è nel registro di GitHub Actions; i bundle `.xcresult` sono sal
 ### Note ancora aperte (audit di accessibilità, informativo)
 
 `testAuditReportForContrastAndDynamicType` non fa fallire la build: elenca nel log le voci `A11Y-ISSUE`. Dopo le correzioni restano segnalazioni di contrasto su didascalie (anni) e su titoli delle locandine dei cataloghi di fixture e sul banner in evidenza. Non ho confermato la causa (possibile sovrapposizione con la barra delle schede traslucida di iOS 26 o con le locandine sintetiche); va riesaminata su dispositivo con copertine reali e VoiceOver.
+
+
+## 1.2 Beta 1 — esiti
+
+CI su `79358fd` (macOS, Xcode 26): **Core 881 test, app 349 test, 0 falliti**. Test UI lanciati a gruppi sul simulatore (commit `c13c066`–`3d288b9`):
+
+| Gruppo | Esito |
+|---|---|
+| Impostazioni e accessibilità, layout, download, metadati | 22/22 |
+| Esplora, filtri di Cerca | 14/14 |
+| Salta intro | 3/3 |
+| Home personalizzabile | 17/17 |
+| Player (`PlaybackUITests`) | 18/20: `testSubtitleRequestsCarryTheFileNameAndTheHashComputedOnThisDevice` (noto da Alpha 2) e `testHistoryIsRestoredAfterRelaunch` (una volta su due; passa da solo) |
+| TorBox | 10/12: `testAWrongKeyShowsTheInvalidKeyMessageAndIsNotKept`, `testANotCachedTorrentAsksBeforeDownloadingThenShowsProgressAndPlays` — **falliscono uguali sul codice di 1.1 Beta 1** (verificato con un'esecuzione sul tag) |
+| Installazione addon | 6/6 isolati; `testInstallingWhileAddonIsOfflineShowsAnError` è fallito una volta in gruppo e passa da solo (anche su 1.1 Beta 1) |
+| Matrice media (`PlayerMatrixUITests`) | 1/8: le righe «Video» / «Gamma dinamica» non compaiono nel foglio Informazioni nel simulatore e AVI / HLG MP4 non aprono il player (noti da Alpha 2) |
+
+I tre test sulle chiavi TMDB / TheTVDB (`MetadataUITests`) fallivano già in 1.1 Beta 1 (l'etichetta letta era «Warning»); con lo stato della chiave esposto come un unico elemento di accessibilità ora passano.
+Non è stato eseguito nulla su un iPhone né con un televisore.
