@@ -342,7 +342,10 @@ final class PlaybackUITests: AetherUITestCase {
         let englishChip = element("subtitle.filter.en")
         XCTAssertTrue(italianChip.waitForExistence(timeout: 20))
         XCTAssertTrue(englishChip.exists)
-        XCTAssertLessThan(italianChip.frame.minX, englishChip.frame.minX, "the preferred language must come first")
+        // The languages are one column in the side panel (above/below), not a row: compare top to bottom, then left to right.
+        let italianFirst = italianChip.frame.minY < englishChip.frame.minY
+            || (italianChip.frame.minY == englishChip.frame.minY && italianChip.frame.minX < englishChip.frame.minX)
+        XCTAssertTrue(italianFirst, "the preferred language must come first")
     }
 
     func testTheSecondaryLanguageIsUsedWhenThePrimaryOneIsNotAvailable() {

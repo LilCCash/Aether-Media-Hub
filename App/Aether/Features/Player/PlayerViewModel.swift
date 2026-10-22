@@ -96,6 +96,11 @@ final class PlayerViewModel: ObservableObject {
     /// The audio track the viewer picked for this video; nil follows the language settings.
     private var conversionAudio: RemuxAudioChoice?
     private var announcedWiFiNeed = false
+    /// The load generation whose move to the Wi-Fi address is in progress: a second move for the same load would replace the
+    /// relay session the first one had just handed to the player.
+    private var movingToWiFiGeneration: Int?
+    /// Where the load now under way was asked to start; until the player has passed it, "now" is not what `currentTime()` says.
+    private var loadStartPosition: Double = 0
     private let nowPlaying = NowPlayingService()
     private let audioSession = AudioSessionController()
     private var pictureInPictureGrace: Task<Void, Never>?
@@ -366,6 +371,7 @@ final class PlayerViewModel: ObservableObject {
             closeConversion()
         }
         engine.setExternalPlaybackAllowed(!externalPlaybackBlockedForKey)
+        loadStartPosition = start ?? 0
         engine.load(url: loadURL, headers: loadHeaders, startAt: start, autoplay: true)
         isOpeningSource = false
         if start != nil && (start ?? 0) > 1 { statusMessage = "Riprendo da \(Format.duration(start ?? 0))" }
@@ -418,7 +424,7 @@ final class PlayerViewModel: ObservableObject {
         } catch {
             guard !tornDown, generation == loadGeneration else { return nil }
             statusMessage = nil
-            giveUpConversion(because: RemuxFailureText.explain(error))
+            giveUpConversion(because: RemuxFailureText.explainLocal(error))
             return nil
         }
     }
@@ -427,9 +433,10 @@ final class PlayerViewModel: ObservableObject {
     private func giveUpConversion(because reason: String) {
         env.diagnostics.logDetached(.warning, "player", "Conversione del file non riuscita: \(reason)")
         if playback.engine == .automatic, canUse(.mpv) {
-            switchEngine(to: .mpv, reason: "\(reason) Uso MPV.")
+            switchEngine(to: .mpv, reason: "\(RemuxFailureText.problem(reason)) Uso MPV.")
         } else {
-            let hint = playback.engine == .avPlayer ? " Scegli «Automatico» o «MPV» in Impostazioni → Riproduzione." : ""
+            let advised = reason.contains("motore Automatico")
+            let hint = playback.engine == .avPlayer && !advised ? " Scegli «Automatico» o «MPV» in Impostazioni → Riproduzione." : ""
             failureExplanation = reason + hint
             handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: reason + hint))
         }
@@ -452,6 +459,7 @@ final class PlayerViewModel: ObservableObject {
     /// the player continues from there, at the same position.
     func moveConversionToWiFi() {
         guard conversion != nil, conversionLease == nil, engine.kind == .avPlayer, !tornDown, let upstream = conversionUpstream else { return }
+        guard movingToWiFiGeneration != loadGeneration else { return }
         guard case .ready = env.relay.availability else {
             if !announcedWiFiNeed {
                 announcedWiFiNeed = true
@@ -461,12 +469,16 @@ final class PlayerViewModel: ObservableObject {
             return
         }
         let choice = conversionAudio ?? .track(index: conversionPlan?.audio.first?.index ?? -1)
-        let position = engine.currentTime()
+        // Right after the file is ready the engine has not applied its start position yet and says 0.
+        var position = engine.currentTime()
+        if position < 1, snapshot.position < 1, loadStartPosition > 1 { position = loadStartPosition }
         let wasPlaying = snapshot.isPlaying
         let generation = loadGeneration
+        movingToWiFiGeneration = generation
         statusMessage = "Preparo il video per AirPlay…"
         Task { [weak self] in
             guard let self = self else { return }
+            defer { if self.movingToWiFiGeneration == generation { self.movingToWiFiGeneration = nil } }
             do {
                 let lease = try await self.env.relay.publish(RelayPublishRequest(upstream: upstream, contentType: "application/x-mpegURL",
                                                                                  fileExtension: "m3u8", owner: .airPlay, receiverAddress: nil,
@@ -1712,7 +1724,10 @@ final class PlayerViewModel: ObservableObject {
 
         // A Matroska file for Google Cast is converted by the phone into HLS (video and audio copied): every Cast receiver reads that,
         // many refuse the MKV. It needs the relay; the viewer's own wish to send the direct link is respected as it is.
-        if target == .googleCast, container == "mkv", RemuxEngineFactory.isAvailable, delivery != .directWithKey,
+        // A plain-HTTP address that carries a key or headers is not relayed at all (see `CastCompatibility.evaluate`): it stays as it was.
+        let plainHTTPWithSecrets = url.scheme?.lowercased() == "http" && CastCompatibility.hostKind(of: url) == .publicInternet
+            && (debrid != nil || !headers.isEmpty)
+        if target == .googleCast, container == "mkv", RemuxEngineFactory.isAvailable, delivery != .directWithKey, !plainHTTPWithSecrets,
            env.settings.value.casting.convertMatroskaForGoogleCast, case .ready = relay {
             var converted = request
             converted.source = .relayRemux(RelayUpstream(url: url, headers: headers), conversionAudio ?? .automatic(languages: wantedAudioLanguages()))

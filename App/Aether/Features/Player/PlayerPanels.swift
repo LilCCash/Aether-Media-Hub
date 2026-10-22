@@ -22,6 +22,9 @@ struct PlayerPanelHost: View {
     @ObservedObject var model: PlayerViewModel
     let onImportSubtitle: () -> Void
     let close: () -> Void
+    /// The current subtitle, laid out for the part of the screen the panel leaves free: drawn over the dimming, beside the panel, so
+    /// the effect of a delay or a style can be judged while the panel is open.
+    let subtitleLayer: (CGSize) -> AnyView
 
     /// Two fifths of the screen, never narrower than a readable list nor wider than a comfortable one, and never the whole screen.
     static func panelWidth(screenWidth: CGFloat) -> CGFloat {
@@ -41,6 +44,11 @@ struct PlayerPanelHost: View {
                     .accessibilityLabel("Chiudi il pannello")
                     .accessibilityAddTraits(.isButton)
                     .accessibilityIdentifier("player.panel.scrim")
+                let free = CGSize(width: max(0, proxy.size.width - width - insets.trailing), height: proxy.size.height)
+                subtitleLayer(free)
+                    .frame(width: free.width, height: free.height)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .allowsHitTesting(false)
                 VStack(spacing: 0) {
                     header
                     Divider().overlay(Color.white.opacity(0.14))
@@ -79,7 +87,8 @@ struct PlayerPanelHost: View {
                     .font(.system(size: 14, weight: .bold))
                     .frame(width: 34, height: 34)
                     .background(Color.white.opacity(0.14), in: Circle())
-                    .contentShape(Circle())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Chiudi il pannello")
@@ -184,21 +193,40 @@ struct PlayerSubtitlesPanel: View {
     /// Stable code of the language the list is narrowed to, nil for all of them.
     @State private var languageFilter: String?
     @State private var showingStyle = false
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        VStack(spacing: 0) {
-            GeometryReader { proxy in
-                HStack(spacing: 0) {
-                    languageColumn
-                        .frame(width: proxy.size.width * 0.34)
+        Group {
+            if typeSize.isAccessibilitySize {
+                // At the largest text sizes the controls alone fill the panel: the whole panel scrolls and the two lists keep a height
+                // of their own (each scrolls too).
+                ScrollView {
+                    VStack(spacing: 0) {
+                        columns.frame(height: 320)
+                        Divider().overlay(Color.white.opacity(0.14))
+                        footer
+                    }
+                }
+            } else {
+                VStack(spacing: 0) {
+                    columns
                     Divider().overlay(Color.white.opacity(0.14))
-                    listColumn
+                    footer
                 }
             }
-            Divider().overlay(Color.white.opacity(0.14))
-            footer
         }
         .sheet(isPresented: $showingStyle) { SubtitleStyleSheet() }
+    }
+
+    private var columns: some View {
+        GeometryReader { proxy in
+            HStack(spacing: 0) {
+                languageColumn
+                    .frame(width: proxy.size.width * 0.34)
+                Divider().overlay(Color.white.opacity(0.14))
+                listColumn
+            }
+        }
     }
 
     // MARK: Languages
@@ -319,9 +347,28 @@ struct PlayerSubtitlesPanel: View {
             .accessibilityIdentifier("subtitle.loading")
         }
         if let message = model.subtitleError {
-            InlineErrorView(message: message, retry: { model.retrySubtitle() })
-                .padding(.horizontal, 8)
-                .accessibilityIdentifier("subtitle.error")
+            // Not InlineErrorView: that one is a full-width row and leaves a few characters per line in this column.
+            VStack(alignment: .leading, spacing: 8) {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(Color.white.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button { model.retrySubtitle() } label: {
+                    Text("Riprova")
+                        .font(.footnote.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 34)
+                        .background(Color.white.opacity(0.14), in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.horizontal, 8)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("subtitle.error")
         }
         emptyState
     }
@@ -367,7 +414,9 @@ struct PlayerSubtitlesPanel: View {
     private var footer: some View {
         VStack(spacing: 8) {
             HStack {
-                Button { model.adjustSubtitleDelay(by: -0.5) } label: { Image(systemName: "minus.circle").font(.title3) }
+                Button { model.adjustSubtitleDelay(by: -0.5) } label: {
+                    Image(systemName: "minus.circle").font(.title3).frame(width: 44, height: 44).contentShape(Rectangle())
+                }
                     .accessibilityLabel("Anticipa di mezzo secondo")
                     .accessibilityIdentifier("subtitle.delay.earlier")
                 Spacer()
@@ -377,7 +426,9 @@ struct PlayerSubtitlesPanel: View {
                     .accessibilityValue(String(format: "%+.1f secondi", model.subtitleDelay))
                     .accessibilityIdentifier("subtitle.delay.value")
                 Spacer()
-                Button { model.adjustSubtitleDelay(by: 0.5) } label: { Image(systemName: "plus.circle").font(.title3) }
+                Button { model.adjustSubtitleDelay(by: 0.5) } label: {
+                    Image(systemName: "plus.circle").font(.title3).frame(width: 44, height: 44).contentShape(Rectangle())
+                }
                     .accessibilityLabel("Ritarda di mezzo secondo")
                     .accessibilityIdentifier("subtitle.delay.later")
             }

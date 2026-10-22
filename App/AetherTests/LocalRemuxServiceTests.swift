@@ -71,6 +71,37 @@ final class LocalRemuxServiceTests: XCTestCase {
         XCTAssertEqual(servers[0].stopped, 1, "nothing listens when nothing is converted")
     }
 
+    func testClosingEndsTheConnectionToTheSourceHost() async throws {
+        let session = try await service.open(upstream, audio: .standard)
+        XCTAssertEqual(fetcher.invalidated, 0)
+        service.close(session)
+        XCTAssertEqual(fetcher.invalidated, 1, "the reader of the source does not outlive the conversion")
+    }
+
+    func testAListenerTheSystemTookAwayIsStartedAgainWhileAFileIsOpen() async throws {
+        _ = try await service.open(upstream, audio: .standard)
+        XCTAssertEqual(servers.count, 1)
+        servers[0].onFailure?()
+        for _ in 0..<100 where servers.count < 2 { try await Task.sleep(nanoseconds: 20_000_000) }
+        XCTAssertEqual(servers.count, 2, "a new listener replaces the one that failed")
+        XCTAssertEqual(servers[0].stopped, 1)
+        XCTAssertEqual(servers[1].started, 1)
+        XCTAssertTrue(service.hasSession)
+    }
+
+    func testTwoStartsAtOnceLeaveOneWorkingSession() async throws {
+        let first = Task { try await self.service.open(self.upstream, audio: .standard) }
+        let second = Task { try await self.service.open(self.upstream, audio: .track(index: 2)) }
+        let results = [await first.result, await second.result]
+        let sessions = results.compactMap { try? $0.get() }
+        XCTAssertEqual(sessions.count, 1, "the older start gives way to the newer one")
+        XCTAssertTrue(service.hasSession)
+        if let kept = sessions.first {
+            service.close(kept)
+            XCTAssertFalse(service.hasSession, "closing the session that was returned really closes the conversion")
+        }
+    }
+
     func testAFileThatCannotBeCopiedIsRefusedWithTheReason() async {
         maker.refusal = .refused(.noUsableAudio(["dts"]))
         do {

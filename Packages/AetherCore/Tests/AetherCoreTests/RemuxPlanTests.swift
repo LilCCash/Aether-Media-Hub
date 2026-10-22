@@ -120,13 +120,14 @@ final class RemuxPlannerTests: XCTestCase {
         XCTAssertEqual(RemuxPlanner.plan([audio("aac", index: 0)]), .failure(.noVideo))
     }
 
-    func testTheDefaultVideoWinsAndAudioIsCapped() throws {
-        let streams = [video(index: 0, isDefault: false), video(index: 1, isDefault: true)] + (2..<12).map { audio("aac", index: $0) }
+    func testTheDefaultVideoWinsAndEveryReadableAudioTrackCanBeChosen() throws {
+        let streams = [video(index: 0, isDefault: false), video(index: 1, isDefault: true)]
+            + (2..<12).map { audio("aac", index: $0) } + [audio("dts", index: 12)]
         let result = try plan(streams)
         XCTAssertEqual(result.video.index, 1)
         XCTAssertEqual(result.audio.count, 1)
-        XCTAssertEqual(result.audioChoices.count, RemuxPlanner.maxAudioTracks)
-        XCTAssertEqual(result.droppedAudio.count, 10 - RemuxPlanner.maxAudioTracks)
+        XCTAssertEqual(result.audioChoices.count, 10, "the tenth language can be chosen too")
+        XCTAssertEqual(result.droppedAudio.count, 1, "only what the system player cannot read is left out")
     }
 }
 

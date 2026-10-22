@@ -69,7 +69,8 @@ final class DetailViewModel: ObservableObject {
         if let rich = rich, !rich.trailers.isEmpty {
             return rich.trailers.compactMap { trailer in trailer.watchURL.map { (trailer.name, $0) } }
         }
-        return meta.trailers.compactMap { trailer in trailer.watchURL.map { ("Trailer", $0) } }
+        let found = meta.trailers.compactMap { trailer in trailer.watchURL }
+        return found.enumerated().map { (title: found.count > 1 ? "Trailer \($0.offset + 1)" : "Trailer", url: $0.element) }
     }
 
     /// Adds what the user's own TMDB / TheTVDB keys know to the addon's meta, filling only what the addon left empty.
@@ -146,6 +147,8 @@ struct DetailView: View {
     @State private var descriptionExpanded = false
     @State private var openedSimilar: MetaRoute?
     @State private var similarProblem: String?
+    /// True while TMDB is asked for the IMDb code of a similar title: more taps meanwhile would start more lookups.
+    @State private var lookingUpSimilar = false
 
     init(route: MetaRoute) {
         self.route = route
@@ -161,7 +164,7 @@ struct DetailView: View {
                     actions
                     infoBlock
                     if model.isSeries { episodes }
-                    if !model.meta.cast.isEmpty || !model.meta.directors.isEmpty || model.rich != nil { credits }
+                    if !model.meta.cast.isEmpty || !model.meta.directors.isEmpty || !(model.rich?.creators.isEmpty ?? true) { credits }
                     richSections
                     if !model.failures.isEmpty && model.hadDetailProvider && model.providerName == nil { failureNote }
                     footer
@@ -334,6 +337,7 @@ struct DetailView: View {
             } label: {
                 trailerIcon
             }
+            .foregroundStyle(Color.primary)
             .accessibilityLabel("Guarda un trailer su YouTube")
             .accessibilityIdentifier("detail.trailerMenu")
         } else if let link = links.first {
@@ -374,10 +378,13 @@ struct DetailView: View {
 
     /// A similar title is known to TMDB by its own id; the catalog knows it by its IMDb id, which has to be asked for first.
     private func openSimilar(_ item: TitleRichDetails.Similar) {
+        guard !lookingUpSimilar else { return }
+        lookingUpSimilar = true
         let type = model.meta.type
         Task {
+            defer { lookingUpSimilar = false }
             guard let imdb = await env.metadata.imdbID(forTMDBID: item.tmdbID, metaType: type) else {
-                similarProblem = "Aether non riesce a trovare «\(item.title)» negli addon: TMDB non indica il suo codice IMDb."
+                similarProblem = "Aether non riesce a trovare «\(item.title)» negli addon: TMDB non indica il suo codice IMDb oppure non risponde. Controlla la connessione e riprova."
                 return
             }
             let preview = MetaItem(id: imdb, type: type, name: item.title, poster: item.posterURL)

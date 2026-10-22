@@ -35,6 +35,9 @@ struct PlayerView: View {
     @State private var castNotice: CastNotice?
     /// The transmission being started: closing the player ends it, and one that finishes after that is stopped at once.
     @State private var castTask: Task<Void, Never>?
+    /// True from the tap on a television until the receiver has the video (a converted file takes several seconds): a second tap is
+    /// ignored, because a cancelled first attempt would stop the session the second one had just set up.
+    @State private var castInFlight = false
     @State private var pendingCast: PendingCast?
 
     private enum DragMode { case brightness, volume, seek }
@@ -209,7 +212,8 @@ struct PlayerView: View {
                     .accessibilityHidden(true)
                 HiddenVolumeView(controller: volume).frame(width: 1, height: 1).allowsHitTesting(false)
 
-                subtitleOverlay(size: proxy.size)
+                // While a panel is open the panel draws the subtitle itself, beside it, above the dimming.
+                if panel == nil { subtitleOverlay(size: proxy.size) }
 
                 gestureLayer(size: proxy.size)
 
@@ -229,7 +233,8 @@ struct PlayerView: View {
                 }
                 overlays(size: proxy.size)
                 if let panel = panel {
-                    PlayerPanelHost(panel: panel, model: model, onImportSubtitle: { importingSubtitle = true }, close: closePanel)
+                    PlayerPanelHost(panel: panel, model: model, onImportSubtitle: { importingSubtitle = true }, close: closePanel,
+                                    subtitleLayer: { free in AnyView(subtitleOverlay(size: free)) })
                         .zIndex(10)
                 }
             }
@@ -980,7 +985,7 @@ struct PlayerView: View {
             let verdict = CastCompatibility.evaluate(url: preparation.evaluationURL, info: preparation.info, headers: preparation.headers,
                                                      target: device.target, hasExternalSubtitles: model.externalSubtitleCount() > 0,
                                                      delivery: preparation.delivery, remuxed: preparation.remuxed)
-            let notes = castNotes(for: preparation.delivery, remuxed: preparation.remuxed)
+            let notes = castNotes(for: preparation.delivery, remuxed: preparation.remuxed, carriesSecret: carriesSecret(preparation))
             switch verdict {
             case .blocked(let message):
                 castNotice = CastNotice(title: "Questa sorgente non può essere trasmessa", message: message)
@@ -996,11 +1001,22 @@ struct PlayerView: View {
         }
     }
 
+    /// False for a file that only goes through the phone to be converted, with no key and no headers to protect.
+    private func carriesSecret(_ preparation: CastPreparation) -> Bool {
+        guard preparation.remuxed, let original = preparation.fallback else { return true }
+        if case .direct = original.source { return false }
+        return true
+    }
+
     /// What the viewer should know before a video leaves through the relay.
-    private func castNotes(for delivery: CastDelivery, remuxed: Bool) -> [String] {
+    private func castNotes(for delivery: CastDelivery, remuxed: Bool, carriesSecret: Bool) -> [String] {
         var notes: [String] = []
         if delivery == .relay {
-            notes.append("Aether farà da ponte: scarica il video con la tua chiave e lo passa al televisore, che non la riceve. Tieni il telefono acceso, con Aether aperto e nella stessa rete Wi-Fi.")
+            if carriesSecret {
+                notes.append("Aether farà da ponte: scarica il video con la tua chiave e lo passa al televisore, che non la riceve. Tieni il telefono acceso, con Aether aperto e nella stessa rete Wi-Fi.")
+            } else {
+                notes.append("Aether farà da ponte: il telefono legge il video e lo passa al televisore. Tieni il telefono acceso, con Aether aperto e nella stessa rete Wi-Fi.")
+            }
         }
         if remuxed {
             notes.append("Il file MKV viene convertito al volo dal telefono in HLS (video e audio sono copiati, non ricodificati): parte dopo qualche secondo e consuma batteria. Sul televisore passa una sola traccia audio e non i sottotitoli incorporati.")
@@ -1016,15 +1032,21 @@ struct PlayerView: View {
         let position = model.snapshot.position
         let request = preparation.request
         let fallback = preparation.fallback
+        guard !castInFlight else {
+            model.showStatus("Sto ancora preparando la trasmissione…")
+            return
+        }
+        castInFlight = true
         castTask?.cancel()
         castTask = Task {
+            defer { castInFlight = false }
             do {
                 try await casting.cast(request, to: device, localPosition: position)
                 if Task.isCancelled { casting.stop(); return }
                 model.castDidStart()
             } catch CastError.conversionRefused(let reason) where fallback != nil {
                 // The file cannot be converted (for example DTS-only audio): the receiver is given the file as it is, as before.
-                model.showStatus("Conversione non possibile: \(reason) Invio il file così com'è.")
+                model.showStatus("Conversione non possibile: \(RemuxFailureText.problem(reason)) Invio il file così com'è.")
                 do {
                     try await casting.cast(fallback ?? request, to: device, localPosition: position)
                     if Task.isCancelled { casting.stop(); return }

@@ -173,7 +173,8 @@ enum RemuxNames {
 public enum RemuxPlanner {
     /// Audio codecs the system player reads inside fragmented MP4.
     public static let copyableAudio: Set<String> = ["aac", "ac3", "eac3", "mp3"]
-    public static let maxAudioTracks = 6
+    /// Only a bound against a pathological file: one track is copied at a time, so every track the system player can read is a choice.
+    public static let maxAudioTracks = 64
 
     public static func plan(_ streams: [RemuxStreamInfo], audio choice: RemuxAudioChoice = .standard) -> Result<RemuxPlan, RemuxRefusal> {
         let videos = streams.filter { $0.kind == .video }

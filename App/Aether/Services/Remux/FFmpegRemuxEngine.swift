@@ -584,7 +584,9 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         for (outputIndex, first) in firstDecodeTimes { times[UInt32(outputIndex + 1)] = UInt64(max(0, first)) }
         guard MP4Fragment.setDecodeTimes(in: &parts.fragment, times) else { throw RemuxError.unreadable }
 
-        if initData == nil { initData = parts.initPart }
+        // Only the first piece is made to declare every track; a later piece may lack one (an audio track that has ended), so its
+        // `moov` must never become the initialization segment even when it happens to be requested first.
+        if index == 0 && initData == nil { initData = parts.initPart }
         if index == 0 { firstFragment = parts.fragment }
         return parts.fragment
     }

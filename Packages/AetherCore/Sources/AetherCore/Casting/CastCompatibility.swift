@@ -88,7 +88,9 @@ public enum CastCompatibility {
         guard scheme == "http" || scheme == "https" else {
             return .blocked("Protocollo «\(scheme)» non inviabile al televisore.")
         }
-        if relayed && scheme == "http" && host == .publicInternet {
+        // The phone does not forward plain HTTP that needs a key or headers (they would travel in the clear). A file it only converts,
+        // with neither, is just the file: it goes as it would have gone without the conversion.
+        if relayed && scheme == "http" && host == .publicInternet && !(remuxed && headers.isEmpty) {
             return .blocked(CastRefusal.plainHTTPNeedsRelay.message)
         }
         if delivery == .directWithKey {

@@ -144,11 +144,12 @@ struct TitleCompaniesSection: View {
 struct TitleFinancialsSection: View {
     let budget: Int?
     let revenue: Int?
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private func tile(_ title: String, _ amount: Int) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.caption).foregroundStyle(Color.aetherSecondary)
-            Text(TitleRichDetails.moneyText(amount)).font(.headline).minimumScaleFactor(0.7).lineLimit(1)
+            Text(TitleRichDetails.moneyText(amount)).font(.headline).minimumScaleFactor(0.7).lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -157,9 +158,17 @@ struct TitleFinancialsSection: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        // At the largest text sizes two half-width tiles cut the amount: they go one under the other.
+        let tiles = Group {
             if let budget = budget { tile("Budget", budget) }
             if let revenue = revenue { tile("Incassi", revenue) }
+        }
+        return Group {
+            if typeSize.isAccessibilitySize {
+                VStack(spacing: 12) { tiles }
+            } else {
+                HStack(spacing: 12) { tiles }
+            }
         }
         .padding(.horizontal, Theme.pageMargin)
         .accessibilityIdentifier("detail.financials")

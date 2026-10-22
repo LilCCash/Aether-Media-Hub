@@ -108,6 +108,15 @@ final class RemuxRoutingTests: XCTestCase {
         XCTAssertFalse(converted.isBlocked)
     }
 
+    func testAPlainHTTPMatroskaWithoutSecretsIsConvertedAndNotRefused() {
+        let url = URL(string: "http://cdn.example.com/film.mkv")!
+        let converted = CastCompatibility.evaluate(url: url, info: matroska(), target: .googleCast, delivery: .relay, remuxed: true)
+        XCTAssertFalse(converted.isBlocked, "nothing secret travels: the conversion only reads the file the phone could play itself")
+        let withHeaders = CastCompatibility.evaluate(url: url, info: matroska(), headers: ["Cookie": "x"], target: .googleCast,
+                                                     delivery: .relay, remuxed: true)
+        XCTAssertEqual(withHeaders, .blocked(CastRefusal.plainHTTPNeedsRelay.message), "headers over plain HTTP are still not forwarded")
+    }
+
     func testAnAVIFileGoogleCastCannotReadStaysBlockedUnlessConverted() {
         let url = URL(string: "https://cdn.test/film.avi")!
         let stream = AddonStream(source: .url(url.absoluteString), name: "Film")
