@@ -29,11 +29,11 @@ Ogni nome di pulsante, percorso e valore predefinito qui sotto è stato controll
 **Con chiave:** *Impostazioni › Servizi › TMDB*: incolla la chiave → **Salva e verifica** (devono comparire «Il servizio accetta la chiave.» e «Chiave salvata nel Portachiavi»). Apri un film popolare (es. «Dune»).
 - **Deve succedere** (a pezzi, scorrendo la scheda):
   - **Cast** con foto rotonde e nome del personaggio.
-  - **Trailer**: elenco, ognuno si apre in YouTube. Il pulsante «film» sta **a destra del segnalibro** (accanto a Play): con un solo trailer lo apre direttamente in YouTube, con più trailer apre un menu; senza trailer non c'è.
+  - **Trailer**: elenco, ognuno si apre in YouTube. Il pulsante «film» sta **a destra del segnalibro** (accanto a Play): con un solo trailer lo apre direttamente in YouTube, con più trailer apre un menu (i trailer indicati dall'addon si chiamano «Trailer 1», «Trailer 2»…); senza trailer non c'è.
   - **Produzione** (loghi su tessera chiara).
   - **Budget** e **Incassi**: due riquadri senza titolo di sezione, ognuno solo se TMDB conosce la cifra; solo per i film.
   - **Dettagli**: Stato, Info rilascio, Durata, Certificazione, Paese (o Paesi), Lingua originale; le righe senza dato non compaiono; per le serie anche «Stagioni».
-  - **Titoli simili**: toccane uno e si apre la sua scheda; se TMDB non indica il codice IMDb del titolo, o TMDB non risponde, compare l'avviso «Titolo non disponibile» con il motivo.
+  - **Titoli simili**: toccane uno e si apre la sua scheda; se TMDB non indica il codice IMDb del titolo, o non risponde, compare l'avviso «Titolo non disponibile» («… TMDB non indica il suo codice IMDb oppure non risponde…»); mentre Aether cerca il codice i tocchi successivi sono ignorati.
   - In fondo «**Offerto da TMDB**» e l'avviso richiesto da TMDB.
 - Apri una **serie**: niente Budget/Incassi; compaiono «Creato da» (solo se l'addon non indica già una «Regia»), la riga «Stagioni» in Dettagli («8 stagioni · 73 episodi») e i canali tra le produzioni.
 - Attiva la modalità aereo (o spegni Wi‑Fi **e** dati cellulari) e riapri un titolo che hai già aperto con la chiave nelle ultime 24 ore: le sezioni TMDB compaiono dalla cache; se la cache è scaduta mancano, senza errori. (Serve «Salva in cache metadati e cataloghi» acceso in *Archiviazione*, lo è di default.)
@@ -51,12 +51,13 @@ Ogni nome di pulsante, percorso e valore predefinito qui sotto è stato controll
 ## 4. Il player: pannelli laterali e pulsanti
 Apri un MP4 (o qualunque sorgente) e fai partire il video.
 - **Pulsanti sotto la barra di avanzamento:** Sottotitoli · Audio · Sorgenti (se ce ne sono altre) · Velocità · Riempi · Episodi (solo serie). Su schermo stretto mostrano solo le icone.
-- **Sottotitoli:** tocca il pulsante. **Deve succedere:** a destra un pannello largo circa il 40% dello schermo in orizzontale (mai meno di 340 pt: in verticale, se hai spento «Riproduci sempre in orizzontale», occupa quasi tutta la larghezza). Il video resta visibile ma scurito e la tua scelta si applica subito. Due colonne:
+- **Sottotitoli:** tocca il pulsante. **Deve succedere:** a destra un pannello largo circa il 40% dello schermo in orizzontale (mai meno di 340 pt: in verticale, se hai spento «Riproduci sempre in orizzontale», occupa quasi tutta la larghezza). Il video resta visibile ma scurito e la tua scelta si applica subito; il sottotitolo in onda compare a sinistra del pannello, non scurito, così vedi l'effetto di ritardo e scelta. Due colonne:
   - **lingue** a sinistra: una riga per ogni lingua dei sottotitoli degli addon, con accanto il numero di sottotitoli disponibili; se le lingue sono almeno due compare anche «Tutte» (con il totale). Con una sola lingua c'è solo quella riga; senza nessun addon di sottotitoli c'è «Nessuna lingua».
   - **elenco** a destra: «Disattivati», le tracce incorporate, poi i sottotitoli degli addon con un'intestazione per ogni lingua e, in fondo, i file che hai importato (scritti «File locale»).
   - In basso: **− / +** ritardo, **Azzera**, **Importa**, **Stile**.
 - **Audio:** elenco delle tracce con la spunta su quella attiva.
 - **Sorgenti:** in alto la riga «In riproduzione» con la sorgente attuale, poi le alternative (i chip «Tutti» / nome addon compaiono solo se le alternative vengono da almeno due addon). Toccandone una il pannello si chiude e il video riparte con la nuova sorgente dallo stesso punto.
+- **Aree di tocco:** i pulsanti − / + del ritardo e la ✕ hanno un'area di 44 pt. Con il testo grande (*Accessibilità*) il pannello dei sottotitoli scorre tutto insieme.
 - **Per chiudere un pannello:** tocca la parte scura a sinistra o la **✕**. Con VoiceOver vale il gesto «Esci» (strofinio a forma di «Z» con due dita); attenzione: a pannello chiuso lo stesso gesto chiude il player.
 - **Velocità:** pulsante con il menu delle velocità. **Riempi / Adatta:** riempie lo schermo o lo adatta.
 - **Blocca i controlli:** icona del lucchetto in basso a sinistra, sotto la barra. Controlli e gesti si disattivano. Per sbloccare tocca lo schermo: in alto a destra compare per 2,5 secondi il pulsante «Sblocca», da toccare subito.
