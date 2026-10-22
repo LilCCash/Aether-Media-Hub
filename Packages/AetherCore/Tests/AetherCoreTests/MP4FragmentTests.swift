@@ -84,6 +84,35 @@ final class MP4FragmentTests: XCTestCase {
         }
     }
 
+    func testBoxesThatHoldTooLittleNeverCrash() {
+        // A tfdt with no payload at all, and a tfhd too short to name its track.
+        let emptyTfdt = box("traf", tfhd(1) + box("tfdt", []))
+        let shortTfhd = box("traf", box("tfhd", [0, 0]) + tfdtV0(0))
+        var fragment = Data(box("moof", box("mfhd", [0, 0, 0, 0, 0, 0, 0, 1]) + emptyTfdt + shortTfhd) + box("mdat", [1, 2, 3]))
+        XCTAssertTrue(MP4Fragment.decodeTimes(in: fragment).isEmpty)
+        XCTAssertFalse(MP4Fragment.setDecodeTimes(in: &fragment, [1: 5]), "an empty box cannot be written to, and that is said")
+        // An init segment whose tkhd and mdhd are empty.
+        let hollow = Data(box("moov", box("trak", box("tkhd", []) + box("mdia", box("mdhd", [])))))
+        XCTAssertTrue(MP4Fragment.trackTimescales(in: hollow).isEmpty)
+        // A moov cut in the middle of a box.
+        let cut = Data(box("moov", box("trak", box("tkhd", [0, 0, 0, 0, 0, 0]))).dropLast(3))
+        XCTAssertTrue(MP4Fragment.trackTimescales(in: cut).isEmpty)
+    }
+
+    func testBoxSizesOfZeroAndOneAreHandled() {
+        // Size 0 runs to the end of the data; size 1 takes the 64-bit size that follows the type; both are bounded by the data.
+        let toTheEnd = Data([0, 0, 0, 0] + Array("mdat".utf8) + [1, 2, 3])
+        let boxes = MP4Fragment.boxes(in: toTheEnd)
+        XCTAssertEqual(boxes.count, 1)
+        XCTAssertEqual(boxes.first?.size, toTheEnd.count)
+        let large = Data([0, 0, 0, 1] + Array("mdat".utf8) + [0, 0, 0, 0, 0, 0, 0, 20] + [1, 2, 3, 4])
+        XCTAssertEqual(MP4Fragment.boxes(in: large).first?.size, 20)
+        let tooLarge = Data([0, 0, 0, 1] + Array("mdat".utf8) + [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff] + [1])
+        XCTAssertTrue(MP4Fragment.boxes(in: tooLarge).isEmpty, "a size beyond the data is not followed")
+        let shorterThanItsHeader = Data([0, 0, 0, 4] + Array("mdat".utf8))
+        XCTAssertTrue(MP4Fragment.boxes(in: shorterThanItsHeader).isEmpty)
+    }
+
     func testTrackTimescalesAreReadFromTheInitSegment() {
         func u32(_ value: UInt32) -> [UInt8] { return [UInt8(value >> 24), UInt8((value >> 16) & 0xff), UInt8((value >> 8) & 0xff), UInt8(value & 0xff)] }
         // tkhd v0: version/flags, creation, modification, track ID, reserved, duration …; mdhd v0: version/flags, creation, modification, time scale, duration …

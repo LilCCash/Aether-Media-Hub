@@ -13,11 +13,11 @@ final class RelayServerLoopbackTests: XCTestCase {
         let log: RelayLogBox
     }
 
-    private func harness(limits: RelayLimits = .standard) async throws -> Harness {
+    private func harness(limits: RelayLimits = .standard, allowLoopbackPeers: Bool = true) async throws -> Harness {
         let registry = RelaySessionRegistry(limits: limits)
         let box = RelayLogBox()
         let server = RelayServer(registry: registry,
-                                 configuration: RelayServer.Configuration(bindAddress: "127.0.0.1", allowLoopbackPeers: true, limits: limits),
+                                 configuration: RelayServer.Configuration(bindAddress: "127.0.0.1", allowLoopbackPeers: allowLoopbackPeers, limits: limits),
                                  log: { box.add($0) })
         let port = try await server.start()
         addTeardownBlock { server.stop() }
@@ -276,11 +276,14 @@ final class RelayServerLoopbackTests: XCTestCase {
         let h = try await harness()
         let s = try session(h, size: 256 << 20)
         let client = RelayRawClient(port: h.port, readLimit: 256 * 1024, retainBytes: false)
-        _ = await client.connect()
+        let connected = await client.connect()
+        XCTAssertTrue(connected)
         client.send(get(s.token))
-        _ = await relayPollUntil { client.count >= 256 * 1024 }
+        let reachedTheLimit = await relayPollUntil { client.count >= 256 * 1024 }
+        XCTAssertTrue(reachedTheLimit, "the receiver was sent what it was going to read")
         _ = try? await Task.sleep(nanoseconds: 2_000_000_000)
         let produced = s.source.producedBytes
+        XCTAssertGreaterThan(produced, 256 * 1024, "streaming did happen")
         XCTAssertLessThan(produced, 32 << 20, "the source must not run ahead of a receiver that stopped reading (produced \(produced))")
         client.close()
     }
@@ -326,16 +329,35 @@ final class RelayServerLoopbackTests: XCTestCase {
         late.close()
     }
 
-    func testTheServerDoesNotAnswerOnIPv6() async throws {
+    func testTheServerDoesNotListenOnIPv6() async throws {
         let h = try await harness()
-        let s = try session(h)
+        _ = try session(h)
         let client = RelayRawClient(host: "::1", port: h.port)
-        if await client.connect(timeout: 2) {
-            client.send(get(s.token))
-            _ = await relayPollUntil(2) { client.finished }
-            XCTAssertTrue(client.data.isEmpty, "an IPv6 peer must get no answer")
-        }
+        let connected = await client.connect(timeout: 2)
+        XCTAssertFalse(connected, "the listener is bound to one IPv4 address: nothing answers on ::1")
         client.close()
+    }
+
+    /// The peer gate: only the Wi-Fi network's devices may talk to the server. Loopback is allowed in tests only, never by default,
+    /// and a request that is refused gets no answer at all (not even the uniform 404).
+    func testAPeerOutsideTheAllowedNetworkIsDroppedWithoutAnAnswer() async throws {
+        let h = try await harness(allowLoopbackPeers: false)
+        let s = try session(h)
+        let client = RelayRawClient(port: h.port)
+        _ = await client.connect()
+        client.send(get(s.token))
+        let closed = await relayPollUntil(3) { client.finished }
+        XCTAssertTrue(closed, "a refused peer is disconnected")
+        XCTAssertTrue(client.data.isEmpty, "and gets nothing, not even the 404 (client saw \(client.count) bytes)")
+        XCTAssertEqual(h.registry.requestsServed(s.id), 0, "the session never saw the request")
+        client.close()
+    }
+
+    func testTheSameRequestIsServedWhenThePeerIsAllowed() async throws {
+        let h = try await harness(allowLoopbackPeers: true)
+        let s = try session(h)
+        let reply = await exchange(h.port, get(s.token, headers: ["Range: bytes=0-9"]))
+        XCTAssertEqual(reply.reply?.status, 206)
     }
 
     func testTheAddressHandedToAReceiver() async throws {

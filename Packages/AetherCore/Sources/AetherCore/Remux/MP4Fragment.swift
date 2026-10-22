@@ -79,6 +79,8 @@ public enum MP4Fragment {
                 }
                 let trackID = be32(fragment, tfhd.payloadStart + 4)
                 guard let value = times[trackID] else { continue }
+                // The version byte is the first of the payload: an empty box has none.
+                guard tfdt.payloadStart < tfdt.end else { patched = false; continue }
                 let base = fragment.startIndex + tfdt.payloadStart
                 let version = fragment[base]
                 if version == 1 {
@@ -103,6 +105,7 @@ public enum MP4Fragment {
                       let tfdt = children.first(where: { $0.type == "tfdt" }) else { continue }
                 let trackID = be32(fragment, tfhd.payloadStart + 4)
                 let base = tfdt.payloadStart
+                guard base < tfdt.end else { continue }
                 if fragment[fragment.startIndex + base] == 1 {
                     if base + 12 <= tfdt.end { result[trackID] = be64(fragment, base + 4) }
                 } else if base + 8 <= tfdt.end {
@@ -121,6 +124,7 @@ public enum MP4Fragment {
                 let parts = boxes(in: initPart, from: trak.payloadStart, to: trak.end)
                 guard let tkhd = parts.first(where: { $0.type == "tkhd" }), let mdia = parts.first(where: { $0.type == "mdia" }),
                       let mdhd = boxes(in: initPart, from: mdia.payloadStart, to: mdia.end).first(where: { $0.type == "mdhd" }) else { continue }
+                guard tkhd.payloadStart < tkhd.end, mdhd.payloadStart < mdhd.end else { continue }
                 let tkhdVersion = initPart[initPart.startIndex + tkhd.payloadStart]
                 let mdhdVersion = initPart[initPart.startIndex + mdhd.payloadStart]
                 let idOffset = tkhd.payloadStart + (tkhdVersion == 1 ? 20 : 12)
