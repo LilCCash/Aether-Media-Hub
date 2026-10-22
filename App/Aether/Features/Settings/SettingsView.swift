@@ -270,7 +270,7 @@ struct PlaybackSettingsView: View {
                     Text("Ritardo predefinito: \(String(format: "%+.1f", settings.value.playback.subtitleDelaySeconds)) s")
                 }
             }
-            Section(header: Text("Sorgenti"), footer: Text("«Per addon» mette per prime le sorgenti dell'addon più in alto nella lista degli addon (Addon › trascina per riordinare); dentro ogni addon valgono lingua, qualità e codec. «Le migliori per prime» ignora l'addon di provenienza. Vale anche per la scelta automatica.")) {
+            Section(header: Text("Sorgenti"), footer: Text("«Per addon» mette per prime le sorgenti dell'addon più in alto nella lista degli addon (scheda Addon › Modifica, poi trascina); dentro ogni addon valgono lingua, qualità e codec. «Le migliori per prime» ignora l'addon di provenienza. Vale anche per la scelta automatica.")) {
                 Picker("Qualità massima", selection: settings.binding(\.playback.qualityCap)) {
                     ForEach(VideoQualityCap.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
