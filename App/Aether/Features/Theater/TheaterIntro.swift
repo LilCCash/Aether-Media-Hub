@@ -9,7 +9,7 @@ struct TheaterIntro: View {
     @State private var reveal = 0.0
     @State private var fade = 1.0
 
-    private let gold = Color(red: 1.0, green: 0.82, blue: 0.45)
+    private let gold = TheaterPrefs.gold
 
     var body: some View {
         GeometryReader { proxy in

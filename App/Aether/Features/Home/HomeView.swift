@@ -94,18 +94,19 @@ struct HomeView: View {
     private var theaterEntry: some View {
         Button { router.theater = true } label: {
             HStack(spacing: 12) {
-                Image(systemName: "sparkles.tv").font(.title2)
+                Image(systemName: "film.stack.fill").font(.title2).foregroundStyle(TheaterPrefs.gold)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Theater Mode").font(.headline)
-                    Text("L'esperienza cinematografica a schermo intero").font(.caption).foregroundStyle(.white.opacity(0.75))
+                    Text("Vivi Aether come al cinema").font(.caption).foregroundStyle(.white.opacity(0.75))
                 }
                 Spacer()
                 Image(systemName: "chevron.right").font(.footnote.weight(.bold))
             }
             .foregroundStyle(.white)
             .padding(14)
-            .background(LinearGradient(colors: [.black, settings.accentColor.opacity(0.55)], startPoint: .leading, endPoint: .trailing),
+            .background(LinearGradient(colors: [.black, TheaterPrefs.gold.opacity(0.22)], startPoint: .leading, endPoint: .trailing),
                         in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(TheaterPrefs.gold.opacity(0.7), lineWidth: 1.2))
             .padding(.horizontal, Theme.pageMargin)
         }
         .buttonStyle(.plain)
