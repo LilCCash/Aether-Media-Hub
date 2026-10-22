@@ -21,6 +21,8 @@ struct PlayerView: View {
     @State private var pendingHideTask: Task<Void, Never>?
     @State private var isScrubbing = false
     @State private var sheet: PlayerSheet?
+    /// The panel on the right edge (subtitles, audio, sources), which keeps the picture visible behind it.
+    @State private var panel: PlayerPanel?
     @State private var importingSubtitle = false
     @State private var hud: HUD?
     @State private var hudTask: Task<Void, Never>?
@@ -64,8 +66,11 @@ struct PlayerView: View {
     var body: some View {
         reactions
             .onChange(of: sheet) { _, value in sheetChanged(value) }
+            .onChange(of: panel) { _, value in panelChanged(value) }
             .onChange(of: remotePosition) { _, value in remotePositionChanged(value) }
-            .accessibilityAction(.escape) { close() }
+            .accessibilityAction(.escape) {
+                if panel != nil { closePanel() } else { close() }
+            }
     }
 
     private var reactions: some View {
@@ -105,6 +110,23 @@ struct PlayerView: View {
 
     private func sheetChanged(_ value: PlayerSheet?) {
         if value == nil { scheduleHide() } else { hideTask?.cancel() }
+    }
+
+    private func panelChanged(_ value: PlayerPanel?) {
+        if value == nil { scheduleHide() } else { hideTask?.cancel() }
+    }
+
+    /// Opens a panel on the right edge. The controls step aside so the picture is visible next to it.
+    private func openPanel(_ value: PlayerPanel) {
+        sheet = nil
+        pendingHideTask?.cancel()
+        controlsVisible = false
+        panel = value
+    }
+
+    private func closePanel() {
+        panel = nil
+        showControls()
     }
 
     private func remotePositionChanged(_ position: Double?) {
@@ -166,10 +188,8 @@ struct PlayerView: View {
     @ViewBuilder
     private func sheetContent(_ sheet: PlayerSheet) -> some View {
         switch sheet {
-        case .tracks: PlayerTracksSheet(model: model, onImport: { importingSubtitle = true })
         case .episodes: PlayerEpisodesSheet(model: model)
         case .info: PlayerInfoSheet(model: model)
-        case .sources: PlayerSourcesSheet(model: model)
         case .cast:
             PlayerCastSheet(airPlayNote: model.engine.kind == .mpv
                                 ? "Con questo file (motore MPV) AirPlay invia solo l'audio. Per il video usa Google Cast o DLNA qui sotto."
@@ -206,8 +226,13 @@ struct PlayerView: View {
                         .accessibilityHidden(true)
                 }
                 overlays(size: proxy.size)
+                if let panel = panel {
+                    PlayerPanelHost(panel: panel, model: model, onImportSubtitle: { importingSubtitle = true }, close: closePanel)
+                        .zIndex(10)
+                }
             }
             .animation(animationsAllowed ? .easeInOut(duration: 0.2) : nil, value: controlsVisible)
+            .animation(animationsAllowed ? .easeInOut(duration: 0.25) : nil, value: panel)
             // The "interactive" glass shimmer restarts every time the playhead moves (four times a second) and swallowed taps.
             .environment(\.aetherGlassInteractive, false)
         }
@@ -260,7 +285,7 @@ struct PlayerView: View {
 
     private func scheduleHide() {
         hideTask?.cancel()
-        guard model.snapshot.isPlaying, !isScrubbing, sheet == nil, !isCasting else { return }
+        guard model.snapshot.isPlaying, !isScrubbing, sheet == nil, panel == nil, !isCasting else { return }
         let delay = Double(playbackSettings.controlsAutoHideSeconds)
         hideTask = Task {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -492,8 +517,6 @@ struct PlayerView: View {
                     GlassIconButton(systemName: "pip.enter", accessibilityLabel: "Picture in Picture") { model.startPictureInPicture() }
                         .opacity(model.pictureInPictureAvailability.canStart ? 1 : 0.55)
                         .accessibilityIdentifier("player.pip")
-                    GlassIconButton(systemName: "captions.bubble", accessibilityLabel: "Audio e sottotitoli") { sheet = .tracks }
-                        .accessibilityIdentifier("player.tracks")
                     moreMenu
                 }
             }
@@ -521,7 +544,7 @@ struct PlayerView: View {
                 Label(model.isFill ? "Adatta allo schermo" : "Riempi lo schermo", systemImage: model.isFill ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
             }
             if !model.alternatives.isEmpty {
-                Button { sheet = .sources } label: { Label("Cambia sorgente", systemImage: "arrow.triangle.2.circlepath") }
+                Button { openPanel(.sources) } label: { Label("Cambia sorgente", systemImage: "arrow.triangle.2.circlepath") }
             }
             Button { importingSubtitle = true } label: { Label("Importa sottotitoli…", systemImage: "doc.badge.plus") }
             Button { sheet = .info } label: { Label("Informazioni sulla sorgente", systemImage: "info.circle") }
@@ -614,19 +637,70 @@ struct PlayerView: View {
                         .aetherGlassCapsule()
                 }
                 airPlayChip
-                Spacer()
-                if model.meta.videos.count > 1 && model.currentVideo != nil {
-                    Button { sheet = .episodes } label: {
-                        Label("Episodi", systemImage: "list.bullet").font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 14).frame(height: 36)
-                            .aetherGlassCapsule(interactive: true)
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("player.episodes")
+                Spacer(minLength: 8)
+                // The full row when it fits, else the same buttons as icons alone.
+                ViewThatFits(in: .horizontal) {
+                    actionRow(compact: false)
+                    actionRow(compact: true)
                 }
             }
         }
+    }
+
+    /// Subtitles, audio, sources, speed, fill and episodes: one tap away under the progress bar.
+    private func actionRow(compact: Bool) -> some View {
+        HStack(spacing: 8) {
+            Button { openPanel(.subtitles) } label: { actionLabel("captions.bubble", "Sottotitoli", compact: compact) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Sottotitoli")
+                .accessibilityIdentifier("player.tracks")
+            Button { openPanel(.audio) } label: { actionLabel("waveform", "Audio", compact: compact) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Audio")
+                .accessibilityIdentifier("player.audio")
+            if !model.alternatives.isEmpty {
+                Button { openPanel(.sources) } label: { actionLabel("arrow.triangle.2.circlepath", "Sorgenti", compact: compact) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Sorgenti")
+                    .accessibilityIdentifier("player.sources")
+            }
+            Menu {
+                Picker("Velocità", selection: Binding(get: { model.playbackRate }, set: { model.setRate($0) })) {
+                    ForEach([Float(0.5), 0.75, 1, 1.25, 1.5, 2], id: \.self) { rate in
+                        Text(rateLabel(rate)).tag(rate)
+                    }
+                }
+            } label: {
+                actionLabel("speedometer", "Velocità", compact: compact)
+            }
+            .accessibilityLabel("Velocità di riproduzione")
+            .accessibilityValue(rateLabel(model.playbackRate))
+            .accessibilityIdentifier("player.speed")
+            Button { model.toggleFill() } label: {
+                actionLabel(model.isFill ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
+                            model.isFill ? "Adatta" : "Riempi", compact: compact)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(model.isFill ? "Adatta allo schermo" : "Riempi lo schermo")
+            .accessibilityIdentifier("player.fill")
+            if model.meta.videos.count > 1 && model.currentVideo != nil {
+                Button { sheet = .episodes } label: { actionLabel("list.bullet", "Episodi", compact: compact) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Episodi")
+                    .accessibilityIdentifier("player.episodes")
+            }
+        }
+    }
+
+    private func actionLabel(_ symbol: String, _ title: String, compact: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
+            if !compact { Text(title).font(.subheadline.weight(.semibold)).lineLimit(1) }
+        }
+        .padding(.horizontal, compact ? 0 : 14)
+        .frame(width: compact ? 40 : nil, height: 36)
+        .aetherGlassCapsule(interactive: true)
+        .contentShape(Capsule())
     }
 
     /// Where the AirPlay output is, said honestly: with MPV the sound goes to the device and the picture stays on the phone.
@@ -829,7 +903,7 @@ struct PlayerView: View {
                     .buttonStyle(PrimaryActionButtonStyle())
                     .accessibilityIdentifier("player.retry")
                 if model.alternatives.contains(where: { $0.info.support.isPlayable }) {
-                    Button { sheet = .sources } label: { Text("Altra sorgente") }
+                    Button { openPanel(.sources) } label: { Text("Altra sorgente") }
                         .buttonStyle(SecondaryActionButtonStyle())
                         .accessibilityIdentifier("player.otherSource")
                 }

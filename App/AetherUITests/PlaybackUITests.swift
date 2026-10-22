@@ -62,7 +62,7 @@ final class PlaybackUITests: AetherUITestCase {
         waitUntil(timeout, message) { !self.cueIsShown(texts) }
     }
 
-    /// Opens "Audio e sottotitoli". The controls hide themselves, so a tap on the picture brings them back first.
+    /// Opens the "Sottotitoli" panel. The controls hide themselves, so a tap on the picture brings them back first.
     private func openTracksSheet() {
         let tracks = element("player.tracks")
         if !tracks.exists {
@@ -71,11 +71,11 @@ final class PlaybackUITests: AetherUITestCase {
         }
         XCTAssertTrue(tracks.exists, "the tracks button is not reachable")
         tracks.tap()
-        XCTAssertTrue(element("subtitle.off").waitForExistence(timeout: 20), "the tracks sheet did not open")
+        XCTAssertTrue(element("subtitle.off").waitForExistence(timeout: 20), "the subtitles panel did not open")
     }
 
     private func closeTracksSheet() {
-        app.buttons["Fine"].tap()
+        element("player.panel.close").tap()
     }
 
     /// Picks the first subtitle of a language in the open sheet. The language chip narrows the list to that language first, so
