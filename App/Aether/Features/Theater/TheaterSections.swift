@@ -7,17 +7,15 @@ struct TheaterPage<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        ZStack {
-            TheaterBackground()
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    Text(title).font(.system(size: 30, weight: .bold, design: .serif)).foregroundStyle(.white).padding(.leading, 24)
-                    content()
-                    Color.clear.frame(height: 24)
-                }
-                .padding(.top, 14)
+        ScrollView(.vertical, showsIndicators: false) {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                Text(title).font(.system(size: 30, weight: .bold, design: .serif)).foregroundStyle(.white).padding(.leading, 24)
+                content()
+                Color.clear.frame(height: 24)
             }
+            .padding(.top, 14)
         }
+        .background(TheaterBackground())
     }
 }
 

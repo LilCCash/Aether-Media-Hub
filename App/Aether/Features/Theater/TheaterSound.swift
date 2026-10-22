@@ -19,7 +19,7 @@ enum TheaterSound {
 
     private static func wave() -> Data {
         let rate = 44100.0
-        let seconds = 4.8
+        let seconds = 6.0
         let hit = 3.4
         let count = Int(rate * seconds)
         var samples = [Int16](repeating: 0, count: count)
@@ -41,11 +41,12 @@ enum TheaterSound {
                 v += noise() * 0.18 * envelope * envelope
             } else {
                 let tau = t - hit
-                v += sin(2 * Double.pi * 52 * tau) * exp(-tau * 2.6) * 0.95
-                v += noise() * exp(-tau * 14) * 0.5
-                v += sin(2 * Double.pi * 1760 * tau) * exp(-tau * 3.2) * 0.12
-                v += sin(2 * Double.pi * 2349 * tau) * exp(-tau * 4.0) * 0.08
-            }
+                // A deep, long hit: a sub tone that slides down, a body an octave above and a rumble of noise.
+                let slide = 46 - 8 * min(1, tau / 1.5)
+                v += sin(2 * Double.pi * slide * tau) * exp(-tau * 0.9) * 1.0
+                v += sin(2 * Double.pi * 92 * tau) * exp(-tau * 1.7) * 0.45
+                v += noise() * exp(-tau * 9) * 0.35
+                v += sin(2 * Double.pi * 1760 * tau) * exp(-tau * 5) * 0.05
             let fade = t > seconds - 0.15 ? max(0, (seconds - t) / 0.15) : 1
             samples[i] = Int16(max(-1, min(1, v * 0.8 * fade)) * Double(Int16.max))
         }

@@ -179,6 +179,7 @@ struct AboutView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
             }
+            Section { TheaterBadge() }
             Section(header: Text("Cos'è")) {
                 Text("Aether è un media center per iPhone che parla il protocollo degli addon Stremio. È un'app indipendente: codice, nome, interfaccia e icona sono originali e non è affiliata a Stremio né a Nuvio.")
                     .font(.footnote)

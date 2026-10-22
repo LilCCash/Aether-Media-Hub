@@ -22,24 +22,39 @@ struct TheaterView: View {
     @State private var introDone = false
     @State private var logoPresses = 0
     @State private var clapper = false
+    @State private var openMeta: MetaItem?
+    @Namespace private var namespace
 
     private var animated: Bool { settings.animationsEnabled && !reduceMotion }
     private var accent: Color { TheaterPalette.color(palette) }
 
     var body: some View {
-        ZStack {
-            TheaterBackground()
-            HStack(spacing: 0) {
-                rail
-                NavigationStack(path: $path) {
-                    page
-                        .toolbar(.hidden, for: .navigationBar)
-                        .navigationDestination(for: MetaRoute.self) { DetailView(route: $0) }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay(alignment: .topTrailing) { if path.isEmpty && section != .settings { topActions } }
+        HStack(spacing: 0) {
+            rail
+            // One stack per section: leaving a section (for example from deep inside the settings) starts the next one from its top.
+            NavigationStack(path: $path) {
+                page
+                    .toolbar(.hidden, for: .navigationBar)
+                    .navigationDestination(for: MetaRoute.self) { DetailView(route: $0) }
             }
-            if clapper { clapperBoard }
+            .id(section)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .topTrailing) { if path.isEmpty && section != .settings { topActions } }
+        }
+        .environment(\.theaterNamespace, namespace)
+        .environment(\.theaterOpenID, openMeta?.id)
+        .background(TheaterBackground())
+        .overlay {
+            if let meta = openMeta {
+                TheaterDetail(meta: meta, namespace: namespace, close: { closeTitle() }, play: { picked in
+                    closeTitle(animated: false)
+                    path.append(MetaRoute(meta: picked))
+                })
+                .transition(.opacity)
+            }
+        }
+        .overlay { if clapper { clapperBoard } }
+        .overlay {
             if introEnabled && !introDone {
                 TheaterIntro(animated: animated, sound: soundEnabled, accent: accent) { introDone = true }
             }
@@ -58,7 +73,13 @@ struct TheaterView: View {
         .accessibilityIdentifier("theater.root")
     }
 
-    private func openTitle(_ meta: MetaItem) { path.append(MetaRoute(meta: meta)) }
+    private func openTitle(_ meta: MetaItem) {
+        withAnimation(animated ? .spring(response: 0.5, dampingFraction: 0.86) : nil) { openMeta = meta }
+    }
+
+    private func closeTitle(animated moves: Bool = true) {
+        withAnimation(animated && moves ? .spring(response: 0.45, dampingFraction: 0.9) : nil) { openMeta = nil }
+    }
 
     // MARK: Sections
 
