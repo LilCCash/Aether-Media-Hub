@@ -14,7 +14,7 @@ struct TheaterSettingsView: View {
     @AppStorage(TheaterPrefs.size) private var size = 1
     @AppStorage(TheaterPrefs.portrait) private var portrait = false
     @AppStorage(TheaterPrefs.intro) private var intro = true
-    @AppStorage(TheaterPrefs.sprockets) private var sprockets = true
+    @AppStorage(TheaterPrefs.sprockets) private var sprockets = false
     @AppStorage(TheaterPrefs.titles) private var titles = true
 
     var body: some View {

@@ -47,7 +47,7 @@ struct TheaterRow: View {
     let title: String
     let items: [MetaItem]
     let open: (MetaItem) -> Void
-    @AppStorage(TheaterPrefs.sprockets) private var sprockets = true
+    @AppStorage(TheaterPrefs.sprockets) private var sprockets = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
