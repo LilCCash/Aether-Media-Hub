@@ -46,6 +46,8 @@ struct PlayerRequest: Identifiable {
 final class AppRouter: ObservableObject {
     @Published var tab: AppTab = .home
     @Published var player: PlayerRequest?
+    /// Theater Mode (the landscape cinema browser) is open.
+    @Published var theater = false
     @Published var detail: MetaRoute?
     @Published var pendingAddonInput: String?
     @Published var pendingSearch: String?

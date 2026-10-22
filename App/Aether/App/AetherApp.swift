@@ -70,9 +70,11 @@ struct RootView: View {
             if phase != .active { env.persistForBackground() }
             env.relay.appPhaseChanged(phase)
         }
-        .fullScreenCover(item: $router.player) { request in
+        // While Theater Mode is open it presents the player itself (one full-screen cover cannot present another from the same view).
+        .fullScreenCover(item: Binding(get: { router.theater ? nil : router.player }, set: { router.player = $0 })) { request in
             PlayerView(request: request, env: env)
         }
+        .fullScreenCover(isPresented: $router.theater) { TheaterView() }
         .sheet(item: $router.detail) { route in
             NavigationStack { DetailView(route: route) }
         }
