@@ -53,6 +53,7 @@ final class RelayServiceTests: XCTestCase {
     private var servers: [FakeRelayServer] = []
     private var fetcher: StubFetcher!
     private var diagnostics: DiagnosticLog!
+    private var maker = FakeConversionMaker()
     private var service: RelayService!
     private let upstream = RelayUpstream(url: URL(string: "https://cdn.example.com/dl/f.mkv?token=SECRET123")!, headers: ["Authorization": "Bearer SECRET123"])
 
@@ -84,6 +85,7 @@ final class RelayServiceTests: XCTestCase {
                 return server
             },
             fetcherFactory: { _, _ in fetcher },
+            remuxMaker: maker.maker,
             resolver: StaticHostResolver(["cdn.example.com": [.v4(93, 184, 216, 34)]]),
             idleStopDelay: idleStopDelay, watchInterval: 0.05)
     }
@@ -105,6 +107,61 @@ final class RelayServiceTests: XCTestCase {
         XCTAssertEqual(service.leaseCount, 1)
         XCTAssertEqual(servers.count, 1)
         XCTAssertEqual(servers[0].started, 1)
+    }
+
+    // MARK: Converted files
+
+    private func conversion(_ audio: RemuxAudioChoice = .standard) -> RelayPublishRequest {
+        var converted = request()
+        converted.contentType = "application/x-mpegURL"
+        converted.fileExtension = "m3u8"
+        converted.remux = audio
+        return converted
+    }
+
+    func testAConvertedFileIsServedAsHLSOnTheWifiAddress() async throws {
+        let lease = try await service.publish(conversion(.automatic(languages: ["en"])))
+        let text = lease.url.absoluteString
+        XCTAssertNotNil(text.range(of: "^http://192\\.168\\.1\\.50:50123/r/[0-9a-f]{64}/index\\.m3u8$", options: .regularExpression), text)
+        XCTAssertFalse(text.contains("SECRET123"))
+        XCTAssertEqual(lease.remuxPlan?.audio.map { $0.language }, ["eng"])
+        XCTAssertEqual(maker.choices, [.automatic(languages: ["en"])])
+        XCTAssertEqual(service.leaseCount, 1)
+    }
+
+    func testAFileThatCannotBeConvertedIsRefusedBeforeAnythingListens() async {
+        maker.refusal = .refused(.videoCodec("vp9"))
+        do {
+            _ = try await service.publish(conversion())
+            XCTFail("expected a refusal")
+        } catch CastError.conversionRefused(let message) {
+            XCTAssertTrue(message.contains("VP9"), message)
+        } catch {
+            XCTFail("expected a conversion refusal, got \(error)")
+        }
+        XCTAssertEqual(service.leaseCount, 0)
+        XCTAssertTrue(servers.isEmpty, "the listener is only started for something that can be served")
+        XCTAssertEqual(maker.engines.first?.closeCount, 1)
+    }
+
+    func testABuildWithoutTheConverterRefusesTheConversion() async {
+        maker.available = false
+        do {
+            _ = try await service.publish(conversion())
+            XCTFail("expected a refusal")
+        } catch CastError.conversionRefused(let message) {
+            XCTAssertEqual(message, LocalRemuxError.unavailable.message)
+        } catch {
+            XCTFail("expected a conversion refusal, got \(error)")
+        }
+        XCTAssertTrue(servers.isEmpty)
+    }
+
+    func testAConvertedLeaseEndsLikeAnyOther() async throws {
+        let lease = try await service.publish(conversion())
+        service.release(lease, reason: .userStopped)
+        XCTAssertEqual(service.leaseCount, 0)
+        XCTAssertEqual(maker.engines[0].closeCount, 1, "the converter is closed with the session")
     }
 
     func testNoWifiMeansNoRelayAndNoServer() async {

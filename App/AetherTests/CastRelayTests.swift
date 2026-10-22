@@ -80,6 +80,36 @@ final class CastRelayCoordinatorTests: XCTestCase {
         XCTAssertTrue(relay.released.isEmpty)
     }
 
+    func testAConvertedFileIsPublishedWithItsAudioChoiceAndSentAsHLS() async throws {
+        var converted = request(.relayRemux(RelayUpstream(url: secretURL, headers: ["Authorization": "Bearer SECRET123"]),
+                                            .automatic(languages: ["it", "en"])), ext: "m3u8")
+        converted.contentType = "application/x-mpegURL"
+        try await coordinator.cast(converted, to: device, localPosition: 12)
+        let published = try XCTUnwrap(relay.published.first)
+        XCTAssertEqual(published.remux, .automatic(languages: ["it", "en"]))
+        XCTAssertEqual(published.owner, .cast(.googleCast))
+        XCTAssertEqual(published.contentType, "application/x-mpegURL")
+        let loaded = try XCTUnwrap(cast.loaded.first)
+        XCTAssertEqual(loaded.contentType, "application/x-mpegURL")
+        XCTAssertFalse(loaded.url.absoluteString.contains("SECRET123"))
+        XCTAssertEqual(coordinator.session?.delivery, .relay, "a converted file is a relay delivery")
+    }
+
+    func testAFileThatCannotBeConvertedSendsNothingAndTellsWhy() async {
+        relay.publishError = CastError.conversionRefused("L'audio è DTS e non può essere passato così com'è.")
+        let converted = request(.relayRemux(RelayUpstream(url: secretURL), .standard), ext: "m3u8")
+        do {
+            try await coordinator.cast(converted, to: device, localPosition: 0)
+            XCTFail("expected an error")
+        } catch CastError.conversionRefused(let message) {
+            XCTAssertTrue(message.contains("DTS"))
+        } catch {
+            XCTFail("expected a conversion refusal, got \(error)")
+        }
+        XCTAssertTrue(cast.loaded.isEmpty)
+        XCTAssertNil(coordinator.session)
+    }
+
     func testAnUnavailableRelayRefusesAndNothingIsSent() async {
         relay.publishError = CastError.relayUnavailable("Il ponte sul telefono non è disponibile: test.")
         do {
