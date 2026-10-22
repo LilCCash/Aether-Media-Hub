@@ -646,6 +646,7 @@ struct PlayerView: View {
                     actionRow(compact: false)
                     actionRow(compact: true)
                 }
+                .layoutPriority(1)
             }
         }
     }
