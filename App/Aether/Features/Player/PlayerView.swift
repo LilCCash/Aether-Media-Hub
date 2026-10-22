@@ -12,6 +12,7 @@ struct PlayerView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    @AppStorage(TheaterPrefs.palette) private var theaterPalette = 0
     @StateObject private var volume = SystemVolume()
     @State private var controlsVisible = true
     @State private var isLocked = false
@@ -32,6 +33,7 @@ struct PlayerView: View {
     @GestureState private var holdPressing = false
     @State private var rateBeforeHold: Float?
     @State private var originalBrightness: Double = 0.5
+    @State private var lastSkipAt: Date?
     @State private var castNotice: CastNotice?
     /// The transmission being started: closing the player ends it, and one that finishes after that is stopped at once.
     @State private var castTask: Task<Void, Never>?
@@ -65,6 +67,10 @@ struct PlayerView: View {
         _model = StateObject(wrappedValue: PlayerViewModel(request: request, env: env))
     }
 
+    /// Opened from Theater Mode: the colour chosen there tints the controls, so the screen does not change character.
+    private var fromTheater: Bool { router.theater }
+    private var accent: Color { fromTheater ? TheaterPalette.color(theaterPalette) : settings.accentColor }
+
     private var playbackSettings: PlaybackSettings { settings.value.playback }
     private var isCasting: Bool { casting.session != nil }
 
@@ -83,6 +89,7 @@ struct PlayerView: View {
             .onChange(of: network.reconnectToken) { _, _ in networkChanged() }
             .onChange(of: model.snapshot.isPlaying) { _, value in playingChanged(value) }
             .onChange(of: model.didFinish) { _, value in finishedChanged(value) }
+            .onChange(of: volume.level) { _, value in volumeButtonPressed(value) }
     }
 
     private var lifecycle: some View {
@@ -107,6 +114,12 @@ struct PlayerView: View {
 
     private func playingChanged(_ playing: Bool) {
         if playing { scheduleHide() } else { showControls() }
+    }
+
+    /// The hardware buttons changed the volume: show where it is. (A drag on the video shows its own bar.)
+    private func volumeButtonPressed(_ level: Double) {
+        guard dragMode != .volume else { return }
+        flash(HUD(icon: level <= 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", text: "\(Int(level * 100))%", fraction: level))
     }
 
     private func finishedChanged(_ finished: Bool) {
@@ -242,6 +255,7 @@ struct PlayerView: View {
             .animation(animationsAllowed ? .easeInOut(duration: 0.25) : nil, value: panel)
             // The "interactive" glass shimmer restarts every time the playhead moves (four times a second) and swallowed taps.
             .environment(\.aetherGlassInteractive, false)
+            .environment(\.playerAccent, fromTheater ? accent : nil)
         }
     }
 
@@ -275,7 +289,7 @@ struct PlayerView: View {
         if casting.session != nil { casting.stop() }
         model.teardown()
         ScreenBrightness.value = originalBrightness
-        OrientationController.set(.portrait)
+        OrientationController.restore()
     }
 
     private func close() {
@@ -380,6 +394,14 @@ struct PlayerView: View {
                                              isLocked: isLocked, controlsVisible: controlsVisible)
         pendingHideTask?.cancel()
         pendingHideTask = nil
+        // Tapping again on a side right after a skip keeps skipping: the controls stay as they are until the taps stop.
+        if let last = lastSkipAt, Date().timeIntervalSince(last) < 0.8, playbackSettings.gesturesEnabled, !isLocked,
+           location.x < width * 0.35 || location.x > width * 0.65 {
+            tapRecognizer = SurfaceTapRecognizer()
+            doubleTap(at: location, width: width)
+            showControls()
+            return
+        }
         switch outcome {
         case .toggleNow:
             toggleControls()
@@ -395,15 +417,19 @@ struct PlayerView: View {
             // A double tap pauses or skips; it does not leave the controls toggled by its first tap.
             if restoreHidden { controlsVisible = false }
             doubleTap(at: location, width: width)
+            // Skipping keeps the controls in view; they leave a moment after the last skip.
+            if lastSkipAt != nil && Date().timeIntervalSince(lastSkipAt ?? .distantPast) < 0.1 { showControls() }
         }
     }
 
     private func doubleTap(at location: CGPoint, width: CGFloat) {
         guard !isLocked, playbackSettings.gesturesEnabled else { return }
         if location.x < width * 0.35 {
+            lastSkipAt = Date()
             model.skipBack()
             flash(HUD(icon: skipSymbol(seconds: playbackSettings.skipBackSeconds, forward: false), text: "−\(playbackSettings.skipBackSeconds) s"))
         } else if location.x > width * 0.65 {
+            lastSkipAt = Date()
             model.skipForward()
             flash(HUD(icon: skipSymbol(seconds: playbackSettings.skipForwardSeconds, forward: true), text: "+\(playbackSettings.skipForwardSeconds) s"))
         } else {
@@ -480,6 +506,13 @@ struct PlayerView: View {
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
+            if fromTheater {
+                // A breath of the Theater colour at the foot and the head of the picture.
+                LinearGradient(colors: [accent.opacity(0.0), accent.opacity(0.28)], startPoint: .center, endPoint: .bottom)
+                    .ignoresSafeArea().allowsHitTesting(false)
+                LinearGradient(colors: [accent.opacity(0.16), .clear], startPoint: .top, endPoint: .center)
+                    .ignoresSafeArea().allowsHitTesting(false)
+            }
             VStack(spacing: 0) {
                 topBar
                 Spacer(minLength: 0)
@@ -498,6 +531,9 @@ struct PlayerView: View {
             GlassIconButton(systemName: "chevron.down", accessibilityLabel: "Chiudi il player") { close() }
                 .accessibilityIdentifier("player.close")
             VStack(alignment: .leading, spacing: 2) {
+                if fromTheater {
+                    Text("THEATER MODE").font(.system(size: 9, weight: .bold)).tracking(3).foregroundStyle(accent)
+                }
                 Text(model.title).font(.headline).lineLimit(1)
                 if let subtitle = model.episodeSubtitle(), !subtitle.isEmpty {
                     Text(subtitle).font(.caption).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
@@ -514,7 +550,7 @@ struct PlayerView: View {
                             .aetherGlassCapsule()
                             .accessibilityLabel("Timer di spegnimento: \(Format.duration(remaining))")
                     }
-                    AirPlayRoutePicker(tint: .white, activeTint: UIColor(settings.accentColor),
+                    AirPlayRoutePicker(tint: .white, activeTint: UIColor(accent),
                                        onWillPresent: { model.airPlayPickerWillPresent() })
                         .frame(width: 44, height: 44)
                         .aetherGlass(in: Circle(), interactive: true)
@@ -621,7 +657,7 @@ struct PlayerView: View {
                 }
             } else {
                 PlayerScrubber(position: position, duration: snapshot.duration, buffered: snapshot.bufferedPosition,
-                               accent: settings.accentColor,
+                               accent: accent,
                                onEditingChanged: { editing in
                                    isScrubbing = editing
                                    if editing { hideTask?.cancel() } else { scheduleHide() }
@@ -879,7 +915,7 @@ struct PlayerView: View {
             HStack(spacing: 10) {
                 Button { Task { await model.playNext() } } label: {
                     Text("Riproduci ora").font(.footnote.weight(.bold)).padding(.horizontal, 14).frame(height: 34)
-                        .background(settings.accentColor, in: Capsule())
+                        .background(accent, in: Capsule())
                 }
                 .accessibilityIdentifier("player.playNextNow")
                 if model.nextCountdown != nil {
@@ -936,7 +972,7 @@ struct PlayerView: View {
         ZStack {
             Color.black.opacity(0.88).ignoresSafeArea()
             VStack(spacing: 18) {
-                Image(systemName: "tv.and.mediabox.fill").font(.system(size: 44)).foregroundStyle(settings.accentColor)
+                Image(systemName: "tv.and.mediabox.fill").font(.system(size: 44)).foregroundStyle(accent)
                 Text("Riproduzione su \(session.device.name)").font(.title3.weight(.semibold))
                 switch session.delivery {
                 case .relay:

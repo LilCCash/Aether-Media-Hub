@@ -18,12 +18,11 @@ struct TheaterView: View {
     @AppStorage(TheaterPrefs.railLabels) private var railLabels = false
     @StateObject private var model = HomeViewModel()
     @State private var section: Section = .home
-    @State private var path: [MetaRoute] = []
     @State private var introDone = false
     @State private var logoPresses = 0
     @State private var clapper = false
     @State private var openMeta: MetaItem?
-    @Namespace private var namespace
+    @State private var picker: StreamPickerRequest?
 
     private var animated: Bool { settings.animationsEnabled && !reduceMotion }
     private var accent: Color { TheaterPalette.color(palette) }
@@ -31,26 +30,29 @@ struct TheaterView: View {
     var body: some View {
         HStack(spacing: 0) {
             rail
-            // One stack per section: leaving a section (for example from deep inside the settings) starts the next one from its top.
-            NavigationStack(path: $path) {
-                page
-                    .toolbar(.hidden, for: .navigationBar)
-                    .navigationDestination(for: MetaRoute.self) { DetailView(route: $0) }
+            // One screen per section: leaving a section (for example from deep inside the settings) starts the next one from its top.
+            Group {
+                if section == .settings { TheaterMore() } else { page }
             }
             .id(section)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .topTrailing) { if path.isEmpty && section != .settings { topActions } }
+            .overlay(alignment: .topTrailing) { if section != .settings { topActions } }
         }
-        .environment(\.theaterNamespace, namespace)
-        .environment(\.theaterOpenID, openMeta?.id)
         .background(TheaterBackground())
         .overlay {
             if let meta = openMeta {
-                TheaterDetail(meta: meta, namespace: namespace, close: { closeTitle() }, play: { picked in
-                    closeTitle(animated: false)
-                    path.append(MetaRoute(meta: picked))
+                TheaterDetail(meta: meta, close: { closeTitle() }, pick: { picked, video in
+                    picker = StreamPickerRequest(meta: picked, video: video, resumeAt: nil)
                 })
-                .transition(.opacity)
+                .id(meta.id)
+                .transition(.opacity.combined(with: .scale(scale: 0.94)))
+            }
+        }
+        .overlay {
+            if let request = picker {
+                TheaterStreamPicker(request: request, close: { picker = nil })
+                    .id(request.id)
+                    .transition(.opacity)
             }
         }
         .overlay { if clapper { clapperBoard } }
@@ -61,12 +63,9 @@ struct TheaterView: View {
         }
         .preferredColorScheme(.dark)
         .task(id: "\(addons.revision)#\(network.reconnectToken)") { await model.reload(env: env, mode: .normal) }
-        .onAppear { OrientationController.set(.landscape) }
-        .onDisappear { OrientationController.set(.portrait); TheaterSound.stop() }
-        // The player gives the orientation back to portrait when it closes: Theater Mode asks for landscape again.
-        .onChange(of: router.player == nil) { _, closed in
-            if closed { OrientationController.set(.landscape) }
-        }
+        // Theater Mode is landscape: the player gives the orientation back to this when it closes, not to portrait.
+        .onAppear { OrientationController.base = .landscape; OrientationController.set(.landscape) }
+        .onDisappear { OrientationController.base = .portrait; OrientationController.set(.portrait); TheaterSound.stop() }
         .fullScreenCover(item: Binding(get: { router.player }, set: { router.player = $0 })) { request in
             PlayerView(request: request, env: env)
         }
@@ -75,11 +74,11 @@ struct TheaterView: View {
     }
 
     private func openTitle(_ meta: MetaItem) {
-        withAnimation(animated ? .spring(response: 0.5, dampingFraction: 0.86) : nil) { openMeta = meta }
+        withAnimation(animated ? .easeOut(duration: 0.3) : nil) { openMeta = meta }
     }
 
-    private func closeTitle(animated moves: Bool = true) {
-        withAnimation(animated && moves ? .spring(response: 0.45, dampingFraction: 0.9) : nil) { openMeta = nil }
+    private func closeTitle() {
+        withAnimation(animated ? .easeIn(duration: 0.22) : nil) { openMeta = nil }
     }
 
     // MARK: Sections
@@ -111,7 +110,7 @@ struct TheaterView: View {
             case .discover: TheaterDiscover(refs: model.catalogRefs, open: openTitle)
             case .library: TheaterLibrary(open: openTitle)
             case .search: TheaterSearch(open: openTitle)
-            case .settings: SettingsRootView().navigationTitle("Impostazioni")
+            case .settings: EmptyView()
             }
         }
     }
@@ -119,32 +118,32 @@ struct TheaterView: View {
     // MARK: Rail
 
     private var rail: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 6) {
             logo
             railButton(.home, "film.fill", "Film")
             railButton(.series, "tv.fill", "Serie")
             railButton(.discover, "square.grid.2x2.fill", "Scopri")
             railButton(.library, "heart.fill", "Libreria")
-            railButton(.search, "magnifyingglass", "Cerca")
             Spacer()
             railButton(.settings, "gearshape.fill", "Impostazioni")
             Button {
+                OrientationController.base = .portrait
                 OrientationController.set(.portrait)
                 router.theater = false
             } label: {
-                Image(systemName: "xmark").font(.body.weight(.semibold)).frame(width: 44, height: 44).foregroundStyle(.white.opacity(0.75))
+                Image(systemName: "xmark").font(.body.weight(.semibold)).frame(width: 40, height: 40).foregroundStyle(.white.opacity(0.75))
             }
             .accessibilityLabel("Esci da Theater Mode")
             .accessibilityIdentifier("theater.exit")
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 6)
         .frame(width: railLabels ? 108 : 66)
         .background(Color.white.opacity(0.06))
         .overlay(alignment: .trailing) { Rectangle().fill(.white.opacity(0.1)).frame(width: 1) }
     }
 
     private var logo: some View {
-        Image(systemName: "film.stack.fill").font(.title3).foregroundStyle(accent).frame(width: 46, height: 40)
+        Image(systemName: "film.stack.fill").font(.title3).foregroundStyle(accent).frame(width: 46, height: 34)
             .onLongPressGesture(minimumDuration: 1.1) {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
                 clapper = true
@@ -156,14 +155,13 @@ struct TheaterView: View {
     private func railButton(_ target: Section, _ symbol: String, _ label: String) -> some View {
         let active = section == target
         return Button {
-            path = []
             section = target
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: symbol).font(.title3).frame(width: 26)
                 if railLabels { Text(label).font(.caption.weight(.semibold)).lineLimit(1) }
             }
-            .frame(maxWidth: .infinity).frame(height: 46)
+            .frame(maxWidth: .infinity).frame(height: 40)
             .foregroundStyle(active ? Color.black : .white.opacity(0.75))
             .background(active ? accent : .clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .padding(.horizontal, 8)
@@ -176,8 +174,8 @@ struct TheaterView: View {
     /// Search and settings, always within reach at the top right.
     private var topActions: some View {
         HStack(spacing: 6) {
-            topButton("magnifyingglass", "Cerca") { path = []; section = .search }
-            topButton("gearshape", "Impostazioni") { path = []; section = .settings }
+            topButton("magnifyingglass", "Cerca") { section = .search }
+            topButton("gearshape", "Impostazioni") { section = .settings }
         }
         .padding(.trailing, 14).padding(.top, 8)
     }
