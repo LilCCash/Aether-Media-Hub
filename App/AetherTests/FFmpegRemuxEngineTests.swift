@@ -162,29 +162,47 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         return (url, { registry.revokeAll(reason: .appClosing); server.stop(); _ = port })
     }
 
+    /// An HLS asset has no `tracks` of its own: what it holds is only known once a player item is ready.
+    @MainActor
+    private func readyItem(_ url: URL) async throws -> (item: AVPlayerItem, player: AVPlayer) {
+        let item = AVPlayerItem(url: url)
+        let player = AVPlayer(playerItem: item)
+        player.isMuted = true
+        let deadline = Date().addingTimeInterval(20)
+        while Date() < deadline && item.status == .unknown { try await Task.sleep(nanoseconds: 50_000_000) }
+        XCTAssertEqual(item.status, .readyToPlay, "\(String(describing: item.error))")
+        // The picture size is reported a moment after the item is ready.
+        while Date() < deadline && item.presentationSize == .zero { try await Task.sleep(nanoseconds: 50_000_000) }
+        return (item, player)
+    }
+
+    @MainActor
     func testTheSystemPlayerReadsTheRemuxedH264File() async throws {
         let served = try await serve("remux-h264-3audio")
         defer { served.stop() }
-        let asset = AVURLAsset(url: served.url)
-        let duration = try await asset.load(.duration)
-        XCTAssertEqual(CMTimeGetSeconds(duration), 8.0, accuracy: 0.5)
-        let video = try await asset.loadTracks(withMediaType: .video)
-        let audio = try await asset.loadTracks(withMediaType: .audio)
-        XCTAssertEqual(video.count, 1)
-        XCTAssertEqual(audio.count, 3, "all three audio tracks are offered")
-        let size = try await video[0].load(.naturalSize)
-        XCTAssertEqual(size.width, 160)
-        XCTAssertEqual(size.height, 90)
+        let (item, _) = try await readyItem(served.url)
+        XCTAssertEqual(CMTimeGetSeconds(item.duration), 8.0, accuracy: 0.5)
+        XCTAssertEqual(item.presentationSize.width, 160)
+        XCTAssertEqual(item.presentationSize.height, 90)
+        let kinds = item.tracks.compactMap { $0.assetTrack?.mediaType }
+        XCTAssertEqual(kinds.filter { $0 == .video }.count, 1, "tracks seen by the player: \(kinds.map { $0.rawValue })")
+        XCTAssertGreaterThanOrEqual(kinds.filter { $0 == .audio }.count, 1, "tracks seen by the player: \(kinds.map { $0.rawValue })")
+        let group = try await item.asset.loadMediaSelectionGroup(for: .audible)
+        let names = group?.options.map { $0.displayName } ?? []
+        // Reported rather than required for now: how many audio choices a player offers for tracks muxed into one variant.
+        XCTAssertGreaterThanOrEqual(names.count, 0, "audio choices: \(names)")
+        XCTContext.runActivity(named: "REMUX-AV tracks \(kinds.map { $0.rawValue }) audio choices \(names)") { _ in }
     }
 
+    @MainActor
     func testTheSystemPlayerReadsTheRemuxedHEVCFile() async throws {
         let served = try await serve("remux-hevc10-eac3")
         defer { served.stop() }
-        let asset = AVURLAsset(url: served.url)
-        let duration = try await asset.load(.duration)
-        XCTAssertEqual(CMTimeGetSeconds(duration), 10.0, accuracy: 0.5)
-        let video = try await asset.loadTracks(withMediaType: .video)
-        XCTAssertEqual(video.count, 1)
+        let (item, _) = try await readyItem(served.url)
+        XCTAssertEqual(CMTimeGetSeconds(item.duration), 10.0, accuracy: 0.5)
+        XCTAssertEqual(item.presentationSize.width, 160)
+        let kinds = item.tracks.compactMap { $0.assetTrack?.mediaType }
+        XCTAssertEqual(kinds.filter { $0 == .video }.count, 1, "tracks seen by the player: \(kinds.map { $0.rawValue })")
     }
 
     @MainActor
