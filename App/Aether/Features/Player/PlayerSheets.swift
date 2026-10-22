@@ -73,6 +73,7 @@ struct PlayerInfoSheet: View {
                         row("AirPlay", route, id: "info.airplay")
                     }
                 }
+                conversionSection
                 detectedSection
                 expectationSection
                 Section(header: Text("Sorgente (dichiarato dall'addon o dal nome)")) {
@@ -96,6 +97,21 @@ struct PlayerInfoSheet: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fine") { dismiss() } } }
         }
         .presentationDetents([.large])
+    }
+
+    /// Shown when the file plays through the on-the-fly conversion: what is copied and what is left out.
+    @ViewBuilder
+    private var conversionSection: some View {
+        if let plan = model.conversionPlan {
+            Section(header: Text("Conversione al volo"),
+                    footer: Text("Il telefono rimette i dati del file MKV in pezzi HLS che AVPlayer legge. Video e audio sono copiati così come sono, non ricodificati: la qualità è quella del file.")) {
+                row("Metodo", "MKV → HLS (copia, senza ricodifica)", id: "info.conversion")
+                if let audio = plan.audio.first { row("Audio che passa", audio.summary, id: "info.conversion.audio") }
+                ForEach(Array(plan.notes.enumerated()), id: \.offset) { _, note in
+                    Label(note, systemImage: "info.circle").font(.footnote).foregroundStyle(Color.aetherSecondary)
+                }
+            }
+        }
     }
 
     @ViewBuilder

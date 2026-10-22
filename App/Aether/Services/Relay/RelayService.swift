@@ -21,12 +21,16 @@ struct RelayPublishRequest {
     var owner: RelayOwner
     /// The receiver's address, when known: only that device may fetch the session.
     var receiverAddress: String?
+    /// Convert the Matroska file into HLS on the fly, copying this audio track (nil: serve the file as it is).
+    var remux: RemuxAudioChoice? = nil
 }
 
 /// A published session. Holds the keyless address handed to the receiver; it never prints.
 struct RelayLease: Equatable, CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
     let id: RelaySessionID
     let url: URL
+    /// What the conversion copies, when the lease serves a converted file.
+    var remuxPlan: RemuxPlan? = nil
 
     static func == (lhs: RelayLease, rhs: RelayLease) -> Bool { return lhs.id == rhs.id }
 
@@ -52,6 +56,7 @@ protocol RelayPublishing: AnyObject {
 final class RelayService: ObservableObject, RelayPublishing {
     typealias ServerFactory = (RelaySessionRegistry, RelayServer.Configuration, @escaping @Sendable (RelayLogEvent) -> Void) -> RelayServing
     typealias FetcherFactory = (RelayUpstream, UpstreamGuard) -> RelayRangeFetcher
+    typealias RemuxMaker = RemuxEngineFactory.Maker
 
     @Published private(set) var leaseCount = 0
     /// The listener could not be started the last time it was tried.
@@ -63,6 +68,7 @@ final class RelayService: ObservableObject, RelayPublishing {
     private let lan: () -> LANInterface?
     private let serverFactory: ServerFactory
     private let fetcherFactory: FetcherFactory
+    private let remuxMaker: RemuxMaker
     private let resolver: HostResolving
     private let idleStopDelay: TimeInterval
     private let watchInterval: TimeInterval
@@ -81,6 +87,7 @@ final class RelayService: ObservableObject, RelayPublishing {
          lan: @escaping () -> LANInterface? = { LANAddressReader.current() },
          serverFactory: ServerFactory? = nil,
          fetcherFactory: FetcherFactory? = nil,
+         remuxMaker: RemuxMaker? = nil,
          resolver: HostResolving = SystemHostResolver(),
          idleStopDelay: TimeInterval = 30,
          watchInterval: TimeInterval = 10) {
@@ -89,6 +96,7 @@ final class RelayService: ObservableObject, RelayPublishing {
         self.lan = lan
         self.serverFactory = serverFactory ?? { registry, configuration, emit in RelayServer(registry: registry, configuration: configuration, log: emit) }
         self.fetcherFactory = fetcherFactory ?? { upstream, guardian in URLSessionRangeFetcher(upstream: upstream, guardian: guardian) }
+        self.remuxMaker = remuxMaker ?? RemuxEngineFactory.standard
         self.resolver = resolver
         self.idleStopDelay = idleStopDelay
         self.watchInterval = watchInterval
@@ -127,19 +135,15 @@ final class RelayService: ObservableObject, RelayPublishing {
             throw CastError.relayUnavailable("L'indirizzo della sorgente non è consentito al ponte.")
         }
 
-        let leaf = "video." + (RelayMime.allowedExtensions.contains(request.fileExtension.lowercased()) ? request.fileExtension.lowercased() : "mp4")
         let identity = SessionIdentity()
-        let source = HTTPRangeSource(leaf: leaf, contentType: request.contentType, fetcher: fetcherFactory(request.upstream, guardian),
-                                     onUpstreamRejected: { [weak self] _ in
-                                         Task { @MainActor in self?.upstreamRejected(identity.id) }
-                                     })
-        do {
-            try await source.prepare()
-        } catch {
-            source.close()
-            scheduleIdleStopIfNeeded()
-            throw CastError.relayUnavailable(RelayService.probeMessage(for: error))
+        let prepared: (source: RelaySource, sessionLeaf: String?, urlLeaf: String, plan: RemuxPlan?)
+        if let audio = request.remux {
+            prepared = try await prepareConverted(request, audio: audio, guardian: guardian)
+        } else {
+            prepared = try await prepareFile(request, guardian: guardian, identity: identity)
         }
+        let source = prepared.source
+        let leaf = prepared.urlLeaf
 
         do {
             _ = try await startServer(for: interface)
@@ -153,7 +157,8 @@ final class RelayService: ObservableObject, RelayPublishing {
         registry.ownAddress = interface.address
         let created: (id: RelaySessionID, token: String)
         do {
-            created = try registry.create(source: source, leaf: leaf, owner: request.owner, peerRule: RelayService.peerRule(for: request.receiverAddress))
+            created = try registry.create(source: source, leaf: prepared.sessionLeaf, owner: request.owner,
+                                          peerRule: RelayService.peerRule(for: request.receiverAddress))
         } catch {
             source.close()
             scheduleIdleStopIfNeeded()
@@ -164,12 +169,52 @@ final class RelayService: ObservableObject, RelayPublishing {
             registry.revoke(created.id, reason: .loadFailed)
             throw CastError.relayUnavailable(RelayService.explain(.listenerFailed))
         }
-        let lease = RelayLease(id: created.id, url: url)
+        let lease = RelayLease(id: created.id, url: url, remuxPlan: prepared.plan)
         leases[created.id] = lease
         leaseCount = leases.count
         emit(.sessionCreated(created.id, request.owner))
         startWatching()
         return lease
+    }
+
+    /// A file served as it is: the real source is read in windows and handed on.
+    private func prepareFile(_ request: RelayPublishRequest, guardian: UpstreamGuard,
+                             identity: SessionIdentity) async throws -> (source: RelaySource, sessionLeaf: String?, urlLeaf: String, plan: RemuxPlan?) {
+        let leaf = "video." + (RelayMime.allowedExtensions.contains(request.fileExtension.lowercased()) ? request.fileExtension.lowercased() : "mp4")
+        let source = HTTPRangeSource(leaf: leaf, contentType: request.contentType, fetcher: fetcherFactory(request.upstream, guardian),
+                                     onUpstreamRejected: { [weak self] _ in
+                                         Task { @MainActor in self?.upstreamRejected(identity.id) }
+                                     })
+        do {
+            try await source.prepare()
+        } catch {
+            source.close()
+            scheduleIdleStopIfNeeded()
+            throw CastError.relayUnavailable(RelayService.probeMessage(for: error))
+        }
+        return (source, leaf, leaf, nil)
+    }
+
+    /// A Matroska file converted into HLS on the fly. The session accepts every piece name the converted file has.
+    private func prepareConverted(_ request: RelayPublishRequest, audio: RemuxAudioChoice,
+                                  guardian: UpstreamGuard) async throws -> (source: RelaySource, sessionLeaf: String?, urlLeaf: String, plan: RemuxPlan?) {
+        let fetcher = fetcherFactory(request.upstream, guardian)
+        var source: RemuxSource?
+        do {
+            let resource = try await fetcher.probe()
+            guard let total = resource.length, total > 0 else { throw RelayError.upstreamNoRanges }
+            guard let engine = remuxMaker(fetcher, total, audio) else { throw LocalRemuxError.unavailable }
+            let made = RemuxSource(engine: engine)
+            source = made
+            let prepared = try await made.prepare()
+            return (made, nil, RemuxSource.Leaf.masterName, prepared.plan)
+        } catch {
+            source?.close()
+            fetcher.invalidate()
+            scheduleIdleStopIfNeeded()
+            if error is RemuxError || error is LocalRemuxError { throw CastError.conversionRefused(RemuxFailureText.explain(error)) }
+            throw CastError.relayUnavailable(RelayService.probeMessage(for: error))
+        }
     }
 
     func release(_ lease: RelayLease, reason: RelayEndReason) {

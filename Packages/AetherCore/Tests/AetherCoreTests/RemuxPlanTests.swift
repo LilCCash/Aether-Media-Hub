@@ -21,6 +21,17 @@ final class RemuxPlannerTests: XCTestCase {
         }
     }
 
+    func testAnAudioTrackHasAReadableName() {
+        XCTAssertEqual(audio("ac3", index: 1, language: "ita", channels: 6).summary, "Italiano · AC-3 5.1")
+        XCTAssertEqual(audio("aac", index: 2, language: "eng", channels: 2).summary, "Inglese · AAC stereo")
+        XCTAssertEqual(audio("eac3", index: 3, channels: 8).summary, "E-AC-3 7.1")
+        var titled = audio("aac", index: 4, language: "fra", channels: 1)
+        titled.title = "Commento del regista"
+        XCTAssertEqual(titled.summary, "Francese · AAC mono · Commento del regista")
+        titled.title = "Francese"
+        XCTAssertEqual(titled.summary, "Francese · AAC mono", "a title that repeats the language adds nothing")
+    }
+
     func testH264WithAACAndAC3IsCopiedAsItIsOneAudioTrackAtATime() throws {
         let result = try plan([video(), audio("aac", index: 1, language: "ita"), audio("ac3", index: 2, language: "eng"), subtitle(3)])
         XCTAssertEqual(result.video.index, 0)

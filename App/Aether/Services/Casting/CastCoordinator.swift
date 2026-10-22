@@ -162,12 +162,14 @@ final class CastCoordinator: ObservableObject {
         switch request.source {
         case .direct(let direct), .directWithKey(let direct):
             url = direct
-        case .relay(let upstream):
+        case .relay(let upstream), .relayRemux(let upstream, _):
             guard let relay = relay else { throw fail(CastError.relayUnavailable(RelayService.explain(.listenerFailed))) }
+            var audio: RemuxAudioChoice?
+            if case .relayRemux(_, let choice) = request.source { audio = choice }
             do {
                 let lease = try await relay.publish(RelayPublishRequest(upstream: upstream, contentType: request.contentType,
                                                                         fileExtension: request.fileExtension, owner: .cast(device.target),
-                                                                        receiverAddress: device.address))
+                                                                        receiverAddress: device.address, remux: audio))
                 published = lease
                 url = lease.url
             } catch {

@@ -25,6 +25,8 @@ final class AppEnvironment: ObservableObject {
     let router: AppRouter
     let downloads: DownloadManager
     let relay: RelayService
+    /// Converts Matroska files into HLS for the phone's own player (AVPlayer), on this phone only.
+    let localRemux: LocalRemuxService
     let casting: CastCoordinator
     /// Keys of the optional services (TorBox, TMDB, TheTVDB), kept in the Keychain.
     let credentials: ServiceCredentials
@@ -83,6 +85,7 @@ final class AppEnvironment: ObservableObject {
         downloads = DownloadManager(paths: paths, snapshot: snapshot)
         let relayService = RelayService(settings: settings, diagnostics: diagnostics)
         relay = relayService
+        localRemux = LocalRemuxService(settings: settings, diagnostics: diagnostics)
         casting = CastCoordinator(settings: settings, relay: relayService)
         let serviceKeys = ServiceCredentials(secrets: secrets)
         credentials = serviceKeys

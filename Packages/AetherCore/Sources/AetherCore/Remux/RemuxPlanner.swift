@@ -42,6 +42,32 @@ public struct RemuxStreamInfo: Equatable, Sendable {
     }
 }
 
+extension RemuxStreamInfo {
+    /// A line for a list of tracks, in Italian: "Italiano · AC-3 5.1" (the file's own title is added when it says more).
+    public var summary: String {
+        var parts: [String] = []
+        if let language = language, !language.isEmpty { parts.append(LanguageCodes.displayName(language)) }
+        var format = RemuxNames.display(codec: codec)
+        if let channels = channels, channels > 0 { format += " " + RemuxStreamInfo.layoutName(channels: channels) }
+        parts.append(format)
+        if let title = title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty,
+           !parts.contains(where: { $0.caseInsensitiveCompare(title) == .orderedSame }) {
+            parts.append(title)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    static func layoutName(channels: Int) -> String {
+        switch channels {
+        case 1: return "mono"
+        case 2: return "stereo"
+        case 6: return "5.1"
+        case 8: return "7.1"
+        default: return "\(channels) canali"
+        }
+    }
+}
+
 /// Which audio track of the file goes into the converted video. A player is given one at a time: a file muxed with several audio
 /// tracks in one variant plays the first on most receivers, and the others cannot be chosen from the receiver.
 public enum RemuxAudioChoice: Equatable, Sendable {

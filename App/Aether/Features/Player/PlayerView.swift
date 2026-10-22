@@ -972,40 +972,56 @@ struct PlayerView: View {
         case .ready(let preparation):
             let verdict = CastCompatibility.evaluate(url: preparation.evaluationURL, info: preparation.info, headers: preparation.headers,
                                                      target: device.target, hasExternalSubtitles: model.externalSubtitleCount() > 0,
-                                                     delivery: preparation.delivery)
+                                                     delivery: preparation.delivery, remuxed: preparation.remuxed)
+            let notes = castNotes(for: preparation.delivery, remuxed: preparation.remuxed)
             switch verdict {
             case .blocked(let message):
                 castNotice = CastNotice(title: "Questa sorgente non può essere trasmessa", message: message)
             case .warning(let messages):
-                pendingCast = PendingCast(device: device, warnings: castNotes(for: preparation.delivery) + messages, delivery: preparation.delivery)
+                pendingCast = PendingCast(device: device, warnings: notes + messages, delivery: preparation.delivery)
             case .ok:
                 if preparation.delivery == .direct {
                     performCast(to: device)
                 } else {
-                    pendingCast = PendingCast(device: device, warnings: castNotes(for: preparation.delivery), delivery: preparation.delivery)
+                    pendingCast = PendingCast(device: device, warnings: notes, delivery: preparation.delivery)
                 }
             }
         }
     }
 
     /// What the viewer should know before a video leaves through the relay.
-    private func castNotes(for delivery: CastDelivery) -> [String] {
+    private func castNotes(for delivery: CastDelivery, remuxed: Bool) -> [String] {
+        var notes: [String] = []
         if delivery == .relay {
-            return ["Aether farà da ponte: scarica il video con la tua chiave e lo passa al televisore, che non la riceve. Tieni il telefono acceso, con Aether aperto e nella stessa rete Wi-Fi."]
+            notes.append("Aether farà da ponte: scarica il video con la tua chiave e lo passa al televisore, che non la riceve. Tieni il telefono acceso, con Aether aperto e nella stessa rete Wi-Fi.")
         }
-        return []
+        if remuxed {
+            notes.append("Il file MKV viene convertito al volo dal telefono in HLS (video e audio sono copiati, non ricodificati): parte dopo qualche secondo e consuma batteria. Sul televisore passa una sola traccia audio e non i sottotitoli incorporati.")
+        }
+        return notes
     }
 
     private func performCast(to device: CastDevice) {
         guard case .ready(var preparation) = model.castPreparation(for: device.target, sendDirectLinkToTV: settings.value.advanced.sendDirectLinkToTV,
                                                                     relay: relayService.availability) else { return }
         preparation.request.startPosition = model.snapshot.position
+        preparation.fallback?.startPosition = model.snapshot.position
         let position = model.snapshot.position
         let request = preparation.request
+        let fallback = preparation.fallback
         Task {
             do {
                 try await casting.cast(request, to: device, localPosition: position)
                 model.castDidStart()
+            } catch CastError.conversionRefused(let reason) where fallback != nil {
+                // The file cannot be converted (for example DTS-only audio): the receiver is given the file as it is, as before.
+                model.showStatus("Conversione non possibile: \(reason) Invio il file così com'è.")
+                do {
+                    try await casting.cast(fallback ?? request, to: device, localPosition: position)
+                    model.castDidStart()
+                } catch {
+                    castNotice = CastNotice(title: "Trasmissione non riuscita", message: error.localizedDescription)
+                }
             } catch {
                 castNotice = CastNotice(title: "Trasmissione non riuscita", message: error.localizedDescription)
             }

@@ -186,11 +186,15 @@ struct PlaybackSettingsView: View {
     var body: some View {
         Form {
             Section(header: Text("Motore"),
-                    footer: Text("Automatico usa AVPlayer (il player di Apple, l'unico che può mostrare il vero Dolby Vision) per MP4, MOV e HLS, e MPV per MKV, AVI, TS e i file che AVPlayer non sa decodificare. Se un motore non riesce ad aprire il file, Aether prova l'altro una volta.")) {
+                    footer: Text("Automatico usa AVPlayer (il player di Apple, l'unico che può mostrare il vero Dolby Vision) per MP4, MOV e HLS, e MPV per MKV, AVI, TS e i file che AVPlayer non sa decodificare. Se un motore non riesce ad aprire il file, Aether prova l'altro una volta.\(RemuxEngineFactory.isAvailable ? " «Converti i file MKV per AVPlayer» fa passare anche gli MKV da AVPlayer: il telefono li rimette al volo in pezzi HLS (video e audio copiati, non ricodificati), così funzionano Picture in Picture e AirPlay. Una traccia audio alla volta, niente sottotitoli incorporati, e non parte se l'audio è solo DTS/TrueHD o il video è VP9/AV1: in quel caso Automatico usa MPV." : "")")) {
                 Picker("Player", selection: settings.binding(\.playback.engine)) {
                     ForEach(PlayerEngineChoice.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .accessibilityIdentifier("settings.engine")
+                if RemuxEngineFactory.isAvailable {
+                    Toggle("Converti i file MKV per AVPlayer", isOn: settings.binding(\.playback.convertMatroskaForAVPlayer))
+                        .accessibilityIdentifier("settings.convertMKV")
+                }
                 NavigationLink("Stato dei player e dello schermo") { PlayerStatusView() }
             }
             Section(header: Text("Video"),
@@ -530,6 +534,13 @@ struct CastingSettingsView: View {
                 if settings.value.advanced.sendDirectLinkToTV {
                     Label("Attivo: il televisore riceve la chiave TorBox.", systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote).foregroundStyle(.orange)
+                }
+            }
+            if RemuxEngineFactory.isAvailable {
+                Section(header: Text("File MKV"),
+                        footer: Text("Molti Chromecast e televisori con Cast rifiutano gli MKV. Con questa opzione il telefono li rimette al volo in HLS (video e audio copiati, non ricodificati) e li passa dal ponte: serve il Wi-Fi e il permesso «Rete locale», parte dopo qualche secondo e consuma batteria. Passa una sola traccia audio, senza sottotitoli incorporati. Se il file ha solo audio DTS/TrueHD o un video non copiabile, Aether lo invia com'è, come prima.")) {
+                    Toggle("Converti gli MKV per Google Cast", isOn: settings.binding(\.casting.convertMatroskaForGoogleCast))
+                        .accessibilityIdentifier("settings.castConvertMKV")
                 }
             }
             Section(header: Text("Riproduzione remota")) {

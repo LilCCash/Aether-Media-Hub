@@ -36,6 +36,8 @@ enum CastSource {
     case relay(RelayUpstream)
     /// The source's own address with the viewer's account key in it, sent because the viewer chose to in Settings.
     case directWithKey(URL)
+    /// The real address stays on the phone, which converts the Matroska file into HLS (copying this audio track) for the receiver.
+    case relayRemux(RelayUpstream, RemuxAudioChoice)
 }
 
 /// Everything needed to start a remote session, before the address the receiver will use is known.
@@ -53,7 +55,7 @@ struct CastRequest: CustomStringConvertible, CustomDebugStringConvertible, Custo
     var delivery: CastDelivery {
         switch source {
         case .direct: return .direct
-        case .relay: return .relay
+        case .relay, .relayRemux: return .relay
         case .directWithKey: return .directWithKey
         }
     }
@@ -99,10 +101,13 @@ enum CastError: LocalizedError {
     case relayUnavailable(String)
     /// The caller asked to send the key link while the setting that allows it is off.
     case directLinkNotAllowed
+    /// The file cannot be converted for the receiver (its codecs cannot be copied, or this build has no converter).
+    case conversionRefused(String)
 
     var errorDescription: String? {
         switch self {
-        case .unavailable(let message), .deviceUnreachable(let message), .rejected(let message), .relayUnavailable(let message): return message
+        case .unavailable(let message), .deviceUnreachable(let message), .rejected(let message), .relayUnavailable(let message),
+             .conversionRefused(let message): return message
         case .timedOut: return "Il televisore non ha avviato la riproduzione entro il tempo previsto."
         case .directLinkNotAllowed: return "L'invio del link diretto al televisore non è attivo: lo trovi in Impostazioni ▸ Avanzate."
         }
