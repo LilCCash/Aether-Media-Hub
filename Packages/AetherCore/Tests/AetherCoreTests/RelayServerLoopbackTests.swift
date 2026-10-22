@@ -232,7 +232,10 @@ final class RelayServerLoopbackTests: XCTestCase {
 
     // MARK: Streaming behaviour
 
-    func testRevokingASessionClosesItsConnectionsAndCancelsTheReader() async throws {
+    /// The receiver has stopped reading (the server is blocked sending), then the session is revoked. What the server does is checked
+    /// on the server's side: the connection is dropped and the reader told to stop. Whether the bytes the kernel already holds still
+    /// reach a receiver that does not read is up to the operating system, so nothing is asserted on the client here.
+    func testRevokingASessionDropsAStalledConnectionAndCancelsTheReader() async throws {
         let h = try await harness()
         let s = try session(h, size: 1 << 40)
         let client = RelayRawClient(port: h.port, readLimit: 256 * 1024, retainBytes: false)
@@ -241,12 +244,29 @@ final class RelayServerLoopbackTests: XCTestCase {
         client.send(get(s.token))
         let streaming = await relayPollUntil { client.count > 100_000 }
         XCTAssertTrue(streaming)
+        XCTAssertEqual(h.server.activeConnectionCount, 1)
         h.registry.revoke(s.id, reason: .userStopped)
-        client.resumeReading()
-        let closed = await relayPollUntil(6) { client.finished }
-        XCTAssertTrue(closed, "the connection should close shortly after the revocation")
-        let cancelled = await relayPollUntil(6) { s.source.cancelCount == 1 }
+        let dropped = await relayPollUntil(6) { h.server.activeConnectionCount == 0 }
+        XCTAssertTrue(dropped, "the server must let go of the connection once the session is revoked")
+        let cancelled = await relayPollUntil(6) { s.source.cancelCount >= 1 }
         XCTAssertTrue(cancelled, "the reader must be told to stop")
+        client.close()
+    }
+
+    /// A receiver that keeps reading sees the connection end shortly after the revocation.
+    func testRevokingASessionEndsTheConnectionOfAReceiverThatIsReading() async throws {
+        let h = try await harness()
+        let s = try session(h, size: 1 << 40)
+        let client = RelayRawClient(port: h.port, retainBytes: false)
+        let connected = await client.connect()
+        XCTAssertTrue(connected)
+        client.send(get(s.token))
+        let streaming = await relayPollUntil { client.count > 100_000 }
+        XCTAssertTrue(streaming)
+        XCTAssertFalse(client.finished)
+        h.registry.revoke(s.id, reason: .userStopped)
+        let closed = await relayPollUntil(6) { client.finished }
+        XCTAssertTrue(closed, "the connection should end shortly after the revocation")
         client.close()
     }
 

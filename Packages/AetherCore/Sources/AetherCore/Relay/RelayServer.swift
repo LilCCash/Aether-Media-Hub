@@ -72,6 +72,9 @@ public final class RelayServer: @unchecked Sendable {
 
     public var isRunning: Bool { return port != nil }
 
+    /// How many receivers are connected right now (tests wait on it to see a connection being closed from this side).
+    var activeConnectionCount: Int { return queue.sync { connections.count } }
+
     /// Starts listening (idempotent) and returns the port. Waits for the listener to be ready, at most five seconds.
     @discardableResult
     public func start(preferredPort: UInt16? = nil) async throws -> UInt16 {
