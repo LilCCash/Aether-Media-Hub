@@ -79,6 +79,9 @@ final class RelayService: ObservableObject, RelayPublishing {
     private var lastPort: UInt16?
     private var leases: [RelaySessionID: RelayLease] = [:]
     private var idleTask: Task<Void, Never>?
+    private var startTask: Task<UInt16, Error>?
+    /// The Wi-Fi address the live leases' addresses were made for.
+    private var leaseAddress: String?
     private var watchTask: Task<Void, Never>?
     private var backgroundTask = UIBackgroundTaskIdentifier.invalid
 
@@ -170,6 +173,7 @@ final class RelayService: ObservableObject, RelayPublishing {
             throw CastError.relayUnavailable(RelayService.explain(.listenerFailed))
         }
         let lease = RelayLease(id: created.id, url: url, remuxPlan: prepared.plan)
+        if leases.isEmpty { leaseAddress = interface.address }
         leases[created.id] = lease
         leaseCount = leases.count
         emit(.sessionCreated(created.id, request.owner))
@@ -237,8 +241,20 @@ final class RelayService: ObservableObject, RelayPublishing {
     // MARK: Server
 
     private func startServer(for interface: LANInterface) async throws -> UInt16 {
+        // Two publishes can reach this point while the first listener is still starting: the second waits for it instead of making
+        // another one on the same registry (which nothing would ever stop).
+        while let pending = startTask {
+            _ = try? await pending.value
+        }
         if let running = server, boundAddress == interface.address, let port = running.port { return port }
         if server != nil { stopServer() }
+        let task = Task { try await self.launchServer(for: interface) }
+        startTask = task
+        return try await task.value
+    }
+
+    private func launchServer(for interface: LANInterface) async throws -> UInt16 {
+        defer { startTask = nil }
         let configuration = RelayServer.Configuration(bindAddress: interface.address, lan: interface)
         let created = serverFactory(registry, configuration, emitter())
         created.onFailure = { [weak self, weak created] in
@@ -283,7 +299,8 @@ final class RelayService: ObservableObject, RelayPublishing {
 
     func resumeIfNeeded() async {
         guard !leases.isEmpty, server == nil else { return }
-        guard let interface = lan() else {
+        // The addresses the receivers were given belong to the Wi-Fi address they were made for: on another one nothing can be resumed.
+        guard let interface = lan(), interface.address == (leaseAddress ?? interface.address) else {
             endAllLeases(.addressChanged)
             return
         }
@@ -300,7 +317,7 @@ final class RelayService: ObservableObject, RelayPublishing {
 
     /// Call when the phone's network may have changed. The sessions' addresses are tied to the Wi-Fi address they were made for.
     func networkChanged() {
-        guard !leases.isEmpty, let bound = boundAddress else { return }
+        guard !leases.isEmpty, let bound = leaseAddress ?? boundAddress else { return }
         if lan()?.address != bound { endAllLeases(.addressChanged) }
     }
 
@@ -308,8 +325,9 @@ final class RelayService: ObservableObject, RelayPublishing {
         switch phase {
         case .background:
             guard !leases.isEmpty, backgroundTask == .invalid else { return }
+            // The system wants the task ended before this handler returns, not on a later turn of the main actor.
             backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "aether.relay") { [weak self] in
-                Task { @MainActor in self?.endBackgroundGrace() }
+                MainActor.assumeIsolated { self?.endBackgroundGrace() }
             }
         case .active:
             endBackgroundGrace()
@@ -370,6 +388,8 @@ final class RelayService: ObservableObject, RelayPublishing {
 
     private func scheduleIdleStopIfNeeded() {
         guard leases.isEmpty else { return }
+        leaseAddress = nil
+        endBackgroundGrace()
         idleTask?.cancel()
         let delay = UInt64(max(0, idleStopDelay) * 1_000_000_000)
         idleTask = Task { [weak self] in

@@ -149,6 +149,11 @@ final class AppEnvironment: ObservableObject {
         }
         if new.privacy.allowLocalNetwork != old.privacy.allowLocalNetwork {
             addons.bumpRevision()
+            if !new.privacy.allowLocalNetwork {
+                // Nothing may be served on the Wi-Fi address any more: the transmissions that run through the relay end with it.
+                casting.localNetworkWasDisabled()
+                relay.shutdown()
+            }
         }
         casting.settingsDidChange(new.casting)
         casting.advancedDidChange(new.advanced)

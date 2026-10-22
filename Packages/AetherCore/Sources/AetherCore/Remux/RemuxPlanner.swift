@@ -101,6 +101,9 @@ public struct RemuxPlan: Equatable, Sendable {
             }
             result.append("Tracce audio non incluse perché il lettore di sistema non le legge: \(names.joined(separator: ", ")).")
         }
+        if video.dolbyVisionProfile == 7 {
+            result.append("Dolby Vision profilo 7: passa come HDR10 (il secondo livello Dolby, che i lettori Apple non decodificano, viene lasciato fuori).")
+        }
         if audioChoices.count > 1 {
             result.append("Il file ha \(audioChoices.count) tracce audio: ne passa una alla volta, la cambi dal pannello Audio.")
         }

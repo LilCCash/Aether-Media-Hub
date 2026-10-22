@@ -474,6 +474,12 @@ public final class RelayServer: @unchecked Sendable {
                 sent += Int64(data.count)
                 registry.noteServed(id, bytes: Int64(data.count))
             }
+            // A body cut short because the connection was ended (a stop, a seek, a reset) or the session was revoked is not an upstream fault.
+            if connection.isClosed { return }
+            if !registry.isActive(id) {
+                connection.abort()
+                return
+            }
             if let declared = length, sent != declared {
                 // Never present a short body as a complete one.
                 emit(.upstreamFailure(id, .badRange))

@@ -79,7 +79,10 @@ private final class RangeInput {
         }
         lock.lock()
         currentFetch = task
+        let alreadyCancelled = cancelled
         lock.unlock()
+        // A cancel() that came before the task was stored could not reach it.
+        if alreadyCancelled { task.cancel() }
         done.wait()
         lock.lock()
         currentFetch = nil
@@ -325,8 +328,10 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         }
 
         // Timing and strings for the master playlist.
+        // A frame rate of 0/0 is NaN, which no comparison with 0 catches: it has to be asked for with a positive test.
         var frameRate = av_q2d(videoStream.pointee.avg_frame_rate)
-        if frameRate <= 0 { frameRate = av_q2d(videoStream.pointee.r_frame_rate) }
+        if !(frameRate > 0) { frameRate = av_q2d(videoStream.pointee.r_frame_rate) }
+        if !(frameRate > 0) { frameRate = 0 }
         let frameDuration = frameRate > 0 ? 1.0 / frameRate : 1.0 / 24.0
         let delay = Int(videoPar.pointee.video_delay)
         let shift = delay > 0 ? Double(delay + 1) * frameDuration : 0
@@ -392,7 +397,18 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         return RemuxStreamInfo(index: index, kind: kind, codec: codec, profile: profile, bitDepth: depth,
                                width: kind == .video ? Int(par.pointee.width) : nil, height: kind == .video ? Int(par.pointee.height) : nil,
                                channels: kind == .audio ? Int(par.pointee.ch_layout.nb_channels) : nil, language: language, title: title,
-                               isDefault: stream.pointee.disposition & ffDispositionDefault != 0)
+                               isDefault: stream.pointee.disposition & ffDispositionDefault != 0,
+                               dolbyVisionProfile: kind == .video ? dolbyVisionProfile(of: par) : nil)
+    }
+
+    /// The Dolby Vision profile the stream's configuration record states (5, 7, 8…), nil when it has none.
+    private func dolbyVisionProfile(of par: UnsafeMutablePointer<AVCodecParameters>) -> Int? {
+        guard par.pointee.nb_coded_side_data > 0, let list = par.pointee.coded_side_data,
+              let side = av_packet_side_data_get(list, par.pointee.nb_coded_side_data, AV_PKT_DATA_DOVI_CONF),
+              let data = side.pointee.data, side.pointee.size >= MemoryLayout<AVDOVIDecoderConfigurationRecord>.size else { return nil }
+        let record = data.withMemoryRebound(to: AVDOVIDecoderConfigurationRecord.self, capacity: 1) { $0.pointee }
+        let profile = Int(record.dv_profile)
+        return profile > 0 ? profile : nil
     }
 
     // MARK: Making a piece
@@ -405,57 +421,10 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         let span = layout.segments[index]
         let isLast = index == layout.segments.count - 1
 
-        // The muxer.
-        var created: UnsafeMutablePointer<AVFormatContext>?
-        var status = avformat_alloc_output_context2(&created, nil, "mp4", nil)
-        guard status >= 0, let oc = created else { throw ffError(status) }
-        var muxerPB = false
-        defer {
-            if muxerPB, oc.pointee.pb != nil {
-                var scrap: UnsafeMutablePointer<UInt8>?
-                _ = avio_close_dyn_buf(oc.pointee.pb, &scrap)
-                av_free(scrap)
-                oc.pointee.pb = nil
-            }
-            avformat_free_context(oc)
-        }
-        status = avio_open_dyn_buf(&oc.pointee.pb)
-        guard status >= 0 else { throw ffError(status) }
-        muxerPB = true
-
-        for inputIndex in layout.copied {
-            guard let source = ic.pointee.streams[inputIndex], let sourcePar = source.pointee.codecpar,
-                  let target = avformat_new_stream(oc, nil), let targetPar = target.pointee.codecpar else { throw RemuxError.unreadable }
-            status = avcodec_parameters_copy(targetPar, sourcePar)
-            if status < 0 { throw ffError(status) }
-            targetPar.pointee.codec_tag = 0
-            if targetPar.pointee.codec_id == AV_CODEC_ID_HEVC { targetPar.pointee.codec_tag = ffTag("hvc1") }
-            if targetPar.pointee.codec_type == AVMEDIA_TYPE_AUDIO && targetPar.pointee.frame_size == 0 {
-                switch targetPar.pointee.codec_id {
-                case AV_CODEC_ID_AAC: targetPar.pointee.frame_size = 1024
-                case AV_CODEC_ID_AC3, AV_CODEC_ID_EAC3: targetPar.pointee.frame_size = 1536
-                case AV_CODEC_ID_MP3: targetPar.pointee.frame_size = 1152
-                default: break
-                }
-            }
-            target.pointee.time_base = source.pointee.time_base
-            if let language = av_dict_get(source.pointee.metadata, "language", nil, 0) {
-                av_dict_set(&target.pointee.metadata, "language", language.pointee.value, 0)
-            }
-        }
-        var options: OpaquePointer?
-        av_dict_set(&options, "movflags", "frag_custom+empty_moov+delay_moov+default_base_moof+skip_trailer", 0)
-        oc.pointee.avoid_negative_ts = 0       // AVFMT_AVOID_NEG_TS_DISABLED: times are already consistent across pieces
-        status = avformat_write_header(oc, &options)
-        av_dict_free(&options)
-        if status < 0 { throw ffError(status) }
-
-        var outputIndexOf: [Int: Int] = [:]
-        for (position, inputIndex) in layout.copied.enumerated() { outputIndexOf[inputIndex] = position }
-
+        let copiedInputs = Set(layout.copied)
         // Read the packets of this piece.
         guard let videoStream = ic.pointee.streams[layout.videoIndex] else { throw RemuxError.unreadable }
-        status = av_seek_frame(ic, Int32(layout.videoIndex), layout.startTimestamps[index], ffSeekBackward)
+        var status = av_seek_frame(ic, Int32(layout.videoIndex), layout.startTimestamps[index], ffSeekBackward)
         if status < 0 { throw ffError(status) }
         var scratch = av_packet_alloc()
         defer { av_packet_free(&scratch) }
@@ -477,7 +446,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             }
             defer { av_packet_unref(packet) }
             let inputIndex = Int(packet.pointee.stream_index)
-            guard outputIndexOf[inputIndex] != nil, let stream = ic.pointee.streams[inputIndex] else { continue }
+            guard copiedInputs.contains(inputIndex), let stream = ic.pointee.streams[inputIndex] else { continue }
             guard packet.pointee.pts != ffNoPTS || packet.pointee.dts != ffNoPTS else { continue }
             let seconds = Double(packet.pointee.pts != ffNoPTS ? packet.pointee.pts : packet.pointee.dts) * av_q2d(stream.pointee.time_base)
             var keep = true
@@ -497,6 +466,71 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             }
         }
         guard !kept.isEmpty else { throw RemuxError.unreadable }
+
+        // The tracks this piece has samples for. A track with none (an audio track that ended before the picture did) is left out of
+        // this piece's muxer: declaring it would stop the muxer from writing the fragment. The first piece makes the init segment, which
+        // must have every track, so it is never allowed to be missing one.
+        let present = Set(kept.map { Int($0.pointee.stream_index) })
+        guard present.contains(layout.videoIndex) else { throw RemuxError.unreadable }
+        let muxedInputs = index == 0 ? layout.copied : layout.copied.filter { present.contains($0) }
+
+
+
+        // The muxer.
+        var created: UnsafeMutablePointer<AVFormatContext>?
+        status = avformat_alloc_output_context2(&created, nil, "mp4", nil)
+        guard status >= 0, let oc = created else { throw ffError(status) }
+        var muxerPB = false
+        defer {
+            if muxerPB, oc.pointee.pb != nil {
+                var scrap: UnsafeMutablePointer<UInt8>?
+                _ = avio_close_dyn_buf(oc.pointee.pb, &scrap)
+                av_free(scrap)
+                oc.pointee.pb = nil
+            }
+            avformat_free_context(oc)
+        }
+        status = avio_open_dyn_buf(&oc.pointee.pb)
+        guard status >= 0 else { throw ffError(status) }
+        muxerPB = true
+
+        for inputIndex in muxedInputs {
+            guard let source = ic.pointee.streams[inputIndex], let sourcePar = source.pointee.codecpar,
+                  let target = avformat_new_stream(oc, nil), let targetPar = target.pointee.codecpar else { throw RemuxError.unreadable }
+            status = avcodec_parameters_copy(targetPar, sourcePar)
+            if status < 0 { throw ffError(status) }
+            targetPar.pointee.codec_tag = 0
+            if targetPar.pointee.codec_id == AV_CODEC_ID_HEVC { targetPar.pointee.codec_tag = ffTag("hvc1") }
+            if targetPar.pointee.codec_type == AVMEDIA_TYPE_AUDIO && targetPar.pointee.frame_size == 0 {
+                switch targetPar.pointee.codec_id {
+                case AV_CODEC_ID_AAC: targetPar.pointee.frame_size = 1024
+                case AV_CODEC_ID_AC3, AV_CODEC_ID_EAC3: targetPar.pointee.frame_size = 1536
+                case AV_CODEC_ID_MP3: targetPar.pointee.frame_size = 1152
+                default: break
+                }
+            }
+            if targetPar.pointee.codec_type == AVMEDIA_TYPE_VIDEO, layout.plan.video.dolbyVisionProfile == 7 {
+                // The second layer of a profile 7 file is not decodable by Apple's players: the base layer plays as HDR10 and the
+                // Dolby Vision record is left out, or the player would look for what it cannot read.
+                av_packet_side_data_remove(targetPar.pointee.coded_side_data, &targetPar.pointee.nb_coded_side_data, AV_PKT_DATA_DOVI_CONF)
+            }
+            target.pointee.time_base = source.pointee.time_base
+            if let language = av_dict_get(source.pointee.metadata, "language", nil, 0) {
+                av_dict_set(&target.pointee.metadata, "language", language.pointee.value, 0)
+            }
+        }
+        var options: OpaquePointer?
+        av_dict_set(&options, "movflags", "frag_custom+empty_moov+delay_moov+default_base_moof+skip_trailer", 0)
+        // No edit lists: the fragments carry the real decode times, and an edit list that offsets one track by the picture's reordering
+        // delay would put the sound late.
+        av_dict_set(&options, "use_editlist", "0", 0)
+        oc.pointee.avoid_negative_ts = 0       // AVFMT_AVOID_NEG_TS_DISABLED: times are already consistent across pieces
+        status = avformat_write_header(oc, &options)
+        av_dict_free(&options)
+        if status < 0 { throw ffError(status) }
+
+        var outputIndexOf: [Int: Int] = [:]
+        for (position, inputIndex) in muxedInputs.enumerated() { outputIndexOf[inputIndex] = position }
 
         // Decode times for the video: the i-th smallest presentation time, all presentation times moved later by `shift`.
         let videoBase = av_q2d(videoStream.pointee.time_base)

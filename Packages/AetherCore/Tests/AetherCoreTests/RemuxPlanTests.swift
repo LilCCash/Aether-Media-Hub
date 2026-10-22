@@ -109,6 +109,13 @@ final class RemuxPlannerTests: XCTestCase {
         XCTAssertNoThrow(try plan([video("hevc", bits: 10, dv: 8), audio("eac3", index: 1)]))
     }
 
+    func testDolbyVisionProfile7PassesAsHDR10AndSaysSo() throws {
+        let result = try plan([video("hevc", bits: 10, dv: 7), audio("eac3", index: 1)])
+        XCTAssertEqual(result.video.dolbyVisionProfile, 7)
+        XCTAssertTrue(result.notes.contains { $0.contains("profilo 7") && $0.contains("HDR10") }, "\(result.notes)")
+        XCTAssertFalse(try plan([video("hevc", bits: 10, dv: 8), audio("eac3", index: 1)]).notes.contains { $0.contains("profilo 7") })
+    }
+
     func testNoVideoIsRefused() {
         XCTAssertEqual(RemuxPlanner.plan([audio("aac", index: 0)]), .failure(.noVideo))
     }
@@ -147,6 +154,13 @@ final class SegmentPlannerTests: XCTestCase {
         let spans = SegmentPlanner.plan(keyframes: [0.083, 7, 14], duration: 20, minimum: 6)
         XCTAssertEqual(spans.first?.start, 0)
         XCTAssertEqual(spans.map { $0.start }, [0, 7, 14])
+    }
+
+    func testALateFirstKeyframeDoesNotGiveTwoPiecesTheSameStart() {
+        // Keyframes from 7 s on: the first piece (from 0) starts at the keyframe at 7, so the next one must be a full piece later.
+        let spans = SegmentPlanner.plan(keyframes: [7, 13, 19], duration: 25, minimum: 6)
+        XCTAssertEqual(spans.map { $0.start }, [0, 13, 19])
+        XCTAssertEqual(SegmentPlanner.plan(keyframes: [7, 10, 14], duration: 20, minimum: 6).map { $0.start }, [0, 14])
     }
 
     func testNoKeyframesMeansNoPlan() {

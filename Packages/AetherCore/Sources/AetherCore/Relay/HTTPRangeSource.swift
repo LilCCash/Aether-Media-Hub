@@ -141,6 +141,8 @@ final class WindowedBodyReader: RelayBodyReader, @unchecked Sendable {
     private let lock = NSLock()
     private var nextStart: Int64
     private var queue: [Task<Data, Error>] = []
+    /// The window the consumer is waiting on right now: it is no longer in `queue`, but a cancel has to reach it too.
+    private var awaiting: Task<Data, Error>?
     private var first: Data?
     private var cancelled = false
     private var finished = false
@@ -163,12 +165,15 @@ final class WindowedBodyReader: RelayBodyReader, @unchecked Sendable {
     func prime() async throws {
         let task: Task<Data, Error>? = locked {
             launchNextLocked()
-            return queue.isEmpty ? nil : queue.removeFirst()
+            let taken = queue.isEmpty ? nil : queue.removeFirst()
+            awaiting = taken
+            return taken
         }
         guard let firstTask = task else { return }
         do {
             let data = try await firstTask.value
             locked {
+                awaiting = nil
                 first = data
                 launchNextLocked()
             }
@@ -190,7 +195,9 @@ final class WindowedBodyReader: RelayBodyReader, @unchecked Sendable {
                 finished = true
                 return .end
             }
-            return .wait(queue.removeFirst())
+            let taken = queue.removeFirst()
+            awaiting = taken
+            return .wait(taken)
         }
         switch step {
         case .data(let data):
@@ -201,9 +208,13 @@ final class WindowedBodyReader: RelayBodyReader, @unchecked Sendable {
         case .wait(let task):
             do {
                 let data = try await task.value
-                locked { launchNextLocked() }
+                locked {
+                    awaiting = nil
+                    launchNextLocked()
+                }
                 return data
             } catch {
+                locked { awaiting = nil }
                 if locked({ cancelled }) || error is CancellationError {
                     finish()
                     return nil
@@ -218,8 +229,10 @@ final class WindowedBodyReader: RelayBodyReader, @unchecked Sendable {
         let pending: [Task<Data, Error>] = locked {
             cancelled = true
             first = nil
-            let current = queue
+            var current = queue
+            if let waiting = awaiting { current.append(waiting) }
             queue.removeAll()
+            awaiting = nil
             return current
         }
         for task in pending { task.cancel() }

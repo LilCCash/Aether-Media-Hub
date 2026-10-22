@@ -94,7 +94,16 @@ public final class URLSessionRangeFetcher: RelayRangeFetcher, @unchecked Sendabl
         request.httpMethod = "GET"
         request.httpShouldHandleCookies = false
         request.allHTTPHeaderFields = RelayHeaderPolicy.upstreamRequestHeaders(session: upstream.headers, range: range, includeSession: true)
-        return try await delegate.perform(session: session, request: request, range: range, kind: kind)
+        return try await delegate.perform(task: try makeTask(request), range: range, kind: kind)
+    }
+
+    /// The task is created in the same critical section that checks the session is still valid: `invalidate()` sets the flag first and
+    /// only then invalidates the session, so a task is never created on a session that was invalidated (which raises an exception).
+    private func makeTask(_ request: URLRequest) throws -> URLSessionDataTask {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        if invalidated { throw RelayError.upstreamUnreachable(code: NSURLErrorCancelled) }
+        return session.dataTask(with: request)
     }
 }
 
@@ -176,8 +185,7 @@ final class RangeFetchDelegate: NSObject, URLSessionDataDelegate, @unchecked Sen
 
     // MARK: Requests
 
-    func perform(session: URLSession, request: URLRequest, range: ClosedRange<Int64>, kind: FetchKind) async throws -> FetchOutcome {
-        let task = session.dataTask(with: request)
+    func perform(task: URLSessionDataTask, range: ClosedRange<Int64>, kind: FetchKind) async throws -> FetchOutcome {
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<FetchOutcome, Error>) in
                 lock.lock()

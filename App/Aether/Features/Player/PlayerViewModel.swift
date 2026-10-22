@@ -355,6 +355,7 @@ final class PlayerViewModel: ObservableObject {
         } else {
             closeConversion()
         }
+        engine.setExternalPlaybackAllowed(!externalPlaybackBlockedForKey)
         engine.load(url: loadURL, headers: loadHeaders, startAt: start, autoplay: true)
         isOpeningSource = false
         if start != nil && (start ?? 0) > 1 { statusMessage = "Riprendo da \(Format.duration(start ?? 0))" }
@@ -1571,19 +1572,33 @@ final class PlayerViewModel: ObservableObject {
     func refreshAirPlayRoute() {
         let route = airPlayRouteProvider()
         if route != nil && engine.kind == .avPlayer { moveConversionToWiFi() }
-        if engine.kind == .avPlayer && !snapshot.isExternalPlaybackActive {
+        let blocked = externalPlaybackBlockedForKey
+        if engine.kind == .avPlayer && !snapshot.isExternalPlaybackActive && !blocked {
             airPlayRoute = nil
         } else {
             airPlayRoute = route
         }
         let advice = AirPlayAdvice.evaluate(engine: engine.kind, routeName: airPlayRoute, externalPlaybackActive: snapshot.isExternalPlaybackActive,
-                                            screenMirrored: screenMirroredProvider(), externalPlaybackBlockedForKey: false, relayServing: false)
+                                            screenMirrored: screenMirroredProvider(), externalPlaybackBlockedForKey: blocked,
+                                            relayServing: conversionLease != nil)
         guard advice != airPlayAdvice else { return }
         airPlayAdvice = advice
         if case .audioOnlyBecauseMPV(let name) = advice {
             env.diagnostics.logDetached(.info, "player", "AirPlay con MPV: solo audio")
             if !acknowledgedAirPlayRoutes.contains(name) { airPlayAlert = AirPlayAlert.mpvAudioOnly() }
         }
+        if case .audioOnlyBecauseKeyProtected(let name) = advice, !acknowledgedAirPlayRoutes.contains(name) {
+            acknowledgedAirPlayRoutes.insert(name)
+            showStatus("AirPlay: questo link contiene la tua chiave TorBox e non viene dato al televisore, quindi va solo l'audio. Per il video usa un MP4 senza chiave o attiva l'invio del link diretto in Impostazioni ▸ Avanzate.", for: 9)
+        }
+    }
+
+    /// AirPlay hands the address of the video to the receiver. A TorBox link carries the viewer's key, so while one plays the picture is
+    /// kept off AirPlay (the sound still goes) unless the viewer chose in Settings to send such links, or the receiver is given the
+    /// relay's keyless address of a converted file instead.
+    private var externalPlaybackBlockedForKey: Bool {
+        guard engine.kind == .avPlayer, isPlayingThroughTorBox, conversionPlan == nil else { return false }
+        return !env.settings.value.advanced.sendDirectLinkToTV
     }
 
     /// The viewer read the alert: it does not come back for this device during this player session.

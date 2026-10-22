@@ -183,7 +183,16 @@ final class CastCoordinator: ObservableObject {
         do {
             try await backend.load(request.media(url: url), on: device)
         } catch {
-            let explained = explanation(for: error.localizedDescription, lease: published)
+            // The hint about the phone's network only fits a receiver that was given the address and did not come back for the video.
+            // A receiver that is gone, or a protocol that is not there, has its own message.
+            var reachedTheReceiver = false
+            if let cast = error as? CastError {
+                switch cast {
+                case .timedOut, .rejected: reachedTheReceiver = true
+                default: break
+                }
+            }
+            let explained = reachedTheReceiver ? explanation(for: error.localizedDescription, lease: published) : error.localizedDescription
             releaseLease(reason: .loadFailed)
             session = nil
             lastError = explained
@@ -217,9 +226,16 @@ final class CastCoordinator: ObservableObject {
         let position = session?.status.position ?? 0
         let target = session?.device.target
         session = nil
-        lastError = reason == .upstreamRejected
-            ? "Il link del servizio è scaduto. Riapri la sorgente per ottenerne uno nuovo."
-            : "Il ponte si è interrotto (il telefono ha cambiato rete o Aether è stato sospeso). Riprova la trasmissione."
+        switch reason {
+        case .upstreamRejected:
+            lastError = "Il link del servizio è scaduto. Riapri la sorgente per ottenerne uno nuovo."
+        case .neverUsed:
+            lastError = "Il televisore non ha mai chiesto il video al telefono. Riprova la trasmissione."
+        case .expiredLifetime:
+            lastError = "La trasmissione ha raggiunto la durata massima del ponte (12 ore). Riavviala."
+        default:
+            lastError = "Il ponte si è interrotto (il telefono ha cambiato rete o Aether è stato sospeso). Riprova la trasmissione."
+        }
         if let target = target { Task { await backends[target]?.endSession() } }
         onRemoteSessionEnded?(position, lastError)
     }
@@ -230,6 +246,17 @@ final class CastCoordinator: ObservableObject {
         let position = current.status.position
         session = nil
         lastError = "Trasmissione interrotta: il link diretto è stato disattivato."
+        Task { await backends[current.device.target]?.endSession() }
+        onRemoteSessionEnded?(position, lastError)
+    }
+
+    /// The viewer turned the local network off: a session that runs through the relay has nothing to read from any more.
+    func localNetworkWasDisabled() {
+        guard let current = session, current.delivery == .relay else { return }
+        let position = current.status.position
+        session = nil
+        releaseLease(reason: .userStopped)
+        lastError = "Trasmissione interrotta: l'accesso alla rete locale è stato disattivato."
         Task { await backends[current.device.target]?.endSession() }
         onRemoteSessionEnded?(position, lastError)
     }

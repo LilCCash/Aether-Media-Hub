@@ -22,9 +22,15 @@ public enum SegmentPlanner {
         guard duration > 0 else { return [] }
         let sorted = Array(Set(keyframes.filter { $0 >= 0 && $0 < duration })).sorted()
         guard !sorted.isEmpty else { return [] }
+        // The first piece starts at 0, which is where the first keyframe is taken to be (the engine starts it at the first keyframe at or
+        // after 0). The next piece must start a full `minimum` after the keyframe the first one really begins at, or a file whose
+        // first keyframe is late would get two pieces that begin at the same keyframe.
+        let first = sorted[0]
         var cuts: [Double] = [0]
-        for time in sorted where time - (cuts.last ?? 0) >= minimum {
+        var anchor = first
+        for time in sorted where time > first && time - anchor >= minimum {
             cuts.append(time)
+            anchor = time
         }
         // A last piece shorter than a second is folded into the one before it.
         if cuts.count > 1, duration - (cuts.last ?? 0) < 1 { cuts.removeLast() }

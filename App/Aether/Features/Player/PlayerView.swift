@@ -33,6 +33,8 @@ struct PlayerView: View {
     @State private var rateBeforeHold: Float?
     @State private var originalBrightness: Double = 0.5
     @State private var castNotice: CastNotice?
+    /// The transmission being started: closing the player ends it, and one that finishes after that is stopped at once.
+    @State private var castTask: Task<Void, Never>?
     @State private var pendingCast: PendingCast?
 
     private enum DragMode { case brightness, volume, seek }
@@ -260,6 +262,7 @@ struct PlayerView: View {
     }
 
     private func disappear() {
+        castTask?.cancel()
         hideTask?.cancel()
         pendingHideTask?.cancel()
         hudTask?.cancel()
@@ -1009,15 +1012,18 @@ struct PlayerView: View {
         let position = model.snapshot.position
         let request = preparation.request
         let fallback = preparation.fallback
-        Task {
+        castTask?.cancel()
+        castTask = Task {
             do {
                 try await casting.cast(request, to: device, localPosition: position)
+                if Task.isCancelled { casting.stop(); return }
                 model.castDidStart()
             } catch CastError.conversionRefused(let reason) where fallback != nil {
                 // The file cannot be converted (for example DTS-only audio): the receiver is given the file as it is, as before.
                 model.showStatus("Conversione non possibile: \(reason) Invio il file così com'è.")
                 do {
                     try await casting.cast(fallback ?? request, to: device, localPosition: position)
+                    if Task.isCancelled { casting.stop(); return }
                     model.castDidStart()
                 } catch {
                     castNotice = CastNotice(title: "Trasmissione non riuscita", message: error.localizedDescription)

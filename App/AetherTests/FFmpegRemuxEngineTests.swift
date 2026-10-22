@@ -113,6 +113,7 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         let prepared = try await engine.prepare()
         let initSegment = try await engine.initSegment()
         XCTAssertEqual(MP4Fragment.boxes(in: initSegment).map { $0.type }, ["ftyp", "moov"])
+        XCTAssertNil(initSegment.range(of: Data("edts".utf8)), "an edit list would offset one track from the other: the times are in the fragments")
         let scales = MP4Fragment.trackTimescales(in: initSegment)
         XCTAssertEqual(scales.count, 2, "one video and one audio track")
         let videoScale = try XCTUnwrap(scales[1])
