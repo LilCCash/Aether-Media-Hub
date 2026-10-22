@@ -158,6 +158,6 @@ func skipSymbol(seconds: Int, forward: Bool) -> String {
 }
 
 enum PlayerSheet: String, Identifiable {
-    case tracks, episodes, info, sources, cast
+    case episodes, info, cast
     var id: String { rawValue }
 }

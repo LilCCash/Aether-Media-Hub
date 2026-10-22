@@ -81,7 +81,7 @@ targets:
           - CFBundleURLName: app.aether.links
             CFBundleTypeRole: Editor
             CFBundleURLSchemes: [aether, stremio]
-        NSLocalNetworkUsageDescription: "Aether usa la rete locale per trovare dispositivi Google Cast e DLNA e per raggiungere gli addon che ospiti nella tua rete."
+        NSLocalNetworkUsageDescription: "Aether usa la rete locale per trovare dispositivi Google Cast e DLNA, per raggiungere gli addon che ospiti nella tua rete e per passare al televisore, senza mostrargli la tua chiave, i video che la richiedono."
         NSBonjourServices:
           - _googlecast._tcp
           - _CC1AD845._googlecast._tcp

@@ -70,6 +70,10 @@ ufficiale non è stato scaricato né verificato; va aggiunto prima di una distri
 **Condizioni lette**: l'uso commerciale richiede un accordo scritto; Aether è gratuito e open source, la chiave è dell'utente; l'attribuzione («This product uses the TMDB API but is not endorsed or certified by TMDB.») è mostrata
 dove compaiono dati TMDB e nelle Impostazioni.
 
+### La scheda del titolo (1.2)
+
+Con la chiave TMDB la scheda di un film o di una serie mostra, in aggiunta ai dati dell'addon: il **cast con foto e personaggio**, i **trailer** (tutti quelli che TMDB elenca, in YouTube; più d'uno si sceglie da un menu), le **produzioni** (e per le serie i canali) con il logo, **budget e incassi solo per i film**, la tabella **Dettagli** (stato, info rilascio, durata, certificazione, paese, lingua originale; per le serie anche le stagioni) e i **titoli simili** (si aprono come ogni altro titolo: Aether chiede a TMDB il codice IMDb). Una sola richiesta (`append_to_response`), in cache 24 ore, nella lingua scelta. Sotto compare «Offerto da TMDB» con l'attribuzione richiesta. Senza chiave la scheda resta com'era e propone di aggiungerla. Le foto, i loghi e le locandine vengono dal server immagini di TMDB; i trailer si aprono in YouTube (nessuna anteprima viene scaricata da Google).
+
 ## TheTVDB v4
 
 Usato **solo** per titoli, trame e immagini degli episodi che né l'addon né TMDB conoscono (ricerca per id IMDb, poi episodi nella lingua dell'utente). Pagina: *Impostazioni ▸ Servizi ▸ TheTVDB* (chiave e PIN facoltativo).

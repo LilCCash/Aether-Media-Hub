@@ -13,6 +13,9 @@ final class DetailViewModel: ObservableObject {
     @Published private(set) var canPlay = true
     /// Credit lines for the services whose data was added to this meta (empty when nothing was added).
     @Published private(set) var attributions: [String] = []
+    /// What TMDB adds to the page (cast with photos, trailers, producers, facts, similar titles); nil without a key or an answer.
+    @Published private(set) var rich: TitleRichDetails?
+    @Published private(set) var tmdbConfigured = true
     @Published var selectedSeason: Int?
 
     let route: MetaRoute
@@ -37,7 +40,37 @@ final class DetailViewModel: ObservableObject {
         if selectedSeason == nil {
             selectedSeason = initialSeason()
         }
-        await enrich(env: env)
+        async let enriched: Void = enrich(env: env)
+        async let richLoaded: Void = loadRich(env: env)
+        _ = await (enriched, richLoaded)
+    }
+
+    /// The sections that need TMDB. Silent: without a key, or when the service does not answer, the page keeps what the addon gave.
+    private func loadRich(env: AppEnvironment) async {
+        let base = meta
+        tmdbConfigured = await env.metadata.tmdbConfigured
+        guard tmdbConfigured else {
+            rich = nil
+            return
+        }
+        let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
+        let result = await env.metadata.richDetails(for: base, language: language)
+        guard !Task.isCancelled, meta.id == base.id else { return }
+        rich = result
+    }
+
+    /// The page can offer to add a key only for the types TMDB covers.
+    var suggestsTMDBKey: Bool {
+        return !tmdbConfigured && !isLoading && MetadataEnricher.isCovered(type: meta.type)
+    }
+
+    /// Every trailer to offer: TMDB's when there are some, else the ones the addon listed.
+    var trailerLinks: [(title: String, url: URL)] {
+        if let rich = rich, !rich.trailers.isEmpty {
+            return rich.trailers.compactMap { trailer in trailer.watchURL.map { (trailer.name, $0) } }
+        }
+        let found = meta.trailers.compactMap { trailer in trailer.watchURL }
+        return found.enumerated().map { (title: found.count > 1 ? "Trailer \($0.offset + 1)" : "Trailer", url: $0.element) }
     }
 
     /// Adds what the user's own TMDB / TheTVDB keys know to the addon's meta, filling only what the addon left empty.
@@ -112,6 +145,10 @@ struct DetailView: View {
     @StateObject private var model: DetailViewModel
     @State private var picker: StreamPickerRequest?
     @State private var descriptionExpanded = false
+    @State private var openedSimilar: MetaRoute?
+    @State private var similarProblem: String?
+    /// True while TMDB is asked for the IMDb code of a similar title: more taps meanwhile would start more lookups.
+    @State private var lookingUpSimilar = false
 
     init(route: MetaRoute) {
         self.route = route
@@ -127,7 +164,8 @@ struct DetailView: View {
                     actions
                     infoBlock
                     if model.isSeries { episodes }
-                    if !model.meta.cast.isEmpty || !model.meta.directors.isEmpty { credits }
+                    if !model.meta.cast.isEmpty || !model.meta.directors.isEmpty || !(model.rich?.creators.isEmpty ?? true) { credits }
+                    richSections
                     if !model.failures.isEmpty && model.hadDetailProvider && model.providerName == nil { failureNote }
                     footer
                 }
@@ -149,6 +187,12 @@ struct DetailView: View {
         .task(id: network.reconnectToken) { await model.load(env: env) }
         .sheet(item: $picker) { request in
             StreamPickerSheet(request: request)
+        }
+        .navigationDestination(item: $openedSimilar) { DetailView(route: $0) }
+        .alert("Titolo non disponibile", isPresented: Binding(get: { similarProblem != nil }, set: { if !$0 { similarProblem = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(similarProblem ?? "")
         }
         .accessibilityIdentifier("detail.screen")
     }
@@ -221,18 +265,7 @@ struct DetailView: View {
                 .accessibilityLabel(library.watchlistIDs.contains(model.meta.id) ? "Rimuovi dalla watchlist" : "Aggiungi alla watchlist")
                 .accessibilityIdentifier("detail.watchlist")
 
-                if let trailer = model.meta.trailers.first, let url = trailer.watchURL {
-                    Button {
-                        openURL(url)
-                    } label: {
-                        Image(systemName: "film")
-                            .font(.system(size: 18, weight: .semibold))
-                            .frame(width: 48, height: 48)
-                            .aetherGlass(in: Circle(), interactive: true)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Guarda il trailer su YouTube")
-                }
+                trailerButton
             }
             if !model.canPlay && !model.isLoading {
                 Label("Nessun addon attivo fornisce sorgenti per questo titolo.", systemImage: "info.circle")
@@ -278,14 +311,85 @@ struct DetailView: View {
 
     private var credits: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if !model.meta.directors.isEmpty {
-                creditLine("Regia", model.meta.directors)
+            let directors = model.meta.directors
+            if !directors.isEmpty {
+                creditLine("Regia", directors)
+            } else if let creators = model.rich?.creators, !creators.isEmpty {
+                creditLine("Creato da", creators)
             }
-            if !model.meta.cast.isEmpty {
+            // With photos available the cast is a row of faces instead of a line of names.
+            if !model.meta.cast.isEmpty, model.rich?.cast.isEmpty != false {
                 creditLine("Cast", Array(model.meta.cast.prefix(12)))
             }
         }
         .padding(.horizontal, Theme.pageMargin)
+    }
+
+    /// The film button next to Play: one trailer opens directly, several open a menu to choose from.
+    @ViewBuilder
+    private var trailerButton: some View {
+        let links = model.trailerLinks
+        if links.count > 1 {
+            Menu {
+                ForEach(Array(links.enumerated()), id: \.offset) { _, link in
+                    Button(link.title) { openURL(link.url) }
+                }
+            } label: {
+                trailerIcon
+            }
+            .foregroundStyle(Color.primary)
+            .accessibilityLabel("Guarda un trailer su YouTube")
+            .accessibilityIdentifier("detail.trailerMenu")
+        } else if let link = links.first {
+            Button {
+                openURL(link.url)
+            } label: {
+                trailerIcon
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Guarda il trailer su YouTube")
+            .accessibilityIdentifier("detail.trailer")
+        }
+    }
+
+    private var trailerIcon: some View {
+        Image(systemName: "film")
+            .font(.system(size: 18, weight: .semibold))
+            .frame(width: 48, height: 48)
+            .aetherGlass(in: Circle(), interactive: true)
+    }
+
+    // MARK: TMDB sections
+
+    @ViewBuilder
+    private var richSections: some View {
+        if let rich = model.rich {
+            if !rich.cast.isEmpty { TitleCastSection(people: rich.cast) }
+            if !rich.trailers.isEmpty { TitleTrailersSection(trailers: rich.trailers) }
+            if !rich.companies.isEmpty { TitleCompaniesSection(companies: rich.companies) }
+            if rich.budget != nil || rich.revenue != nil { TitleFinancialsSection(budget: rich.budget, revenue: rich.revenue) }
+            let rows = rich.detailRows()
+            if !rows.isEmpty { TitleFactsSection(rows: rows) }
+            if !rich.similar.isEmpty { TitleSimilarSection(titles: rich.similar, open: openSimilar) }
+        } else if model.suggestsTMDBKey {
+            TMDBKeyHint()
+        }
+    }
+
+    /// A similar title is known to TMDB by its own id; the catalog knows it by its IMDb id, which has to be asked for first.
+    private func openSimilar(_ item: TitleRichDetails.Similar) {
+        guard !lookingUpSimilar else { return }
+        lookingUpSimilar = true
+        let type = model.meta.type
+        Task {
+            defer { lookingUpSimilar = false }
+            guard let imdb = await env.metadata.imdbID(forTMDBID: item.tmdbID, metaType: type) else {
+                similarProblem = "Aether non riesce a trovare «\(item.title)» negli addon: TMDB non indica il suo codice IMDb oppure non risponde. Controlla la connessione e riprova."
+                return
+            }
+            let preview = MetaItem(id: imdb, type: type, name: item.title, poster: item.posterURL)
+            openedSimilar = MetaRoute(type: type, id: imdb, preview: preview)
+        }
     }
 
     private func creditLine(_ title: String, _ names: [String]) -> some View {
@@ -374,7 +478,11 @@ struct DetailView: View {
                 Text("Nessun addon fornisce i dettagli di questo titolo: mostro solo le informazioni del catalogo.")
                     .font(.caption).foregroundStyle(Color.aetherSecondary)
             }
-            ForEach(model.attributions, id: \.self) { line in
+            if model.rich != nil {
+                TMDBAttributionView()
+            }
+            // The credits of the other services (and TMDB's own when there is no page section carrying it).
+            ForEach(model.attributions.filter { model.rich == nil || $0 != MetadataService.tmdb.attribution }, id: \.self) { line in
                 Text(line).font(.caption2).foregroundStyle(Color.aetherSecondary)
             }
         }

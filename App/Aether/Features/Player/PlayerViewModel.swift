@@ -40,6 +40,10 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var snapshot = EngineSnapshot()
     @Published private(set) var failure: PlaybackFailure?
     @Published private(set) var statusMessage: String?
+    /// Why an MKV could not be converted for AVPlayer, in words for the viewer, when the failure panel is up because of it.
+    @Published private(set) var failureExplanation: String?
+    /// The reason for an engine change, shown over the picture once the new load has started (a load clears the status line).
+    private var carriedStatus: String?
     /// True from the start of a load until the engine has been given the file (TorBox may take seconds to answer first).
     @Published private(set) var isOpeningSource = true
     /// The intro and recap of the episode now playing, when IntroDB knows them (see `activeSkipSegment`).
@@ -68,6 +72,11 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var mediaInfo: MediaFormatInfo?
     @Published private(set) var playbackPlan: PlaybackPlan?
     @Published private(set) var airPlayRoute: String?
+    /// What the viewer should know about AirPlay right now (with MPV the sound goes to the device and the picture stays on the phone).
+    @Published private(set) var airPlayAdvice: AirPlayAdvice = .none
+    @Published var airPlayAlert: AirPlayAlert?
+    /// What the on-the-fly conversion copies, while a Matroska file plays through it (nil otherwise).
+    @Published private(set) var conversionPlan: RemuxPlan?
     @Published private(set) var didFinish = false
     @Published var isFill = false
     @Published var playbackRate: Float = 1
@@ -79,6 +88,25 @@ final class PlayerViewModel: ObservableObject {
     private var engineSwitches = 0
     /// The engine was changed on purpose (a fallback) for the file now playing: a restart must keep it.
     private var engineChosenByFallback = false
+    // The Matroska file plays as HLS made by the phone: first on 127.0.0.1 (`conversion`), and on the relay's Wi-Fi address
+    // (`conversionLease`) once an AirPlay receiver has to fetch it.
+    private var conversion: LocalRemuxService.Session?
+    private var conversionLease: RelayLease?
+    private var conversionUpstream: RelayUpstream?
+    /// The audio track the viewer picked for this video; nil follows the language settings.
+    private var conversionAudio: RemuxAudioChoice?
+    private var announcedWiFiNeed = false
+    /// The load generation whose move to the Wi-Fi address is in progress: a second move for the same load would replace the
+    /// relay session the first one had just handed to the player.
+    private var movingToWiFiGeneration: Int?
+    /// AirPlay receivers are in range (the system says more than one route is available).
+    private var routeDetector: AVRouteDetector?
+    private var routeDetectorObserver: NSObjectProtocol?
+    private var routesNearby = false
+    /// The Wi-Fi lease being made (or made) for the converted file of this load generation, see `sharedWiFiLease`.
+    private var wifiLeaseTask: (generation: Int, task: Task<RelayLease, Error>)?
+    /// Where the load now under way was asked to start; until the player has passed it, "now" is not what `currentTime()` says.
+    private var loadStartPosition: Double = 0
     private let nowPlaying = NowPlayingService()
     private let audioSession = AudioSessionController()
     private var pictureInPictureGrace: Task<Void, Never>?
@@ -152,7 +180,8 @@ final class PlayerViewModel: ObservableObject {
         self.device = device
         let plan = PlaybackPlanner.plan(container: PlayerViewModel.container(of: request, env: env), facts: nil, device: device,
                                         mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: settings.engine,
-                                        forceSDR: settings.video.hdrMode == .sdr)
+                                        forceSDR: settings.video.hdrMode == .sdr,
+                                        remux: RemuxEngineFactory.routing(matroskaForAVPlayer: settings.convertMatroskaForAVPlayer))
         self.playbackPlan = plan
         self.engine = PlaybackEngineFactory.make(plan.engine ?? .avPlayer, settings: settings, device: device)
         self.subtitleDelay = env.settings.value.playback.subtitleDelaySeconds
@@ -183,7 +212,9 @@ final class PlayerViewModel: ObservableObject {
             if shouldResume && self.wasPlayingBeforeInterruption { self.engine.play() }
         }
         audioSession.onRouteLost = { [weak self] in self?.engine.pause() }
+        audioSession.onRouteChanged = { [weak self] _ in self?.refreshAirPlayRoute() }
         audioSession.activate()
+        startRouteDetection()
         UIApplication.shared.isIdleTimerDisabled = true
 
         configureRemoteCommands()
@@ -243,6 +274,8 @@ final class PlayerViewModel: ObservableObject {
         debridStreamKey = nil
         skipSegmentsTask?.cancel()
         skipSegmentsTask = nil
+        closeConversion()
+        stopRouteDetection()
         pictureInPictureGrace?.cancel()
         pictureInPictureGrace = nil
         statusClear?.cancel()
@@ -272,7 +305,13 @@ final class PlayerViewModel: ObservableObject {
         let generation = loadGeneration
         isOpeningSource = true
         failure = nil
-        statusMessage = nil
+        failureExplanation = nil
+        if let carried = carriedStatus {
+            carriedStatus = nil
+            showStatus(carried, for: 8)
+        } else {
+            statusMessage = nil
+        }
         retriedAfterNetworkLoss = false
         // A newer start supersedes a TorBox wait that is still in flight.
         debridGeneration += 1
@@ -299,6 +338,9 @@ final class PlayerViewModel: ObservableObject {
                 guard !tornDown, generation == loadGeneration else { return }
                 source = direct
                 guard adoptEngine(forResolved: direct) else { return }
+            } else {
+                // Another source or episode can be of another container than the one the engine was chosen for.
+                guard adoptEngine(forResolved: stream) else { return }
             }
             guard let resolved = StreamResolver.playbackURL(for: source, streamingServer: env.streamPreferences().streamingServer) else {
                 handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: "Sorgente non riproducibile"))
@@ -325,10 +367,239 @@ final class PlayerViewModel: ObservableObject {
         progressSuspended = false
         lastRetryPosition = start ?? 0
         engine.setRate(playbackRate)
-        engine.load(url: url, headers: headers, startAt: start, autoplay: true)
+        var loadURL = url
+        var loadHeaders = headers
+        if shouldConvertCurrentSource {
+            // nil: the file went to another engine, or the failure panel says why it cannot be converted.
+            guard let converted = await openConversion(of: url, headers: headers, generation: generation) else { return }
+            guard !tornDown, generation == loadGeneration else { return }
+            loadURL = converted
+            loadHeaders = [:]
+        } else {
+            closeConversion()
+        }
+        engine.setExternalPlaybackAllowed(!externalPlaybackBlockedForKey && !externalVideoWaitsForWiFi)
+        loadStartPosition = start ?? 0
+        engine.load(url: loadURL, headers: loadHeaders, startAt: start, autoplay: true)
         isOpeningSource = false
         if start != nil && (start ?? 0) > 1 { statusMessage = "Riprendo da \(Format.duration(start ?? 0))" }
         scheduleStatusClear()
+    }
+
+    // MARK: Conversion (Matroska → HLS for AVPlayer)
+
+    private var remuxRouting: RemuxRouting {
+        return RemuxEngineFactory.routing(matroskaForAVPlayer: playback.convertMatroskaForAVPlayer)
+    }
+
+    /// AVPlayer cannot open Matroska: the file is converted on the fly when the planner says so for this container and engine.
+    private var shouldConvertCurrentSource: Bool {
+        guard engine.kind == .avPlayer else { return false }
+        let plan = PlaybackPlanner.plan(container: currentContainer, facts: nil, device: device,
+                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: playback.engine,
+                                        forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting)
+        return plan.usesRemux
+    }
+
+    var isConverting: Bool { return conversionPlan != nil }
+
+    /// Languages to prefer for the audio track of a converted file: what the viewer picked by hand for this title, then the settings.
+    private func wantedAudioLanguages() -> [String] {
+        return TrackPreferences.audioLanguages(remembered: trackMemory.audioLanguageToApply(forMeta: meta.id),
+                                               primary: SettingsStore.resolvedLanguage(playback.preferredAudioLanguage),
+                                               secondary: SettingsStore.resolvedLanguage(playback.secondaryAudioLanguage))
+    }
+
+    /// The address AVPlayer plays for the converted file, or nil when this start is over: another engine took the file, the failure
+    /// panel is showing, or the player moved on.
+    private func openConversion(of url: URL, headers: [String: String], generation: Int) async -> URL? {
+        closeConversion()
+        statusMessage = "Preparo il file MKV per AVPlayer…"
+        let upstream = RelayUpstream(url: url, headers: headers)
+        let choice = conversionAudio ?? .automatic(languages: wantedAudioLanguages())
+        do {
+            let session = try await env.localRemux.open(upstream, audio: choice)
+            guard !tornDown, generation == loadGeneration else {
+                env.localRemux.close(session)
+                return nil
+            }
+            conversion = session
+            conversionUpstream = upstream
+            conversionPlan = session.plan
+            audioTracks = currentAudioTracks()
+            statusMessage = nil
+            prepareWiFiAhead()
+            return session.url
+        } catch {
+            guard !tornDown, generation == loadGeneration else { return nil }
+            statusMessage = nil
+            giveUpConversion(because: RemuxFailureText.explainLocal(error))
+            return nil
+        }
+    }
+
+    /// The file cannot be converted: with the Automatic engine MPV takes it, otherwise the failure panel says why.
+    private func giveUpConversion(because reason: String) {
+        env.diagnostics.logDetached(.warning, "player", "Conversione del file non riuscita: \(reason)")
+        if playback.engine == .automatic, canUse(.mpv) {
+            switchEngine(to: .mpv, reason: "\(RemuxFailureText.problem(reason)) Uso MPV.")
+        } else {
+            let advised = reason.contains("motore Automatico")
+            let hint = playback.engine == .avPlayer && !advised ? " Scegli «Automatico» o «MPV» in Impostazioni → Riproduzione." : ""
+            failureExplanation = reason + hint
+            handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: reason + hint))
+        }
+    }
+
+    private func closeConversion() {
+        if let session = conversion {
+            env.localRemux.close(session)
+            conversion = nil
+        }
+        if let lease = conversionLease {
+            env.relay.release(lease, reason: .userStopped)
+            conversionLease = nil
+        }
+        // A Wi-Fi address made ahead of time and never used ends with the file it was made for.
+        if let pending = wifiLeaseTask {
+            wifiLeaseTask = nil
+            let relay = env.relay
+            Task { @MainActor in
+                if let lease = try? await pending.task.value { relay.release(lease, reason: .userStopped) }
+            }
+        }
+        conversionUpstream = nil
+        conversionPlan = nil
+    }
+
+    // MARK: AirPlay for a converted file
+
+    /// The relay lease (the Wi-Fi address) of the converted file now playing. Whoever needs it first, the preparation ahead of time or
+    /// the move to that address, starts it, and the other waits for the same one: a second publish would replace the first session
+    /// (they belong to the same owner), which is the one the player or the receiver may already be reading.
+    private func sharedWiFiLease(for upstream: RelayUpstream, generation: Int) -> Task<RelayLease, Error> {
+        if let existing = wifiLeaseTask, existing.generation == generation { return existing.task }
+        let choice = conversionAudio ?? .track(index: conversionPlan?.audio.first?.index ?? -1)
+        let relay = env.relay
+        let task = Task { @MainActor () -> RelayLease in
+            return try await relay.publish(RelayPublishRequest(upstream: upstream, contentType: "application/x-mpegURL",
+                                                               fileExtension: "m3u8", owner: .airPlay, receiverAddress: nil,
+                                                               remux: choice))
+        }
+        wifiLeaseTask = (generation, task)
+        return task
+    }
+
+    /// While an AirPlay receiver is in range, the Wi-Fi address of the converted file is made ready: choosing the receiver then finds
+    /// it at once, instead of the receiver being handed an address of this phone it cannot reach while the conversion is prepared.
+    private func prepareWiFiAhead() {
+        guard routesNearby, conversion != nil, conversionLease == nil, engine.kind == .avPlayer, !tornDown,
+              let upstream = conversionUpstream, case .ready = env.relay.availability else { return }
+        let generation = loadGeneration
+        guard wifiLeaseTask?.generation != generation else { return }
+        let task = sharedWiFiLease(for: upstream, generation: generation)
+        env.diagnostics.logDetached(.info, "player", "AirPlay nelle vicinanze: preparo in anticipo l'indirizzo sul Wi-Fi")
+        Task { [weak self] in
+            do {
+                _ = try await task.value
+            } catch {
+                guard let self = self, self.wifiLeaseTask?.generation == generation else { return }
+                self.wifiLeaseTask = nil
+                self.env.diagnostics.logDetached(.warning, "player", "Preparazione in anticipo dell'indirizzo sul Wi-Fi non riuscita")
+            }
+        }
+    }
+
+    private func startRouteDetection() {
+        let detector = AVRouteDetector()
+        detector.isRouteDetectionEnabled = true
+        routeDetector = detector
+        routesNearby = detector.multipleRoutesDetected
+        // The notification is named by its constant's value, which is what the system posts.
+        routeDetectorObserver = NotificationCenter.default.addObserver(
+            forName: Notification.Name("AVRouteDetectorMultipleRoutesDetectedDidChangeNotification"), object: detector, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.routesDetectionChanged() }
+        }
+    }
+
+    private func routesDetectionChanged() {
+        guard let detector = routeDetector, !tornDown else { return }
+        routesNearby = detector.multipleRoutesDetected
+        if routesNearby { prepareWiFiAhead() }
+    }
+
+    private func stopRouteDetection() {
+        if let observer = routeDetectorObserver { NotificationCenter.default.removeObserver(observer) }
+        routeDetectorObserver = nil
+        routeDetector?.isRouteDetectionEnabled = false
+        routeDetector = nil
+    }
+
+    /// A converted file still served on 127.0.0.1 cannot be fetched by an AirPlay receiver: until the Wi-Fi address is in use the picture
+    /// stays off AirPlay (the sound still goes), instead of a black screen that ends with the video back on the phone.
+    private var externalVideoWaitsForWiFi: Bool {
+        return engine.kind == .avPlayer && conversion != nil && conversionLease == nil
+    }
+
+    /// The converted file is served on 127.0.0.1, which an AirPlay receiver cannot reach: the relay serves it on the Wi-Fi address and
+    /// the player continues from there, at the same position.
+    func moveConversionToWiFi() {
+        guard conversion != nil, conversionLease == nil, engine.kind == .avPlayer, !tornDown, let upstream = conversionUpstream else { return }
+        guard movingToWiFiGeneration != loadGeneration else { return }
+        guard case .ready = env.relay.availability else {
+            if !announcedWiFiNeed {
+                announcedWiFiNeed = true
+                env.diagnostics.logDetached(.info, "player", "AirPlay: il ponte non è disponibile (rete locale spenta o niente Wi-Fi): solo audio")
+                statusMessage = "Per mandare il video di questo MKV in AirPlay servono il Wi-Fi e «Consenti rete locale» (Impostazioni ▸ Account e dati ▸ Privacy): per ora su AirPlay va solo l'audio."
+                scheduleStatusClear(after: 9)
+            }
+            return
+        }
+        let generation = loadGeneration
+        movingToWiFiGeneration = generation
+        let task = sharedWiFiLease(for: upstream, generation: generation)
+        env.diagnostics.logDetached(.info, "player", "AirPlay: sposto il file convertito sull'indirizzo Wi-Fi")
+        statusMessage = "Preparo il video per AirPlay…"
+        Task { [weak self] in
+            guard let self = self else { return }
+            defer { if self.movingToWiFiGeneration == generation { self.movingToWiFiGeneration = nil } }
+            do {
+                let lease = try await task.value
+                // Whatever ended this start (a new source, the player closing) also releases the lease: closeConversion waits for the task.
+                guard !self.tornDown, generation == self.loadGeneration, self.conversion != nil, self.conversionLease == nil else { return }
+                // Taken now, not before the wait: the video went on playing while the conversion was prepared. Right after the file is
+                // ready the engine has not applied its start position yet and says 0.
+                var position = self.engine.currentTime()
+                if position < 1, self.snapshot.position < 1, self.loadStartPosition > 1 { position = self.loadStartPosition }
+                let wasPlaying = self.snapshot.isPlaying
+                self.conversionLease = lease
+                if let plan = lease.remuxPlan { self.conversionPlan = plan }
+                self.engine.setExternalPlaybackAllowed(!self.externalPlaybackBlockedForKey)
+                self.engine.load(url: lease.url, headers: [:], startAt: position > 1 ? position : nil, autoplay: wasPlaying)
+                if let old = self.conversion {
+                    self.env.localRemux.close(old)
+                    self.conversion = nil
+                }
+                self.statusMessage = nil
+                self.env.diagnostics.logDetached(.info, "player", "AirPlay: il file convertito è ora sull'indirizzo Wi-Fi (riparte da \(Int(position)) s)")
+            } catch {
+                if self.wifiLeaseTask?.generation == generation { self.wifiLeaseTask = nil }
+                guard !self.tornDown else { return }
+                self.env.diagnostics.logDetached(.warning, "player", "AirPlay: spostamento sul Wi-Fi non riuscito")
+                self.statusMessage = RemuxFailureText.explain(error)
+                self.scheduleStatusClear(after: 6)
+            }
+        }
+    }
+
+    /// The audio tracks to list: those of the converted file (one plays at a time), else the engine's own.
+    private func currentAudioTracks() -> [EngineTrack] {
+        guard let plan = conversionPlan else { return engine.audioTracks() }
+        let selected = plan.audio.first?.index
+        return plan.audioChoices.map { track in
+            EngineTrack(id: String(track.index), title: track.summary, language: track.language, isSelected: track.index == selected)
+        }
     }
 
     // MARK: TorBox (torrent sources)
@@ -410,7 +681,7 @@ final class PlayerViewModel: ObservableObject {
         let container = StreamAnalyzer.analyze(direct, streamingServer: nil).container
         let plan = PlaybackPlanner.plan(container: container, facts: nil, device: device,
                                         mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: playback.engine,
-                                        forceSDR: playback.video.hdrMode == .sdr)
+                                        forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting)
         playbackPlan = plan
         guard let wanted = plan.engine else {
             handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: plan.blockingMessage ?? "Formato non riproducibile"))
@@ -493,11 +764,12 @@ final class PlayerViewModel: ObservableObject {
             scheduleStatusClear(after: 4)
             env.diagnostics.logDetached(.warning, "player", "Picture in Picture non avviato: \(failure)")
         }
-        if new.isReady && !wasReady {
-            refreshTracks()
-            airPlayRoute = AudioSessionController.airPlayRouteName()
+        if new.isReady && !wasReady { refreshTracks() }
+        if new.isExternalPlaybackActive != old.isExternalPlaybackActive {
+            let where_ = conversionLease != nil ? "indirizzo Wi-Fi del ponte" : (conversion != nil ? "questo telefono (127.0.0.1)" : "indirizzo originale")
+            env.diagnostics.logDetached(.info, "player", "AirPlay: riproduzione esterna \(new.isExternalPlaybackActive ? "attiva" : "terminata"), file su: \(where_)")
         }
-        if new.isExternalPlaybackActive { airPlayRoute = AudioSessionController.airPlayRouteName() } else { airPlayRoute = nil }
+        if new.isReady != old.isReady || new.isExternalPlaybackActive != old.isExternalPlaybackActive { refreshAirPlayRoute() }
         nowPlaying.updateProgress(position: new.position, duration: new.duration, rate: new.isPlaying ? new.rate : 0, isLive: new.isLive)
         if new.isPlaying { lastRetryPosition = new.position }
         recordProgress(force: false)
@@ -574,7 +846,7 @@ final class PlayerViewModel: ObservableObject {
         mediaInfo = info
         let plan = PlaybackPlanner.plan(container: info.container ?? currentContainer, facts: info, device: device,
                                         mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: playback.engine,
-                                        forceSDR: playback.video.hdrMode == .sdr)
+                                        forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting)
         playbackPlan = plan
         guard playback.engine == .automatic, info.source == .avFoundation, engineSwitches == 0,
               let wanted = plan.engine, wanted != engine.kind, canUse(wanted) else { return }
@@ -612,7 +884,7 @@ final class PlayerViewModel: ObservableObject {
         failure = nil
         bindEngine()
         engineReplaced()
-        statusMessage = reason
+        carriedStatus = reason
         Task { await beginPlayback(startOverride: position > 5 ? position : nil) }
     }
 
@@ -776,7 +1048,7 @@ final class PlayerViewModel: ObservableObject {
         let ranked = StreamSelector.rank(result.streams, preferences: env.streamPreferences())
         let binge = currentStream?.behaviorHints.bingeGroup ?? env.bingeGroup(forMeta: meta.id)
         let choices = await debridAutoSelectable(ranked)
-        guard let best = StreamSelector.autoSelect(choices, previousBingeGroup: binge) else {
+        guard let best = StreamSelector.autoSelect(choices, previousBingeGroup: binge, ordering: env.streamPreferences().ordering) else {
             statusMessage = nil
             handleFailure(PlaybackFailure(kind: .notFound, detail: "Nessuna sorgente riproducibile per \(video.episodeLabel ?? "questo episodio")."))
             return
@@ -845,7 +1117,7 @@ final class PlayerViewModel: ObservableObject {
 
     private func refreshTracks() {
         subtitleTracksKnown = true
-        audioTracks = engine.audioTracks()
+        audioTracks = currentAudioTracks()
         refreshEmbeddedSubtitleOptions()
         if !preferredAudioApplied, !audioTracks.isEmpty {
             preferredAudioApplied = true
@@ -859,27 +1131,39 @@ final class PlayerViewModel: ObservableObject {
     /// Audio language: what the viewer picked by hand for this title, then the preferred language, then the secondary one
     /// ("off" means none).
     private func applyPreferredAudio() {
+        // A converted file has its audio language chosen before the conversion; AVPlayer sees one track only.
+        guard conversionPlan == nil else { return }
         let languages = TrackPreferences.audioLanguages(
             remembered: trackMemory.audioLanguageToApply(forMeta: meta.id),
             primary: SettingsStore.resolvedLanguage(playback.preferredAudioLanguage),
             secondary: SettingsStore.resolvedLanguage(playback.secondaryAudioLanguage))
         guard let match = TrackPreferences.pickAudio(languages: languages, tracks: audioTracks), !match.isSelected else { return }
         engine.selectAudio(id: match.id)
-        audioTracks = engine.audioTracks()
+        audioTracks = currentAudioTracks()
     }
 
     /// Audio track picked by the viewer. Its language is remembered for the next episode of this series.
     func selectAudio(_ track: EngineTrack) {
         preferredAudioApplied = true
         trackMemory.rememberAudio(language: TrackPreferences.audioLanguageToRemember(for: track), metaID: meta.id)
+        if let plan = conversionPlan {
+            // One audio track goes into the converted file: another one means converting again, from the same position.
+            guard let index = Int(track.id), index != plan.audio.first?.index else { return }
+            conversionAudio = .track(index: index)
+            let position = max(snapshot.position, lastRetryPosition)
+            statusMessage = "Cambio traccia audio…"
+            Task { await beginPlayback(startOverride: position > 5 ? position : nil) }
+            return
+        }
         engine.selectAudio(id: track.id)
-        audioTracks = engine.audioTracks()
+        audioTracks = currentAudioTracks()
     }
 
     /// A new engine replaced the old one (fallback to the other engine): its tracks are unknown until it reports them, the audio
     /// language is chosen again, and the subtitle on screen is carried over. A downloaded or imported subtitle is drawn by the app,
     /// so it survives as it is; an embedded track has another id in the new engine and is looked up again by language.
     func engineReplaced() {
+        closeConversion()
         preferredAudioApplied = false
         subtitleTracksKnown = false
         engineSubtitlesSilenced = false
@@ -896,6 +1180,7 @@ final class PlayerViewModel: ObservableObject {
             }
         }
         publishSubtitleOptions()
+        refreshAirPlayRoute()
     }
 
     // MARK: Subtitles
@@ -1132,6 +1417,7 @@ final class PlayerViewModel: ObservableObject {
     /// A new video (next episode, other source): the subtitle on screen, the lists and the one-time decisions start over.
     /// What the viewer chose by hand (`trackMemory`) is kept: it applies to the next video of the same title.
     private func resetSubtitleStateForNewVideo() {
+        conversionAudio = nil
         subtitleTask?.cancel()
         subtitleHashTask?.cancel()
         subtitleHashTask = nil
@@ -1362,7 +1648,7 @@ final class PlayerViewModel: ObservableObject {
             autoPictureInPicture: playback.autoPictureInPicture,
             allowBackgroundAudio: playback.allowBackgroundAudio,
             pictureInPictureGraceExpired: graceExpired))
-        if phase == .active { airPlayRoute = AudioSessionController.airPlayRouteName() }
+        if phase == .active { refreshAirPlayRoute() }
         if decision.recordProgress { recordProgress(force: true) }
         switch decision.video {
         case .attach: engine.setVideoDetached(false)
@@ -1387,6 +1673,67 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
+    // MARK: AirPlay
+
+    /// Where the sound goes, read from the audio session. Replaceable for tests.
+    var airPlayRouteProvider: () -> String? = { AudioSessionController.airPlayRouteName() }
+    /// The screen is being mirrored or recorded (then the picture reaches the TV whatever the engine).
+    var screenMirroredProvider: () -> Bool = {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.first?.screen.isCaptured ?? false
+    }
+    private var acknowledgedAirPlayRoutes: Set<String> = []
+
+    /// Reads the AirPlay route again and works out what the viewer should be told. With MPV the route is the audio session's: the
+    /// engine never reports external playback, so it must not be wiped when the engine says "not active".
+    func refreshAirPlayRoute() {
+        let route = airPlayRouteProvider()
+        if route != nil && engine.kind == .avPlayer { moveConversionToWiFi() }
+        let blocked = externalPlaybackBlockedForKey
+        if engine.kind == .avPlayer && !snapshot.isExternalPlaybackActive && !blocked {
+            airPlayRoute = nil
+        } else {
+            airPlayRoute = route
+        }
+        let advice = AirPlayAdvice.evaluate(engine: engine.kind, routeName: airPlayRoute, externalPlaybackActive: snapshot.isExternalPlaybackActive,
+                                            screenMirrored: screenMirroredProvider(), externalPlaybackBlockedForKey: blocked,
+                                            relayServing: conversionLease != nil)
+        guard advice != airPlayAdvice else { return }
+        airPlayAdvice = advice
+        if case .audioOnlyBecauseMPV(let name) = advice {
+            env.diagnostics.logDetached(.info, "player", "AirPlay con MPV: solo audio")
+            if !acknowledgedAirPlayRoutes.contains(name) { airPlayAlert = AirPlayAlert.mpvAudioOnly() }
+        }
+        if case .audioOnlyBecauseKeyProtected(let name) = advice, !acknowledgedAirPlayRoutes.contains(name) {
+            acknowledgedAirPlayRoutes.insert(name)
+            showStatus("AirPlay: questo link contiene la tua chiave TorBox e non viene dato al televisore, quindi va solo l'audio. Per il video usa un MP4 senza chiave o attiva l'invio del link diretto in Impostazioni ▸ Avanzate.", for: 9)
+        }
+    }
+
+    /// AirPlay hands the address of the video to the receiver. A TorBox link carries the viewer's key, so while one plays the picture is
+    /// kept off AirPlay (the sound still goes) unless the viewer chose in Settings to send such links, or the receiver is given the
+    /// relay's keyless address of a converted file instead.
+    private var externalPlaybackBlockedForKey: Bool {
+        guard engine.kind == .avPlayer, isPlayingThroughTorBox, conversionPlan == nil else { return false }
+        return !env.settings.value.advanced.sendDirectLinkToTV
+    }
+
+    /// The viewer read the alert: it does not come back for this device during this player session.
+    func acknowledgeAirPlayAlert() {
+        if case .audioOnlyBecauseMPV(let name) = airPlayAdvice { acknowledgedAirPlayRoutes.insert(name) }
+        airPlayAlert = nil
+    }
+
+    /// The system picker is about to open.
+    func airPlayPickerWillPresent() {
+        announcedWiFiNeed = false
+        // A converted file has to be reachable from the receiver before one is chosen.
+        if engine.kind == .avPlayer { moveConversionToWiFi() }
+        guard engine.kind == .mpv else { return }
+        statusMessage = "AirPlay con questo file: solo audio."
+        scheduleStatusClear(after: 4)
+    }
+
     // MARK: Hand-off to a remote receiver
 
     var currentPlaybackURL: URL? {
@@ -1405,23 +1752,86 @@ final class PlayerViewModel: ObservableObject {
         return selected.isEmbedded ? 0 : 1
     }
 
-    struct CastPlan {
-        var media: CastMedia
+    /// Everything needed to start a remote session for the video that plays now.
+    struct CastPreparation: CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
+        var request: CastRequest
+        var delivery: CastDelivery
+        /// The real address of the source, for the compatibility check only. It may carry the account key: it is never stored or shown.
+        var evaluationURL: URL
         var info: StreamInfo
         var headers: [String: String]
+        /// The phone converts the file into HLS for the receiver.
+        var remuxed = false
+        /// What to send instead if the file cannot be converted (its codecs cannot be copied): the file as it is.
+        var fallback: CastRequest?
+
+        var description: String { return "CastPreparation" }
+        var debugDescription: String { return "CastPreparation" }
+        var customMirror: Mirror { return Mirror(self, children: [], displayStyle: .struct) }
     }
 
-    /// Everything needed to send the current video to a remote receiver, or nil when it cannot be sent
-    /// (downloaded files only exist on this phone; AirPlay is the way to put them on a TV).
-    func castPlan() -> CastPlan? {
-        guard case .stream(let stream) = request.source,
-              let url = StreamResolver.playbackURL(for: stream, streamingServer: env.streamPreferences().streamingServer) else { return nil }
-        let info = StreamAnalyzer.analyze(stream, streamingServer: env.streamPreferences().streamingServer)
+    enum CastPreparationOutcome {
+        case ready(CastPreparation)
+        case refused(title: String, message: String)
+    }
+
+    /// Decides how the current video reaches a Google Cast or DLNA receiver and builds the request, or says why it cannot be sent.
+    /// A video resolved through TorBox is sent from the link TorBox produced (never from the torrent's own address), and because that
+    /// link carries the viewer's key it goes through the relay unless the viewer chose, in Settings, to send the link itself.
+    func castPreparation(for target: CastTarget, sendDirectLinkToTV: Bool, relay: RelayAvailability) -> CastPreparationOutcome {
+        guard case .stream(let stream) = request.source else {
+            return .refused(title: CastRefusal.localFile.title, message: CastRefusal.localFile.message)
+        }
+        let streamingServer = env.streamPreferences().streamingServer
+        let debrid = currentDebridStream()
+        let playing = debrid ?? stream
+        let server = debrid == nil ? streamingServer : nil
+        guard let url = StreamResolver.playbackURL(for: playing, streamingServer: server) else {
+            return .refused(title: "Non trasmettibile",
+                            message: "Questa sorgente non ha un indirizzo che il televisore possa leggere (per esempio è un torrent non ancora risolto). Avvia prima la riproduzione sul telefono.")
+        }
+        let headers = playing.behaviorHints.proxyRequestHeaders
+        let traits = CastSourceTraits(isLocalFile: false, carriesAccountKey: debrid != nil, hasRequestHeaders: !headers.isEmpty)
+        let delivery: CastDelivery
+        switch CastDeliveryPlanner.decide(traits, target: target, sendDirectLinkToTV: sendDirectLinkToTV, relay: relay) {
+        case .refuse(let refusal):
+            return .refused(title: refusal.title, message: refusal.message)
+        case .deliver(let decided):
+            delivery = decided
+        }
+        let info = StreamAnalyzer.analyze(playing, streamingServer: server)
+        let container = info.container ?? ""
+        if delivery == .relay && (container == "m3u8" || container == "mpd") {
+            return .refused(title: "Serve il ponte sul telefono",
+                            message: "Le sorgenti HLS o DASH che richiedono la tua chiave o intestazioni speciali non possono passare dal ponte in questa versione.")
+        }
         let artwork = (currentVideo?.thumbnail ?? meta.poster ?? meta.background).flatMap { URL.lenient($0) }
-        let media = CastMedia(url: url, title: meta.name, subtitle: episodeSubtitle(), artworkURL: artwork,
-                              contentType: CastMedia.contentType(forContainer: info.container),
-                              isLive: snapshot.isLive, startPosition: max(snapshot.position, 0))
-        return CastPlan(media: media, info: info, headers: stream.behaviorHints.proxyRequestHeaders)
+        let source: CastSource
+        switch delivery {
+        case .direct: source = .direct(url)
+        case .directWithKey: source = .directWithKey(url)
+        case .relay: source = .relay(RelayUpstream(url: url, headers: headers))
+        }
+        let request = CastRequest(title: meta.name, subtitle: episodeSubtitle(), artworkURL: artwork,
+                                  contentType: CastMedia.contentType(forContainer: info.container), isLive: snapshot.isLive,
+                                  startPosition: max(snapshot.position, 0), source: source,
+                                  fileExtension: RelayMime.allowedExtensions.contains(container) ? container : "mp4")
+
+        // A Matroska file for Google Cast is converted by the phone into HLS (video and audio copied): every Cast receiver reads that,
+        // many refuse the MKV. It needs the relay; the viewer's own wish to send the direct link is respected as it is.
+        // A plain-HTTP address that carries a key or headers is not relayed at all (see `CastCompatibility.evaluate`): it stays as it was.
+        let plainHTTPWithSecrets = url.scheme?.lowercased() == "http" && CastCompatibility.hostKind(of: url) == .publicInternet
+            && (debrid != nil || !headers.isEmpty)
+        if target == .googleCast, container == "mkv", RemuxEngineFactory.isAvailable, delivery != .directWithKey, !plainHTTPWithSecrets,
+           env.settings.value.casting.convertMatroskaForGoogleCast, case .ready = relay {
+            var converted = request
+            converted.source = .relayRemux(RelayUpstream(url: url, headers: headers), conversionAudio ?? .automatic(languages: wantedAudioLanguages()))
+            converted.contentType = "application/x-mpegURL"
+            converted.fileExtension = "m3u8"
+            return .ready(CastPreparation(request: converted, delivery: .relay, evaluationURL: url, info: info, headers: headers,
+                                          remuxed: true, fallback: request))
+        }
+        return .ready(CastPreparation(request: request, delivery: delivery, evaluationURL: url, info: info, headers: headers))
     }
 
     var currentStreamInfo: StreamInfo? {
@@ -1473,6 +1883,12 @@ final class PlayerViewModel: ObservableObject {
 
     func clearStatusSoon() { scheduleStatusClear() }
 
+    /// A line over the picture for a few seconds.
+    func showStatus(_ text: String, for seconds: Double = 6) {
+        statusMessage = text
+        scheduleStatusClear(after: seconds)
+    }
+
     /// A newer message replaces the older one's timer, so a long message is not cut short by an earlier schedule.
     private func scheduleStatusClear(after seconds: Double = 3.5) {
         statusClear?.cancel()
@@ -1481,5 +1897,19 @@ final class PlayerViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
             self?.statusMessage = nil
         }
+    }
+}
+
+
+/// The explanation shown the first time the sound of an MPV video goes to an AirPlay device.
+struct AirPlayAlert: Identifiable, Equatable {
+    let id = UUID()
+    var title: String
+    var message: String
+
+    static func mpvAudioOnly() -> AirPlayAlert {
+        return AirPlayAlert(
+            title: "AirPlay: sul televisore va solo l'audio",
+            message: "Questo video usa il motore MPV, che non sa inviare l'immagine via AirPlay: il suono esce dal dispositivo AirPlay, l'immagine resta sul telefono. Se è un altoparlante va bene così. Per vedere il video sul televisore usa Google Cast o DLNA, scegli una sorgente MP4 o HLS, oppure usa «Duplica schermo» dal Centro di Controllo (mostra lo schermo del telefono; qualità inferiore, non provato con MPV).")
     }
 }

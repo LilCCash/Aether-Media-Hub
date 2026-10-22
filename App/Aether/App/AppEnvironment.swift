@@ -24,6 +24,9 @@ final class AppEnvironment: ObservableObject {
     let library: LibraryModel
     let router: AppRouter
     let downloads: DownloadManager
+    let relay: RelayService
+    /// Converts Matroska files into HLS for the phone's own player (AVPlayer), on this phone only.
+    let localRemux: LocalRemuxService
     let casting: CastCoordinator
     /// Keys of the optional services (TorBox, TMDB, TheTVDB), kept in the Keychain.
     let credentials: ServiceCredentials
@@ -80,7 +83,10 @@ final class AppEnvironment: ObservableObject {
         library = LibraryModel(store: libraryStore)
         router = AppRouter()
         downloads = DownloadManager(paths: paths, snapshot: snapshot)
-        casting = CastCoordinator(settings: settings)
+        let relayService = RelayService(settings: settings, diagnostics: diagnostics)
+        relay = relayService
+        localRemux = LocalRemuxService(settings: settings, diagnostics: diagnostics)
+        casting = CastCoordinator(settings: settings, relay: relayService)
         let serviceKeys = ServiceCredentials(secrets: secrets)
         credentials = serviceKeys
         // The UI tests point both services at their fixture server; a normal launch always uses the production APIs.
@@ -143,8 +149,14 @@ final class AppEnvironment: ObservableObject {
         }
         if new.privacy.allowLocalNetwork != old.privacy.allowLocalNetwork {
             addons.bumpRevision()
+            if !new.privacy.allowLocalNetwork {
+                // Nothing may be served on the Wi-Fi address any more: the transmissions that run through the relay end with it.
+                casting.localNetworkWasDisabled()
+                relay.shutdown()
+            }
         }
         casting.settingsDidChange(new.casting)
+        casting.advancedDidChange(new.advanced)
         downloads.settingsDidChange()
     }
 

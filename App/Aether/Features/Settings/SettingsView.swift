@@ -186,11 +186,15 @@ struct PlaybackSettingsView: View {
     var body: some View {
         Form {
             Section(header: Text("Motore"),
-                    footer: Text("Automatico usa AVPlayer (il player di Apple, l'unico che può mostrare il vero Dolby Vision) per MP4, MOV e HLS, e MPV per MKV, AVI, TS e i file che AVPlayer non sa decodificare. Se un motore non riesce ad aprire il file, Aether prova l'altro una volta.")) {
+                    footer: Text("Automatico usa AVPlayer (il player di Apple, l'unico che può mostrare il vero Dolby Vision) per MP4, MOV e HLS, e MPV per MKV, AVI, TS e i file che AVPlayer non sa decodificare. Se un motore non riesce ad aprire il file, Aether prova l'altro una volta.\(RemuxEngineFactory.isAvailable ? " «Converti i file MKV per AVPlayer» fa passare anche gli MKV da AVPlayer: il telefono li rimette al volo in pezzi HLS (video e audio copiati, non ricodificati), così funzionano Picture in Picture e AirPlay. Una traccia audio alla volta, niente sottotitoli incorporati, e non parte se l'audio è solo DTS/TrueHD o il video è VP9/AV1: in quel caso Automatico usa MPV." : "")")) {
                 Picker("Player", selection: settings.binding(\.playback.engine)) {
                     ForEach(PlayerEngineChoice.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .accessibilityIdentifier("settings.engine")
+                if RemuxEngineFactory.isAvailable {
+                    Toggle("Converti i file MKV per AVPlayer", isOn: settings.binding(\.playback.convertMatroskaForAVPlayer))
+                        .accessibilityIdentifier("settings.convertMKV")
+                }
                 NavigationLink("Stato dei player e dello schermo") { PlayerStatusView() }
             }
             Section(header: Text("Video"),
@@ -270,14 +274,18 @@ struct PlaybackSettingsView: View {
                     Text("Ritardo predefinito: \(String(format: "%+.1f", settings.value.playback.subtitleDelaySeconds)) s")
                 }
             }
-            Section(header: Text("Sorgenti")) {
+            Section(header: Text("Sorgenti"), footer: Text("«Per addon» mette per prime le sorgenti dell'addon più in alto nella lista degli addon (scheda Addon › Modifica, poi trascina); dentro ogni addon valgono lingua, qualità e codec. «Le migliori per prime» ignora l'addon di provenienza. Vale anche per la scelta automatica.")) {
                 Picker("Qualità massima", selection: settings.binding(\.playback.qualityCap)) {
                     ForEach(VideoQualityCap.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                Picker("Ordine delle sorgenti", selection: settings.binding(\.playback.streamOrdering)) {
+                    Text("Per addon").tag(StreamOrdering.byAddon)
+                    Text("Le migliori per prime").tag(StreamOrdering.best)
                 }
                 Toggle("Preferisci sorgenti nella lingua audio", isOn: settings.binding(\.playback.preferStreamsInPreferredAudioLanguage))
                 Toggle("Scegli automaticamente la sorgente migliore", isOn: settings.binding(\.playback.autoSelectStream))
             }
-            Section(header: Text("Sistema"), footer: Text("L'audio in background richiede la capability «Audio, AirPlay e Picture in Picture» (già attiva). Il video si interrompe se lasci l'app, salvo Picture-in-Picture. Il Picture-in-Picture funziona con i file aperti da AVPlayer (MP4, MOV); MKV, AVI e gli altri formati passano da MPV, che non lo supporta. Se usi Aether dentro un contenitore come LiveContainer, iOS può non consentirlo.")) {
+            Section(header: Text("Sistema"), footer: Text("L'audio in background richiede la capability «Audio, AirPlay e Picture in Picture» (già attiva). Il video si interrompe se lasci l'app, salvo Picture-in-Picture. Il Picture-in-Picture funziona con i file aperti da AVPlayer (MP4, MOV, HLS, e gli MKV se scegli il player AVPlayer o attivi «Converti i file MKV per AVPlayer»); AVI e gli altri formati passano da MPV, che non lo supporta. Se usi Aether dentro un contenitore come LiveContainer, iOS può non consentirlo.")) {
                 Toggle("Picture-in-Picture automatico", isOn: settings.binding(\.playback.autoPictureInPicture))
                 Toggle("Continua l'audio in background", isOn: settings.binding(\.playback.allowBackgroundAudio))
                 Picker("Timer di spegnimento predefinito", selection: settings.binding(\.playback.defaultSleepTimerMinutes)) {
@@ -477,7 +485,17 @@ struct StorageSettingsView: View {
 
 struct CastingSettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var relay: RelayService
+    @EnvironmentObject private var network: NetworkMonitor
     @State private var newHost = ""
+
+    /// Where the relay stands, for the row below. Reads the phone's address each time the page is drawn.
+    private var relayStatus: String {
+        switch relay.availability {
+        case .ready(let interface): return "Pronto (\(interface.address))"
+        case .unavailable(let reason): return "Non disponibile: \(reason.message)"
+        }
+    }
 
     var body: some View {
         Form {
@@ -506,6 +524,25 @@ struct CastingSettingsView: View {
                     .disabled(newHost.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+            Section(header: Text("Ponte sul telefono"),
+                    footer: Text("Il ponte si accende solo mentre trasmetti e si spegne da solo. Tieni Aether aperto: con lo schermo bloccato la trasmissione può interrompersi.")) {
+                LabeledContent("Ponte sul telefono") {
+                    Text(relayStatus).multilineTextAlignment(.trailing).foregroundStyle(Color.aetherSecondary)
+                }
+                .accessibilityIdentifier("settings.relayStatus")
+                .id(network.reconnectToken)
+                if settings.value.advanced.sendDirectLinkToTV {
+                    Label("Attivo: il televisore riceve la chiave TorBox.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote).foregroundStyle(.orange)
+                }
+            }
+            if RemuxEngineFactory.isAvailable {
+                Section(header: Text("File MKV"),
+                        footer: Text("Molti Chromecast e televisori con Cast rifiutano gli MKV. Con questa opzione il telefono li rimette al volo in HLS (video e audio copiati, non ricodificati) e li passa dal ponte: serve il Wi-Fi e il permesso «Rete locale», parte dopo qualche secondo e consuma batteria. Passa una sola traccia audio, senza sottotitoli incorporati. Se il file ha solo audio DTS/TrueHD o un video non copiabile, Aether lo invia com'è, come prima.")) {
+                    Toggle("Converti gli MKV per Google Cast", isOn: settings.binding(\.casting.convertMatroskaForGoogleCast))
+                        .accessibilityIdentifier("settings.castConvertMKV")
+                }
+            }
             Section(header: Text("Riproduzione remota")) {
                 Toggle("Riprendi sul telefono quando mi disconnetto", isOn: settings.binding(\.casting.resumeLocallyOnDisconnect))
                 Toggle("Consenti sorgenti nella rete locale", isOn: settings.binding(\.privacy.allowLocalNetwork))
@@ -526,10 +563,18 @@ struct AccountDataSettingsView: View {
     @State private var includeURLs = false
     @State private var exportURL: URL?
     @State private var showingImporter = false
-    @State private var pendingRestore: Data?
+    /// The backup the viewer picked, read and checked, waiting for the choice of how to restore it.
+    @State private var pendingRestore: PickedBackup?
     @State private var resultMessage: String?
     @State private var confirmDelete = false
+    @State private var confirmReplace = false
     @State private var applySettings = true
+
+    struct PickedBackup {
+        var name: String
+        var data: Data
+        var preview: BackupPreview
+    }
 
     var body: some View {
         Form {
@@ -554,11 +599,44 @@ struct AccountDataSettingsView: View {
                 if let url = exportURL {
                     ShareLink(item: url) { Label("Condividi \(url.lastPathComponent)", systemImage: "square.and.arrow.up") }
                 }
-                Button("Ripristina da file…") { showingImporter = true }
-                    .accessibilityIdentifier("backup.import")
+                Button("Ripristina da file…") {
+                    resultMessage = nil
+                    pendingRestore = nil
+                    showingImporter = true
+                }
+                .accessibilityIdentifier("backup.import")
+            }
+            if let picked = pendingRestore {
+                // Shown in the page itself, not in a dialog: a dialog asked for while the file picker is still closing is dropped by iOS.
+                Section(header: Text("Backup scelto"), footer: Text("«Unisci» tiene la versione più recente di ogni elemento. «Sostituisci» cancella prima libreria, cronologia e addon attuali.")) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(picked.name).font(.subheadline.weight(.semibold))
+                        Text(picked.preview.summary).font(.footnote).foregroundStyle(Color.aetherSecondary)
+                        Text("Creato il \(picked.preview.createdAt.formatted(date: .abbreviated, time: .shortened)) con Aether \(picked.preview.appVersion)")
+                            .font(.caption).foregroundStyle(Color.aetherSecondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("backup.picked")
+                    if picked.preview.hasSettings {
+                        Toggle("Ripristina anche le impostazioni", isOn: $applySettings)
+                            .accessibilityIdentifier("backup.applySettings")
+                    }
+                    Button("Unisci ai dati attuali") { Task { await restore(.merge) } }
+                        .accessibilityIdentifier("backup.merge")
+                    Button("Sostituisci tutto…", role: .destructive) { confirmReplace = true }
+                        .accessibilityIdentifier("backup.replace")
+                        .confirmationDialog("Sostituire i dati attuali?", isPresented: $confirmReplace, titleVisibility: .visible) {
+                            Button("Sostituisci tutto", role: .destructive) { Task { await restore(.replace) } }
+                            Button("Annulla", role: .cancel) {}
+                        } message: {
+                            Text("Libreria, cronologia e addon di questo telefono vengono cancellati e rimpiazzati da quelli del backup.")
+                        }
+                    Button("Annulla") { pendingRestore = nil }
+                        .accessibilityIdentifier("backup.cancel")
+                }
             }
             if let message = resultMessage {
-                Section { Text(message).font(.footnote) }
+                Section { Text(message).font(.footnote).accessibilityIdentifier("backup.message") }
             }
             Section(header: Text("Esporta i miei dati"), footer: Text("Il backup è anche l'esportazione completa dei tuoi dati in JSON leggibile.")) {
                 EmptyView()
@@ -566,33 +644,25 @@ struct AccountDataSettingsView: View {
             Section {
                 Button("Elimina tutti i dati locali…", role: .destructive) { confirmDelete = true }
                     .accessibilityIdentifier("data.delete")
+                    // One dialog per button: several on the same view make iOS drop all but one.
+                    .confirmationDialog("Eliminare tutti i dati locali?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                        Button("Elimina tutto", role: .destructive) { Task { await env.deleteAllLocalData(); resultMessage = "Dati locali eliminati." } }
+                    } message: {
+                        Text("L'operazione non si può annullare.")
+                    }
             } footer: {
                 Text("Rimuove libreria, cronologia, addon (anche dal Portachiavi), download, cache e impostazioni.")
             }
         }
         .navigationTitle("Account e dati")
-        .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json, .data]) { result in
+        // Any file can be picked: a backup saved or renamed by another app may not be typed as JSON, and the check is the content.
+        .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json, .plainText, .data, .item]) { result in
             switch result {
             case .success(let url):
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                if let data = try? Data(contentsOf: url) { pendingRestore = data }
-                else { resultMessage = "Impossibile leggere il file." }
+                loadBackup(from: url)
             case .failure(let error):
-                resultMessage = error.localizedDescription
+                resultMessage = "Non riesco ad aprire il file: \(error.localizedDescription)"
             }
-        }
-        .confirmationDialog("Come vuoi ripristinare?", isPresented: Binding(get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }), titleVisibility: .visible) {
-            Button("Unisci ai dati attuali") { Task { await restore(.merge) } }
-            Button("Sostituisci tutto", role: .destructive) { Task { await restore(.replace) } }
-            Button("Annulla", role: .cancel) { pendingRestore = nil }
-        } message: {
-            Text("«Unisci» tiene la versione più recente di ogni elemento. «Sostituisci» cancella prima i dati attuali.")
-        }
-        .confirmationDialog("Eliminare tutti i dati locali?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Elimina tutto", role: .destructive) { Task { await env.deleteAllLocalData(); resultMessage = "Dati locali eliminati." } }
-        } message: {
-            Text("L'operazione non si può annullare.")
         }
     }
 
@@ -605,11 +675,30 @@ struct AccountDataSettingsView: View {
         }
     }
 
+    /// Reads and checks the picked file now, so a file that is not a backup is said so at once and a good one shows what it holds.
+    private func loadBackup(from url: URL) {
+        do {
+            let data = try BackupFileReader.read(url)
+            let backup = try BackupCodec.decode(data)
+            pendingRestore = PickedBackup(name: url.lastPathComponent, data: data, preview: BackupPreview(backup))
+            resultMessage = nil
+        } catch let error as BackupError {
+            pendingRestore = nil
+            resultMessage = "«\(url.lastPathComponent)»: \(error.message)"
+        } catch let error as BackupFileError {
+            pendingRestore = nil
+            resultMessage = error.message
+        } catch {
+            pendingRestore = nil
+            resultMessage = "Non riesco ad aprire il file: \(error.localizedDescription)"
+        }
+    }
+
     private func restore(_ mode: RestoreMode) async {
-        guard let data = pendingRestore else { return }
+        guard let picked = pendingRestore else { return }
         pendingRestore = nil
         do {
-            let summary = try await BackupService.restore(data: data, env: env, mode: mode, applySettings: applySettings)
+            let summary = try await BackupService.restore(data: picked.data, env: env, mode: mode, applySettings: applySettings)
             resultMessage = "Ripristino completato: \(summary.entries) titoli salvati, \(summary.progressRecords) punti di visione, \(summary.addonsAdded) addon\(summary.addonsWithoutURL > 0 ? " (\(summary.addonsWithoutURL) senza indirizzo: da reinstallare)" : "")."
         } catch let error as BackupError {
             resultMessage = error.message

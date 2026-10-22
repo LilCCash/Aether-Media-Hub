@@ -40,6 +40,27 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(entries.filter { $0.inWatchlist }.map { $0.id }, ["tt9000001"])
     }
 
+    func testRestoringNeverTurnsOnTheDirectLinkToTheTV() async throws {
+        let source = makeEnvironment()
+        let skip = source.settings.value.playback.skipForwardSeconds
+        defer {
+            source.settings.value.playback.skipForwardSeconds = skip
+            source.settings.value.advanced.sendDirectLinkToTV = false
+        }
+        source.settings.value.advanced.sendDirectLinkToTV = true
+        source.settings.value.playback.skipForwardSeconds = skip == 45 ? 30 : 45
+        let wanted = source.settings.value.playback.skipForwardSeconds
+        let file = try await BackupService.makeBackup(env: source, includeAddonURLs: false)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let target = makeEnvironment()
+        target.settings.value.advanced.sendDirectLinkToTV = false
+        let summary = try await BackupService.restore(data: try Data(contentsOf: file), env: target, mode: .replace, applySettings: true)
+        XCTAssertTrue(summary.settingsApplied)
+        XCTAssertEqual(target.settings.value.playback.skipForwardSeconds, wanted, "the other settings are restored")
+        XCTAssertFalse(target.settings.value.advanced.sendDirectLinkToTV, "the key switch must be turned on again on this phone")
+    }
+
     func testMergeKeepsWhatIsAlreadyOnTheDevice() async throws {
         let source = makeEnvironment()
         await source.libraryStore.load()
@@ -55,6 +76,67 @@ final class BackupServiceTests: XCTestCase {
         _ = try await BackupService.restore(data: try Data(contentsOf: file), env: target, mode: .merge, applySettings: false)
         let ids = Set(await target.libraryStore.history().map { $0.metaID })
         XCTAssertEqual(ids, ["tt9000001", "tt9000002"])
+    }
+
+    // MARK: Picking a backup from a file
+
+    private func temporaryFile(_ name: String, _ data: Data) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("backup-reader-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent(name)
+        try data.write(to: url)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        return url
+    }
+
+    func testABackupFileCopiedElsewhereIsReadAndPreviewed() async throws {
+        let source = makeEnvironment()
+        await source.libraryStore.load()
+        _ = await source.libraryStore.recordProgress(meta: movie, video: nil, position: 300, duration: 3600)
+        let made = try await BackupService.makeBackup(env: source, includeAddonURLs: false)
+        defer { try? FileManager.default.removeItem(at: made) }
+        XCTAssertEqual(made.pathExtension, "json")
+
+        // A copy saved by the viewer in another folder, with another name and no extension at all: the content is what counts.
+        let copy = try temporaryFile("copia del backup", try Data(contentsOf: made))
+        let data = try BackupFileReader.read(copy)
+        let backup = try BackupCodec.decode(data)
+        let preview = BackupPreview(backup)
+        XCTAssertEqual(preview.progressRecords, 1)
+        XCTAssertTrue(preview.hasSettings)
+        XCTAssertFalse(preview.summary.isEmpty)
+        XCTAssertTrue(preview.summary.contains("1 punti di visione"), preview.summary)
+    }
+
+    func testAFileThatIsNotThereIsReportedWithAReason() {
+        let missing = FileManager.default.temporaryDirectory.appendingPathComponent("non-esiste-\(UUID().uuidString).json")
+        do {
+            _ = try BackupFileReader.read(missing)
+            XCTFail("expected an error")
+        } catch let error as BackupFileError {
+            guard case .unreadable(let reason) = error else { return XCTFail("\(error)") }
+            XCTAssertFalse(reason.isEmpty)
+            XCTAssertTrue(error.message.hasPrefix("Non riesco ad aprire il file"))
+        } catch {
+            XCTFail("expected a BackupFileError, got \(error)")
+        }
+    }
+
+    func testAFileThatIsNotABackupIsNamedAsSuchRightAway() throws {
+        let notes = try temporaryFile("note.json", Data(#"{"nome":"qualcosa","valori":[1,2,3]}"#.utf8))
+        let data = try BackupFileReader.read(notes)
+        XCTAssertThrowsError(try BackupCodec.decode(data)) { error in
+            XCTAssertEqual(error as? BackupError, .notABackup)
+        }
+        let broken = try temporaryFile("rotto.json", Data("{ non json".utf8))
+        XCTAssertThrowsError(try BackupCodec.decode(try BackupFileReader.read(broken))) { error in
+            XCTAssertEqual(error as? BackupError, .unreadable)
+        }
+    }
+
+    func testAnEmptyFileIsNotABackupEither() throws {
+        let empty = try temporaryFile("vuoto.json", Data())
+        XCTAssertThrowsError(try BackupCodec.decode(try BackupFileReader.read(empty)))
     }
 
     func testRestoringGarbageFailsWithoutTouchingData() async throws {

@@ -16,9 +16,20 @@ const tmdbMovie = {
   id: 93001, title: 'Sparse Fixture Movie (TMDB)', overview: 'Trama fornita dal servizio TMDB di prova.',
   tagline: 'Un titolo senza dettagli', poster_path: '/p.jpg', backdrop_path: '/b.jpg',
   genres: [{ id: 1, name: 'Fantascienza' }, { id: 2, name: 'Avventura' }], runtime: 97, release_date: '2020-05-05',
-  vote_average: 7.4, credits: { cast: [{ name: 'Attrice TMDB Uno', order: 0 }, { name: 'Attore TMDB Due', order: 1 }],
+  vote_average: 7.4, credits: { cast: [{ id: 1, name: 'Attrice TMDB Uno', character: 'La pilota', order: 0, profile_path: '/p.jpg' },
+    { id: 2, name: 'Attore TMDB Due', character: 'Il navigatore', order: 1, profile_path: null }],
     crew: [{ name: 'Regista TMDB', job: 'Director' }] },
   images: { logos: [] }, external_ids: { imdb_id: 'tt9300001' },
+  // What the title page shows beyond the overview: status, producers, money, trailers, ratings, similar titles.
+  status: 'Released', original_language: 'en', budget: 12000000, revenue: 34500000,
+  production_countries: [{ iso_3166_1: 'IT', name: 'Italy' }],
+  production_companies: [{ name: 'Studio di Prova', logo_path: '/p.jpg', origin_country: 'IT' }],
+  videos: { results: [
+    { key: 'FixtureTrl1', site: 'YouTube', type: 'Trailer', name: 'Trailer ufficiale di prova', official: true, iso_639_1: 'it', published_at: '2020-01-01T00:00:00.000Z' },
+    { key: 'FixtureTse2', site: 'YouTube', type: 'Teaser', name: 'Teaser di prova', official: true, iso_639_1: 'en', published_at: '2019-12-01T00:00:00.000Z' },
+  ] },
+  similar: { results: [{ id: 93002, title: 'Titolo simile di prova', poster_path: '/p.jpg', vote_average: 6.5, release_date: '2018-02-02' }] },
+  release_dates: { results: [{ iso_3166_1: 'IT', release_dates: [{ certification: 'T', type: 3 }] }] },
 };
 
 const tmdbShow = {
@@ -75,7 +86,8 @@ function handle(req, res, p, url, base, tools) {
     const route = p.slice('/tmdb/3'.length);
     if (route === '/configuration') {
       send(res, 200, { images: { secure_base_url: `${base}/tmdb-img/`, poster_sizes: ['w92', 'w342', 'w500', 'original'],
-        backdrop_sizes: ['w300', 'w780', 'w1280', 'original'], logo_sizes: ['w185', 'w500', 'original'], still_sizes: ['w185', 'w300', 'original'] } });
+        backdrop_sizes: ['w300', 'w780', 'w1280', 'original'], logo_sizes: ['w185', 'w500', 'original'], still_sizes: ['w185', 'w300', 'original'],
+        profile_sizes: ['w185', 'h632', 'original'] } });
     } else if (route === '/find/tt9300001') {
       send(res, 200, { movie_results: [{ id: 93001 }], tv_results: [] });
     } else if (route === '/find/tt9100001') {
@@ -84,6 +96,8 @@ function handle(req, res, p, url, base, tools) {
       send(res, 200, { movie_results: [], tv_results: [] });
     } else if (route === '/movie/93001') {
       send(res, 200, tmdbMovie);
+    } else if (route === '/movie/93002/external_ids') {
+      send(res, 200, { imdb_id: null });
     } else if (route === '/tv/91001') {
       send(res, 200, tmdbShow);
     } else if (route === '/tv/91001/season/1') {

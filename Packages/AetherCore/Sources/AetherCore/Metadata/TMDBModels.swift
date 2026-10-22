@@ -9,9 +9,10 @@ struct TMDBImageConfiguration: Decodable {
     var backdropSizes: [String]
     var logoSizes: [String]
     var stillSizes: [String]
+    var profileSizes: [String]
 
     private enum CodingKeys: String, CodingKey {
-        case secure_base_url, poster_sizes, backdrop_sizes, logo_sizes, still_sizes
+        case secure_base_url, poster_sizes, backdrop_sizes, logo_sizes, still_sizes, profile_sizes
     }
 
     init(from decoder: Decoder) throws {
@@ -21,6 +22,7 @@ struct TMDBImageConfiguration: Decodable {
         backdropSizes = c.stringList(.backdrop_sizes)
         logoSizes = c.stringList(.logo_sizes)
         stillSizes = c.stringList(.still_sizes)
+        profileSizes = c.stringList(.profile_sizes)
     }
 
     init() {
@@ -29,6 +31,7 @@ struct TMDBImageConfiguration: Decodable {
         backdropSizes = ["w780", "w1280", "original"]
         logoSizes = ["w300", "w500", "original"]
         stillSizes = ["w300", "original"]
+        profileSizes = ["w185", "h632", "original"]
     }
 
     /// Picks the smallest size that is at least `minimum` pixels wide ("w500" -> 500), else the largest numbered one, else "original".
@@ -85,15 +88,19 @@ struct TMDBGenre: Decodable {
 }
 
 struct TMDBCastMember: Decodable {
+    var id: Int?
     var name: String?
     var character: String?
     var order: Int?
-    private enum CodingKeys: String, CodingKey { case name, character, order }
+    var profilePath: String?
+    private enum CodingKeys: String, CodingKey { case id, name, character, order, profile_path }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.flexInt(.id)
         name = c.flexString(.name)
         character = c.flexString(.character)
         order = c.flexInt(.order)
+        profilePath = c.flexString(.profile_path)
     }
 }
 

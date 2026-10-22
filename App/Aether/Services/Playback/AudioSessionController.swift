@@ -6,6 +6,8 @@ final class AudioSessionController {
     var onInterruptionBegan: (() -> Void)?
     var onInterruptionEnded: ((_ shouldResume: Bool) -> Void)?
     var onRouteLost: (() -> Void)?
+    /// Every change of the audio route, with the name of the AirPlay output if the sound now goes to one.
+    var onRouteChanged: ((String?) -> Void)?
     private var observers: [NSObjectProtocol] = []
 
     func activate() {
@@ -46,6 +48,7 @@ final class AudioSessionController {
         guard let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
               let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
         if reason == .oldDeviceUnavailable { onRouteLost?() }   // headphones unplugged: pause, like every video app
+        onRouteChanged?(AudioSessionController.airPlayRouteName())
     }
 
     /// Name of the current AirPlay output, if audio/video is routed over AirPlay.

@@ -27,6 +27,7 @@ extension AppEnvironment {
             preferredLanguage: SettingsStore.resolvedLanguage(value.playback.preferredAudioLanguage),
             preferLanguage: value.playback.preferStreamsInPreferredAudioLanguage,
             addonOrder: addons.addons.map { $0.id.uuidString },
+            ordering: value.playback.streamOrdering,
             streamingServer: server,
             capabilities: capabilities)
     }
@@ -266,7 +267,7 @@ final class StreamPickerModel: ObservableObject {
         // Continuity: prefer the release group of the previous episode of this series.
         let binge = env.bingeGroup(forMeta: request.meta.id)
         let candidates = DebridStreamLogic.autoSelectable(ranked, statuses: cacheStatuses, debridConfigured: env.debrid.isConfigured)
-        guard resolution == nil, pendingDownload == nil, let best = StreamSelector.autoSelect(candidates, previousBingeGroup: binge) else { return }
+        guard resolution == nil, pendingDownload == nil, let best = StreamSelector.autoSelect(candidates, previousBingeGroup: binge, ordering: env.streamPreferences().ordering) else { return }
         autoSelected = true
         onAutoSelect(best)
     }
@@ -1009,14 +1010,22 @@ struct FlowBadges: View {
         let badges = info.badges
             + info.languages.map { LanguageCodes.displayName($0) }
             + [info.sizeLabel].compactMap { $0 }
-            + [info.kind == .hls ? "HLS" : nil, info.container?.uppercased()].compactMap { $0 }
-        if !badges.isEmpty {
+        if !badges.isEmpty || info.formatLabel != nil {
             WrappingHStack(spacing: 6) {
                 ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
                     Text(badge)
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .padding(.horizontal, 7).padding(.vertical, 3)
                         .background(Color.primary.opacity(0.09), in: Capsule())
+                }
+                if let format = info.formatLabel {
+                    // The file format, drawn as an outline so it reads apart from quality, codec and language.
+                    Text(format)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.35), lineWidth: 1))
+                        .accessibilityLabel("Formato \(format)")
+                        .accessibilityIdentifier("stream.format")
                 }
             }
         }

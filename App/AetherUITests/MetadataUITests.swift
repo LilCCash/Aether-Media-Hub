@@ -76,6 +76,50 @@ final class MetadataUITests: AetherUITestCase {
                       "TMDB data must come with TMDB's attribution")
     }
 
+    func testTheTitlePageShowsTheTMDBSectionsWhenAKeyIsStored() {
+        launchWithFixtureAddon(extraArguments: metadataArguments)
+        openServices()
+        type("fixture-tmdb-key", into: "service.tmdb.key")
+        element("service.tmdb.save").tap()
+        XCTAssertTrue(element("service.tmdb.saved").waitForExistence(timeout: 20))
+
+        openSparseMovie()
+        scrollTo("detail.cast")
+        XCTAssertTrue(element(labelContaining: "Attrice TMDB Uno, La pilota").exists, "an actor is read with the character")
+        scrollTo("detail.trailer.1")
+        XCTAssertTrue(element("detail.trailer.0").exists, "both trailers are listed")
+        scrollTo("detail.companies")
+        XCTAssertTrue(element(labelContaining: "Studio di Prova").exists)
+        scrollTo("detail.financials")
+        XCTAssertTrue(element(labelContaining: "12.000.000 $").exists, "the budget of a film")
+        XCTAssertTrue(element(labelContaining: "34.500.000 $").exists, "the revenue of a film")
+        scrollTo("detail.facts")
+        XCTAssertTrue(element(labelContaining: "Uscito").exists, "the status row")
+        scrollTo("detail.similar")
+        XCTAssertTrue(element("detail.similar.0").exists)
+        scrollTo("detail.tmdbCredit")
+        XCTAssertTrue(element(labelContaining: "Offerto da TMDB").exists)
+    }
+
+    func testTheTitlePageOffersTheKeyWhenNoneIsStored() {
+        launchWithFixtureAddon(extraArguments: metadataArguments)
+        openSparseMovie()
+        scrollTo("detail.tmdbHint")
+        XCTAssertFalse(element("detail.cast").exists)
+        XCTAssertFalse(element("detail.financials").exists)
+    }
+
+    /// Scrolls the title page until the element is on screen (at most a few swipes).
+    private func scrollTo(_ identifier: String) {
+        let target = element(identifier)
+        var swipes = 0
+        while !target.exists && swipes < 8 {
+            app.swipeUp()
+            swipes += 1
+        }
+        XCTAssertTrue(target.waitForExistence(timeout: 10), "\(identifier) never appeared on the title page")
+    }
+
     func testRemovingTheKeyStopsTheEnrichment() {
         launchWithFixtureAddon(extraArguments: metadataArguments)
         openServices()

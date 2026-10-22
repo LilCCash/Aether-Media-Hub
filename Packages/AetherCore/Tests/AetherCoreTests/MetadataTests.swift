@@ -732,3 +732,247 @@ final class MetadataTests: XCTestCase {
         XCTAssertTrue(MetadataError.rateLimited(retryAfter: 30).message.contains("30"))
     }
 }
+
+// MARK: - Title page
+
+private enum RichFixtures {
+    static let movie = """
+    {"id":603,"title":"Matrix","status":"Released","release_date":"1999-03-30","runtime":136,"original_language":"en",
+    "budget":63000000,"revenue":467222728,
+    "production_countries":[{"iso_3166_1":"US","name":"United States of America"},{"iso_3166_1":"AU","name":"Australia"}],
+    "production_companies":[{"name":"Warner Bros.","logo_path":"/wb.png","origin_country":"US"},{"name":"Village Roadshow","logo_path":"/vr.svg"},
+    {"name":"Silver Pictures","logo_path":null},{"name":"Warner Bros.","logo_path":"/dup.png"}],
+    "credits":{"cast":[{"id":2,"name":"Carrie-Anne Moss","character":"Trinity","order":1,"profile_path":"/ca.jpg"},
+    {"id":1,"name":"Keanu Reeves","character":"Neo","order":0,"profile_path":"/kr.jpg"},
+    {"id":3,"name":"Senza foto","character":"","order":2,"profile_path":null},
+    {"id":1,"name":"Keanu Reeves","character":"Altro ruolo","order":3,"profile_path":"/kr2.jpg"},
+    {"name":"  ","order":4}],
+    "crew":[{"name":"Lana Wachowski","job":"Director"},{"name":"Lana Wachowski","job":"Director"},{"name":"Joel Silver","job":"Producer"}]},
+    "videos":{"results":[
+    {"key":"tease0001","site":"YouTube","type":"Teaser","name":"Teaser","official":true,"iso_639_1":"it","published_at":"2020-01-01T00:00:00.000Z"},
+    {"key":"engtrailer1","site":"YouTube","type":"Trailer","name":"Trailer inglese","official":true,"iso_639_1":"en","published_at":"2021-01-01T00:00:00.000Z"},
+    {"key":"ittrailer01","site":"YouTube","type":"Trailer","name":"Trailer italiano","official":true,"iso_639_1":"it","published_at":"2019-01-01T00:00:00.000Z"},
+    {"key":"itold000001","site":"YouTube","type":"Trailer","name":"Vecchio non ufficiale","official":false,"iso_639_1":"it","published_at":"2010-01-01T00:00:00.000Z"},
+    {"key":"vimeo00001","site":"Vimeo","type":"Trailer","name":"Vimeo","official":true,"iso_639_1":"it"},
+    {"key":"bad key/..","site":"YouTube","type":"Trailer","name":"Chiave non valida","iso_639_1":"it"},
+    {"key":"clip0000001","site":"YouTube","type":"Clip","name":"Clip","iso_639_1":"it"},
+    {"key":"ittrailer01","site":"YouTube","type":"Trailer","name":"Doppione","iso_639_1":"it"}]},
+    "similar":{"results":[{"id":604,"title":"Matrix Reloaded","poster_path":"/r.jpg","vote_average":7.0,"release_date":"2003-05-15"},
+    {"id":605,"title":"","poster_path":"/x.jpg"},{"title":"Senza id"},{"id":606,"title":"Senza locandina","vote_average":0}]},
+    "release_dates":{"results":[{"iso_3166_1":"US","release_dates":[{"certification":"R","type":3}]},
+    {"iso_3166_1":"IT","release_dates":[{"certification":"","type":3},{"certification":"T","type":4},{"certification":"VM14","type":3}]}]},
+    "external_ids":{"imdb_id":"tt0133093"}}
+    """
+
+    static let show = """
+    {"id":1399,"name":"Il Trono","status":"Ended","first_air_date":"2011-04-17","last_air_date":"2019-05-19","episode_run_time":[57],
+    "original_language":"en","origin_country":["US"],"number_of_seasons":8,"number_of_episodes":73,"budget":999,"revenue":999,
+    "created_by":[{"name":"David Benioff"},{"name":"D. B. Weiss"}],
+    "networks":[{"name":"HBO","logo_path":"/hbo.png"}],"production_companies":[{"name":"Television 360","logo_path":"/t360.png"}],
+    "credits":{"cast":[{"id":9,"name":"Emilia Clarke","character":"Daenerys Targaryen","order":0,"profile_path":"/ec.jpg"}],"crew":[]},
+    "videos":{"results":[]},"similar":{"results":[{"id":2,"name":"Altra serie","poster_path":"/a.jpg","first_air_date":"2015-01-01","vote_average":8.1}]},
+    "content_ratings":{"results":[{"iso_3166_1":"DE","rating":"16"},{"iso_3166_1":"US","rating":"TV-MA"}]},
+    "external_ids":{"imdb_id":"tt0944947","tvdb_id":121361}}
+    """
+
+    static let configuration = """
+    {"images":{"secure_base_url":"https://image.tmdb.org/t/p/","poster_sizes":["w92","w342","w500","original"],
+    "backdrop_sizes":["w300","w1280","original"],"logo_sizes":["w45","w185","w300","original"],"still_sizes":["w300","original"],
+    "profile_sizes":["w45","w185","h632","original"]}}
+    """
+
+    static func details(_ json: String, movie: Bool, language: String = "it-IT") throws -> TitleRichDetails {
+        let decoded = try JSONDecoder().decode(TMDBRichDetails.self, from: Data(json.utf8))
+        let config = try JSONDecoder().decode(TMDBConfigurationResponse.self, from: Data(configuration.utf8)).images ?? TMDBImageConfiguration()
+        return TitleRichDetails.make(from: decoded, tmdbID: decoded.id ?? 0, isMovie: movie, configuration: config, language: language,
+                                     locale: Locale(identifier: "it_IT"))
+    }
+}
+
+final class TitleRichDetailsTests: XCTestCase {
+    func testTheCastKeepsTheOrderTheRolesAndThePhotos() throws {
+        let rich = try RichFixtures.details(RichFixtures.movie, movie: true)
+        XCTAssertEqual(rich.cast.map { $0.name }, ["Keanu Reeves", "Carrie-Anne Moss", "Senza foto"],
+                       "ordered by billing, blank names skipped, a person listed twice kept once")
+        XCTAssertEqual(rich.cast[0].role, "Neo")
+        XCTAssertEqual(rich.cast[0].photoURL, "https://image.tmdb.org/t/p/w185/kr.jpg")
+        XCTAssertNil(rich.cast[2].photoURL)
+        XCTAssertNil(rich.cast[2].role, "an empty character is no role")
+        XCTAssertEqual(rich.directors, ["Lana Wachowski"])
+    }
+
+    func testProductionCompaniesAreDeduplicatedAndVectorLogosDropped() throws {
+        let rich = try RichFixtures.details(RichFixtures.movie, movie: true)
+        XCTAssertEqual(rich.companies.map { $0.name }, ["Warner Bros.", "Village Roadshow", "Silver Pictures"])
+        XCTAssertEqual(rich.companies[0].logoURL, "https://image.tmdb.org/t/p/w185/wb.png")
+        XCTAssertNil(rich.companies[1].logoURL, "the app cannot draw an .svg")
+        XCTAssertNil(rich.companies[2].logoURL)
+    }
+
+    func testBudgetAndRevenueExistForFilmsOnly() throws {
+        let movie = try RichFixtures.details(RichFixtures.movie, movie: true)
+        XCTAssertEqual(movie.budget, 63_000_000)
+        XCTAssertEqual(movie.revenue, 467_222_728)
+        let show = try RichFixtures.details(RichFixtures.show, movie: false)
+        XCTAssertNil(show.budget)
+        XCTAssertNil(show.revenue)
+        let zero = try JSONDecoder().decode(TMDBRichDetails.self, from: Data(#"{"id":1,"budget":0,"revenue":0}"#.utf8))
+        let nothing = TitleRichDetails.make(from: zero, tmdbID: 1, isMovie: true, configuration: TMDBImageConfiguration(), language: "it-IT")
+        XCTAssertNil(nothing.budget, "0 means TMDB does not know")
+        XCTAssertNil(nothing.revenue)
+    }
+
+    func testMoneyIsPrintedWithDotsAndTheDollarSign() {
+        XCTAssertEqual(TitleRichDetails.moneyText(63_000_000), "63.000.000 $")
+        XCTAssertEqual(TitleRichDetails.moneyText(1_250), "1.250 $")
+        XCTAssertEqual(TitleRichDetails.moneyText(999), "999 $")
+        XCTAssertEqual(TitleRichDetails.moneyText(1_000_000_000), "1.000.000.000 $")
+    }
+
+    func testTrailersAreYouTubeOnlySafeOrderedAndLimited() throws {
+        let rich = try RichFixtures.details(RichFixtures.movie, movie: true)
+        XCTAssertEqual(rich.trailers.map { $0.key }, ["ittrailer01", "itold000001", "engtrailer1", "tease0001"],
+                       "trailers before teasers, the user's language first, official first, no other site, no clip, no unsafe key, no repeat")
+        XCTAssertEqual(rich.trailers.first?.watchURL?.absoluteString, "https://www.youtube.com/watch?v=ittrailer01")
+        XCTAssertEqual(rich.trailers.first?.type, "Trailer")
+        XCTAssertFalse(TitleRichDetails.isSafeVideoKey("a/b"))
+        XCTAssertFalse(TitleRichDetails.isSafeVideoKey("abc"))
+        XCTAssertTrue(TitleRichDetails.isSafeVideoKey("dQw4w9WgXcQ"))
+    }
+
+    func testSimilarTitlesNeedAnIdAndAName() throws {
+        let rich = try RichFixtures.details(RichFixtures.movie, movie: true)
+        XCTAssertEqual(rich.similar.map { $0.tmdbID }, [604, 606])
+        XCTAssertEqual(rich.similar[0].posterURL, "https://image.tmdb.org/t/p/w342/r.jpg")
+        XCTAssertEqual(rich.similar[0].year, "2003")
+        XCTAssertEqual(rich.similar[0].rating, 7.0)
+        XCTAssertNil(rich.similar[1].rating, "a score of 0 is no score")
+        XCTAssertNil(rich.similar[1].posterURL)
+    }
+
+    func testTheCertificationPrefersTheUsersCountryThenTheatricalReleases() throws {
+        let movie = try RichFixtures.details(RichFixtures.movie, movie: true)
+        XCTAssertEqual(movie.certification, "VM14", "Italy first; the theatrical entry wins over the others and an empty one is skipped")
+        let show = try RichFixtures.details(RichFixtures.show, movie: false)
+        XCTAssertEqual(show.certification, "TV-MA (US)", "a rating from another country says which one it is")
+        let american = try RichFixtures.details(RichFixtures.show, movie: false, language: "en-US")
+        XCTAssertEqual(american.certification, "TV-MA")
+        XCTAssertEqual(TitleRichDetails.ratingRegions(language: "it-IT"), ["IT", "US", "GB"])
+        XCTAssertEqual(TitleRichDetails.ratingRegions(language: "fr-FR"), ["FR", "IT", "US", "GB"])
+        XCTAssertEqual(TitleRichDetails.ratingRegions(language: "it"), ["IT", "US", "GB"])
+    }
+
+    func testTheFactsTableOfAFilm() throws {
+        let rich = try RichFixtures.details(RichFixtures.movie, movie: true)
+        let rows = rich.detailRows(locale: Locale(identifier: "it_IT"))
+        XCTAssertEqual(rows.map { $0.label }, ["Stato", "Info rilascio", "Durata", "Certificazione", "Paesi", "Lingua originale"])
+        XCTAssertEqual(rows[0].value, "Uscito")
+        XCTAssertTrue(rows[1].value.contains("1999") && rows[1].value.lowercased().contains("marzo"), rows[1].value)
+        XCTAssertEqual(rows[2].value, "2 h 16 min")
+        XCTAssertEqual(rows[3].value, "VM14")
+        XCTAssertEqual(rows[5].value, LanguageCodes.displayName("en", locale: Locale(identifier: "it_IT")))
+        XCTAssertFalse(rows[5].value.isEmpty)
+        XCTAssertTrue(rows[4].value.contains("Australia"), rows[4].value)
+    }
+
+    func testTheFactsTableOfASeries() throws {
+        let rich = try RichFixtures.details(RichFixtures.show, movie: false)
+        let rows = rich.detailRows(locale: Locale(identifier: "it_IT"))
+        XCTAssertEqual(rows.map { $0.label }, ["Stato", "Info rilascio", "Durata", "Stagioni", "Certificazione", "Paese", "Lingua originale"])
+        XCTAssertEqual(rows[0].value, "Conclusa")
+        XCTAssertTrue(rows[1].value.contains("2011") && rows[1].value.contains("2019") && rows[1].value.contains("–"), "an ended series shows its span: \(rows[1].value)")
+        XCTAssertEqual(rows[2].value, "57 min")
+        XCTAssertEqual(rows[3].value, "8 stagioni · 73 episodi")
+        XCTAssertEqual(rich.creators, ["David Benioff", "D. B. Weiss"])
+        XCTAssertEqual(rich.companies.map { $0.name }, ["HBO", "Television 360"], "the channel comes first")
+    }
+
+    func testRowsAreLeftOutWhenTheValueIsUnknown() throws {
+        let sparse = try JSONDecoder().decode(TMDBRichDetails.self, from: Data(#"{"id":7,"status":"","runtime":0,"original_language":"xx"}"#.utf8))
+        let rich = TitleRichDetails.make(from: sparse, tmdbID: 7, isMovie: true, configuration: TMDBImageConfiguration(), language: "it-IT")
+        XCTAssertTrue(rich.detailRows().isEmpty)
+        XCTAssertTrue(rich.isEmpty)
+    }
+
+    func testStatusAndRuntimeWording() {
+        XCTAssertEqual(TitleRichDetails.statusText("Returning Series", isMovie: false), "In corso")
+        XCTAssertEqual(TitleRichDetails.statusText("Canceled", isMovie: false), "Cancellata")
+        XCTAssertEqual(TitleRichDetails.statusText("Canceled", isMovie: true), "Cancellato")
+        XCTAssertEqual(TitleRichDetails.statusText("In Production", isMovie: true), "In produzione")
+        XCTAssertEqual(TitleRichDetails.statusText("Something New", isMovie: true), "Something New")
+        XCTAssertNil(TitleRichDetails.statusText("  ", isMovie: true))
+        XCTAssertEqual(TitleRichDetails.runtimeText(45), "45 min")
+        XCTAssertEqual(TitleRichDetails.runtimeText(120), "2 h")
+        XCTAssertEqual(TitleRichDetails.runtimeText(134), "2 h 14 min")
+    }
+
+    func testRichDetailsSurviveTheCacheEncoding() throws {
+        let rich = try RichFixtures.details(RichFixtures.movie, movie: true)
+        let again = try JSONDecoder().decode(TitleRichDetails.self, from: try JSONEncoder().encode(rich))
+        XCTAssertEqual(again, rich)
+    }
+
+    // MARK: Through the enricher
+
+    private func routes(_ http: MetaStubHTTP) {
+        http.on("GET", "/configuration", .init(body: RichFixtures.configuration))
+        http.on("GET", "/find/tt0133093", .init(body: MetaFixtures.findMovie))
+        http.on("GET", "/movie/603", .init(body: RichFixtures.movie))
+    }
+
+    func testTheEnricherAsksForEverythingInOneRequestAndCachesIt() async throws {
+        let http = MetaStubHTTP()
+        routes(http)
+        let cache = ResponseCache(directory: nil)
+        let enricher = MetadataEnricher(tmdb: MetaFixtures.tmdbClient(http), tvdb: nil, cache: cache)
+        let first = await enricher.richDetails(for: MetaFixtures.movieMeta(), language: "it-IT")
+        let rich = try XCTUnwrap(first)
+        XCTAssertEqual(rich.imdbID, "tt0133093")
+        XCTAssertEqual(rich.tmdbID, 603)
+        let request = try XCTUnwrap(http.requests.first(where: { $0.url.path.hasSuffix("/movie/603") }))
+        let query = request.url.query ?? ""
+        for part in ["credits", "videos", "similar", "release_dates", "external_ids", "language=it-IT"] {
+            XCTAssertTrue(query.contains(part), "\(part) missing from \(query)")
+        }
+        XCTAssertTrue(query.contains("include_video_language=it") || query.contains("include_video_language=it%2Cen"), query)
+        let again = await enricher.richDetails(for: MetaFixtures.movieMeta(), language: "it-IT")
+        XCTAssertEqual(again, rich)
+        XCTAssertEqual(http.count(pathSuffix: "/movie/603"), 1, "the second call is answered from the cache")
+    }
+
+    func testWithoutAKeyTheEnricherMakesNoRequest() async {
+        let http = MetaStubHTTP()
+        routes(http)
+        let enricher = MetadataEnricher(tmdb: MetaFixtures.tmdbClient(http, key: nil), tvdb: nil)
+        let result = await enricher.richDetails(for: MetaFixtures.movieMeta(), language: "it-IT")
+        XCTAssertNil(result)
+        let configured = await enricher.tmdbConfigured
+        XCTAssertFalse(configured)
+        XCTAssertTrue(http.requests.isEmpty)
+    }
+
+    func testAFailureGivesNothingInsteadOfAnError() async {
+        let http = MetaStubHTTP()
+        http.on("GET", "/configuration", .init(body: RichFixtures.configuration))
+        http.on("GET", "/find/tt0133093", .init(body: MetaFixtures.findMovie))
+        http.on("GET", "/movie/603", .init(status: 500, body: "{}"))
+        let result = await MetadataEnricher(tmdb: MetaFixtures.tmdbClient(http), tvdb: nil).richDetails(for: MetaFixtures.movieMeta(), language: "it-IT")
+        XCTAssertNil(result)
+    }
+
+    func testASimilarTitleIsOpenedThroughItsIMDbId() async {
+        let http = MetaStubHTTP()
+        http.on("GET", "/movie/604/external_ids", .init(body: #"{"imdb_id":"tt0234215"}"#))
+        http.on("GET", "/tv/2/external_ids", .init(body: #"{"imdb_id":null}"#))
+        let enricher = MetadataEnricher(tmdb: MetaFixtures.tmdbClient(http), tvdb: nil)
+        let first = await enricher.imdbID(forTMDBID: 604, metaType: "movie")
+        XCTAssertEqual(first, "tt0234215")
+        let second = await enricher.imdbID(forTMDBID: 604, metaType: "movie")
+        XCTAssertEqual(second, "tt0234215")
+        XCTAssertEqual(http.count(pathSuffix: "/movie/604/external_ids"), 1, "asked once")
+        let unknown = await enricher.imdbID(forTMDBID: 2, metaType: "series")
+        XCTAssertNil(unknown)
+        let other = await enricher.imdbID(forTMDBID: 604, metaType: "channel")
+        XCTAssertNil(other, "only films and series")
+    }
+}

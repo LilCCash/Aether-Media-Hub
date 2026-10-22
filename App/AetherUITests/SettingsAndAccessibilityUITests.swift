@@ -83,7 +83,7 @@ final class SettingsAndAccessibilityUITests: AetherUITestCase {
         launchWithFixtureAddon()
         openFixtureMovie()
         startPlayback()
-        for label in ["Chiudi il player", "Pausa", "Audio e sottotitoli", "Altre opzioni"] {
+        for label in ["Chiudi il player", "Pausa", "Sottotitoli", "Audio", "Altre opzioni"] {
             XCTAssertTrue(app.buttons[label].exists || app.buttons["Riproduci"].exists, "control \(label) lacks an accessibility label")
         }
         XCTAssertTrue(element("player.scrubber").exists)

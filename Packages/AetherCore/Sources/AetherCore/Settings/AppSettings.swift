@@ -408,7 +408,12 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var defaultSleepTimerMinutes: Int = 0
     public var qualityCap: VideoQualityCap = .auto
     public var preferStreamsInPreferredAudioLanguage: Bool = true
+    /// Whether the order of the addons decides the order of the sources, or the best ones come first whatever addon they are from.
+    public var streamOrdering: StreamOrdering = .byAddon
     public var autoSelectStream: Bool = false
+    /// With the Automatic engine, Matroska files are converted on the fly for AVPlayer instead of being opened with MPV: AVPlayer can
+    /// then float the picture (Picture in Picture) and send it to an AirPlay receiver. The AVPlayer engine always converts them.
+    public var convertMatroskaForAVPlayer: Bool = false
     public var controlsAutoHideSeconds: Int = 4
     public var landscapeOnly: Bool = true
     public var gesturesEnabled: Bool = true
@@ -434,7 +439,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly
-        case gesturesEnabled, watchedThreshold, skipSegmentsEnabled
+        case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering, convertMatroskaForAVPlayer
     }
 
     public init(from decoder: Decoder) throws {
@@ -455,7 +460,9 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         defaultSleepTimerMinutes = max(0, c.value(.defaultSleepTimerMinutes, default: 0))
         qualityCap = c.value(.qualityCap, default: .auto)
         preferStreamsInPreferredAudioLanguage = c.value(.preferStreamsInPreferredAudioLanguage, default: true)
+        streamOrdering = c.value(.streamOrdering, default: .byAddon)
         autoSelectStream = c.value(.autoSelectStream, default: false)
+        convertMatroskaForAVPlayer = c.value(.convertMatroskaForAVPlayer, default: false)
         controlsAutoHideSeconds = min(15, max(2, c.value(.controlsAutoHideSeconds, default: 4)))
         landscapeOnly = c.value(.landscapeOnly, default: true)
         gesturesEnabled = c.value(.gesturesEnabled, default: true)
@@ -513,11 +520,15 @@ public struct CastingSettings: Codable, Equatable, Sendable {
     public var ssdpDiscoveryEnabled: Bool = false
     public var resumeLocallyOnDisconnect: Bool = true
     public var manualDLNAHosts: [String] = []
+    /// Matroska files sent to Google Cast are converted by the phone into HLS (video and audio copied, not re-encoded), which every
+    /// Cast receiver reads; without it the receiver is given the MKV as it is and many refuse it.
+    public var convertMatroskaForGoogleCast: Bool = true
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case airPlayEnabled, googleCastEnabled, dlnaEnabled, ssdpDiscoveryEnabled, resumeLocallyOnDisconnect, manualDLNAHosts
+        case convertMatroskaForGoogleCast
     }
 
     public init(from decoder: Decoder) throws {
@@ -528,6 +539,7 @@ public struct CastingSettings: Codable, Equatable, Sendable {
         ssdpDiscoveryEnabled = c.value(.ssdpDiscoveryEnabled, default: false)
         resumeLocallyOnDisconnect = c.value(.resumeLocallyOnDisconnect, default: true)
         manualDLNAHosts = c.value(.manualDLNAHosts, default: [])
+        convertMatroskaForGoogleCast = c.value(.convertMatroskaForGoogleCast, default: true)
     }
 }
 
@@ -578,16 +590,20 @@ public struct AdvancedSettings: Codable, Equatable, Sendable {
     public var useExternalStreamingServer: Bool = false
     public var streamingServerURL: String = ""
     public var verboseLogging: Bool = false
+    /// Hand the television the original link of a source that carries the user's account key, instead of letting the phone relay the
+    /// video. Off by default: with it on, whoever controls the television (or listens on the Wi-Fi) can read the key.
+    public var sendDirectLinkToTV: Bool = false
 
     public init() {}
 
-    private enum CodingKeys: String, CodingKey { case useExternalStreamingServer, streamingServerURL, verboseLogging }
+    private enum CodingKeys: String, CodingKey { case useExternalStreamingServer, streamingServerURL, verboseLogging, sendDirectLinkToTV }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         useExternalStreamingServer = c.value(.useExternalStreamingServer, default: false)
         streamingServerURL = c.value(.streamingServerURL, default: "")
         verboseLogging = c.value(.verboseLogging, default: false)
+        sendDirectLinkToTV = c.value(.sendDirectLinkToTV, default: false)
     }
 }
 

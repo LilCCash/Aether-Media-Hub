@@ -6,6 +6,7 @@ struct PlayerView: View {
     @StateObject private var model: PlayerViewModel
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var casting: CastCoordinator
+    @EnvironmentObject private var relayService: RelayService
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var router: AppRouter
     @Environment(\.scenePhase) private var scenePhase
@@ -20,6 +21,8 @@ struct PlayerView: View {
     @State private var pendingHideTask: Task<Void, Never>?
     @State private var isScrubbing = false
     @State private var sheet: PlayerSheet?
+    /// The panel on the right edge (subtitles, audio, sources), which keeps the picture visible behind it.
+    @State private var panel: PlayerPanel?
     @State private var importingSubtitle = false
     @State private var hud: HUD?
     @State private var hudTask: Task<Void, Never>?
@@ -30,6 +33,11 @@ struct PlayerView: View {
     @State private var rateBeforeHold: Float?
     @State private var originalBrightness: Double = 0.5
     @State private var castNotice: CastNotice?
+    /// The transmission being started: closing the player ends it, and one that finishes after that is stopped at once.
+    @State private var castTask: Task<Void, Never>?
+    /// True from the tap on a television until the receiver has the video (a converted file takes several seconds): a second tap is
+    /// ignored, because a cancelled first attempt would stop the session the second one had just set up.
+    @State private var castInFlight = false
     @State private var pendingCast: PendingCast?
 
     private enum DragMode { case brightness, volume, seek }
@@ -50,6 +58,7 @@ struct PlayerView: View {
         let id = UUID()
         var device: CastDevice
         var warnings: [String]
+        var delivery: CastDelivery = .direct
     }
 
     init(request: PlayerRequest, env: AppEnvironment) {
@@ -62,8 +71,11 @@ struct PlayerView: View {
     var body: some View {
         reactions
             .onChange(of: sheet) { _, value in sheetChanged(value) }
+            .onChange(of: panel) { _, value in panelChanged(value) }
             .onChange(of: remotePosition) { _, value in remotePositionChanged(value) }
-            .accessibilityAction(.escape) { close() }
+            .accessibilityAction(.escape) {
+                if panel != nil { closePanel() } else { close() }
+            }
     }
 
     private var reactions: some View {
@@ -105,6 +117,23 @@ struct PlayerView: View {
         if value == nil { scheduleHide() } else { hideTask?.cancel() }
     }
 
+    private func panelChanged(_ value: PlayerPanel?) {
+        if value == nil { scheduleHide() } else { hideTask?.cancel() }
+    }
+
+    /// Opens a panel on the right edge. The controls step aside so the picture is visible next to it.
+    private func openPanel(_ value: PlayerPanel) {
+        sheet = nil
+        pendingHideTask?.cancel()
+        controlsVisible = false
+        panel = value
+    }
+
+    private func closePanel() {
+        panel = nil
+        showControls()
+    }
+
     private func remotePositionChanged(_ position: Double?) {
         guard let position = position, let session = casting.session else { return }
         model.remoteProgress(position: position, duration: session.status.duration)
@@ -127,9 +156,22 @@ struct PlayerView: View {
             } message: { notice in
                 Text(notice.message)
             }
-            .confirmationDialog(pendingCast.map { "Trasmettere a «\($0.device.name)»?" } ?? "",
+            .alert(model.airPlayAlert?.title ?? "", isPresented: airPlayAlertBinding, presenting: model.airPlayAlert) { _ in
+                Button("Trasmetti con Cast / DLNA") {
+                    model.acknowledgeAirPlayAlert()
+                    sheet = .cast
+                }
+                Button("Va bene così", role: .cancel) { model.acknowledgeAirPlayAlert() }
+            } message: { alert in
+                Text(alert.message)
+            }
+            .confirmationDialog(pendingCast.map { $0.delivery == .directWithKey ? "Trasmettere a «\($0.device.name)» con il link diretto?" : "Trasmettere a «\($0.device.name)»?" } ?? "",
                                 isPresented: pendingCastBinding, titleVisibility: .visible, presenting: pendingCast) { pending in
-                Button("Invia comunque") { performCast(to: pending.device) }
+                if pending.delivery == .directWithKey {
+                    Button("Invia con la chiave", role: .destructive) { performCast(to: pending.device) }
+                } else {
+                    Button(pending.delivery == .relay ? "Trasmetti" : "Invia comunque") { performCast(to: pending.device) }
+                }
                 Button("Annulla", role: .cancel) {}
             } message: { pending in
                 Text(pending.warnings.joined(separator: "\n\n"))
@@ -140,6 +182,10 @@ struct PlayerView: View {
         Binding(get: { castNotice != nil }, set: { if !$0 { castNotice = nil } })
     }
 
+    private var airPlayAlertBinding: Binding<Bool> {
+        Binding(get: { model.airPlayAlert != nil }, set: { if !$0 && model.airPlayAlert != nil { model.acknowledgeAirPlayAlert() } })
+    }
+
     private var pendingCastBinding: Binding<Bool> {
         Binding(get: { pendingCast != nil }, set: { if !$0 { pendingCast = nil } })
     }
@@ -147,11 +193,13 @@ struct PlayerView: View {
     @ViewBuilder
     private func sheetContent(_ sheet: PlayerSheet) -> some View {
         switch sheet {
-        case .tracks: PlayerTracksSheet(model: model, onImport: { importingSubtitle = true })
         case .episodes: PlayerEpisodesSheet(model: model)
         case .info: PlayerInfoSheet(model: model)
-        case .sources: PlayerSourcesSheet(model: model)
-        case .cast: PlayerCastSheet(onSelect: { prepareCast(to: $0) })
+        case .cast:
+            PlayerCastSheet(airPlayNote: model.engine.kind == .mpv
+                                ? "Con questo file (motore MPV) AirPlay invia solo l'audio. Per il video usa Google Cast o DLNA qui sotto."
+                                : nil,
+                            onSelect: { prepareCast(to: $0) })
         }
     }
 
@@ -164,7 +212,8 @@ struct PlayerView: View {
                     .accessibilityHidden(true)
                 HiddenVolumeView(controller: volume).frame(width: 1, height: 1).allowsHitTesting(false)
 
-                subtitleOverlay(size: proxy.size)
+                // While a panel is open the panel draws the subtitle itself, beside it, above the dimming.
+                if panel == nil { subtitleOverlay(size: proxy.size) }
 
                 gestureLayer(size: proxy.size)
 
@@ -183,8 +232,14 @@ struct PlayerView: View {
                         .accessibilityHidden(true)
                 }
                 overlays(size: proxy.size)
+                if let panel = panel {
+                    PlayerPanelHost(panel: panel, model: model, onImportSubtitle: { importingSubtitle = true }, close: closePanel,
+                                    subtitleLayer: { free in AnyView(subtitleOverlay(size: free)) })
+                        .zIndex(10)
+                }
             }
             .animation(animationsAllowed ? .easeInOut(duration: 0.2) : nil, value: controlsVisible)
+            .animation(animationsAllowed ? .easeInOut(duration: 0.25) : nil, value: panel)
             // The "interactive" glass shimmer restarts every time the playhead moves (four times a second) and swallowed taps.
             .environment(\.aetherGlassInteractive, false)
         }
@@ -212,6 +267,7 @@ struct PlayerView: View {
     }
 
     private func disappear() {
+        castTask?.cancel()
         hideTask?.cancel()
         pendingHideTask?.cancel()
         hudTask?.cancel()
@@ -237,7 +293,7 @@ struct PlayerView: View {
 
     private func scheduleHide() {
         hideTask?.cancel()
-        guard model.snapshot.isPlaying, !isScrubbing, sheet == nil, !isCasting else { return }
+        guard model.snapshot.isPlaying, !isScrubbing, sheet == nil, panel == nil, !isCasting else { return }
         let delay = Double(playbackSettings.controlsAutoHideSeconds)
         hideTask = Task {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -458,7 +514,8 @@ struct PlayerView: View {
                             .aetherGlassCapsule()
                             .accessibilityLabel("Timer di spegnimento: \(Format.duration(remaining))")
                     }
-                    AirPlayRoutePicker(tint: .white, activeTint: UIColor(settings.accentColor))
+                    AirPlayRoutePicker(tint: .white, activeTint: UIColor(settings.accentColor),
+                                       onWillPresent: { model.airPlayPickerWillPresent() })
                         .frame(width: 44, height: 44)
                         .aetherGlass(in: Circle(), interactive: true)
                     GlassIconButton(systemName: "tv.and.mediabox", accessibilityLabel: "Trasmetti su Google Cast o DLNA") {
@@ -468,8 +525,6 @@ struct PlayerView: View {
                     GlassIconButton(systemName: "pip.enter", accessibilityLabel: "Picture in Picture") { model.startPictureInPicture() }
                         .opacity(model.pictureInPictureAvailability.canStart ? 1 : 0.55)
                         .accessibilityIdentifier("player.pip")
-                    GlassIconButton(systemName: "captions.bubble", accessibilityLabel: "Audio e sottotitoli") { sheet = .tracks }
-                        .accessibilityIdentifier("player.tracks")
                     moreMenu
                 }
             }
@@ -497,7 +552,7 @@ struct PlayerView: View {
                 Label(model.isFill ? "Adatta allo schermo" : "Riempi lo schermo", systemImage: model.isFill ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
             }
             if !model.alternatives.isEmpty {
-                Button { sheet = .sources } label: { Label("Cambia sorgente", systemImage: "arrow.triangle.2.circlepath") }
+                Button { openPanel(.sources) } label: { Label("Cambia sorgente", systemImage: "arrow.triangle.2.circlepath") }
             }
             Button { importingSubtitle = true } label: { Label("Importa sottotitoli…", systemImage: "doc.badge.plus") }
             Button { sheet = .info } label: { Label("Informazioni sulla sorgente", systemImage: "info.circle") }
@@ -589,21 +644,90 @@ struct PlayerView: View {
                         .padding(.horizontal, 10).frame(height: 34)
                         .aetherGlassCapsule()
                 }
-                if let route = model.airPlayRoute {
-                    Label(route, systemImage: "airplayvideo").font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10).frame(height: 34).aetherGlassCapsule()
+                airPlayChip
+                Spacer(minLength: 8)
+                // The full row when it fits, else the same buttons as icons alone.
+                ViewThatFits(in: .horizontal) {
+                    actionRow(compact: false)
+                    actionRow(compact: true)
                 }
-                Spacer()
-                if model.meta.videos.count > 1 && model.currentVideo != nil {
-                    Button { sheet = .episodes } label: {
-                        Label("Episodi", systemImage: "list.bullet").font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 14).frame(height: 36)
-                            .aetherGlassCapsule(interactive: true)
-                            .contentShape(Capsule())
-                    }
+                .layoutPriority(1)
+            }
+        }
+    }
+
+    /// Subtitles, audio, sources, speed, fill and episodes: one tap away under the progress bar.
+    private func actionRow(compact: Bool) -> some View {
+        HStack(spacing: 8) {
+            Button { openPanel(.subtitles) } label: { actionLabel("captions.bubble", "Sottotitoli", compact: compact) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Sottotitoli")
+                .accessibilityIdentifier("player.tracks")
+            Button { openPanel(.audio) } label: { actionLabel("waveform", "Audio", compact: compact) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Audio")
+                .accessibilityIdentifier("player.audio")
+            if !model.alternatives.isEmpty {
+                Button { openPanel(.sources) } label: { actionLabel("arrow.triangle.2.circlepath", "Sorgenti", compact: compact) }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("player.episodes")
+                    .accessibilityLabel("Sorgenti")
+                    .accessibilityIdentifier("player.sources")
+            }
+            Menu {
+                Picker("Velocità", selection: Binding(get: { model.playbackRate }, set: { model.setRate($0) })) {
+                    ForEach([Float(0.5), 0.75, 1, 1.25, 1.5, 2], id: \.self) { rate in
+                        Text(rateLabel(rate)).tag(rate)
+                    }
                 }
+            } label: {
+                actionLabel("speedometer", "Velocità", compact: compact)
+            }
+            .accessibilityLabel("Velocità di riproduzione")
+            .accessibilityValue(rateLabel(model.playbackRate))
+            .accessibilityIdentifier("player.speed")
+            Button { model.toggleFill() } label: {
+                actionLabel(model.isFill ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
+                            model.isFill ? "Adatta" : "Riempi", compact: compact)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(model.isFill ? "Adatta allo schermo" : "Riempi lo schermo")
+            .accessibilityIdentifier("player.fill")
+            if model.meta.videos.count > 1 && model.currentVideo != nil {
+                Button { sheet = .episodes } label: { actionLabel("list.bullet", "Episodi", compact: compact) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Episodi")
+                    .accessibilityIdentifier("player.episodes")
+            }
+        }
+    }
+
+    private func actionLabel(_ symbol: String, _ title: String, compact: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
+            if !compact { Text(title).font(.subheadline.weight(.semibold)).lineLimit(1) }
+        }
+        .padding(.horizontal, compact ? 0 : 14)
+        .frame(width: compact ? 40 : nil, height: 36)
+        .aetherGlassCapsule(interactive: true)
+        .contentShape(Capsule())
+    }
+
+    /// Where the AirPlay output is, said honestly: with MPV the sound goes to the device and the picture stays on the phone.
+    @ViewBuilder
+    private var airPlayChip: some View {
+        switch model.airPlayAdvice {
+        case .audioOnlyBecauseMPV(let route), .audioOnlyBecauseKeyProtected(let route):
+            Label("Solo audio · \(route)", systemImage: "speaker.wave.2.fill").font(.caption.weight(.semibold))
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 10).frame(height: 34).aetherGlassCapsule()
+                .accessibilityIdentifier("player.airplay.audioOnly")
+        case .videoViaRelay:
+            Label("AirPlay · tramite Aether", systemImage: "airplayvideo").font(.caption.weight(.semibold))
+                .padding(.horizontal, 10).frame(height: 34).aetherGlassCapsule()
+        case .none:
+            if let route = model.airPlayRoute {
+                Label(route, systemImage: "airplayvideo").font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10).frame(height: 34).aetherGlassCapsule()
             }
         }
     }
@@ -780,7 +904,10 @@ struct PlayerView: View {
             Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 34)).foregroundStyle(.orange)
             Text("Impossibile riprodurre").font(.headline)
             Text(failure.message).font(.subheadline).multilineTextAlignment(.center).foregroundStyle(.white.opacity(0.85))
-            if settings.value.advanced.verboseLogging, !failure.detail.isEmpty {
+            if let why = model.failureExplanation {
+                Text(why).font(.footnote).multilineTextAlignment(.center).foregroundStyle(.white.opacity(0.7))
+                    .accessibilityIdentifier("player.errorReason")
+            } else if settings.value.advanced.verboseLogging, !failure.detail.isEmpty {
                 Text(failure.detail).font(.caption2).foregroundStyle(.white.opacity(0.5))
             }
             HStack(spacing: 10) {
@@ -788,7 +915,7 @@ struct PlayerView: View {
                     .buttonStyle(PrimaryActionButtonStyle())
                     .accessibilityIdentifier("player.retry")
                 if model.alternatives.contains(where: { $0.info.support.isPlayable }) {
-                    Button { sheet = .sources } label: { Text("Altra sorgente") }
+                    Button { openPanel(.sources) } label: { Text("Altra sorgente") }
                         .buttonStyle(SecondaryActionButtonStyle())
                         .accessibilityIdentifier("player.otherSource")
                 }
@@ -811,6 +938,20 @@ struct PlayerView: View {
             VStack(spacing: 18) {
                 Image(systemName: "tv.and.mediabox.fill").font(.system(size: 44)).foregroundStyle(settings.accentColor)
                 Text("Riproduzione su \(session.device.name)").font(.title3.weight(.semibold))
+                switch session.delivery {
+                case .relay:
+                    Label("Ponte attivo · il televisore non vede la tua chiave", systemImage: "lock.shield.fill")
+                        .font(.footnote.weight(.semibold)).multilineTextAlignment(.center)
+                        .accessibilityIdentifier("player.cast.relayBadge")
+                    Text("Non bloccare il telefono e non chiudere Aether: il video passa da qui.")
+                        .font(.footnote).foregroundStyle(.white.opacity(0.75)).multilineTextAlignment(.center)
+                case .directWithKey:
+                    Label("Link diretto con la tua chiave", systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote.weight(.semibold)).foregroundStyle(.orange)
+                        .accessibilityIdentifier("player.cast.directKeyBadge")
+                case .direct:
+                    EmptyView()
+                }
                 CastSessionControls()
                     .padding(16)
                     .aetherGlassCard(cornerRadius: 22)
@@ -835,33 +976,84 @@ struct PlayerView: View {
     // MARK: Casting
 
     private func prepareCast(to device: CastDevice) {
-        guard let plan = model.castPlan() else {
-            let reason = model.isPlayingThroughTorBox
-                ? "Il link di TorBox contiene un codice personale che Aether non consegna a Google Cast né ai ricevitori DLNA. Con AirPlay il link passa al ricevitore che scegli: usalo solo su un dispositivo tuo."
-                : "I file scaricati si trovano solo su questo telefono: il televisore non può leggerli. Usa AirPlay, oppure trasmetti la sorgente online."
-            castNotice = CastNotice(title: "Non trasmettibile", message: reason)
-            return
-        }
-        let verdict = CastCompatibility.evaluate(url: plan.media.url, info: plan.info, headers: plan.headers,
-                                                 target: device.target, hasExternalSubtitles: model.externalSubtitleCount() > 0)
-        switch verdict {
-        case .blocked(let message):
-            castNotice = CastNotice(title: "Questa sorgente non può essere trasmessa", message: message)
-        case .warning(let messages):
-            pendingCast = PendingCast(device: device, warnings: messages)
-        case .ok:
-            performCast(to: device)
+        let outcome = model.castPreparation(for: device.target, sendDirectLinkToTV: settings.value.advanced.sendDirectLinkToTV,
+                                            relay: relayService.availability)
+        switch outcome {
+        case .refused(let title, let message):
+            castNotice = CastNotice(title: title, message: message)
+        case .ready(let preparation):
+            let verdict = CastCompatibility.evaluate(url: preparation.evaluationURL, info: preparation.info, headers: preparation.headers,
+                                                     target: device.target, hasExternalSubtitles: model.externalSubtitleCount() > 0,
+                                                     delivery: preparation.delivery, remuxed: preparation.remuxed)
+            let notes = castNotes(for: preparation.delivery, remuxed: preparation.remuxed, carriesSecret: carriesSecret(preparation))
+            switch verdict {
+            case .blocked(let message):
+                castNotice = CastNotice(title: "Questa sorgente non può essere trasmessa", message: message)
+            case .warning(let messages):
+                pendingCast = PendingCast(device: device, warnings: notes + messages, delivery: preparation.delivery)
+            case .ok:
+                if preparation.delivery == .direct {
+                    performCast(to: device)
+                } else {
+                    pendingCast = PendingCast(device: device, warnings: notes, delivery: preparation.delivery)
+                }
+            }
         }
     }
 
+    /// False for a file that only goes through the phone to be converted, with no key and no headers to protect.
+    private func carriesSecret(_ preparation: PlayerViewModel.CastPreparation) -> Bool {
+        guard preparation.remuxed, let original = preparation.fallback else { return true }
+        if case .direct = original.source { return false }
+        return true
+    }
+
+    /// What the viewer should know before a video leaves through the relay.
+    private func castNotes(for delivery: CastDelivery, remuxed: Bool, carriesSecret: Bool) -> [String] {
+        var notes: [String] = []
+        if delivery == .relay {
+            if carriesSecret {
+                notes.append("Aether farà da ponte: scarica il video con la tua chiave e lo passa al televisore, che non la riceve. Tieni il telefono acceso, con Aether aperto e nella stessa rete Wi-Fi.")
+            } else {
+                notes.append("Aether farà da ponte: il telefono legge il video e lo passa al televisore. Tieni il telefono acceso, con Aether aperto e nella stessa rete Wi-Fi.")
+            }
+        }
+        if remuxed {
+            notes.append("Il file MKV viene convertito al volo dal telefono in HLS (video e audio sono copiati, non ricodificati): parte dopo qualche secondo e consuma batteria. Sul televisore passa una sola traccia audio e non i sottotitoli incorporati.")
+        }
+        return notes
+    }
+
     private func performCast(to device: CastDevice) {
-        guard var plan = model.castPlan() else { return }
-        plan.media.startPosition = model.snapshot.position
+        guard case .ready(var preparation) = model.castPreparation(for: device.target, sendDirectLinkToTV: settings.value.advanced.sendDirectLinkToTV,
+                                                                    relay: relayService.availability) else { return }
+        preparation.request.startPosition = model.snapshot.position
+        preparation.fallback?.startPosition = model.snapshot.position
         let position = model.snapshot.position
-        Task {
+        let request = preparation.request
+        let fallback = preparation.fallback
+        guard !castInFlight else {
+            model.showStatus("Sto ancora preparando la trasmissione…")
+            return
+        }
+        castInFlight = true
+        castTask?.cancel()
+        castTask = Task {
+            defer { castInFlight = false }
             do {
-                try await casting.cast(plan.media, to: device, localPosition: position)
+                try await casting.cast(request, to: device, localPosition: position)
+                if Task.isCancelled { casting.stop(); return }
                 model.castDidStart()
+            } catch CastError.conversionRefused(let reason) where fallback != nil {
+                // The file cannot be converted (for example DTS-only audio): the receiver is given the file as it is, as before.
+                model.showStatus("Conversione non possibile: \(RemuxFailureText.problem(reason)) Invio il file così com'è.")
+                do {
+                    try await casting.cast(fallback ?? request, to: device, localPosition: position)
+                    if Task.isCancelled { casting.stop(); return }
+                    model.castDidStart()
+                } catch {
+                    castNotice = CastNotice(title: "Trasmissione non riuscita", message: error.localizedDescription)
+                }
             } catch {
                 castNotice = CastNotice(title: "Trasmissione non riuscita", message: error.localizedDescription)
             }

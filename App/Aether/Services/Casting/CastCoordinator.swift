@@ -12,9 +12,11 @@ final class CastCoordinator: ObservableObject {
         var status: CastRemoteStatus
         /// Where the local player was when the session started; used for diagnostics only.
         var startedAt: Double
+        /// How the receiver was given the video.
+        var delivery: CastDelivery = .direct
 
         static func == (lhs: Session, rhs: Session) -> Bool {
-            lhs.device == rhs.device && lhs.title == rhs.title && lhs.status == rhs.status
+            lhs.device == rhs.device && lhs.title == rhs.title && lhs.status == rhs.status && lhs.delivery == rhs.delivery
         }
     }
 
@@ -30,19 +32,24 @@ final class CastCoordinator: ObservableObject {
     private let settings: SettingsStore
     private let googleCast: CastBackend
     private let dlna: CastBackend
+    private let relay: RelayPublishing?
     private var backends: [CastTarget: CastBackend]
     private var started = false
     private var stopScanTask: Task<Void, Never>?
+    /// The relay session of the current remote session, if it goes through the relay.
+    private var lease: RelayLease?
 
     /// The real backends are created lazily-cheap (no discovery until asked); tests inject fakes.
-    init(settings: SettingsStore, googleCast: CastBackend? = nil, dlna: CastBackend? = nil) {
+    init(settings: SettingsStore, googleCast: CastBackend? = nil, dlna: CastBackend? = nil, relay: RelayPublishing? = nil) {
         self.settings = settings
+        self.relay = relay
         let google = googleCast ?? GoogleCastBackend()
         let upnp = dlna ?? DLNABackend()
         self.googleCast = google
         self.dlna = upnp
         backends = [.googleCast: google, .dlna: upnp]
         for backend in backends.values { wire(backend) }
+        relay?.onLeaseLost = { [weak self] lost, reason in self?.leaseLost(lost, reason: reason) }
     }
 
     private func wire(_ backend: CastBackend) {
@@ -130,22 +137,128 @@ final class CastCoordinator: ObservableObject {
 
     /// Sends `media` to `device`. Throws a user-presentable error; the caller keeps playing locally on failure.
     func cast(_ media: CastMedia, to device: CastDevice, localPosition: Double) async throws {
+        let request = CastRequest(title: media.title, subtitle: media.subtitle, artworkURL: media.artworkURL, contentType: media.contentType,
+                                  isLive: media.isLive, startPosition: media.startPosition, source: .direct(media.url))
+        try await cast(request, to: device, localPosition: localPosition)
+    }
+
+    /// Sends a video to `device`, through the relay when the request says so. When the relay is needed and cannot be used, nothing is
+    /// sent: the receiver is never given the real address as a fallback.
+    func cast(_ request: CastRequest, to device: CastDevice, localPosition: Double) async throws {
         guard let backend = backends[device.target] else { throw CastError.unavailable("Protocollo non disponibile.") }
         if case .unavailable(let reason) = availability(of: device.target) { throw CastError.unavailable(reason) }
         lastError = nil
+        let delivery = request.delivery
+        if delivery == .directWithKey && !settings.value.advanced.sendDirectLinkToTV { throw CastError.directLinkNotAllowed }
+
         if let current = session, current.device.target != device.target {
             await backends[current.device.target]?.endSession()
         }
-        session = Session(device: device, title: media.title,
-                          status: CastRemoteStatus(state: .connecting, position: media.startPosition, duration: nil),
-                          startedAt: localPosition)
-        do {
-            try await backend.load(media, on: device)
-        } catch {
-            session = nil
-            lastError = error.localizedDescription
-            throw error
+        // A session of this receiver's protocol is replaced by the new one; its relay session goes first.
+        releaseLease(reason: .replaced)
+
+        let url: URL
+        var published: RelayLease?
+        switch request.source {
+        case .direct(let direct), .directWithKey(let direct):
+            url = direct
+        case .relay(let upstream), .relayRemux(let upstream, _):
+            guard let relay = relay else { throw fail(CastError.relayUnavailable(RelayService.explain(.listenerFailed))) }
+            var audio: RemuxAudioChoice?
+            if case .relayRemux(_, let choice) = request.source { audio = choice }
+            do {
+                let lease = try await relay.publish(RelayPublishRequest(upstream: upstream, contentType: request.contentType,
+                                                                        fileExtension: request.fileExtension, owner: .cast(device.target),
+                                                                        receiverAddress: device.address, remux: audio))
+                published = lease
+                url = lease.url
+            } catch {
+                throw fail(error)
+            }
         }
+        lease = published
+        session = Session(device: device, title: request.title,
+                          status: CastRemoteStatus(state: .connecting, position: request.startPosition, duration: nil),
+                          startedAt: localPosition, delivery: delivery)
+        do {
+            try await backend.load(request.media(url: url), on: device)
+        } catch {
+            // The hint about the phone's network only fits a receiver that was given the address and did not come back for the video.
+            // A receiver that is gone, or a protocol that is not there, has its own message.
+            var reachedTheReceiver = false
+            if let cast = error as? CastError {
+                switch cast {
+                case .timedOut, .rejected: reachedTheReceiver = true
+                default: break
+                }
+            }
+            let explained = reachedTheReceiver ? explanation(for: error.localizedDescription, lease: published) : error.localizedDescription
+            releaseLease(reason: .loadFailed)
+            session = nil
+            lastError = explained
+            if explained == error.localizedDescription { throw error }
+            throw CastError.rejected(explained)
+        }
+    }
+
+    /// Records an error for the screens and returns it for throwing.
+    private func fail(_ error: Error) -> Error {
+        lastError = error.localizedDescription
+        return error
+    }
+
+    /// When the receiver failed and never asked the relay for a single byte, it most likely cannot reach the phone.
+    private func explanation(for message: String, lease: RelayLease?) -> String {
+        guard let lease = lease, let relay = relay, relay.requestsServed(lease) == 0 else { return message }
+        return "Il televisore non è riuscito a collegarsi al telefono. Controlla che in Impostazioni di iOS ▸ Aether il permesso «Rete locale» sia attivo, che telefono e televisore siano sulla stessa rete Wi-Fi (alcuni router isolano i dispositivi) e che nessuna VPN sia attiva."
+    }
+
+    private func releaseLease(reason: RelayEndReason) {
+        guard let current = lease else { return }
+        lease = nil
+        relay?.release(current, reason: reason)
+    }
+
+    /// The relay ended a session by itself: the receiver has nothing to read any more.
+    private func leaseLost(_ lost: RelayLease, reason: RelayEndReason) {
+        guard lease == lost else { return }
+        lease = nil
+        let position = session?.status.position ?? 0
+        let target = session?.device.target
+        session = nil
+        switch reason {
+        case .upstreamRejected:
+            lastError = "Il link del servizio è scaduto. Riapri la sorgente per ottenerne uno nuovo."
+        case .neverUsed:
+            lastError = "Il televisore non ha mai chiesto il video al telefono. Riprova la trasmissione."
+        case .expiredLifetime:
+            lastError = "La trasmissione ha raggiunto la durata massima del ponte (12 ore). Riavviala."
+        default:
+            lastError = "Il ponte si è interrotto (il telefono ha cambiato rete o Aether è stato sospeso). Riprova la trasmissione."
+        }
+        if let target = target { Task { await backends[target]?.endSession() } }
+        onRemoteSessionEnded?(position, lastError)
+    }
+
+    /// The Advanced settings changed. Turning the direct link off ends a session that was started with it.
+    func advancedDidChange(_ new: AdvancedSettings) {
+        guard !new.sendDirectLinkToTV, let current = session, current.delivery == .directWithKey else { return }
+        let position = current.status.position
+        session = nil
+        lastError = "Trasmissione interrotta: il link diretto è stato disattivato."
+        Task { await backends[current.device.target]?.endSession() }
+        onRemoteSessionEnded?(position, lastError)
+    }
+
+    /// The viewer turned the local network off: a session that runs through the relay has nothing to read from any more.
+    func localNetworkWasDisabled() {
+        guard let current = session, current.delivery == .relay else { return }
+        let position = current.status.position
+        session = nil
+        releaseLease(reason: .userStopped)
+        lastError = "Trasmissione interrotta: l'accesso alla rete locale è stato disattivato."
+        Task { await backends[current.device.target]?.endSession() }
+        onRemoteSessionEnded?(position, lastError)
     }
 
     func play() { Task { await activeBackend()?.play() } }
@@ -165,6 +278,7 @@ final class CastCoordinator: ObservableObject {
         guard let current = session else { return }
         let position = current.status.position
         session = nil
+        releaseLease(reason: .userStopped)
         Task { await backends[current.device.target]?.endSession() }
         onRemoteSessionEnded?(position, nil)
     }
@@ -177,13 +291,14 @@ final class CastCoordinator: ObservableObject {
     private func remoteStatus(_ status: CastRemoteStatus, from target: CastTarget) {
         guard var current = session, current.device.target == target else { return }
         if case .failed(let message) = status.state {
-            lastError = message
+            lastError = explanation(for: message, lease: lease)
         }
         current.status = status
         session = current
         if status.state == .ended {
             let position = status.position
             session = nil
+            releaseLease(reason: .receiverEnded)
             Task { await backends[target]?.endSession() }
             onRemoteSessionEnded?(position, nil)
         }
@@ -192,7 +307,8 @@ final class CastCoordinator: ObservableObject {
     private func remoteEnded(reason: String?, from target: CastTarget) {
         guard let current = session, current.device.target == target else { return }
         session = nil
-        if let reason = reason { lastError = reason }
+        if let reason = reason { lastError = explanation(for: reason, lease: lease) }
+        releaseLease(reason: .receiverEnded)
         onRemoteSessionEnded?(current.status.position, reason)
     }
 }

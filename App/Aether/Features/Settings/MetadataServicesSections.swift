@@ -74,10 +74,13 @@ private struct MetadataKeySection: View {
         case .accepted:
             Label("Il servizio accetta la chiave.", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
+                .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("\(identifier).status")
         case .rejected(let message):
             Label(message, systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("\(identifier).status")
         }
     }

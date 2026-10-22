@@ -349,6 +349,13 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         pip?.stopPictureInPicture()
     }
 
+    /// Whether the system may hand the picture to an AirPlay receiver.
+    var externalPlaybackAllowed: Bool { return player.allowsExternalPlayback }
+
+    func setExternalPlaybackAllowed(_ allowed: Bool) {
+        player.allowsExternalPlayback = allowed
+    }
+
     func setAutoPictureInPicture(_ enabled: Bool) {
         wantsAutoPictureInPicture = enabled
         pip?.canStartPictureInPictureAutomaticallyFromInline = enabled

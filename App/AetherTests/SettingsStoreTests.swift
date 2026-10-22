@@ -24,6 +24,17 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(reloaded.value.privacy.allowLocalNetwork)
     }
 
+    func testTheDirectLinkSwitchIsOffByDefaultAndPersists() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertFalse(store.value.advanced.sendDirectLinkToTV)
+        store.value.advanced.sendDirectLinkToTV = true
+        XCTAssertTrue(SettingsStore(defaults: defaults).value.advanced.sendDirectLinkToTV)
+        store.resetToDefaults()
+        XCTAssertFalse(store.value.advanced.sendDirectLinkToTV, "resetting the settings turns it off")
+    }
+
     func testOnChangeReportsOldAndNewValues() {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }

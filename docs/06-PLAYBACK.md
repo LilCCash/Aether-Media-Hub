@@ -22,6 +22,7 @@ sorgente (addon / debrid / download)
   Dolby Vision profilo 7 (doppio strato, UHD Blu-ray, non decodificabile dai decoder Apple) → MPV; Dolby Vision 5/8.x in MP4/MOV/HLS → AVPlayer. Se la scelta iniziale (fatta senza aver
   letto il file) risulta sbagliata, o un motore non riesce ad aprire il file (formato/codec/uscita video), Aether passa **una volta** all'altro motore riprendendo dalla stessa posizione.
   Gli errori di rete non cambiano motore.
+* **Conversione al volo degli MKV (1.2).** Con il motore «AVPlayer» (o con «Automatico» e l'opzione «Converti i file MKV per AVPlayer») un MKV non va a MPV: il telefono lo rimette in pezzi HLS/fMP4 (video e una traccia audio copiati, non ricodificati) e li dà ad AVPlayer su `127.0.0.1`. Così funzionano Picture in Picture e AirPlay con video. Dettagli, limiti e cosa è provato: `docs/10-PONTE-E-CONVERSIONE.md`. Se il file non è convertibile (audio solo DTS/TrueHD, video VP9/AV1, nessun indice, Dolby Vision 5) con «Automatico» Aether passa a MPV e lo dice.
 * **Uscita attesa.** L'info sheet del player separa tre cose: *dichiarato* (addon / nome), *rilevato* (decoder) e *atteso* (stima dal formato e dallo schermo). Con MPV un file Dolby Vision
   è sempre descritto come «HDR10 ricavato dal Dolby Vision» o «SDR con tone mapping», mai come Dolby Vision.
 
@@ -105,4 +106,4 @@ Quindi: la **scelta del motore** e la **riproduzione** dei file sopra sono osser
 
 1. Provare su un iPhone con file Dolby Vision reali (profili 5, 8.1, 7) e documentare cosa mostra ciascun motore.
 2. Valutare AetherEngine come terzo motore (alzando il minimo a iOS 18) per il vero Dolby Vision da MKV tramite VideoToolbox.
-3. Aggiungere un remux al volo MKV → fMP4/HLS verso AVPlayer solo se la valutazione precedente non basta.
+3. ~~Aggiungere un remux al volo MKV → fMP4/HLS verso AVPlayer~~ — fatto nella 1.2 (vedi `docs/10-PONTE-E-CONVERSIONE.md`); resta da provare su un dispositivo e da estendere con tracce audio separate (EXT-X-MEDIA) per scegliere la lingua senza riconvertire, e con la conversione di DTS/TrueHD in AAC.
