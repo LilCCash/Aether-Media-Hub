@@ -19,8 +19,8 @@ enum TheaterSound {
 
     private static func wave() -> Data {
         let rate = 44100.0
-        let seconds = 3.6
-        let hit = 2.4
+        let seconds = 4.8
+        let hit = 3.4
         let count = Int(rate * seconds)
         var samples = [Int16](repeating: 0, count: count)
         var phase = 0.0

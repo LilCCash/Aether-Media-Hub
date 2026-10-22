@@ -11,26 +11,40 @@ struct TheaterIntro: View {
     @State private var start = Date()
     @State private var done = false
 
-    private let total = 3.7
-    private let hit = 2.4
+    private let total = 5.0
+    private let hit = 3.4
+    /// From here the two halves of the screen slide apart, opening on the stage from the middle like a cinema curtain.
+    private let openStart = 4.1
 
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
             ZStack {
-                Color.black
                 if animated {
                     TimelineView(.animation) { timeline in
                         let t = timeline.date.timeIntervalSince(start)
+                        let open = min(1, max(0, (t - openStart) / (total - openStart)))
+                        let eased = open * open * (3 - 2 * open)
                         ZStack {
+                            // Two black halves that part from the middle, with the light of the opening between them.
+                            HStack(spacing: 0) {
+                                Color.black.offset(x: -size.width / 2 * eased)
+                                Color.black.offset(x: size.width / 2 * eased)
+                            }
                             Canvas { context, canvasSize in draw(&context, canvasSize, t) }
-                            title(size: size, t: t)
+                                .opacity(1 - min(1, open * 1.6))
+                            title(size: size, t: t).opacity(1 - min(1, open * 2.2))
+                            Rectangle().fill(LinearGradient(colors: [.clear, accent.opacity(0.9), .white, accent.opacity(0.9), .clear],
+                                                            startPoint: .top, endPoint: .bottom))
+                                .frame(width: max(0, 6 + 30 * eased), height: size.height)
+                                .blur(radius: 5)
+                                .opacity(open > 0 && open < 1 ? 1 - open * 0.7 : 0)
                         }
-                        .opacity(t > 3.0 ? max(0, 1 - (t - 3.0) / (total - 3.0)) : 1)
                         .task(id: t > total) { if t > total { complete() } }
                     }
                 } else {
-                    title(size: size, t: 2.5).task { try? await Task.sleep(nanoseconds: 600_000_000); complete() }
+                    ZStack { Color.black; title(size: size, t: 2.5) }
+                        .task { try? await Task.sleep(nanoseconds: 700_000_000); complete() }
                 }
             }
         }
