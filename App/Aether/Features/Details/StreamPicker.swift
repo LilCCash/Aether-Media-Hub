@@ -27,6 +27,7 @@ extension AppEnvironment {
             preferredLanguage: SettingsStore.resolvedLanguage(value.playback.preferredAudioLanguage),
             preferLanguage: value.playback.preferStreamsInPreferredAudioLanguage,
             addonOrder: addons.addons.map { $0.id.uuidString },
+            ordering: value.playback.streamOrdering,
             streamingServer: server,
             capabilities: capabilities)
     }
@@ -266,7 +267,7 @@ final class StreamPickerModel: ObservableObject {
         // Continuity: prefer the release group of the previous episode of this series.
         let binge = env.bingeGroup(forMeta: request.meta.id)
         let candidates = DebridStreamLogic.autoSelectable(ranked, statuses: cacheStatuses, debridConfigured: env.debrid.isConfigured)
-        guard resolution == nil, pendingDownload == nil, let best = StreamSelector.autoSelect(candidates, previousBingeGroup: binge) else { return }
+        guard resolution == nil, pendingDownload == nil, let best = StreamSelector.autoSelect(candidates, previousBingeGroup: binge, ordering: env.streamPreferences().ordering) else { return }
         autoSelected = true
         onAutoSelect(best)
     }

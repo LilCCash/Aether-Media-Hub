@@ -270,9 +270,13 @@ struct PlaybackSettingsView: View {
                     Text("Ritardo predefinito: \(String(format: "%+.1f", settings.value.playback.subtitleDelaySeconds)) s")
                 }
             }
-            Section(header: Text("Sorgenti")) {
+            Section(header: Text("Sorgenti"), footer: Text("«Per addon» mette per prime le sorgenti dell'addon più in alto nella lista degli addon (Addon › trascina per riordinare); dentro ogni addon valgono lingua, qualità e codec. «Le migliori per prime» ignora l'addon di provenienza. Vale anche per la scelta automatica.")) {
                 Picker("Qualità massima", selection: settings.binding(\.playback.qualityCap)) {
                     ForEach(VideoQualityCap.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                Picker("Ordine delle sorgenti", selection: settings.binding(\.playback.streamOrdering)) {
+                    Text("Per addon").tag(StreamOrdering.byAddon)
+                    Text("Le migliori per prime").tag(StreamOrdering.best)
                 }
                 Toggle("Preferisci sorgenti nella lingua audio", isOn: settings.binding(\.playback.preferStreamsInPreferredAudioLanguage))
                 Toggle("Scegli automaticamente la sorgente migliore", isOn: settings.binding(\.playback.autoSelectStream))

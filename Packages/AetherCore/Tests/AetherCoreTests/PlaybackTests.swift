@@ -162,6 +162,84 @@ final class StreamSelectorTests: XCTestCase {
         XCTAssertEqual(ranked.first?.stream.name, "a")
     }
 
+    // MARK: Order by addon
+
+    /// Two addons: "A" (listed first) offers weaker files than "B". The 2160p file is B's.
+    private func twoAddons() -> [AddonStream] {
+        return [
+            make("b-4k", "https://c.test/b1.mp4", details: "2160p", addon: "B"),
+            make("a-720", "https://c.test/a1.mp4", details: "720p", addon: "A"),
+            make("b-1080", "https://c.test/b2.mp4", details: "1080p", addon: "B"),
+            make("a-480", "https://c.test/a2.mp4", details: "480p", addon: "A")
+        ]
+    }
+
+    func testByAddonPutsEverySourceOfTheFirstAddonFirst() {
+        let ranked = StreamSelector.rank(twoAddons(), preferences: StreamPreferences(addonOrder: ["A", "B"], ordering: .byAddon))
+        XCTAssertEqual(ranked.map { $0.stream.name }, ["a-720", "a-480", "b-4k", "b-1080"],
+                       "the addon list decides, Aether's ranking only orders the sources inside one addon")
+        let reversed = StreamSelector.rank(twoAddons(), preferences: StreamPreferences(addonOrder: ["B", "A"], ordering: .byAddon))
+        XCTAssertEqual(reversed.map { $0.stream.name }, ["b-4k", "b-1080", "a-720", "a-480"])
+    }
+
+    func testBestOrderingIgnoresTheAddonList() {
+        let ranked = StreamSelector.rank(twoAddons(), preferences: StreamPreferences(addonOrder: ["A", "B"], ordering: .best))
+        XCTAssertEqual(ranked.map { $0.stream.name }, ["b-4k", "b-1080", "a-720", "a-480"])
+    }
+
+    func testByAddonSendsUnknownAddonsAndUnplayableSourcesToTheBottom() {
+        let streams = [
+            make("stranger", "https://c.test/s.mp4", details: "2160p", addon: "Z"),
+            make("a-broken", "https://c.test/a.mkv", details: "1080p", addon: "A"),
+            make("none", "https://c.test/n.mp4", details: "1080p", addon: nil),
+            make("a-ok", "https://c.test/a.mp4", details: "480p", addon: "A")
+        ]
+        let ranked = StreamSelector.rank(streams, preferences: StreamPreferences(addonOrder: ["A"], ordering: .byAddon))
+        XCTAssertEqual(ranked.map { $0.stream.name }, ["a-ok", "stranger", "none", "a-broken"],
+                       "addons outside the list follow the listed ones; a file that cannot be played stays below every playable one")
+    }
+
+    func testByAddonKeepsTheLanguageRankingInsideOneAddon() {
+        let streams = [
+            make("a-eng", "https://c.test/e.mp4", details: "2160p ENG", addon: "A"),
+            make("a-ita", "https://c.test/i.mp4", details: "1080p ITA", addon: "A"),
+            make("b-ita", "https://c.test/b.mp4", details: "2160p ITA", addon: "B")
+        ]
+        let preferences = StreamPreferences(preferredLanguage: "it", preferLanguage: true, addonOrder: ["A", "B"], ordering: .byAddon)
+        XCTAssertEqual(StreamSelector.rank(streams, preferences: preferences).map { $0.stream.name }, ["a-ita", "a-eng", "b-ita"])
+    }
+
+    func testAutoSelectFollowsTheFirstAddonWithSomethingPlayable() {
+        let ranked = StreamSelector.rank(twoAddons(), preferences: StreamPreferences(addonOrder: ["A", "B"], ordering: .byAddon))
+        XCTAssertEqual(StreamSelector.autoSelect(ranked, ordering: .byAddon)?.stream.name, "a-720")
+        // The binge group of the previous episode lives in the second addon: the first addon still wins.
+        var streams = twoAddons()
+        streams[0] = make("b-4k", "https://c.test/b1.mp4", details: "2160p", addon: "B", binge: "grp-b")
+        let withGroup = StreamSelector.rank(streams, preferences: StreamPreferences(addonOrder: ["A", "B"], ordering: .byAddon))
+        XCTAssertEqual(StreamSelector.autoSelect(withGroup, previousBingeGroup: "grp-b", ordering: .byAddon)?.stream.name, "a-720")
+        XCTAssertEqual(StreamSelector.autoSelect(withGroup, previousBingeGroup: "grp-b", ordering: .best)?.stream.name, "b-4k",
+                       "with the plain ranking the continuity match still wins")
+    }
+
+    func testAutoSelectSkipsAFirstAddonWhoseSourcesCannotBePlayed() {
+        let streams = [make("a-broken", "https://c.test/a.mkv", details: "1080p", addon: "A"),
+                       make("b-ok", "https://c.test/b.mp4", details: "720p", addon: "B")]
+        let ranked = StreamSelector.rank(streams, preferences: StreamPreferences(addonOrder: ["A", "B"], ordering: .byAddon))
+        XCTAssertEqual(StreamSelector.autoSelect(ranked, ordering: .byAddon)?.stream.name, "b-ok")
+    }
+
+    func testStreamOrderingSettingDefaultsToByAddonAndSurvivesRoundTrip() throws {
+        XCTAssertEqual(PlaybackSettings().streamOrdering, .byAddon)
+        XCTAssertEqual(try JSONDecoder().decode(PlaybackSettings.self, from: Data("{}".utf8)).streamOrdering, .byAddon,
+                       "settings saved before the option existed get the new default")
+        XCTAssertEqual(try JSONDecoder().decode(PlaybackSettings.self, from: Data("{\"streamOrdering\":\"surprise\"}".utf8)).streamOrdering, .byAddon,
+                       "an unknown value falls back instead of failing the whole file")
+        var settings = PlaybackSettings()
+        settings.streamOrdering = .best
+        let loaded = try JSONDecoder().decode(PlaybackSettings.self, from: try JSONEncoder().encode(settings))
+        XCTAssertEqual(loaded.streamOrdering, .best)
+    }
+
     func testAutoSelectUsesBingeGroupThenBestPlayable() {
         let streams = [
             make("best", "https://c.test/a.mp4", details: "2160p", binge: "grp-4k"),

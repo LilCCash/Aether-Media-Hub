@@ -408,6 +408,8 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var defaultSleepTimerMinutes: Int = 0
     public var qualityCap: VideoQualityCap = .auto
     public var preferStreamsInPreferredAudioLanguage: Bool = true
+    /// Whether the order of the addons decides the order of the sources, or the best ones come first whatever addon they are from.
+    public var streamOrdering: StreamOrdering = .byAddon
     public var autoSelectStream: Bool = false
     public var controlsAutoHideSeconds: Int = 4
     public var landscapeOnly: Bool = true
@@ -434,7 +436,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly
-        case gesturesEnabled, watchedThreshold, skipSegmentsEnabled
+        case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering
     }
 
     public init(from decoder: Decoder) throws {
@@ -455,6 +457,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         defaultSleepTimerMinutes = max(0, c.value(.defaultSleepTimerMinutes, default: 0))
         qualityCap = c.value(.qualityCap, default: .auto)
         preferStreamsInPreferredAudioLanguage = c.value(.preferStreamsInPreferredAudioLanguage, default: true)
+        streamOrdering = c.value(.streamOrdering, default: .byAddon)
         autoSelectStream = c.value(.autoSelectStream, default: false)
         controlsAutoHideSeconds = min(15, max(2, c.value(.controlsAutoHideSeconds, default: 4)))
         landscapeOnly = c.value(.landscapeOnly, default: true)

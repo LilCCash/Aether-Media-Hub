@@ -777,7 +777,7 @@ final class PlayerViewModel: ObservableObject {
         let ranked = StreamSelector.rank(result.streams, preferences: env.streamPreferences())
         let binge = currentStream?.behaviorHints.bingeGroup ?? env.bingeGroup(forMeta: meta.id)
         let choices = await debridAutoSelectable(ranked)
-        guard let best = StreamSelector.autoSelect(choices, previousBingeGroup: binge) else {
+        guard let best = StreamSelector.autoSelect(choices, previousBingeGroup: binge, ordering: env.streamPreferences().ordering) else {
             statusMessage = nil
             handleFailure(PlaybackFailure(kind: .notFound, detail: "Nessuna sorgente riproducibile per \(video.episodeLabel ?? "questo episodio")."))
             return
