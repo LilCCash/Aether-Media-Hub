@@ -40,6 +40,10 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var snapshot = EngineSnapshot()
     @Published private(set) var failure: PlaybackFailure?
     @Published private(set) var statusMessage: String?
+    /// Why an MKV could not be converted for AVPlayer, in words for the viewer, when the failure panel is up because of it.
+    @Published private(set) var failureExplanation: String?
+    /// The reason for an engine change, shown over the picture once the new load has started (a load clears the status line).
+    private var carriedStatus: String?
     /// True from the start of a load until the engine has been given the file (TorBox may take seconds to answer first).
     @Published private(set) var isOpeningSource = true
     /// The intro and recap of the episode now playing, when IntroDB knows them (see `activeSkipSegment`).
@@ -288,7 +292,13 @@ final class PlayerViewModel: ObservableObject {
         let generation = loadGeneration
         isOpeningSource = true
         failure = nil
-        statusMessage = nil
+        failureExplanation = nil
+        if let carried = carriedStatus {
+            carriedStatus = nil
+            showStatus(carried, for: 8)
+        } else {
+            statusMessage = nil
+        }
         retriedAfterNetworkLoss = false
         // A newer start supersedes a TorBox wait that is still in flight.
         debridGeneration += 1
@@ -420,6 +430,7 @@ final class PlayerViewModel: ObservableObject {
             switchEngine(to: .mpv, reason: "\(reason) Uso MPV.")
         } else {
             let hint = playback.engine == .avPlayer ? " Scegli «Automatico» o «MPV» in Impostazioni → Riproduzione." : ""
+            failureExplanation = reason + hint
             handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: reason + hint))
         }
     }
@@ -767,7 +778,7 @@ final class PlayerViewModel: ObservableObject {
         failure = nil
         bindEngine()
         engineReplaced()
-        statusMessage = reason
+        carriedStatus = reason
         Task { await beginPlayback(startOverride: position > 5 ? position : nil) }
     }
 

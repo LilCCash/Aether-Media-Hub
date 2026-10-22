@@ -899,7 +899,10 @@ struct PlayerView: View {
             Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 34)).foregroundStyle(.orange)
             Text("Impossibile riprodurre").font(.headline)
             Text(failure.message).font(.subheadline).multilineTextAlignment(.center).foregroundStyle(.white.opacity(0.85))
-            if settings.value.advanced.verboseLogging, !failure.detail.isEmpty {
+            if let why = model.failureExplanation {
+                Text(why).font(.footnote).multilineTextAlignment(.center).foregroundStyle(.white.opacity(0.7))
+                    .accessibilityIdentifier("player.errorReason")
+            } else if settings.value.advanced.verboseLogging, !failure.detail.isEmpty {
                 Text(failure.detail).font(.caption2).foregroundStyle(.white.opacity(0.5))
             }
             HStack(spacing: 10) {
