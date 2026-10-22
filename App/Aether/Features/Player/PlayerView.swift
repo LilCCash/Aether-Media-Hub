@@ -1002,7 +1002,7 @@ struct PlayerView: View {
     }
 
     /// False for a file that only goes through the phone to be converted, with no key and no headers to protect.
-    private func carriesSecret(_ preparation: CastPreparation) -> Bool {
+    private func carriesSecret(_ preparation: PlayerViewModel.CastPreparation) -> Bool {
         guard preparation.remuxed, let original = preparation.fallback else { return true }
         if case .direct = original.source { return false }
         return true

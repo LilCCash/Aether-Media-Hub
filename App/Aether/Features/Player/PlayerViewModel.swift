@@ -99,6 +99,12 @@ final class PlayerViewModel: ObservableObject {
     /// The load generation whose move to the Wi-Fi address is in progress: a second move for the same load would replace the
     /// relay session the first one had just handed to the player.
     private var movingToWiFiGeneration: Int?
+    /// AirPlay receivers are in range (the system says more than one route is available).
+    private var routeDetector: AVRouteDetector?
+    private var routeDetectorObserver: NSObjectProtocol?
+    private var routesNearby = false
+    /// The Wi-Fi lease being made (or made) for the converted file of this load generation, see `sharedWiFiLease`.
+    private var wifiLeaseTask: (generation: Int, task: Task<RelayLease, Error>)?
     /// Where the load now under way was asked to start; until the player has passed it, "now" is not what `currentTime()` says.
     private var loadStartPosition: Double = 0
     private let nowPlaying = NowPlayingService()
@@ -208,6 +214,7 @@ final class PlayerViewModel: ObservableObject {
         audioSession.onRouteLost = { [weak self] in self?.engine.pause() }
         audioSession.onRouteChanged = { [weak self] _ in self?.refreshAirPlayRoute() }
         audioSession.activate()
+        startRouteDetection()
         UIApplication.shared.isIdleTimerDisabled = true
 
         configureRemoteCommands()
@@ -268,6 +275,7 @@ final class PlayerViewModel: ObservableObject {
         skipSegmentsTask?.cancel()
         skipSegmentsTask = nil
         closeConversion()
+        stopRouteDetection()
         pictureInPictureGrace?.cancel()
         pictureInPictureGrace = nil
         statusClear?.cancel()
@@ -370,7 +378,7 @@ final class PlayerViewModel: ObservableObject {
         } else {
             closeConversion()
         }
-        engine.setExternalPlaybackAllowed(!externalPlaybackBlockedForKey)
+        engine.setExternalPlaybackAllowed(!externalPlaybackBlockedForKey && !externalVideoWaitsForWiFi)
         loadStartPosition = start ?? 0
         engine.load(url: loadURL, headers: loadHeaders, startAt: start, autoplay: true)
         isOpeningSource = false
@@ -420,6 +428,7 @@ final class PlayerViewModel: ObservableObject {
             conversionPlan = session.plan
             audioTracks = currentAudioTracks()
             statusMessage = nil
+            prepareWiFiAhead()
             return session.url
         } catch {
             guard !tornDown, generation == loadGeneration else { return nil }
@@ -451,8 +460,86 @@ final class PlayerViewModel: ObservableObject {
             env.relay.release(lease, reason: .userStopped)
             conversionLease = nil
         }
+        // A Wi-Fi address made ahead of time and never used ends with the file it was made for.
+        if let pending = wifiLeaseTask {
+            wifiLeaseTask = nil
+            let relay = env.relay
+            Task { @MainActor in
+                if let lease = try? await pending.task.value { relay.release(lease, reason: .userStopped) }
+            }
+        }
         conversionUpstream = nil
         conversionPlan = nil
+    }
+
+    // MARK: AirPlay for a converted file
+
+    /// The relay lease (the Wi-Fi address) of the converted file now playing. Whoever needs it first, the preparation ahead of time or
+    /// the move to that address, starts it, and the other waits for the same one: a second publish would replace the first session
+    /// (they belong to the same owner), which is the one the player or the receiver may already be reading.
+    private func sharedWiFiLease(for upstream: RelayUpstream, generation: Int) -> Task<RelayLease, Error> {
+        if let existing = wifiLeaseTask, existing.generation == generation { return existing.task }
+        let choice = conversionAudio ?? .track(index: conversionPlan?.audio.first?.index ?? -1)
+        let relay = env.relay
+        let task = Task { @MainActor () -> RelayLease in
+            return try await relay.publish(RelayPublishRequest(upstream: upstream, contentType: "application/x-mpegURL",
+                                                               fileExtension: "m3u8", owner: .airPlay, receiverAddress: nil,
+                                                               remux: choice))
+        }
+        wifiLeaseTask = (generation, task)
+        return task
+    }
+
+    /// While an AirPlay receiver is in range, the Wi-Fi address of the converted file is made ready: choosing the receiver then finds
+    /// it at once, instead of the receiver being handed an address of this phone it cannot reach while the conversion is prepared.
+    private func prepareWiFiAhead() {
+        guard routesNearby, conversion != nil, conversionLease == nil, engine.kind == .avPlayer, !tornDown,
+              let upstream = conversionUpstream, case .ready = env.relay.availability else { return }
+        let generation = loadGeneration
+        guard wifiLeaseTask?.generation != generation else { return }
+        let task = sharedWiFiLease(for: upstream, generation: generation)
+        env.diagnostics.logDetached(.info, "player", "AirPlay nelle vicinanze: preparo in anticipo l'indirizzo sul Wi-Fi")
+        Task { [weak self] in
+            do {
+                _ = try await task.value
+            } catch {
+                guard let self = self, self.wifiLeaseTask?.generation == generation else { return }
+                self.wifiLeaseTask = nil
+                self.env.diagnostics.logDetached(.warning, "player", "Preparazione in anticipo dell'indirizzo sul Wi-Fi non riuscita")
+            }
+        }
+    }
+
+    private func startRouteDetection() {
+        let detector = AVRouteDetector()
+        detector.isRouteDetectionEnabled = true
+        routeDetector = detector
+        routesNearby = detector.multipleRoutesDetected
+        // The notification is named by its constant's value, which is what the system posts.
+        routeDetectorObserver = NotificationCenter.default.addObserver(
+            forName: Notification.Name("AVRouteDetectorMultipleRoutesDetectedDidChangeNotification"), object: detector, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.routesDetectionChanged() }
+        }
+    }
+
+    private func routesDetectionChanged() {
+        guard let detector = routeDetector, !tornDown else { return }
+        routesNearby = detector.multipleRoutesDetected
+        if routesNearby { prepareWiFiAhead() }
+    }
+
+    private func stopRouteDetection() {
+        if let observer = routeDetectorObserver { NotificationCenter.default.removeObserver(observer) }
+        routeDetectorObserver = nil
+        routeDetector?.isRouteDetectionEnabled = false
+        routeDetector = nil
+    }
+
+    /// A converted file still served on 127.0.0.1 cannot be fetched by an AirPlay receiver: until the Wi-Fi address is in use the picture
+    /// stays off AirPlay (the sound still goes), instead of a black screen that ends with the video back on the phone.
+    private var externalVideoWaitsForWiFi: Bool {
+        return engine.kind == .avPlayer && conversion != nil && conversionLease == nil
     }
 
     /// The converted file is served on 127.0.0.1, which an AirPlay receiver cannot reach: the relay serves it on the Wi-Fi address and
@@ -463,40 +550,43 @@ final class PlayerViewModel: ObservableObject {
         guard case .ready = env.relay.availability else {
             if !announcedWiFiNeed {
                 announcedWiFiNeed = true
-                statusMessage = "Per mandare questo MKV in AirPlay servono il Wi-Fi e il permesso «Rete locale»."
-                scheduleStatusClear(after: 6)
+                env.diagnostics.logDetached(.info, "player", "AirPlay: il ponte non è disponibile (rete locale spenta o niente Wi-Fi): solo audio")
+                statusMessage = "Per mandare il video di questo MKV in AirPlay servono il Wi-Fi e «Consenti rete locale» (Impostazioni ▸ Account e dati ▸ Privacy): per ora su AirPlay va solo l'audio."
+                scheduleStatusClear(after: 9)
             }
             return
         }
-        let choice = conversionAudio ?? .track(index: conversionPlan?.audio.first?.index ?? -1)
-        // Right after the file is ready the engine has not applied its start position yet and says 0.
-        var position = engine.currentTime()
-        if position < 1, snapshot.position < 1, loadStartPosition > 1 { position = loadStartPosition }
-        let wasPlaying = snapshot.isPlaying
         let generation = loadGeneration
         movingToWiFiGeneration = generation
+        let task = sharedWiFiLease(for: upstream, generation: generation)
+        env.diagnostics.logDetached(.info, "player", "AirPlay: sposto il file convertito sull'indirizzo Wi-Fi")
         statusMessage = "Preparo il video per AirPlay…"
         Task { [weak self] in
             guard let self = self else { return }
             defer { if self.movingToWiFiGeneration == generation { self.movingToWiFiGeneration = nil } }
             do {
-                let lease = try await self.env.relay.publish(RelayPublishRequest(upstream: upstream, contentType: "application/x-mpegURL",
-                                                                                 fileExtension: "m3u8", owner: .airPlay, receiverAddress: nil,
-                                                                                 remux: choice))
-                guard !self.tornDown, generation == self.loadGeneration, self.conversion != nil, self.conversionLease == nil else {
-                    self.env.relay.release(lease, reason: .replaced)
-                    return
-                }
+                let lease = try await task.value
+                // Whatever ended this start (a new source, the player closing) also releases the lease: closeConversion waits for the task.
+                guard !self.tornDown, generation == self.loadGeneration, self.conversion != nil, self.conversionLease == nil else { return }
+                // Taken now, not before the wait: the video went on playing while the conversion was prepared. Right after the file is
+                // ready the engine has not applied its start position yet and says 0.
+                var position = self.engine.currentTime()
+                if position < 1, self.snapshot.position < 1, self.loadStartPosition > 1 { position = self.loadStartPosition }
+                let wasPlaying = self.snapshot.isPlaying
                 self.conversionLease = lease
                 if let plan = lease.remuxPlan { self.conversionPlan = plan }
+                self.engine.setExternalPlaybackAllowed(!self.externalPlaybackBlockedForKey)
                 self.engine.load(url: lease.url, headers: [:], startAt: position > 1 ? position : nil, autoplay: wasPlaying)
                 if let old = self.conversion {
                     self.env.localRemux.close(old)
                     self.conversion = nil
                 }
                 self.statusMessage = nil
+                self.env.diagnostics.logDetached(.info, "player", "AirPlay: il file convertito è ora sull'indirizzo Wi-Fi (riparte da \(Int(position)) s)")
             } catch {
+                if self.wifiLeaseTask?.generation == generation { self.wifiLeaseTask = nil }
                 guard !self.tornDown else { return }
+                self.env.diagnostics.logDetached(.warning, "player", "AirPlay: spostamento sul Wi-Fi non riuscito")
                 self.statusMessage = RemuxFailureText.explain(error)
                 self.scheduleStatusClear(after: 6)
             }
@@ -675,6 +765,10 @@ final class PlayerViewModel: ObservableObject {
             env.diagnostics.logDetached(.warning, "player", "Picture in Picture non avviato: \(failure)")
         }
         if new.isReady && !wasReady { refreshTracks() }
+        if new.isExternalPlaybackActive != old.isExternalPlaybackActive {
+            let where_ = conversionLease != nil ? "indirizzo Wi-Fi del ponte" : (conversion != nil ? "questo telefono (127.0.0.1)" : "indirizzo originale")
+            env.diagnostics.logDetached(.info, "player", "AirPlay: riproduzione esterna \(new.isExternalPlaybackActive ? "attiva" : "terminata"), file su: \(where_)")
+        }
         if new.isReady != old.isReady || new.isExternalPlaybackActive != old.isExternalPlaybackActive { refreshAirPlayRoute() }
         nowPlaying.updateProgress(position: new.position, duration: new.duration, rate: new.isPlaying ? new.rate : 0, isLive: new.isLive)
         if new.isPlaying { lastRetryPosition = new.position }
@@ -1632,6 +1726,7 @@ final class PlayerViewModel: ObservableObject {
 
     /// The system picker is about to open.
     func airPlayPickerWillPresent() {
+        announcedWiFiNeed = false
         // A converted file has to be reachable from the receiver before one is chosen.
         if engine.kind == .avPlayer { moveConversionToWiFi() }
         guard engine.kind == .mpv else { return }
