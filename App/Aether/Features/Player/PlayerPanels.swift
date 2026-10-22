@@ -122,6 +122,7 @@ private struct PanelRow: View {
     let identifier: String
     let action: () -> Void
     @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.playerAccent) private var playerAccent
 
     var body: some View {
         Button(action: action) {
@@ -134,7 +135,7 @@ private struct PanelRow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if isSelected {
-                    Image(systemName: "checkmark").font(.footnote.weight(.bold)).foregroundStyle(settings.accentColor).accessibilityHidden(true)
+                    Image(systemName: "checkmark").font(.footnote.weight(.bold)).foregroundStyle((playerAccent ?? settings.accentColor)).accessibilityHidden(true)
                 }
             }
             .padding(.horizontal, 14)
@@ -157,6 +158,7 @@ private struct PanelFilterRow: View {
     let identifier: String
     let action: () -> Void
     @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.playerAccent) private var playerAccent
 
     var body: some View {
         Button(action: action) {
@@ -172,7 +174,7 @@ private struct PanelFilterRow: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
-            .background(isSelected ? AnyShapeStyle(settings.accentColor.opacity(0.85)) : AnyShapeStyle(Color.clear),
+            .background(isSelected ? AnyShapeStyle((playerAccent ?? settings.accentColor).opacity(0.85)) : AnyShapeStyle(Color.clear),
                         in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             .contentShape(Rectangle())
         }

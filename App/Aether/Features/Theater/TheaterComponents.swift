@@ -11,8 +11,6 @@ struct TheaterCard: View {
     @AppStorage(TheaterPrefs.corners) private var corners = 1
     @AppStorage(TheaterPrefs.border) private var border = 1
     @AppStorage(TheaterPrefs.palette) private var palette = 0
-    @Environment(\.theaterNamespace) private var namespace
-    @Environment(\.theaterOpenID) private var openID
 
     private var width: CGFloat {
         let base: [CGFloat] = portrait ? [100, 124, 150] : [170, 210, 260]
@@ -34,7 +32,6 @@ struct TheaterCard: View {
                         width: width, placeholderSeed: meta.name)
                 .frame(width: width, height: height)
                 .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-                .modifier(CardTransition(id: meta.id, namespace: namespace, isSource: openID != meta.id))
                 .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .strokeBorder(border == 2 ? TheaterPalette.color(palette).opacity(0.85) : .white.opacity(border == 1 ? 0.16 : 0),
                                   lineWidth: border == 2 ? 1.6 : 1))
@@ -54,21 +51,6 @@ struct TheaterCard: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(details.isEmpty ? meta.name : "\(meta.name), \(details)")
         .accessibilityAddTraits(.isButton)
-    }
-}
-
-/// Hands the card's picture over to the immersive page when the title is opened.
-private struct CardTransition: ViewModifier {
-    let id: String
-    let namespace: Namespace.ID?
-    let isSource: Bool
-
-    func body(content: Content) -> some View {
-        if let namespace = namespace {
-            content.matchedGeometryEffect(id: id, in: namespace, isSource: isSource)
-        } else {
-            content
-        }
     }
 }
 

@@ -17,7 +17,7 @@ enum TheaterPrefs {
     static let railLabels = "theater.railLabels"
     static let rowStyle = "theater.rowStyle"
     /// Version of the Theater Mode interface (not of the app).
-    static let version = "0.0.1"
+    static let version = "0.0.2"
 }
 
 /// The accent colour of Theater Mode.

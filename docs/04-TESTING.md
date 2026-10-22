@@ -135,3 +135,9 @@ Non è stato eseguito nulla su un iPhone né con un televisore.
 - UI `TheaterUITests` (entrata, sezioni della barra, uscita, pagina immersiva → dettagli): passati su `313b7b4`. Un primo tentativo falliva perché l'identificatore sul contenitore sostituiva quelli dei pulsanti interni; corretto.
 - UI Home personalizzabile 17/17, Impostazioni/Accessibilità/Layout/Esplora e Cerca passati su `7caa40c`.
 - Non verificato: aspetto e animazioni di Theater Mode su schermo, AirPlay con Apple TV. Fallimenti noti invariati (TorBox ×2, hash sottotitoli, matrice media).
+
+## 1.3 rev2 — esiti (CI, simulatore)
+
+- CI (Core + App con test unitari) verde su `9d21695`.
+- UI `TheaterUITests` (barra senza Cerca, impostazioni con le voci di «Altro», Riproduci → scelta della sorgente di Theater) e Home personalizzabile: passati su `9d21695`; Impostazioni/accessibilità, layout, Esplora e Cerca: vedi il riepilogo della release.
+- Non verificati: aspetto di Theater Mode su schermo, barra del volume con i tasti hardware, tocchi ripetuti, ritorno in orizzontale dopo il player, AirPlay con Apple TV.

@@ -19,7 +19,7 @@ enum TheaterSound {
 
     private static func wave() -> Data {
         let rate = 44100.0
-        let seconds = 6.0
+        let seconds = 8.0
         let hit = 3.4
         let count = Int(rate * seconds)
         var samples = [Int16](repeating: 0, count: count)
@@ -41,15 +41,23 @@ enum TheaterSound {
                 v += noise() * 0.18 * envelope * envelope
             } else {
                 let tau = t - hit
-                // A deep, long hit: a sub tone that slides down, a body an octave above and a rumble of noise.
-                let slide = 46 - 8 * min(1, tau / 1.5)
-                v += sin(2 * Double.pi * slide * tau) * exp(-tau * 0.9) * 1.0
-                v += sin(2 * Double.pi * 92 * tau) * exp(-tau * 1.7) * 0.45
-                v += noise() * exp(-tau * 9) * 0.35
-                v += sin(2 * Double.pi * 1760 * tau) * exp(-tau * 5) * 0.05
+                // A low, heavy gong: inharmonic partials around a deep fundamental, each with its own decay, the upper ones
+                // blooming a little after the strike, two close tones beating under it and a dull thump at the start.
+                let bloom = 1 - exp(-tau * 7)
+                let partials: [(ratio: Double, level: Double, decay: Double)] = [
+                    (1.0, 1.0, 0.42), (1.51, 0.7, 0.55), (2.0, 0.5, 0.8), (2.74, 0.36, 1.1), (3.7, 0.24, 1.6), (5.2, 0.12, 2.4),
+                ]
+                let base = 56.0
+                for partial in partials {
+                    let shape = partial.ratio < 1.2 ? 1 : bloom
+                    v += sin(2 * Double.pi * base * partial.ratio * tau) * exp(-tau * partial.decay) * partial.level * shape * 0.55
+                }
+                v += sin(2 * Double.pi * (base + 1.7) * tau) * exp(-tau * 0.5) * 0.35
+                v += sin(2 * Double.pi * (70 - 22 * min(1, tau / 0.4)) * tau) * exp(-tau * 6) * 0.8
+                v += noise() * exp(-tau * 16) * 0.22
             }
-            let fade = t > seconds - 0.15 ? max(0, (seconds - t) / 0.15) : 1
-            samples[i] = Int16(max(-1, min(1, v * 0.8 * fade)) * Double(Int16.max))
+            let fade = t > seconds - 1.0 ? max(0, seconds - t) : 1
+            samples[i] = Int16(tanh(v * 0.45) * 0.9 * fade * Double(Int16.max))
         }
         var data = Data()
         func put32(_ x: UInt32) { var y = x.littleEndian; data.append(Data(bytes: &y, count: 4)) }

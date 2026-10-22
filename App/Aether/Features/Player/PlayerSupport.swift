@@ -55,6 +55,16 @@ enum ScreenBrightness {
 @MainActor
 final class SystemVolume: ObservableObject {
     fileprivate weak var view: MPVolumeView?
+    /// The output volume, updated when the hardware buttons change it (the player shows a bar for it).
+    @Published private(set) var level: Double = Double(AVAudioSession.sharedInstance().outputVolume)
+    private var observation: NSKeyValueObservation?
+
+    init() {
+        observation = AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.new]) { [weak self] _, change in
+            guard let value = change.newValue else { return }
+            Task { @MainActor in self?.level = Double(value) }
+        }
+    }
 
     var value: Double { Double(AVAudioSession.sharedInstance().outputVolume) }
 
@@ -80,9 +90,25 @@ struct HiddenVolumeView: UIViewRepresentable {
     }
 }
 
+private struct PlayerAccentKey: EnvironmentKey { static let defaultValue: Color? = nil }
+
+extension EnvironmentValues {
+    /// The accent of the player when it was opened from Theater Mode (the colour chosen there); nil for the app's own accent.
+    var playerAccent: Color? {
+        get { self[PlayerAccentKey.self] }
+        set { self[PlayerAccentKey.self] = newValue }
+    }
+}
+
 /// Orientation lock owned by the app delegate; the player asks for landscape and gives it back when it closes.
 @MainActor
 enum OrientationController {
+    /// The orientation the screen under the player wants: portrait for the app, landscape inside Theater Mode.
+    static var base: UIInterfaceOrientationMask = .portrait
+
+    /// Gives the orientation back to what the screen under the player wants.
+    static func restore() { set(base) }
+
     static func set(_ mask: UIInterfaceOrientationMask) {
         AppDelegate.orientationMask = mask
         guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }

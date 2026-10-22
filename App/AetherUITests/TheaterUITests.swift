@@ -22,23 +22,39 @@ final class TheaterUITests: AetherUITestCase {
 
     func testEnteringSwitchingSectionsAndLeaving() {
         enter()
-        for section in ["series", "discover", "library", "search", "settings", "home"] {
+        for section in ["series", "discover", "library", "settings", "home"] {
             let button = element("theater.rail.\(section)")
             XCTAssertTrue(button.waitForExistence(timeout: 10), "rail button \(section) missing: \(seen())")
             button.tap()
+            if section == "settings" {
+                XCTAssertTrue(element("theater.more.addons").waitForExistence(timeout: 10), "the settings should offer the same entries as Altro: \(seen())")
+                XCTAssertTrue(element("theater.more.about").exists, "Informazioni e licenze missing from the Theater settings")
+            }
         }
+        XCTAssertFalse(element("theater.rail.search").exists, "search belongs at the top right only, not on the rail")
+        XCTAssertTrue(app.buttons["Cerca"].waitForExistence(timeout: 10), "the search button at the top right is missing")
         XCTAssertTrue(element("theater.rail.home").isSelected, "the Film section should be on after tapping it")
         element("theater.exit").tap()
         XCTAssertTrue(element("home.theater").waitForExistence(timeout: 20), "leaving Theater Mode did not return to the Home")
     }
 
-    func testATitleOpensItsImmersivePageAndContinuesInTheDetails() {
+    func testATitleOpensItsImmersivePageAndContinuesInTheSourceChoiceOfTheMode() {
         enter()
         let card = button(labelContaining: "Aether Fixture One")
         XCTAssertTrue(card.waitForExistence(timeout: 30), "no title card in the Film section")
         card.tap()
         XCTAssertTrue(element("theater.detail.play").waitForExistence(timeout: 15), "the immersive page did not open: \(seen())")
         element("theater.detail.play").tap()
-        XCTAssertTrue(element("detail.title").waitForExistence(timeout: 20), "Riproduci should continue in the normal details")
+        // Playing stays in Theater Mode: its own source choice (or, when a source is chosen on its own, the player), never the normal details.
+        let picker = element("theater.picker.close")
+        let player = element("player.close")
+        let deadline = Date().addingTimeInterval(30)
+        while !picker.exists && !player.exists && Date() < deadline { Thread.sleep(forTimeInterval: 0.5) }
+        XCTAssertTrue(picker.exists || player.exists, "Riproduci should open the source choice of Theater Mode: \(seen())")
+        XCTAssertFalse(element("detail.title").exists, "Riproduci must not leave Theater Mode for the normal details")
+        if picker.exists {
+            picker.tap()
+            XCTAssertTrue(element("theater.detail.play").waitForExistence(timeout: 10), "going back should return to the page of the title")
+        }
     }
 }
