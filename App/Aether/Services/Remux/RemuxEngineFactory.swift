@@ -23,6 +23,7 @@ enum RemuxEngineFactory {
 }
 
 /// Why a file could not be converted, in words for the viewer. Never carries an address.
+@MainActor
 enum RemuxFailureText {
     static func explain(_ error: Error) -> String {
         if let remux = error as? RemuxError { return remux.message }
