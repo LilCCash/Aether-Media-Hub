@@ -85,7 +85,7 @@ fun PosterCard(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = Modifier.fillMaxWidth().aspectRatio(meta.posterShape.aspectRatio.toFloat()),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(app.aether.tv.ui.theme.LocalCorner.current),
             focusRequester = focusRequester,
             onFocused = onFocused,
             testTag = testTag,
@@ -138,7 +138,7 @@ fun ContinueCard(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(app.aether.tv.ui.theme.LocalCorner.current),
             focusRequester = focusRequester,
             onFocused = onFocused,
         ) {

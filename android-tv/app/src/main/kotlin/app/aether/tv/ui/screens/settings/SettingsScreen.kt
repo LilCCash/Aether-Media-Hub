@@ -97,6 +97,8 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             section("Aspetto")
             choiceRow("Colore d'accento", a.accent.title, "appearance.accent", first) { choose("Colore d'accento", AccentChoice.entries.map { it to it.title }, a.accent) { v -> update { it.copy(appearance = it.appearance.copy(accent = v)) } } }
             choiceRow("Dimensione delle locandine", a.posterSize.title, "appearance.posterSize") { choose("Dimensione delle locandine", PosterSize.entries.map { it to it.title }, a.posterSize) { v -> update { it.copy(appearance = it.appearance.copy(posterSize = v)) } } }
+            choiceRow("Sfondo", a.background.title, "appearance.background") { choose("Sfondo", app.aether.core.settings.BackgroundStyle.entries.map { it to it.title }, a.background) { v -> update { it.copy(appearance = it.appearance.copy(background = v)) } } }
+            choiceRow("Angoli di locandine e pulsanti", a.corners.title, "appearance.corners") { choose("Angoli di locandine e pulsanti", app.aether.core.settings.CornerStyle.entries.map { it to it.title }, a.corners) { v -> update { it.copy(appearance = it.appearance.copy(corners = v)) } } }
             toggleRow("Animazioni", "Ingrandimenti, dissolvenze e movimenti dell'interfaccia.", a.animationsEnabled, "appearance.animations") { v -> update { it.copy(appearance = it.appearance.copy(animationsEnabled = v)) } }
             toggleRow("Titolo in evidenza che scorre", "Nella Home passa da un titolo all'altro da solo.", a.heroAutoScroll, "appearance.heroAuto") { v -> update { it.copy(appearance = it.appearance.copy(heroAutoScroll = v)) } }
             toggleRow("Mostra «Continua a guardare»", "Nella Home.", a.showContinueWatching, "appearance.continue") { v -> update { it.copy(appearance = it.appearance.copy(showContinueWatching = v)) } }
@@ -106,7 +108,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             toggleRow("Riprendi da dove eri", "Riparte dal punto in cui avevi lasciato.", p.autoResume, "playback.autoResume") { v -> update { it.copy(playback = it.playback.copy(autoResume = v)) } }
             choiceRow("Amplificazione audio", if (p.audioGainDb == 0) "Disattivata" else "+${p.audioGainDb} dB", "playback.audioGain") { choose("Amplificazione audio", listOf(0 to "Disattivata", 3 to "+3 dB", 6 to "+6 dB", 9 to "+9 dB", 12 to "+12 dB", 18 to "+18 dB"), p.audioGainDb) { v -> update { it.copy(playback = it.playback.copy(audioGainDb = v)) } } }
             toggleRow("Rimuovi le annotazioni per non udenti", "Toglie «[porta che sbatte]», «(sospira)» e le note musicali dai sottotitoli.", p.stripHearingImpairedTags, "playback.stripHearing") { v -> update { it.copy(playback = it.playback.copy(stripHearingImpairedTags = v)) } }
-            choiceRow("Ritardo predefinito dei sottotitoli", if (p.subtitleDelayMillis == 0L) "Nessuno" else "+${p.subtitleDelayMillis / 1000.0} s", "playback.subDelay") { choose("Ritardo predefinito dei sottotitoli", listOf(0L, 500L, 1000L, 2000L, 3000L, 5000L, 10000L).map { it to if (it == 0L) "Nessuno" else "+${it / 1000.0} s" }, p.subtitleDelayMillis) { v -> update { it.copy(playback = it.playback.copy(subtitleDelayMillis = v)) } } }
+            choiceRow("Sincronia predefinita dei sottotitoli", subtitleShift(p.subtitleDelayMillis), "playback.subDelay") { choose("Sincronia predefinita dei sottotitoli", listOf(-5000L, -3000L, -2000L, -1000L, -500L, 0L, 500L, 1000L, 2000L, 3000L, 5000L).map { it to subtitleShift(it) }, p.subtitleDelayMillis) { v -> update { it.copy(playback = it.playback.copy(subtitleDelayMillis = v)) } } }
             choiceRow("Timer di spegnimento predefinito", if (p.defaultSleepTimerMinutes == 0) "Spento" else "${p.defaultSleepTimerMinutes} min", "playback.sleep") { choose("Timer di spegnimento predefinito", listOf(0, 15, 30, 45, 60, 90, 120).map { it to if (it == 0) "Spento" else "$it min" }, p.defaultSleepTimerMinutes) { v -> update { it.copy(playback = it.playback.copy(defaultSleepTimerMinutes = v)) } } }
             choiceRow("Riavvolgi alla ripresa", "${p.resumeRewindSeconds} s", "playback.rewind") { choose("Riavvolgi alla ripresa", listOf(0, 5, 10, 15).map { it to "$it s" }, p.resumeRewindSeconds) { v -> update { it.copy(playback = it.playback.copy(resumeRewindSeconds = v)) } } }
             choiceRow("Salto indietro", "${p.skipBackSeconds} s", "playback.skipBack") { choose("Salto indietro", listOf(5, 10, 15, 30).map { it to "$it s" }, p.skipBackSeconds) { v -> update { it.copy(playback = it.playback.copy(skipBackSeconds = v)) } } }
@@ -375,4 +377,10 @@ private fun PhoneLinkDialog(address: String, onClose: () -> Unit) {
         Text("La pagina è temporanea, protetta da un codice, e si chiude quando premi Chiudi.", style = MaterialTheme.typography.bodySmall, color = AetherColors.OnSurfaceMuted)
         TvButton("Chiudi", onClose, primary = true, testTag = "phoneLink.close")
     }
+}
+
+private fun subtitleShift(ms: Long): String = when {
+    ms == 0L -> "Nessuna"
+    ms > 0 -> "+${ms / 1000.0} s (dopo)"
+    else -> "${ms / 1000.0} s (prima)"
 }

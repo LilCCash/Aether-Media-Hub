@@ -68,7 +68,7 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
     // Back from any other section leads to the Home first, like on every TV app.
     BackHandler(enabled = showRail && route != Routes.HOME) { goTop(Routes.HOME) }
 
-    Box(modifier.fillMaxSize().background(AetherColors.Background)) {
+    Box(modifier.fillMaxSize()) {
         NavHost(
             navController = nav,
             startDestination = if (initialAddonInput != null) Routes.ADDONS else Routes.HOME,
@@ -83,6 +83,7 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
             }
             composable(Routes.DISCOVER) { DiscoverScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }) }
             composable(Routes.SEARCH) { SearchScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }) }
+            composable(Routes.RECOMMEND) { app.aether.tv.ui.screens.recommend.RecommendScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }) }
             composable(Routes.LIBRARY) { LibraryScreen(onOpenDetail = ::openDetail, onOpenDiscover = { goTop(Routes.DISCOVER) }) }
             composable(Routes.ADDONS) { AddonsScreen(initialInput = initialAddonInput) }
             composable(Routes.SETTINGS) { SettingsScreen(onOpenAbout = { nav.navigate(ABOUT) }) }

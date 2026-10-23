@@ -1,7 +1,6 @@
 package app.aether.tv.ui.screens.player
 
 import android.content.Context
-import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -46,7 +45,7 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 
 /** One audio or subtitle choice shown in the player's panels. */
-data class TrackOption(val id: String, val label: String, val detail: String?, val selected: Boolean, val supported: Boolean = true, val fromAddon: Boolean = false)
+data class TrackOption(val id: String, val label: String, val detail: String?, val selected: Boolean, val supported: Boolean = true, val fromAddon: Boolean = false, val lang: String? = null, val addonName: String? = null)
 
 /** The playback engine of the app (Media3 ExoPlayer) and everything around it: tracks, subtitles from the addons, progress, skip, next episode. */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -79,6 +78,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         val sleepEndsAtMs: Long? = null,
         /** Subtitle lines on screen, already cleaned and delayed according to the settings. */
         val cues: List<androidx.media3.common.text.Cue> = emptyList(),
+        val subtitleNote: String? = null,
     )
 
     private val settings get() = engine.settings.value.value.playback
@@ -97,7 +97,20 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         if (request.headers.isNotEmpty()) setDefaultRequestProperties(request.headers)
     }
 
-    val player: ExoPlayer = ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
+    private val gainProcessor = GainAudioProcessor().also { it.setGainDb(settings.audioGainDb) }
+
+    // The volume boost works on decoded audio, so with a boost set the device is not allowed to pass Dolby/DTS through untouched.
+    private val renderers = object : DefaultRenderersFactory(context) {
+        override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): androidx.media3.exoplayer.audio.AudioSink =
+            androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
+                .setEnableFloatOutput(enableFloatOutput)
+                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                .setAudioProcessors(arrayOf(gainProcessor))
+                .apply { if (settings.audioGainDb > 0) setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES) }
+                .build()
+    }.also { it.setEnableDecoderFallback(true) }
+
+    val player: ExoPlayer = ExoPlayer.Builder(context, renderers)
         .setTrackSelector(trackSelector)
         .setMediaSourceFactory(DefaultMediaSourceFactory(http))
         .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(30_000, 90_000, 2_500, 5_000).build())
@@ -113,21 +126,15 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
     private var seekJob: Job? = null
     private var countdownJob: Job? = null
     private var savedAt = 0L
-    private var loudnessEnhancer: LoudnessEnhancer? = null
-
     private fun applyAudioGain(gainDb: Int) {
-        val effect = loudnessEnhancer ?: return
-        runCatching {
-            effect.setTargetGain((gainDb.coerceIn(0, 18) * 100).toInt())
-            effect.enabled = gainDb > 0
+        gainProcessor.setGainDb(gainDb)
+        val passthroughKind = player.audioFormat?.sampleMimeType in setOf(MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC, MimeTypes.AUDIO_DTS, MimeTypes.AUDIO_DTS_HD, MimeTypes.AUDIO_TRUEHD)
+        if (gainDb > 0 && passthroughKind && settings.audioGainDb != gainAtStart) {
+            _state.update { it.copy(audioWarning = "Per amplificare l'audio Dolby/DTS chiudi e riapri il video: il guadagno è già impostato.") }
         }
     }
 
-    private fun attachAudioGain(audioSessionId: Int) {
-        runCatching { loudnessEnhancer?.release() }
-        loudnessEnhancer = if (audioSessionId > 0) runCatching { LoudnessEnhancer(audioSessionId) }.getOrNull() else null
-        applyAudioGain(settings.audioGainDb)
-    }
+    private val gainAtStart = settings.audioGainDb
 
     private val _state = MutableStateFlow(
         UiState(
@@ -158,7 +165,6 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
         override fun onTracksChanged(tracks: Tracks) = publishTracks(tracks)
 
-        override fun onAudioSessionIdChanged(audioSessionId: Int) = attachAudioGain(audioSessionId)
 
         override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) = showCues(cueGroup.cues)
 
@@ -201,23 +207,10 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
     private fun load(r: PlaybackRequest, startAt: Double?) {
         current = r
         val builder = MediaItem.Builder().setUri(Uri.parse(r.url)).setMediaId(r.stream.id)
-        selectedAddonSubtitle?.let { builder.setSubtitleConfigurations(listOf(subtitleConfiguration(it))) }
         player.setMediaItem(builder.build(), ((startAt ?: 0.0) * 1000).toLong())
         player.prepare()
         player.playWhenReady = true
         _state.update { it.copy(error = null, ended = false, buffering = true, sourceLabel = r.stream.name.orEmpty()) }
-    }
-
-    private fun subtitleConfiguration(sub: AddonSubtitle): MediaItem.SubtitleConfiguration {
-        val path = sub.url.substringBefore('?').lowercase()
-        val mime = when {
-            path.endsWith(".vtt") -> MimeTypes.TEXT_VTT
-            path.endsWith(".ass") || path.endsWith(".ssa") -> MimeTypes.TEXT_SSA
-            path.endsWith(".ttml") || path.endsWith(".xml") -> MimeTypes.APPLICATION_TTML
-            else -> MimeTypes.APPLICATION_SUBRIP
-        }
-        return MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub.url)).setMimeType(mime).setLanguage(Languages.normalise(sub.lang))
-            .setLabel(sub.label ?: Languages.displayName(sub.lang)).setSelectionFlags(C.SELECTION_FLAG_DEFAULT).build()
     }
 
     /** Subtitles from the addons and the skip data of the episode, fetched while the video starts. */
@@ -262,15 +255,14 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
                         ),
                     )
                     C.TRACK_TYPE_TEXT -> text.add(
-                        TrackOption(id, format.label ?: format.language?.let { Languages.displayName(it) } ?: "Sottotitoli ${text.size + 1}", "nel file", group.isTrackSelected(trackIndex), group.isTrackSupported(trackIndex)),
+                        TrackOption(id, format.label ?: format.language?.let { Languages.displayName(it) } ?: "Sottotitoli ${text.size + 1}", "nel file", group.isTrackSelected(trackIndex) && selectedAddonSubtitle == null, group.isTrackSupported(trackIndex), lang = format.language),
                     )
                 }
             }
         }
-        val embeddedSelected = text.any { it.selected }
         for (sub in addonSubtitles) {
             val label = sub.label?.takeIf { it.isNotBlank() } ?: Languages.displayName(sub.lang)
-            text.add(TrackOption("addon:${sub.id}", label, sub.addonName?.let { "da $it" }, selected = selectedAddonSubtitle?.id == sub.id && embeddedSelected, fromAddon = true))
+            text.add(TrackOption("addon:${sub.id}", label, null, selected = selectedAddonSubtitle?.id == sub.id, fromAddon = true, lang = sub.lang, addonName = sub.addonName ?: "Addon"))
         }
         val anySupportedAudio = audio.any { it.supported }
         _state.update {
@@ -299,7 +291,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
     fun selectText(option: TrackOption?) {
         if (option == null) {
-            selectedAddonSubtitle = null
+            stopAddonSubtitle()
             player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
             publishTracks(player.currentTracks)
             return
@@ -307,7 +299,8 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         if (option.fromAddon) {
             addonSubtitles.firstOrNull { "addon:${it.id}" == option.id }?.let { chooseAddonSubtitle(it) }
         } else {
-            selectedAddonSubtitle = null
+            stopAddonSubtitle()
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).build()
             selectTrack(C.TRACK_TYPE_TEXT, option.id)
         }
     }
@@ -321,17 +314,53 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
             .build()
     }
 
-    /** A subtitle of an addon joins the video as an extra track: the item is set again at the same point. */
-    private fun chooseAddonSubtitle(sub: AddonSubtitle) {
-        selectedAddonSubtitle = sub
-        val position = player.currentPosition
-        val wasPlaying = player.playWhenReady
-        val item = MediaItem.Builder().setUri(Uri.parse(current.url)).setMediaId(current.stream.id).setSubtitleConfigurations(listOf(subtitleConfiguration(sub))).build()
-        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).clearOverridesOfType(C.TRACK_TYPE_TEXT).build()
-        player.setMediaItem(item, position)
-        player.prepare()
-        player.playWhenReady = wasPlaying
+    private var addonCues: List<app.aether.core.playback.TimedCue> = emptyList()
+    private var addonCueJob: Job? = null
+
+    private fun stopAddonSubtitle() {
+        addonCueJob?.cancel()
+        selectedAddonSubtitle = null
+        addonCues = emptyList()
+        _state.update { it.copy(cues = emptyList(), subtitleNote = null) }
     }
+
+    /** A subtitle of an addon is downloaded and read by the app itself, so it can be shifted both later and earlier. */
+    private fun chooseAddonSubtitle(sub: AddonSubtitle) {
+        addonCueJob?.cancel()
+        selectedAddonSubtitle = sub
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+        _state.update { it.copy(cues = emptyList(), subtitleNote = "Scarico i sottotitoli…") }
+        publishTracks(player.currentTracks)
+        addonCueJob = viewModelScope.launch {
+            val cues = try {
+                val response = engine.http.send(app.aether.core.net.HttpRequest(sub.url, timeoutSeconds = 15, maxBytes = 3 * 1024 * 1024))
+                if (!response.isSuccess) null else app.aether.core.playback.SubtitleParser.parse(app.aether.core.playback.SubtitleParser.decode(response.body))
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                null
+            }
+            if (cues.isNullOrEmpty()) {
+                _state.update { it.copy(subtitleNote = "Impossibile leggere questi sottotitoli (formato non supportato o addon non raggiungibile): provane altri.") }
+                return@launch
+            }
+            addonCues = cues
+            _state.update { it.copy(subtitleNote = null) }
+            var shown: List<String> = emptyList()
+            while (isActive) {
+                val strip = settings.stripHearingImpairedTags
+                val active = app.aether.core.playback.SubtitleParser.active(cues, player.currentPosition, settings.subtitleDelayMillis)
+                    .map { if (strip) app.aether.core.playback.SubtitleCleaner.strip(it.text) else it.text }.filter { it.isNotEmpty() }
+                if (active != shown) {
+                    shown = active
+                    _state.update { it.copy(cues = active.map { text -> androidx.media3.common.text.Cue.Builder().setText(text).build() }) }
+                }
+                delay(100)
+            }
+        }
+    }
+
+    /** Embedded tracks cannot be anticipated, only delayed; addon subtitles can do both. */
+    val canAnticipate: Boolean get() = selectedAddonSubtitle != null
 
     // MARK: Transport
 
@@ -373,6 +402,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
     /** Strips hearing-impaired notes and applies the subtitle delay (a delay can only postpone, never anticipate). */
     private fun showCues(raw: List<androidx.media3.common.text.Cue>) {
+        if (selectedAddonSubtitle != null) return
         val strip = settings.stripHearingImpairedTags
         val cues = raw.mapNotNull { cue ->
             val text = cue.text
@@ -503,10 +533,8 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
     override fun onCleared() {
         saveProgress(force = true)
-        tickJob?.cancel(); seekJob?.cancel(); countdownJob?.cancel(); sleepJob?.cancel(); cueJob?.cancel()
+        tickJob?.cancel(); seekJob?.cancel(); countdownJob?.cancel(); sleepJob?.cancel(); cueJob?.cancel(); addonCueJob?.cancel()
         player.removeListener(listener)
-        runCatching { loudnessEnhancer?.release() }
-        loudnessEnhancer = null
         player.release()
         Session.playback = null
     }

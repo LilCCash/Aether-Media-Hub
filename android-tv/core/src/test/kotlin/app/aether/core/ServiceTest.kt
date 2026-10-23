@@ -184,3 +184,22 @@ class ServiceTest {
         assertNotNull(engine.registry.addon(engine.registry.all().last().id)?.lastError, "the addon's health is remembered")
     }
 }
+
+class RecommenderTest {
+    private fun m(id: String, name: String, genres: List<String>, rating: String, year: String) =
+        app.aether.core.model.MetaItem(id, "movie", name, poster = "p", genres = genres, imdbRating = rating, releaseInfo = year)
+
+    @kotlin.test.Test fun ranksByTasteAndSkipsWhatWasPicked() {
+        val picked = listOf(m("a", "A", listOf("Action", "Sci-Fi"), "8", "2010"), m("b", "B", listOf("Action"), "7", "2012"))
+        val pool = listOf(
+            m("a", "A", listOf("Action"), "9", "2010"),
+            m("c", "Azione", listOf("Action", "Sci-Fi"), "7.5", "2011"),
+            m("d", "Commedia", listOf("Comedy"), "9", "2011"),
+            m("e", "Mezza", listOf("Action", "Comedy"), "6", "2011"),
+        )
+        val out = app.aether.core.search.Recommender.recommend(picked, pool, count = 2)
+        kotlin.test.assertEquals(listOf("c", "e"), out.map { it.id })
+        val boosted = app.aether.core.search.Recommender.recommend(picked, pool, setOf("mezza|2011"), count = 1)
+        kotlin.test.assertEquals("e", boosted.single().id)
+    }
+}

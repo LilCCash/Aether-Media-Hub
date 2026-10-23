@@ -18,10 +18,18 @@ enum class AccentChoice(val title: String, val argb: Long) {
 enum class PosterSize(val title: String, val scale: Float) { SMALL("Piccole", 0.85f), MEDIUM("Medie", 1f), LARGE("Grandi", 1.2f) }
 
 @Serializable
+enum class BackgroundStyle(val title: String) { NIGHT("Notte"), AURORA("Aurora (si muove piano)"), CINEMA("Cinema"), OCEAN("Oceano"), EMBER("Braci") }
+
+@Serializable
+enum class CornerStyle(val title: String, val dp: Int) { SHARP("Squadrati", 4), SOFT("Morbidi", 12), ROUND("Molto tondi", 22) }
+
+@Serializable
 data class AppearanceSettings(
     val accent: AccentChoice = AccentChoice.AURORA,
     val posterSize: PosterSize = PosterSize.MEDIUM,
     val animationsEnabled: Boolean = true,
+    val background: BackgroundStyle = BackgroundStyle.NIGHT,
+    val corners: CornerStyle = CornerStyle.SOFT,
     val heroAutoScroll: Boolean = true,
     val showContinueWatching: Boolean = true,
     val showNextUp: Boolean = true,

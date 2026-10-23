@@ -9,6 +9,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.background
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.aether.core.addons.AddonUrl
 import app.aether.tv.nav.AetherNav
@@ -23,8 +26,12 @@ class MainActivity : ComponentActivity() {
         addonInput = addonFrom(intent)
         setContent {
             val settings by aether.settings.value.collectAsStateWithLifecycle()
-            AetherTheme(accent = Color(settings.appearance.accent.argb), animations = settings.appearance.animationsEnabled) {
-                AetherNav(initialAddonInput = addonInput)
+            val accent = Color(settings.appearance.accent.argb)
+            AetherTheme(accent = accent, animations = settings.appearance.animationsEnabled, corner = settings.appearance.corners.dp.dp) {
+                androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(app.aether.tv.ui.theme.AetherColors.Background)) {
+                    app.aether.tv.ui.theme.AppBackdrop(settings.appearance.background, accent, settings.appearance.animationsEnabled)
+                    AetherNav(initialAddonInput = addonInput)
+                }
             }
         }
     }

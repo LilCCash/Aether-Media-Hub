@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayCircle
@@ -52,6 +53,7 @@ val navEntries = listOf(
     NavEntry(Routes.HOME, "Home", Icons.Filled.Home),
     NavEntry(Routes.DISCOVER, "Scopri", Icons.Filled.Explore),
     NavEntry(Routes.SEARCH, "Cerca", Icons.Filled.Search),
+    NavEntry(Routes.RECOMMEND, "Consigliami", Icons.Filled.AutoAwesome),
     NavEntry(Routes.LIBRARY, "Libreria", Icons.Filled.VideoLibrary),
     NavEntry(Routes.ADDONS, "Addon", Icons.Filled.Extension),
     NavEntry(Routes.SETTINGS, "Impostazioni", Icons.Filled.Settings),

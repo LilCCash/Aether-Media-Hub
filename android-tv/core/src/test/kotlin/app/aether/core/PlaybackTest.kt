@@ -138,3 +138,33 @@ class SubtitleCleanerTest {
         kotlin.test.assertEquals("Vieni !", strip("Vieni (subito) !"))
     }
 }
+
+class SubtitleParserTest {
+    private val srt = "1\r\n00:00:01,000 --> 00:00:03,500\r\n<i>Ciao</i>\r\nmondo\r\n\r\n2\r\n00:00:10,000 --> 00:00:12,000\r\n{\\an8}Dopo\r\n"
+    private val vtt = "WEBVTT\n\n00:05.000 --> 00:07.250 align:start\nSolo VTT\n"
+
+    @kotlin.test.Test fun readsSrtAndVtt() {
+        val a = app.aether.core.playback.SubtitleParser.parse(srt)
+        kotlin.test.assertEquals(2, a.size)
+        kotlin.test.assertEquals("Ciao\nmondo", a[0].text)
+        kotlin.test.assertEquals(3500L, a[0].endMs)
+        kotlin.test.assertEquals("Dopo", a[1].text)
+        val b = app.aether.core.playback.SubtitleParser.parse(vtt)
+        kotlin.test.assertEquals(5000L, b[0].startMs)
+        kotlin.test.assertEquals(7250L, b[0].endMs)
+    }
+
+    @kotlin.test.Test fun delayAndAnticipation() {
+        val cues = app.aether.core.playback.SubtitleParser.parse(srt)
+        val active = app.aether.core.playback.SubtitleParser::active
+        kotlin.test.assertEquals(0, active(cues, 500, 0).size)
+        kotlin.test.assertEquals(1, active(cues, 500, -1000).size)   // anticipated by 1 s: shows at 0 s
+        kotlin.test.assertEquals(0, active(cues, 1500, 2000).size)   // delayed by 2 s: not yet
+        kotlin.test.assertEquals(1, active(cues, 3500, 2000).size)
+    }
+
+    @kotlin.test.Test fun fallsBackToWindows1252() {
+        val bytes = "caffè".toByteArray(charset("windows-1252"))
+        kotlin.test.assertEquals("caffè", app.aether.core.playback.SubtitleParser.decode(bytes))
+    }
+}

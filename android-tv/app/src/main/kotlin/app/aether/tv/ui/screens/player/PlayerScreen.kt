@@ -7,7 +7,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -82,8 +85,9 @@ import app.aether.tv.ui.components.formatDuration
 import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.LocalAccent
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-private enum class Panel { NONE, AUDIO, GAIN, TEXT, DELAY, SPEED, SLEEP, SOURCES }
+private enum class Panel { NONE, AUDIO, GAIN, TEXT, SPEED, SLEEP, SOURCES }
 
 /**
  * The player. The remote works the way people expect from a TV: OK pauses, Left/Right jump (and keep the bar on screen while the
@@ -307,18 +311,15 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
             "Amplificazione audio", listOf(0 to "Disattivata", 3 to "+3 dB", 6 to "+6 dB", 9 to "+9 dB", 12 to "+12 dB", 18 to "+18 dB"), settings.playback.audioGainDb,
             { value -> engine.settings.update { it.copy(playback = it.playback.copy(audioGainDb = value)) }; touch() }, { panel = Panel.NONE; touch() },
         )
-        Panel.TEXT -> ChoiceDialog(
-            "Sottotitoli",
-            listOf("off" to "Nessuno") + state.text.map { it.id to (it.label + (it.detail?.let { d -> " · $d" } ?: "")) },
-            if (state.textOff) "off" else state.text.firstOrNull { it.selected }?.id,
-            { id -> if (id == "off") vm.selectText(null) else vm.selectText(state.text.firstOrNull { it.id == id }) }, { panel = Panel.NONE; touch() },
-        )
-        Panel.SPEED -> ChoiceDialog(
-            "Velocità", listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).map { it to if (it == 1f) "Normale" else "${it}×" }, state.speed, vm::setSpeed, { panel = Panel.NONE; touch() },
-        )
-        Panel.DELAY -> ChoiceDialog(
-            "Ritardo dei sottotitoli", listOf(0L to "Nessuno", 500L to "+0,5 s", 1000L to "+1 s", 2000L to "+2 s", 3000L to "+3 s", 5000L to "+5 s", 10000L to "+10 s"), settings.playback.subtitleDelayMillis,
-            { value -> engine.settings.update { it.copy(playback = it.playback.copy(subtitleDelayMillis = value)) }; touch() }, { panel = Panel.NONE; touch() },
+        Panel.TEXT -> SubtitlePanel(
+            options = state.text,
+            preferredLanguage = settings.playback.preferredSubtitleLanguage.takeIf { it != "off" && it != "system" } ?: java.util.Locale.getDefault().language,
+            delayMs = settings.playback.subtitleDelayMillis,
+            anticipationAvailable = vm.canAnticipate,
+            note = state.subtitleNote,
+            onSelect = { option -> vm.selectText(option) },
+            onDelay = { value -> engine.settings.update { it.copy(playback = it.playback.copy(subtitleDelayMillis = value)) }; touch() },
+            onDismiss = { panel = Panel.NONE; touch() },
         )
         Panel.SLEEP -> ChoiceDialog(
             "Timer di spegnimento", listOf(0 to "Spento", 15 to "15 minuti", 30 to "30 minuti", 45 to "45 minuti", 60 to "1 ora", 90 to "1 ora e 30", 120 to "2 ore"), 0, vm::setSleepTimer, { panel = Panel.NONE; touch() },
@@ -372,17 +373,16 @@ private fun Controls(
                 SeekBar(position, state.durationMs, state.bufferedMs, onSeekBy, onToggle, skipSeconds, stepFor, seekBarRequester, Modifier.weight(1f))
                 Text(if (state.durationMs > 0) "-" + formatDuration((state.durationMs - position).coerceAtLeast(0) / 1000.0) else "--:--", style = MaterialTheme.typography.labelLarge, color = Color.White, modifier = Modifier.width(80.dp))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (state.hasPrevious) RoundControl(Icons.Filled.SkipPrevious, "Episodio precedente", onPrevious)
                 RoundControl(Icons.Filled.FastRewind, "Indietro di $backSeconds secondi", { onSeekBy(-backSeconds * 1000L) })
                 RoundControl(if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (state.isPlaying) "Pausa" else "Riproduci", onPlayPause, requester = playPause, big = true, tag = "player.playPause")
                 RoundControl(Icons.Filled.FastForward, "Avanti di $skipSeconds secondi", { onSeekBy(skipSeconds * 1000L) })
                 if (state.hasNext) RoundControl(Icons.Filled.SkipNext, "Episodio successivo", onNext, tag = "player.next")
-                Box(Modifier.width(24.dp))
+                Box(Modifier.width(12.dp))
                 PanelButton(Icons.Filled.Audiotrack, "Audio", { openPanel(Panel.AUDIO) }, "player.audio")
                 PanelButton(Icons.Filled.VolumeUp, if (audioGainDb == 0) "Gain" else "Gain +${audioGainDb} dB", { openPanel(Panel.GAIN) }, "player.audioGain")
                 PanelButton(Icons.Filled.Subtitles, "Sottotitoli", { openPanel(Panel.TEXT) }, "player.subtitles")
-                PanelButton(Icons.Filled.Subtitles, "Ritardo sottotitoli", { openPanel(Panel.DELAY) }, "player.subtitleDelay")
                 PanelButton(Icons.Filled.Speed, if (state.speed == 1f) "Velocità" else "${state.speed}×", { openPanel(Panel.SPEED) }, "player.speed")
                 PanelButton(Icons.Filled.Bedtime, if (state.sleepEndsAtMs == null) "Timer" else "Timer attivo", { openPanel(Panel.SLEEP) }, "player.sleep")
                 PanelButton(Icons.Filled.AspectRatio, when (state.resizeMode) { 4 -> "Riempi"; 3 -> "Allunga"; else -> "Adatta" }, onResize, "player.resize")
@@ -392,20 +392,27 @@ private fun Controls(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun RoundControl(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, requester: FocusRequester? = null, big: Boolean = false, tag: String? = null) {
-    val size = if (big) 62.dp else 50.dp
-    FocusSurface(onClick, Modifier.size(size), shape = androidx.compose.foundation.shape.CircleShape, focusScale = 1.12f, containerColor = Color(0x66FFFFFF).copy(alpha = 0.16f), focusRequester = requester, testTag = tag) {
+    val size = if (big) 52.dp else 40.dp
+    val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    FocusSurface(onClick, Modifier.size(size).bringIntoViewRequester(bring), shape = androidx.compose.foundation.shape.CircleShape, focusScale = 1.12f, containerColor = Color(0x66FFFFFF).copy(alpha = 0.16f), focusRequester = requester, testTag = tag, onFocused = { scope.launch { bring.bringIntoView() } }) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(icon, label, Modifier.size(size * 0.55f), tint = Color.White) }
     }
 }
 
+/** A pill under the bar. When the remote lands on it the row scrolls so it is shown whole. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun PanelButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, tag: String) {
-    FocusSurface(onClick, Modifier.height(46.dp), shape = RoundedCornerShape(23.dp), focusScale = 1.06f, containerColor = Color(0x66FFFFFF).copy(alpha = 0.16f), testTag = tag) {
-        Row(Modifier.padding(horizontal = 16.dp).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, null, Modifier.size(22.dp), tint = Color.White)
-            Text(label, style = MaterialTheme.typography.labelLarge, color = Color.White, maxLines = 1)
+    val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    FocusSurface(onClick, Modifier.height(38.dp).bringIntoViewRequester(bring), shape = RoundedCornerShape(19.dp), focusScale = 1.05f, containerColor = Color(0x66FFFFFF).copy(alpha = 0.16f), testTag = tag, onFocused = { scope.launch { bring.bringIntoView() } }) {
+        Row(Modifier.padding(horizontal = 12.dp).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, null, Modifier.size(18.dp), tint = Color.White)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White, maxLines = 1)
         }
     }
 }

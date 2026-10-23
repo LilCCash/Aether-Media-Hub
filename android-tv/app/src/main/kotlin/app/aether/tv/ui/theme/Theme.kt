@@ -8,6 +8,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +43,9 @@ object AetherDimens {
 val LocalAccent = compositionLocalOf { Color(0xFF8B7CFF) }
 val LocalAnimations = compositionLocalOf { true }
 
+/** Corner radius of cards and buttons, chosen in the settings. */
+val LocalCorner = compositionLocalOf { 12.dp }
+
 private val Sans = FontFamily.SansSerif
 
 private val AetherTypography = Typography(
@@ -59,7 +64,7 @@ private val AetherTypography = Typography(
 )
 
 @Composable
-fun AetherTheme(accent: Color, animations: Boolean = true, content: @Composable () -> Unit) {
+fun AetherTheme(accent: Color, animations: Boolean = true, corner: androidx.compose.ui.unit.Dp = 12.dp, content: @Composable () -> Unit) {
     val scheme = darkColorScheme(
         primary = accent,
         onPrimary = Color(0xFF0B0A12),
@@ -73,7 +78,7 @@ fun AetherTheme(accent: Color, animations: Boolean = true, content: @Composable 
         error = AetherColors.Danger,
         outline = AetherColors.OnSurfaceFaint,
     )
-    CompositionLocalProvider(LocalAccent provides accent, LocalAnimations provides animations) {
+    CompositionLocalProvider(LocalAccent provides accent, LocalAnimations provides animations, LocalCorner provides corner) {
         MaterialTheme(colorScheme = scheme, typography = AetherTypography, content = content)
     }
 }
@@ -84,3 +89,25 @@ fun backdropScrimHorizontal(): Brush = Brush.horizontalGradient(
 )
 
 fun backdropScrimVertical(): Brush = Brush.verticalGradient(0f to Color.Transparent, 0.55f to Color(0x990B0A12), 1f to Color(0xFF0B0A12))
+
+/** The coloured glow behind every screen; "Aurora" drifts slowly (only when animations are on). */
+@Composable
+fun AppBackdrop(style: app.aether.core.settings.BackgroundStyle, accent: Color, animated: Boolean) {
+    val (a, b) = when (style) {
+        app.aether.core.settings.BackgroundStyle.NIGHT -> return
+        app.aether.core.settings.BackgroundStyle.AURORA -> accent to Color(0xFF3DDC97)
+        app.aether.core.settings.BackgroundStyle.CINEMA -> Color(0xFF8B1E2D) to Color(0xFF3A0F18)
+        app.aether.core.settings.BackgroundStyle.OCEAN -> Color(0xFF1C6FB8) to Color(0xFF0E8F8A)
+        app.aether.core.settings.BackgroundStyle.EMBER -> Color(0xFFD9541E) to Color(0xFF7A1F3D)
+    }
+    val drift = if (animated && style == app.aether.core.settings.BackgroundStyle.AURORA) {
+        val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "aurora")
+        t.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(18000, easing = androidx.compose.animation.core.LinearEasing), androidx.compose.animation.core.RepeatMode.Reverse), label = "drift").value
+    } else 0.5f
+    androidx.compose.foundation.layout.Box(
+        androidx.compose.ui.Modifier.fillMaxSize().drawBehind {
+            drawRect(Brush.radialGradient(listOf(a.copy(alpha = 0.34f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width * (0.15f + 0.5f * drift), size.height * 0.1f), radius = size.width * 0.6f))
+            drawRect(Brush.radialGradient(listOf(b.copy(alpha = 0.28f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width * (0.95f - 0.5f * drift), size.height * 0.95f), radius = size.width * 0.55f))
+        },
+    )
+}

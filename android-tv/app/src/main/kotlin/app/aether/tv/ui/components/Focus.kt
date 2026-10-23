@@ -33,6 +33,7 @@ import androidx.compose.ui.zIndex
 import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.LocalAccent
 import app.aether.tv.ui.theme.LocalAnimations
+import app.aether.tv.ui.theme.LocalCorner
 
 /**
  * The basic focusable surface of the app. Whatever the remote highlights is unmistakable: it grows a little, takes the accent colour as
@@ -44,7 +45,7 @@ fun FocusSurface(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
-    shape: Shape = RoundedCornerShape(12.dp),
+    shape: Shape = RoundedCornerShape(LocalCorner.current),
     focusScale: Float = 1.06f,
     containerColor: Color = AetherColors.SurfaceRaised,
     focusedContainerColor: Color = AetherColors.SurfaceFocused,
