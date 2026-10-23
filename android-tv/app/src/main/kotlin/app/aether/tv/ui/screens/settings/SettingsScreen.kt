@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.aether.core.AetherEngine
 import app.aether.core.debrid.DebridError
+import app.aether.core.metadata.MetadataEnrichment
 import app.aether.core.library.BackupCodec
 import app.aether.core.library.BackupContents
 import app.aether.core.library.BackupError
@@ -129,6 +130,24 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             toggleRow("Cerca anche nella libreria", "I titoli salvati o guardati compaiono tra i risultati, anche senza rete.", c.searchLocal, "content.searchLocal") { v -> update { it.copy(content = it.content.copy(searchLocal = v)) } }
             choiceRow("Ordine dei risultati", c.searchSort.title, "content.searchSort") { choose("Ordine dei risultati", SearchSort.entries.map { it to it.title }, c.searchSort) { v -> update { it.copy(content = it.content.copy(searchSort = v)) } } }
             choiceRow("Aggiorna i cataloghi ogni", "${c.catalogRefreshMinutes} min", "content.refresh") { choose("Aggiorna i cataloghi ogni", listOf(5, 10, 30, 60, 180).map { it to "$it min" }, c.catalogRefreshMinutes) { v -> update { it.copy(content = it.content.copy(catalogRefreshMinutes = v)) } } }
+
+            section("Metadati")
+            actionRow("Chiave API TMDB", if (engine.secrets.get(MetadataEnrichment.TMDbKey).isNullOrBlank()) "Non impostata" else "Impostata · cifrata sul dispositivo", "metadata.tmdb") {
+                var text by mutableStateOf("")
+                dialog = { TextDialog("Chiave API TMDB", "Facoltativa. Arricchisce le schede con descrizione, locandina, voto, generi e cast. La chiave viene conservata cifrata sul dispositivo. Lascia vuoto per rimuoverla.", text, true, { text = it }, {
+                    if (text.isBlank()) engine.secrets.remove(MetadataEnrichment.TMDbKey) else engine.secrets.put(MetadataEnrichment.TMDbKey, text.trim())
+                    notice = if (text.isBlank()) "Chiave TMDB rimossa." else "Chiave TMDB salvata."
+                    close()
+                }, ::close) }
+            }
+            actionRow("Chiave API TheTVDB", if (engine.secrets.get(MetadataEnrichment.TVDbKey).isNullOrBlank()) "Non impostata" else "Impostata · cifrata sul dispositivo", "metadata.tvdb") {
+                var text by mutableStateOf("")
+                dialog = { TextDialog("Chiave API TheTVDB", "Facoltativa. Usata come supporto quando TMDB non restituisce descrizione o locandina. La chiave viene conservata cifrata sul dispositivo. Lascia vuoto per rimuoverla.", text, true, { text = it }, {
+                    if (text.isBlank()) engine.secrets.remove(MetadataEnrichment.TVDbKey) else engine.secrets.put(MetadataEnrichment.TVDbKey, text.trim())
+                    notice = if (text.isBlank()) "Chiave TheTVDB rimossa." else "Chiave TheTVDB salvata."
+                    close()
+                }, ::close) }
+            }
 
             section("Rete")
             toggleRow("Consenti la rete locale", "Permette addon su indirizzi di casa (192.168.x.x, un NAS). Attivala solo se sai cosa stai collegando.", n.allowLocalNetwork, "network.local") { v -> update { it.copy(network = it.network.copy(allowLocalNetwork = v)) } }
