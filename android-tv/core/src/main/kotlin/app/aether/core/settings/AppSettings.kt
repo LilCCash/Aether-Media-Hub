@@ -49,6 +49,8 @@ data class PlaybackSettings(
     val nextEpisodeCountdownSeconds: Int = 8,
     /** "system", "off" or a language code. */
     val preferredAudioLanguage: String = "system",
+    /** LoudnessEnhancer target gain in dB; applied above the TV volume where the device supports it. */
+    val audioGainDb: Int = 0,
     val preferredSubtitleLanguage: String = "off",
     val subtitleStyle: SubtitleStyle = SubtitleStyle(),
     val subtitleDelayMillis: Long = 0,
