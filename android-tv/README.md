@@ -43,10 +43,10 @@ L'app compare nel launcher di Android TV / Google TV con il suo banner. Per apri
 
 ## CI e APK
 
-Il workflow `.github/workflows/android-tv.yml` parte solo quando cambia `android-tv/` (o il workflow stesso), gira su Linux e non tocca la pipeline iOS:
+Due workflow separati, su Linux, che non toccano la pipeline iOS:
 
-1. **Core**: test del modulo Kotlin;
-2. **App**: build, lint, test unitari, controllo del pacchetto (nome, `leanback`, touchscreen non richiesto, banner), controllo che non ci siano file iOS dentro `android-tv/`, **APK di prova come artifact** (Actions → l'esecuzione → *Artifacts* → `Aether-AndroidTV-debug-apk`).
+1. **Aether TV · Test** (`android-tv-test.yml`): parte a ogni modifica di `android-tv/`. Test del core Kotlin, lint bloccante e test dell'app (inclusi quelli col telecomando simulato). Non produce APK.
+2. **Aether TV · Build APK** (`android-tv-apk.yml`): si avvia a mano (*Actions → Run workflow*). Compila l'APK, controlla il pacchetto (nome, `leanback`, touchscreen non richiesto, banner), controlla che non ci siano file iOS dentro `android-tv/` e allega l'**APK come artifact** (l'esecuzione → *Artifacts* → `Aether-TV-debug-apk`).
 
 L'APK di prova è firmato con la chiave di debug. Per un APK di release firmato, nei *Secrets* del repository (Settings → Secrets and variables → Actions) metti `ANDROID_KEYSTORE_BASE64` (il `.jks` in base64), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, e avvia il workflow a mano con «release». Nessuna chiave o password sta nel repository.
 

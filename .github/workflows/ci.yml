@@ -6,9 +6,9 @@ name: CI
 on:
   push:
     branches: ['**']
-    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE', 'android-tv/**', '.github/workflows/android-tv.yml']
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE', 'android-tv/**', '.github/workflows/android-tv-*.yml']
   pull_request:
-    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE', 'android-tv/**', '.github/workflows/android-tv.yml']
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE', 'android-tv/**', '.github/workflows/android-tv-*.yml']
   workflow_dispatch:
     inputs:
       ui_tests:
