@@ -41,15 +41,15 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         val year = meta.year?.let { if (isSeries) "&first_air_date_year=$it" else "&year=$it" }.orEmpty()
         val query = enc(meta.name)
         val search = getJson("https://api.themoviedb.org/3/search/$kind?api_key=${enc(key)}&query=$query$year")
-        val results = search.obj("results")?.arr().orEmpty()
+        val results = search.array("results")
         val best = results.firstOrNull() ?: return meta
         val id = best.int("id") ?: return meta
         val detail = getJson("https://api.themoviedb.org/3/$kind/$id?api_key=${enc(key)}&append_to_response=credits,external_ids")
         val external = detail.obj("external_ids")
         val credits = detail.obj("credits")
-        val genres = detail.obj("genres")?.arr().orEmpty().mapNotNull { it.string("name") }
-        val cast = credits?.obj("cast")?.arr().orEmpty().take(10).mapNotNull { it.string("name") }
-        val directors = credits?.obj("crew")?.arr().orEmpty().filter { it.string("job") == "Director" }.take(4).mapNotNull { it.string("name") }
+        val genres = detail.array("genres").mapNotNull { it.string("name") }
+        val cast = credits?.array("cast").orEmpty().take(10).mapNotNull { it.string("name") }
+        val directors = credits?.array("crew").orEmpty().filter { it.string("job") == "Director" }.take(4).mapNotNull { it.string("name") }
         val date = detail.string(if (isSeries) "first_air_date" else "release_date")
         val released = dateMillis(date)
         return meta.copy(
@@ -59,7 +59,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
             releaseInfo = meta.releaseInfo ?: date?.take(4),
             imdbRating = meta.imdbRating ?: detail.double("vote_average")?.takeIf { it > 0 }?.let { "%.1f".format(java.util.Locale.US, it) },
             releasedMillis = meta.releasedMillis ?: released,
-            runtime = meta.runtime ?: (detail.int("runtime") ?: detail.obj("episode_run_time")?.arr()?.firstOrNull()?.intValue())?.let { "$it min" },
+            runtime = meta.runtime ?: (detail.int("runtime") ?: detail.array("episode_run_time").firstOrNull()?.intValue())?.let { "$it min" },
             genres = meta.genres.ifEmpty { genres },
             cast = meta.cast.ifEmpty { cast },
             directors = meta.directors.ifEmpty { directors },
@@ -86,7 +86,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
             headers = mapOf("Authorization" to "Bearer $token"), timeoutSeconds = 8,
         ))
         if (!search.isSuccess) return meta
-        val rows = json.parseToJsonElement(search.text).jsonObject.obj("data")?.arr().orEmpty()
+        val rows = json.parseToJsonElement(search.text).jsonObject.array("data")
         val best = rows.firstOrNull() ?: return meta
         val id = best.string("tvdb_id") ?: best.string("id") ?: return meta
         val detailResponse = http.send(HttpRequest(
@@ -97,7 +97,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         val detail = json.parseToJsonElement(detailResponse.text).jsonObject.obj("data") ?: return meta
         val image = detail.string("image") ?: detail.string("image_url") ?: best.string("image_url")
         val genres = detail.obj("genres")?.arr().orEmpty().mapNotNull { it.string("name") }
-        val cast = detail.obj("characters")?.arr().orEmpty().take(10).mapNotNull { it.string("name") }
+        val cast = detail.array("characters").take(10).mapNotNull { it.string("name") }
         val date = detail.string("firstAired") ?: detail.string("releaseDate")
         return meta.copy(
             poster = meta.poster ?: image,
@@ -123,7 +123,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
     private fun enc(value: String) = URLEncoder.encode(value, "UTF-8")
     private fun jsonEscape(value: String) = value.replace("\\", "\\\\").replace("\"", "\\\"")
     private fun JsonObject.obj(key: String): JsonObject? = this[key] as? JsonObject
-    private fun JsonObject.arr(): List<kotlinx.serialization.json.JsonElement> = (this as? JsonObject)?.values?.let { emptyList() } ?: emptyList()
+    private fun JsonObject.array(key: String): List<kotlinx.serialization.json.JsonElement> = (this[key] as? JsonArray)?.toList().orEmpty()
     private fun kotlinx.serialization.json.JsonElement.obj(key: String): JsonObject? = (this as? JsonObject)?.get(key) as? JsonObject
     private fun JsonObject.string(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull()
     private fun JsonObject.int(key: String): Int? = string(key)?.toIntOrNull()
