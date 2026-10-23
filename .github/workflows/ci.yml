@@ -2,13 +2,13 @@ name: CI
 
 # Cost note: on a private repository GitHub bills macOS runner minutes at 10x. The UI tests take ~15 minutes, so they
 # run only on main and on manual runs ("Run workflow"); every other push builds the app and runs the unit tests (~4 min).
-# Documentation-only changes do not start the workflow.
+# Documentation-only changes and the Android TV app (android-tv/, which has its own workflow) do not start the workflow.
 on:
   push:
     branches: ['**']
-    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE']
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE', 'android-tv/**', '.github/workflows/android-tv-*.yml']
   pull_request:
-    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE']
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE', 'android-tv/**', '.github/workflows/android-tv-*.yml']
   workflow_dispatch:
     inputs:
       ui_tests:
