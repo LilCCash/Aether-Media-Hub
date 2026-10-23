@@ -3,7 +3,8 @@
 Ricavata leggendo il codice di `Packages/AetherCore` e dell'app iOS (non le descrizioni). Gli stati dicono **solo ciò che è stato verificato**:
 
 - ✅ **Implementato e provato da test automatici** (test del core in Kotlin, eseguiti in CI e in locale).
-- 🟦 **Implementato, compilato in CI, non provato su una TV**: il codice della schermata o del player esiste e compila, ma nessuno l'ha visto girare (nessun emulatore né dispositivo a disposizione).
+- 🟦 **Implementato, compilato in CI, non provato su una TV**: il codice della schermata o del player esiste, compila e supera il lint, ma nessuno l'ha visto girare (nessun emulatore né dispositivo a disposizione).
+- 🎮 **Provato con il telecomando simulato**: i tasti D-pad/OK sono mandati ai componenti veri in un test sulla JVM (Robolectric), che controlla dove va il focus e cosa si attiva.
 - 🟡 **Parziale**: c'è una parte, vedi la nota.
 - ⛔ **Non implementato** (motivo indicato).
 - ➖ **Esclusa di proposito** (Theater Mode).
@@ -50,4 +51,4 @@ Ricavata leggendo il codice di `Packages/AetherCore` e dell'app iOS (non le desc
 | | Registro diagnostico (Avanzate ▸ Diagnostica) | **non portato** | ⛔ |
 | | Chiavi TMDB/TheTVDB, easter egg, intro, personalizzazione Home | non portati | ⛔ |
 | **Theater Mode** | Interfaccia a schermo intero in orizzontale | nessun pulsante, voce o impostazione | ➖ |
-| **Navigazione TV** | — | D-pad, OK, Indietro, Play/Pausa, menu laterale che si espande, focus evidente (ingrandimento + bordo + ombra), ritorno sul poster dove eri | 🟦 (la logica dei tasti del player è nel codice; non provata con un telecomando) |
+| **Navigazione TV** | — | D-pad, OK, Indietro, Play/Pausa, menu laterale che si espande, focus evidente (ingrandimento + bordo + ombra), ritorno sul poster dove eri | 🎮 pulsanti, riga di pulsanti, menu laterale, memoria del focus sui poster · 🟦 tasti del player, dialoghi, tastiera |
