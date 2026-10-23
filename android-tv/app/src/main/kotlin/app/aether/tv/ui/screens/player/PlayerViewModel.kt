@@ -164,7 +164,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
     init {
         player.addListener(listener)
-        viewModelScope.launch { engine.settings.value.value.collect { current -> applyAudioGain(current.playback.audioGainDb) } }
+        viewModelScope.launch { engine.settings.value.collect { current -> applyAudioGain(current.playback.audioGainDb) } }
         player.playWhenReady = true
         load(request, startAt = startPosition(request))
         tickJob = viewModelScope.launch {
