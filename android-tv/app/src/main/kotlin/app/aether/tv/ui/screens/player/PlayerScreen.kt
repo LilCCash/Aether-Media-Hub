@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -81,7 +82,7 @@ import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.LocalAccent
 import kotlinx.coroutines.delay
 
-private enum class Panel { NONE, AUDIO, TEXT, SPEED, SOURCES }
+private enum class Panel { NONE, AUDIO, GAIN, TEXT, SPEED, SOURCES }
 
 /**
  * The player. The remote works the way people expect from a TV: OK pauses, Left/Right jump (and keep the bar on screen while the
@@ -217,6 +218,7 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
             Controls(
                 state = state,
                 skipSeconds = settings.playback.skipForwardSeconds,
+                audioGainDb = settings.playback.audioGainDb,
                 backSeconds = settings.playback.skipBackSeconds,
                 onTouch = ::touch,
                 onPlayPause = { vm.togglePlay(); touch() },
@@ -276,6 +278,10 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
         Panel.AUDIO -> ChoiceDialog(
             "Audio", state.audio.map { it.id to (it.label + (it.detail?.let { d -> " · $d" } ?: "") + if (!it.supported) " (non supportato)" else "") },
             state.audio.firstOrNull { it.selected }?.id, { id -> state.audio.firstOrNull { it.id == id }?.let(vm::selectAudio) }, { panel = Panel.NONE; touch() },
+        )
+        Panel.GAIN -> ChoiceDialog(
+            "Amplificazione audio", listOf(0 to "Disattivata", 3 to "+3 dB", 6 to "+6 dB", 9 to "+9 dB", 12 to "+12 dB", 18 to "+18 dB"), settings.playback.audioGainDb,
+            { value -> engine.settings.update { it.copy(playback = it.playback.copy(audioGainDb = value)) }; touch() }, { panel = Panel.NONE; touch() },
         )
         Panel.TEXT -> ChoiceDialog(
             "Sottotitoli",
@@ -342,6 +348,7 @@ private fun Controls(
                 if (state.hasNext) RoundControl(Icons.Filled.SkipNext, "Episodio successivo", onNext, tag = "player.next")
                 Box(Modifier.width(24.dp))
                 PanelButton(Icons.Filled.Audiotrack, "Audio", { openPanel(Panel.AUDIO) }, "player.audio")
+                PanelButton(Icons.Filled.VolumeUp, if (audioGainDb == 0) "Gain" else "Gain +${audioGainDb} dB", { openPanel(Panel.GAIN) }, "player.audioGain")
                 PanelButton(Icons.Filled.Subtitles, "Sottotitoli", { openPanel(Panel.TEXT) }, "player.subtitles")
                 PanelButton(Icons.Filled.Speed, if (state.speed == 1f) "Velocità" else "${state.speed}×", { openPanel(Panel.SPEED) }, "player.speed")
                 PanelButton(Icons.Filled.AspectRatio, when (state.resizeMode) { 4 -> "Riempi"; 3 -> "Allunga"; else -> "Adatta" }, onResize, "player.resize")
