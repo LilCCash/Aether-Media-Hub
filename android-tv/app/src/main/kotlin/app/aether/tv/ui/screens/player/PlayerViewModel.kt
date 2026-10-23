@@ -1,3 +1,5 @@
+@file:OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package app.aether.tv.ui.screens.player
 
 import android.content.Context
