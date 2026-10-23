@@ -1,8 +1,2 @@
-// The Kotlin plugins are declared once here so every module shares one copy; the Android Gradle plugin is applied only by :app, which
-// keeps the pure-Kotlin core buildable on a machine that cannot resolve it (-PcoreOnly=true).
-plugins {
-    alias(libs.plugins.kotlin.jvm) apply false
-    alias(libs.plugins.kotlin.android) apply false
-    alias(libs.plugins.kotlin.compose) apply false
-    alias(libs.plugins.kotlin.serialization) apply false
-}
+// Each module applies its own plugins (see core/build.gradle.kts and app/build.gradle.kts): the pure-Kotlin core must be buildable
+// on a machine that cannot resolve the Android Gradle plugin (-PcoreOnly=true), so the Android plugin cannot be declared here.
