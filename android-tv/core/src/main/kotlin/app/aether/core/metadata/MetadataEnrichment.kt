@@ -96,7 +96,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         if (!detailResponse.isSuccess) return meta
         val detail = json.parseToJsonElement(detailResponse.text).jsonObject.obj("data") ?: return meta
         val image = detail.string("image") ?: detail.string("image_url") ?: best.string("image_url")
-        val genres = detail.obj("genres")?.arr().orEmpty().mapNotNull { it.string("name") }
+        val genres = detail.array("genres").mapNotNull { it.string("name") }
         val cast = detail.array("characters").take(10).mapNotNull { it.string("name") }
         val date = detail.string("firstAired") ?: detail.string("releaseDate")
         return meta.copy(
@@ -129,6 +129,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
     private fun JsonObject.int(key: String): Int? = string(key)?.toIntOrNull()
     private fun JsonObject.double(key: String): Double? = string(key)?.toDoubleOrNull()
     private fun kotlinx.serialization.json.JsonElement.string(key: String): String? = (this as? JsonObject)?.string(key)
+    private fun kotlinx.serialization.json.JsonElement.int(key: String): Int? = (this as? JsonObject)?.int(key)
     private fun kotlinx.serialization.json.JsonElement.intValue(): Int? = runCatching { jsonPrimitive.content.toInt() }.getOrNull()
     private fun kotlinx.serialization.json.JsonElement.arr(): List<kotlinx.serialization.json.JsonElement> = (this as? JsonArray)?.toList().orEmpty()
     private fun kotlinx.serialization.json.JsonPrimitive.contentOrNull(): String? = content.takeIf { it != "null" }
