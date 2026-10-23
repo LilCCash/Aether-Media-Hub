@@ -12,8 +12,8 @@ android {
         applicationId = "app.aether.tv"
         minSdk = 24
         targetSdk = 35
-        versionCode = (project.findProperty("aetherVersionCode") as String?)?.toIntOrNull() ?: 2
-        versionName = (project.findProperty("aetherVersionName") as String?) ?: "1.1.0-beta.1"
+        versionCode = (project.findProperty("aetherVersionCode") as String?)?.toIntOrNull() ?: 3
+        versionName = (project.findProperty("aetherVersionName") as String?) ?: "1.2.0-beta.1"
     }
 
     buildTypes {
