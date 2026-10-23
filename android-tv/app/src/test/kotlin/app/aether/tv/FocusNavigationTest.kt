@@ -86,7 +86,7 @@ class FocusNavigationTest {
         rule.onNodeWithTag("nav.${Routes.DISCOVER}").performKeyInput { pressKey(Key.DirectionCenter) }
         assertEquals(Routes.DISCOVER, chosen)
         rule.onNodeWithTag("nav.${Routes.DISCOVER}").performKeyInput { pressKey(Key.DirectionDown) }
-        rule.onNodeWithTag("nav.${Routes.LIBRARY}").assertIsFocused()
+        rule.onNodeWithTag("nav.${Routes.SEARCH}").assertIsFocused()
     }
 
     @Test fun backOnARowReturnsTheFocusToThePosterWhereTheViewerWas() {

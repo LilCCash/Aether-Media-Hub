@@ -58,11 +58,16 @@ fun <T> ContentRow(
     val restoreKey = memory?.key?.takeIf { it.startsWith("$rowId|") }?.removePrefix("$rowId|")
     val restoreIndex = restoreKey?.let { target -> unique.indexOfFirst { key(it) == target } } ?: -1
     val requester = remember(restoreKey) { FocusRequester() }
+    var arrived by remember(restoreKey) { androidx.compose.runtime.mutableStateOf(false) }
     if (restoreIndex >= 0) {
         LaunchedEffect(restoreKey, unique.size) {
             state.scrollToItem(restoreIndex)
-            kotlinx.coroutines.delay(50)
-            runCatching { requester.requestFocus() }
+            // The poster may not be attached yet: ask again until the focus has really arrived (a few tries, then give up quietly).
+            repeat(25) {
+                if (arrived) return@LaunchedEffect
+                runCatching { requester.requestFocus() }
+                kotlinx.coroutines.delay(60)
+            }
         }
     }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -78,7 +83,7 @@ fun <T> ContentRow(
             items(unique.size, key = { key(unique[it]) }) { index ->
                 val item = unique[index]
                 val itemKey = key(item)
-                card(item, if (index == restoreIndex) requester else null) { memory?.remember("$rowId|$itemKey") }
+                card(item, if (index == restoreIndex) requester else null) { arrived = true; memory?.remember("$rowId|$itemKey") }
             }
         }
     }
