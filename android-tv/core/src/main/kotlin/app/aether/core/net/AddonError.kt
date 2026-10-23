@@ -9,7 +9,7 @@ sealed class AddonError(override val message: String, val isTransient: Boolean =
     class Http(val status: Int) : AddonError("L'addon ha risposto con errore HTTP $status.", isTransient = status >= 500 || status == 429)
     class ResponseTooLarge(limit: Int) : AddonError("Risposta troppo grande (limite ${limit / 1024} KiB).")
     object TlsFailure : AddonError("Certificato TLS non valido o connessione sicura non riuscita.")
-    class Unreachable(host: String) : AddonError("Impossibile raggiungere «$host».", isTransient = true)
+    class Unreachable(host: String) : AddonError("Impossibile raggiungere «$host». Verifica il link e che il server sia online; per addon in rete locale abilita «Consenti la rete locale» nelle impostazioni.", isTransient = true)
     class InvalidManifest(detail: String) : AddonError(detail)
     class MalformedResponse(detail: String) : AddonError("Risposta dell'addon non valida: $detail")
     class Duplicate(existingName: String) : AddonError("L'addon «$existingName» è già installato.")
