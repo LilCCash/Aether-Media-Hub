@@ -21,7 +21,7 @@ class AddonRemoteServer(private val registry: AddonRegistry) : NanoHTTPD("0.0.0.
     override fun serve(session: IHTTPSession): Response {
         val supplied = session.parameters["token"]?.firstOrNull().orEmpty()
         if (!constantTimeEquals(token, supplied)) return html(Response.Status.FORBIDDEN, page("Accesso negato", "Token non valido. Torna alla TV e riapri la pagina di collegamento."))
-        if (session.method == Method.GET) return html(Response.Status.OK, formPage())
+        if (session.method == Method.GET) return html(Response.Status.OK, formPage(session.parameters["ok"]?.firstOrNull()))
         if (session.method != Method.POST || session.uri != "/install") {
             return html(Response.Status.NOT_FOUND, page("Pagina non trovata", "Torna alla pagina principale."))
         }
@@ -31,20 +31,22 @@ class AddonRemoteServer(private val registry: AddonRegistry) : NanoHTTPD("0.0.0.
             val url = session.parameters["url"]?.firstOrNull()?.trim().orEmpty()
             if (url.isBlank()) return html(Response.Status.BAD_REQUEST, page("Manca il link", "Inserisci l'indirizzo completo del manifest."))
             val addon = runBlocking { registry.install(url) }
-            html(Response.Status.OK, page("Addon installato", "«${escape(addon.displayName)}» è stato aggiunto alla TV. Puoi chiudere questa pagina e tornare ad Aether."))
+            val redirect = newFixedLengthResponse(Response.Status.REDIRECT_SEE_OTHER, "text/plain", "")
+            redirect.addHeader("Location", "/?token=$token&ok=" + java.net.URLEncoder.encode(addon.displayName, "UTF-8"))
+            redirect
         } catch (error: Throwable) {
             val message = AddonError.from(error).message
             html(Response.Status.BAD_REQUEST, page("Installazione non riuscita", escape(message) + "<p>Controlla il link e riprova.</p>"))
         }
     }
 
-    private fun formPage(): String = """
+    private fun formPage(installed: String?): String = """
         <!doctype html><html lang="it"><meta name="viewport" content="width=device-width,initial-scale=1">
         <meta charset="utf-8"><title>Aether · Aggiungi addon</title>
         <style>body{font:16px system-ui;background:#101018;color:#f5f3ff;margin:0;padding:24px}main{max-width:520px;margin:auto}input,button{box-sizing:border-box;width:100%;font:inherit;padding:14px;margin:8px 0;border-radius:12px;border:1px solid #555;background:#20202c;color:white}button{background:#8b7cff;border:0;font-weight:700}p{color:#c7c3d8;line-height:1.5}</style>
-        <main><h1>Aether · Aggiungi addon</h1><p>Incolla qui il link del manifest copiato dal telefono. L'addon verrà installato sulla TV collegata alla stessa rete Wi-Fi.</p>
+        <main><h1>Aether · Aggiungi addon</h1>${installed?.let { "<p style=\"background:#1f3d2b;color:#9df0b8;padding:12px;border-radius:12px\">✅ «${escape(it)}» installato sulla TV. Puoi aggiungerne un altro.</p>" }.orEmpty()}<p>Incolla qui il link del manifest copiato dal telefono. L'addon verrà installato sulla TV collegata alla stessa rete Wi-Fi.</p>
         <form method="post" action="/install?token=$token"><input type="hidden" name="token" value="$token">
-        <label for="url">Link manifest</label><input id="url" name="url" type="url" required autofocus placeholder="https://…/manifest.json">
+        <label for="url">Link manifest</label><input id="url" name="url" type="url" required autofocus value="" placeholder="https://…/manifest.json">
         <button type="submit">Verifica e installa</button></form><p>Installa solo addon di cui ti fidi. Questo collegamento è temporaneo e si chiude quando esci dalla schermata Addon sulla TV.</p></main></html>
     """.trimIndent()
 

@@ -133,20 +133,6 @@ object ResourceUrlBuilder {
         val bare = transport.substringBefore('#').substringBefore('?')
         if (!bare.lowercase().endsWith(AddonUrl.MANIFEST_SUFFIX)) return null
         val base = bare.dropLast(AddonUrl.MANIFEST_SUFFIX.length)
-        val resourcePath = relativePath(path)
-
-        // Cinemeta's public v3 endpoint redirects catalog requests to a second host and rewrites
-        // the route to /<catalog-id>/catalog/<type>/<catalog-id>.json. Some Android TV DNS/network
-        // stacks fail on that redirect even though the manifest host is reachable. Go directly to
-        // the documented destination for catalog requests; keep metadata requests on the v3 host.
-        val uri = runCatching { URI(transport) }.getOrNull()
-        if (
-            uri?.host.equals("v3-cinemeta.strem.io", ignoreCase = true) &&
-            path.resource.equals("catalog", ignoreCase = true)
-        ) {
-            val queryPart = uri?.rawQuery?.let { "?$it" }.orEmpty()
-            return "https://cinemeta-catalogs.strem.io/${encode(path.id)}/$resourcePath$queryPart"
-        }
-        return "$base/$resourcePath$query"
+        return "$base/${relativePath(path)}$query"
     }
 }

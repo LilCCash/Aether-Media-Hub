@@ -9,7 +9,8 @@ sealed class AddonError(override val message: String, val isTransient: Boolean =
     class Http(val status: Int) : AddonError("L'addon ha risposto con errore HTTP $status.", isTransient = status >= 500 || status == 429)
     class ResponseTooLarge(limit: Int) : AddonError("Risposta troppo grande (limite ${limit / 1024} KiB).")
     object TlsFailure : AddonError("Certificato TLS non valido o connessione sicura non riuscita.")
-    class Unreachable(host: String) : AddonError("Impossibile raggiungere «$host». Verifica il link e che il server sia online; per addon in rete locale abilita «Consenti la rete locale» nelle impostazioni.", isTransient = true)
+    class Unreachable(host: String, detail: String? = null) :
+        AddonError("Impossibile raggiungere «$host»." + (detail?.let { " ($it)" } ?: " Controlla la connessione della TV e il link."), isTransient = true)
     class InvalidManifest(detail: String) : AddonError(detail)
     class MalformedResponse(detail: String) : AddonError("Risposta dell'addon non valida: $detail")
     class Duplicate(existingName: String) : AddonError("L'addon «$existingName» è già installato.")
@@ -30,15 +31,18 @@ sealed class AddonError(override val message: String, val isTransient: Boolean =
     }
 
     companion object {
+        private fun hostOf(error: Throwable): String =
+            Regex("""[A-Za-z0-9.-]+\.[A-Za-z]{2,}""").find(error.message.orEmpty())?.value ?: "server"
+
         /** Maps anything thrown by the transport to an [AddonError]. */
         fun from(error: Throwable): AddonError = when (error) {
             is AddonError -> error
             is java.net.SocketTimeoutException, is java.io.InterruptedIOException -> Timeout
             is javax.net.ssl.SSLException -> TlsFailure
-            is java.net.UnknownHostException -> Unreachable(error.message?.substringBefore(':')?.take(60) ?: "host")
-            is java.net.ConnectException, is java.net.NoRouteToHostException -> Unreachable(error.message?.take(60) ?: "host")
-            is java.io.IOException -> Unreachable(error.message?.take(60) ?: "rete")
-            else -> Unreachable(error.message?.take(60) ?: "errore")
+            is java.net.UnknownHostException -> Unreachable(hostOf(error), "DNS non risolto")
+            is java.net.ConnectException, is java.net.NoRouteToHostException -> Unreachable(hostOf(error), "connessione non riuscita: ${error.message.orEmpty().take(80)}")
+            is java.io.IOException -> Unreachable("rete", "${error.javaClass.simpleName}: ${error.message.orEmpty().take(80)}")
+            else -> Unreachable("errore", "${error.javaClass.simpleName}: ${error.message.orEmpty().take(80)}")
         }
     }
 }

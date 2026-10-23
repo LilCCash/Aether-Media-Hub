@@ -18,6 +18,7 @@ dependencies {
     api(libs.kotlinx.coroutines.core)
     api(libs.kotlinx.serialization.json)
     api(libs.okhttp)
+    api(libs.okhttp.dnsoverhttps)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test)

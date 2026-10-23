@@ -6,37 +6,24 @@ name: Android TV
 #   test    pure-Kotlin core: unit tests (protocol, manifests, ranking, library, backup, TorBox, skip segments)
 #   build   Android app: lint, unit tests, debug APK (installable by sideloading) and, when the signing secrets exist, a signed release APK
 #
-# Optional signing secrets:
+# The APK is attached to the run as an artifact (Actions > the run > Artifacts). Signing secrets, all optional:
 #   ANDROID_KEYSTORE_BASE64     base64 of the .jks keystore
 #   ANDROID_KEYSTORE_PASSWORD   keystore password
 #   ANDROID_KEY_ALIAS           key alias
 #   ANDROID_KEY_PASSWORD        key password
-# Without them only the debug APK (signed with the debug key) is produced.
-#
-# Optional VibeView upload:
-#   Add repository secret VIBEVIEW_API_TOKEN in Settings > Secrets and variables > Actions.
-#   Create a token in VibeView Settings > API token (Developer role).
-#   When running manually, enable "Upload to VibeView" to upload the APK and report app/build IDs.
-# No secrets are written to the repository.
+# Without them only the debug APK (signed with the debug key) is produced. No secret is ever written to the repository.
 on:
   push:
-    branches:
-      - feature/aether-android-tv-2
-    paths:
-      - "android-tv/**"
-      - ".github/workflows/android-tv.yml"
+    branches: ['**']
+    paths: ['android-tv/**', '.github/workflows/android-tv.yml']
+  pull_request:
+    paths: ['android-tv/**', '.github/workflows/android-tv.yml']
   workflow_dispatch:
     inputs:
       release:
         description: "Also build the signed release APK (needs the signing secrets)"
         type: boolean
         default: false
-        required: false
-      upload_to_vibeview:
-        description: "Upload the APK to VibeView (needs the VIBEVIEW_API_TOKEN secret)"
-        type: boolean
-        default: false
-        required: false
 
 concurrency:
   group: android-tv-${{ github.ref }}
@@ -138,30 +125,6 @@ jobs:
           name: Aether-AndroidTV-debug-apk
           path: android-tv/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
-      - name: Upload APK to VibeView
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload_to_vibeview }}
-        working-directory: .
-        env:
-          VIBEVIEW_API_TOKEN: ${{ secrets.VIBEVIEW_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "${VIBEVIEW_API_TOKEN:-}" ]; then
-            echo "::error::Missing VIBEVIEW_API_TOKEN. Add it in Settings > Secrets and variables > Actions."
-            exit 1
-          fi
-          npm install --global vibeview
-          RESULT=$(vibeview upload-app android-tv/app/build/outputs/apk/debug/app-debug.apk --output json)
-          echo "$RESULT"
-          APP_ID=$(printf '%s' "$RESULT" | jq -er '.app_id // .id')
-          BUILD_ID=$(printf '%s' "$RESULT" | jq -er '.build_id')
-          {
-            echo "## VibeView upload successful"
-            echo "- App ID: `$APP_ID`"
-            echo "- Build ID: `$BUILD_ID`"
-          } >> "$GITHUB_STEP_SUMMARY"
-          echo "app_id=$APP_ID" >> "$GITHUB_OUTPUT"
-          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
 
       - name: Signed release APK
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}

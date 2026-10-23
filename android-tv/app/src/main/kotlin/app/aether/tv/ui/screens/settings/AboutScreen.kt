@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import app.aether.tv.BuildConfig
+import app.aether.tv.ui.components.AetherLogo
 import app.aether.tv.ui.components.FocusSurface
 import app.aether.tv.ui.components.RequestFocusOnce
 import app.aether.tv.ui.theme.AetherColors
@@ -24,6 +25,7 @@ private val libraries = listOf(
     "Jetpack Compose, AndroidX, Media3 (ExoPlayer)" to "Apache License 2.0 — Google",
     "OkHttp, Okio" to "Apache License 2.0 — Square",
     "Coil" to "Apache License 2.0 — Coil Contributors",
+    "NanoHTTPD" to "BSD License — NanoHttpd contributors",
     "Kotlin, kotlinx.coroutines, kotlinx.serialization" to "Apache License 2.0 — JetBrains",
 )
 
@@ -39,31 +41,32 @@ fun AboutScreen(modifier: Modifier = Modifier) {
         item {
             FocusSurface({}, Modifier.fillMaxWidth(), focusRequester = first) {
                 Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Aether per Android TV", style = MaterialTheme.typography.displayMedium, color = AetherColors.OnBackground)
+                    Text("Aether TV", style = MaterialTheme.typography.displayMedium, color = AetherColors.OnBackground)
                     Text("Versione ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleMedium, color = AetherColors.OnSurfaceMuted)
                     Text("Un media center per la TV, in italiano, che mostra e riproduce i contenuti dei tuoi addon Stremio. È un progetto indipendente e non ha legami con Stremio o con altri servizi.", style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnBackground)
                 }
             }
         }
+        item { AetherLogo(Modifier.padding(horizontal = 4.dp)) }
         item {
-            Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            FocusSurface({}, Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Cosa fa e cosa no", style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground)
                 Text("Aether non fornisce nessun contenuto: cataloghi e sorgenti arrivano dagli addon che installi tu, e sei tu responsabile di ciò che installi e guardi.", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
                 Text("Non c'è nessun account e nessuna statistica. Cronologia, libreria e impostazioni restano su questa TV; gli indirizzi degli addon (che possono contenere chiavi) e la chiave TorBox sono cifrati con il Keystore di Android. L'unica richiesta volontaria a un servizio di Aether è «Salta intro», che chiede a IntroDB i tempi dell'episodio (codice IMDb, stagione ed episodio) e si può spegnere nelle impostazioni.", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
-            }
+            } }
         }
         item {
-            Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            FocusSurface({}, Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Licenza", style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground)
                 Text("Aether è distribuito con licenza MIT (vedi il file LICENSE del repository).", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
-            }
+            } }
         }
         item { Text("Librerie di terze parti", style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(horizontal = 4.dp)) }
         for ((name, license) in libraries) item {
-            Column(Modifier.padding(horizontal = 4.dp)) {
+            FocusSurface({}, Modifier.fillMaxWidth()) { Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                 Text(name, style = MaterialTheme.typography.titleMedium, color = AetherColors.OnBackground)
                 Text(license, style = MaterialTheme.typography.bodySmall, color = AetherColors.OnSurfaceMuted)
-            }
+            } }
         }
     }
 }

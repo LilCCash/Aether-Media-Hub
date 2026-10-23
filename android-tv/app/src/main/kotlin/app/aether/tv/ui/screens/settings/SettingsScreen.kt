@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.aether.core.AetherEngine
+import app.aether.tv.ui.components.AetherLogo
 import app.aether.core.debrid.DebridError
 import app.aether.core.metadata.MetadataEnrichment
 import app.aether.core.library.BackupCodec
@@ -90,6 +91,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
         Text("Impostazioni", style = MaterialTheme.typography.headlineLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
         notice?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = LocalAccent.current, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 4.dp)) }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 12.dp, bottom = 56.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            item { AetherLogo(Modifier.padding(bottom = 8.dp)) }
             section("Aspetto")
             choiceRow("Colore d'accento", a.accent.title, "appearance.accent", first) { choose("Colore d'accento", AccentChoice.entries.map { it to it.title }, a.accent) { v -> update { it.copy(appearance = it.appearance.copy(accent = v)) } } }
             choiceRow("Dimensione delle locandine", a.posterSize.title, "appearance.posterSize") { choose("Dimensione delle locandine", PosterSize.entries.map { it to it.title }, a.posterSize) { v -> update { it.copy(appearance = it.appearance.copy(posterSize = v)) } } }

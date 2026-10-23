@@ -89,7 +89,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
             .build()
     }
 
-    private val http: HttpDataSource.Factory = OkHttpDataSource.Factory(OkHttpClient()).setUserAgent("Aether-AndroidTV/1.0").apply {
+    private val http: HttpDataSource.Factory = OkHttpDataSource.Factory(app.aether.core.net.AetherDns.client()).setUserAgent("Aether-AndroidTV/1.0").apply {
         if (request.headers.isNotEmpty()) setDefaultRequestProperties(request.headers)
     }
 

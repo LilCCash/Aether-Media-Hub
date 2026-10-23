@@ -5,7 +5,12 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.net.InetAddress
+import java.net.UnknownHostException
 import okhttp3.Call
+import okhttp3.Dns
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.dnsoverhttps.DnsOverHttps
 import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -39,10 +44,44 @@ fun interface HttpClient {
     suspend fun send(request: HttpRequest): HttpResponse
 }
 
+/**
+ * Name resolution for every network call. IPv4 addresses go first (many TVs advertise a broken IPv6 route), and when the
+ * router's DNS cannot resolve a public name, the lookup is retried over HTTPS through Cloudflare / Google (fixed IPs, no DNS needed).
+ */
+object AetherDns : Dns {
+    private val bootstrap = OkHttpClient()
+
+    private val fallback: List<Dns> by lazy {
+        listOf(
+            "https://cloudflare-dns.com/dns-query" to listOf("1.1.1.1", "1.0.0.1"),
+            "https://dns.google/dns-query" to listOf("8.8.8.8", "8.8.4.4"),
+        ).map { (url, hosts) ->
+            DnsOverHttps.Builder().client(bootstrap).url(url.toHttpUrl())
+                .bootstrapDnsHosts(hosts.map { InetAddress.getByName(it) }).includeIPv6(false).build()
+        }
+    }
+
+    override fun lookup(hostname: String): List<InetAddress> {
+        val system = try {
+            Dns.SYSTEM.lookup(hostname)
+        } catch (error: UnknownHostException) {
+            for (resolver in fallback) {
+                val found = try { resolver.lookup(hostname) } catch (_: Exception) { continue }
+                if (found.isNotEmpty()) return found
+            }
+            throw error
+        }
+        return system.sortedBy { if (it is java.net.Inet4Address) 0 else 1 }
+    }
+
+    /** A client using [AetherDns], for code (like the player) that builds its own. */
+    fun client(): OkHttpClient = OkHttpClient.Builder().dns(this).build()
+}
+
 /** OkHttp transport: cancellable, size-capped, redirects limited to http(s) and re-checked by [policy]. */
 class OkHttpTransport(
     private val policy: () -> NetworkPolicy = { NetworkPolicy() },
-    base: OkHttpClient = OkHttpClient(),
+    base: OkHttpClient = AetherDns.client(),
 ) : HttpClient {
     private val client: OkHttpClient = base.newBuilder()
         .followRedirects(true)

@@ -26,10 +26,6 @@ class ServiceTest {
     private fun engine(http: FakeHttp, dir: File = createTempDirectory("aether").toFile()) = AetherEngine(dir, InMemorySecretStore(), http)
 
     private fun FakeHttp.cinemeta() = on("v3-cinemeta.strem.io/manifest.json", body = Samples.CINEMETA_MANIFEST)
-        // Catalog requests use Cinemeta's direct redirect destination in ResourceUrlBuilder.
-        .on("cinemeta-catalogs.strem.io/top/catalog/movie/top.json", body = Samples.CATALOG)
-        .on("cinemeta-catalogs.strem.io/top/catalog/series/top/search=", body = """{"metas":[{"id":"tt0944947","type":"series","name":"Il trono di spade"}]}""")
-        .on("cinemeta-catalogs.strem.io/search-only/catalog/movie/search-only/search=", body = """{"metas":[{"id":"tt0111161","type":"movie","name":"Le ali della libertà","poster":"https://p"}]}""")
         .on("v3-cinemeta.strem.io/catalog/movie/top", body = Samples.CATALOG)
         .on("v3-cinemeta.strem.io/catalog/series/top/search=", body = """{"metas":[{"id":"tt0944947","type":"series","name":"Il trono di spade"}]}""")
         .on("v3-cinemeta.strem.io/catalog/movie/search-only/search=", body = """{"metas":[{"id":"tt0111161","type":"movie","name":"Le ali della libertà","poster":"https://p"}]}""")
