@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,7 @@ import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.AetherDimens
 import app.aether.tv.ui.theme.LocalAccent
 import kotlinx.coroutines.launch
+import fi.iki.elonen.NanoHTTPD
 
 @Composable
 fun AddonsScreen(initialInput: String?, modifier: Modifier = Modifier) {
@@ -81,6 +83,9 @@ fun AddonsScreen(initialInput: String?, modifier: Modifier = Modifier) {
     var removing by remember { mutableStateOf<InstalledAddon?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var refreshing by remember { mutableStateOf(false) }
+    var remoteAddress by remember { mutableStateOf<String?>(null) }
+    val remoteServer = remember { AddonRemoteServer(engine.registry) }
+    DisposableEffect(remoteServer) { onDispose { runCatching { remoteServer.stop() } } }
     val addButton = remember { FocusRequester() }
     LaunchedEffect(Unit) { Session.pendingAddonInput = null }
     if (!addDialog) RequestFocusOnce(addButton, loaded)
@@ -89,12 +94,25 @@ fun AddonsScreen(initialInput: String?, modifier: Modifier = Modifier) {
         Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Addon", style = MaterialTheme.typography.headlineLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(end = 16.dp))
             TvButton("Aggiungi addon", { prefill = ""; addDialog = true }, icon = Icons.Filled.Add, primary = true, focusRequester = addButton, testTag = "addons.add")
+            TvButton(if (remoteAddress == null) "Aggiungi dal telefono" else "Chiudi accesso telefono", {
+                if (remoteAddress != null) { runCatching { remoteServer.stop() }; remoteAddress = null }
+                else try { remoteServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false); remoteAddress = remoteServer.localUrl ?: "IP della TV:8765" }
+                catch (e: Exception) { message = "Non riesco ad aprire l’accesso locale: " + (e.message ?: "porta occupata"); remoteAddress = null }
+            }, testTag = "addons.phone")
             if (addons.isNotEmpty()) TvButton(if (refreshing) "Aggiorno…" else "Aggiorna tutti", {
                 scope.launch { refreshing = true; val outcomes = engine.registry.refreshAll(); refreshing = false
                     message = outcomes.count { it.error != null }.let { failed -> if (failed == 0) "Addon aggiornati." else "$failed addon non hanno risposto." } }
             }, icon = Icons.Filled.Refresh, enabled = !refreshing, testTag = "addons.refreshAll")
         }
         message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 6.dp)) }
+        remoteAddress?.let { address ->
+            Column(Modifier.fillMaxWidth().padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 8.dp).background(AetherColors.Surface, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Aggiungi addon dal telefono", style = MaterialTheme.typography.titleMedium, color = AetherColors.OnBackground)
+                Text("Collega il telefono alla stessa Wi-Fi della TV e apri questo indirizzo nel browser:", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
+                Text(address, style = MaterialTheme.typography.titleLarge, color = LocalAccent.current)
+                Text("La pagina è temporanea e protetta da un token. Rimani in questa schermata finché installi l’addon.", style = MaterialTheme.typography.bodySmall, color = AetherColors.OnSurfaceMuted)
+            }
+        }
         if (loaded && addons.isEmpty()) {
             EmptyState(
                 "Nessun addon installato",
