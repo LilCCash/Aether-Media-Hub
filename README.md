@@ -5,15 +5,26 @@
 <h1 align="center">Aether</h1>
 
 <p align="center">
-  <em>Il tuo media center per iPhone, fatto a modo tuo.</em><br>
-  Versione 1.3 rev2 · iOS 17 o successivo · licenza MIT
+  <em>Il tuo media center per iPhone e per Android TV, fatto a modo tuo.</em><br>
+  iPhone: versione 1.3 rev2 · iOS 17 o successivo · Android TV: Aether TV 1.0.0 Beta 1 · licenza MIT
 </p>
 
 ---
 
+## Due versioni
+
+| | Aether per iPhone | **Aether TV** per Android TV |
+|---|---|---|
+| Dove sta il codice | questo branch (`main`) | branch [`feature/aether-android-tv`](../../tree/feature/aether-android-tv), cartella `android-tv/` |
+| Come si scarica | [Releases](../../releases): `Aether-unsigned.ipa` (tag `v…`) | [Releases](../../releases): `Aether-TV-….apk` (tag `androidtv-v…`) |
+| Tecnologia | Swift, SwiftUI | Kotlin, Jetpack Compose, Media3 |
+| Stato | 1.3 rev2 | 1.0.0 Beta 1 (pre-release, non ancora provata a lungo su una TV vera) |
+
+Le due app sono indipendenti e leggono gli stessi addon; i backup sono nello stesso formato, quindi si possono spostare dall'una all'altra. **Aether TV** ha Home, Scopri, Cerca con filtri, scheda del titolo (con TMDB e TheTVDB), sorgenti con TorBox, player completo (tracce, sottotitoli, amplificazione audio, timer di spegnimento, Salta intro) e libreria, tutto comandato dal telecomando; gli addon si aggiungono anche dal telefono con un codice QR. Non ha Theater Mode, Cast, AirPlay, Picture in Picture né download. Il dettaglio è nelle note della release e in `android-tv/docs/PARITA.md` (sul branch Android TV).
+
 ## Cos'è
 
-Aether è un'app per iPhone, scritta da zero in Swift, che mostra e riproduce i contenuti dei **tuoi addon Stremio**: catalogo, ricerca, schede dei titoli, scelta della sorgente e un player completo, tutto in italiano.
+Aether è un'app per iPhone (e, in una versione a parte, per Android TV: vedi sopra), scritta da zero in Swift, che mostra e riproduce i contenuti dei **tuoi addon Stremio**: catalogo, ricerca, schede dei titoli, scelta della sorgente e un player completo, tutto in italiano.
 
 Aether **non fornisce nessun contenuto**: sei tu a installare gli addon che vuoi, e sei tu responsabile di ciò che installi. È un progetto indipendente e non ha nessun legame con Stremio o Nuvio.
 
@@ -31,7 +42,7 @@ Aether **non fornisce nessun contenuto**: sei tu a installare gli addon che vuoi
 - **Ripristino dei backup da file**, **ordine delle sorgenti per addon** e **pannelli del player a lato** (sottotitoli, audio, sorgenti).
 - **Picture in Picture**, quando il file e il sistema lo permettono.
 
-## Come provarla
+## Come provarla (iPhone)
 
 1. Vai su **[Releases](../../releases)** e scarica `Aether-unsigned.ipa` dell'ultima versione.
 2. Il file **non è firmato**: iOS non lo installa così com'è. Firmalo con il tuo Apple ID usando uno strumento come AltStore o Sideloadly (oppure con un tuo certificato).
