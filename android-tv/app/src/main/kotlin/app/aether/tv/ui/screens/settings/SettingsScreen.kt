@@ -99,6 +99,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
 
             section("Riproduzione")
             toggleRow("Riprendi da dove eri", "Riparte dal punto in cui avevi lasciato.", p.autoResume, "playback.autoResume") { v -> update { it.copy(playback = it.playback.copy(autoResume = v)) } }
+            choiceRow("Amplificazione audio", if (p.audioGainDb == 0) "Disattivata" else "+${p.audioGainDb} dB", "playback.audioGain") { choose("Amplificazione audio", listOf(0 to "Disattivata", 3 to "+3 dB", 6 to "+6 dB", 9 to "+9 dB", 12 to "+12 dB", 18 to "+18 dB"), p.audioGainDb) { v -> update { it.copy(playback = it.playback.copy(audioGainDb = v)) } } }
             choiceRow("Riavvolgi alla ripresa", "${p.resumeRewindSeconds} s", "playback.rewind") { choose("Riavvolgi alla ripresa", listOf(0, 5, 10, 15).map { it to "$it s" }, p.resumeRewindSeconds) { v -> update { it.copy(playback = it.playback.copy(resumeRewindSeconds = v)) } } }
             choiceRow("Salto indietro", "${p.skipBackSeconds} s", "playback.skipBack") { choose("Salto indietro", listOf(5, 10, 15, 30).map { it to "$it s" }, p.skipBackSeconds) { v -> update { it.copy(playback = it.playback.copy(skipBackSeconds = v)) } } }
             choiceRow("Salto avanti", "${p.skipForwardSeconds} s", "playback.skipForward") { choose("Salto avanti", listOf(5, 10, 15, 30).map { it to "$it s" }, p.skipForwardSeconds) { v -> update { it.copy(playback = it.playback.copy(skipForwardSeconds = v)) } } }
