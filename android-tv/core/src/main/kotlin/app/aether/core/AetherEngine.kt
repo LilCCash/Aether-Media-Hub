@@ -9,6 +9,7 @@ import app.aether.core.debrid.TorBoxClient
 import app.aether.core.library.LibraryPolicy
 import app.aether.core.library.LibraryState
 import app.aether.core.library.LibraryStore
+import app.aether.core.metadata.MetadataEnrichment
 import app.aether.core.net.HttpClient
 import app.aether.core.net.NetworkPolicy
 import app.aether.core.net.OkHttpTransport
@@ -38,6 +39,7 @@ class AetherEngine(
 
     val http: HttpClient = http ?: OkHttpTransport(::currentPolicy)
     val cache = ResponseCache()
+    val metadata = MetadataEnrichment(this.http, secrets)
     val client = AddonClient(
         this.http, cache,
         cacheEnabled = { settings.value.value.network.cacheResponses },
