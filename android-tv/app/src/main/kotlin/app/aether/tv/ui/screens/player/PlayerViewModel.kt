@@ -1,5 +1,3 @@
-@file:OptIn(androidx.media3.common.util.UnstableApi::class)
-
 package app.aether.tv.ui.screens.player
 
 import android.content.Context
@@ -50,6 +48,7 @@ import okhttp3.OkHttpClient
 data class TrackOption(val id: String, val label: String, val detail: String?, val selected: Boolean, val supported: Boolean = true, val fromAddon: Boolean = false)
 
 /** The playback engine of the app (Media3 ExoPlayer) and everything around it: tracks, subtitles from the addons, progress, skip, next episode. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlayerViewModel(private val engine: AetherEngine, context: Context, private val request: PlaybackRequest) : ViewModel() {
     data class UiState(
         val title: String,

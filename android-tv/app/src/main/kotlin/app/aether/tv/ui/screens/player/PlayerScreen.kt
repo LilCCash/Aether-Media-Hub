@@ -1,5 +1,3 @@
-@file:OptIn(androidx.media3.common.util.UnstableApi::class)
-
 package app.aether.tv.ui.screens.player
 
 import android.graphics.Color as AndroidColor
@@ -89,6 +87,7 @@ private enum class Panel { NONE, AUDIO, TEXT, SPEED, SOURCES }
  * The player. The remote works the way people expect from a TV: OK pauses, Left/Right jump (and keep the bar on screen while the
  * button is held or tapped again), Up/Down bring up the controls, Back closes a panel, then the controls, then the player.
  */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, modifier: Modifier = Modifier) {
     val request = Session.playback
