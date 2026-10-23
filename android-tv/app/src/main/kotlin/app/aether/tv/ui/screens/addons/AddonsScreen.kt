@@ -108,8 +108,11 @@ fun AddonsScreen(initialInput: String?, modifier: Modifier = Modifier) {
         remoteAddress?.let { address ->
             Column(Modifier.fillMaxWidth().padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 8.dp).background(AetherColors.Surface, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Aggiungi addon dal telefono", style = MaterialTheme.typography.titleMedium, color = AetherColors.OnBackground)
-                Text("Collega il telefono alla stessa Wi-Fi della TV e apri questo indirizzo nel browser:", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
-                Text(address, style = MaterialTheme.typography.titleLarge, color = LocalAccent.current)
+                Text("Collega il telefono alla stessa Wi-Fi della TV, inquadra il codice QR o apri questo indirizzo nel browser:", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    app.aether.tv.ui.components.QrCode(address)
+                    Text(address, style = MaterialTheme.typography.titleLarge, color = LocalAccent.current)
+                }
                 Text("La pagina è temporanea e protetta da un token. Rimani in questa schermata finché installi l’addon.", style = MaterialTheme.typography.bodySmall, color = AetherColors.OnSurfaceMuted)
             }
         }
