@@ -370,7 +370,6 @@ private suspend fun installAddons(engine: AetherEngine, contents: BackupContents
 private fun PhoneLinkDialog(address: String, onClose: () -> Unit) {
     AetherDialog("Dal telefono", onClose, width = 720.dp) {
         Text("Collega il telefono alla stessa Wi-Fi della TV e apri questo indirizzo nel browser:", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
-        app.aether.tv.ui.components.QrCode(address)
         Text(address, style = MaterialTheme.typography.titleLarge, color = LocalAccent.current)
         Text("La pagina è temporanea, protetta da un codice, e si chiude quando premi Chiudi.", style = MaterialTheme.typography.bodySmall, color = AetherColors.OnSurfaceMuted)
         TvButton("Chiudi", onClose, primary = true, testTag = "phoneLink.close")

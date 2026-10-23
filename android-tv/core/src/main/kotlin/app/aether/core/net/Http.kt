@@ -88,11 +88,7 @@ class OkHttpTransport(
         .followSslRedirects(true)
         .build()
 
-    // Reading the body is blocking network I/O and runs after the coroutine resumes: it must never happen on the main thread
-    // (that raised NetworkOnMainThreadException on Android and surfaced as "unreachable").
-    override suspend fun send(request: HttpRequest): HttpResponse = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { sendBlocking(request) }
-
-    private suspend fun sendBlocking(request: HttpRequest): HttpResponse {
+    override suspend fun send(request: HttpRequest): HttpResponse {
         policy().check(request.url)?.let { throw AddonError.Blocked(it) }
         val builder = Request.Builder().url(request.url)
         for ((name, value) in request.headers) builder.header(name, value)
