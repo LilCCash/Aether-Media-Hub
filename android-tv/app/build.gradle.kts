@@ -13,7 +13,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = (project.findProperty("aetherVersionCode") as String?)?.toIntOrNull() ?: 1
-        versionName = (project.findProperty("aetherVersionName") as String?) ?: "1.0.0"
+        versionName = (project.findProperty("aetherVersionName") as String?) ?: "1.0.0-beta.1"
     }
 
     buildTypes {

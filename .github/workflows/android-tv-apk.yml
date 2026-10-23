@@ -2,11 +2,14 @@ name: Aether TV · Build APK
 # Builds the installable APK (debug, signed with the debug key) and attaches it to the run: Actions > the run > Artifacts.
 # It runs on every push to the Android TV branch (feature/aether-android-tv) and can also be run by hand ("Run workflow"). Tick "release" to also build a signed release APK; that needs these repository secrets:
 #   ANDROID_KEYSTORE_BASE64  ANDROID_KEYSTORE_PASSWORD  ANDROID_KEY_ALIAS  ANDROID_KEY_PASSWORD
+# Publishing: push a tag "androidtv-v<version>"; notes come from android-tv/docs/release-notes/<tag>.md.
 # No secret is ever written to the repository. Tests are a separate workflow ("Aether TV · Test").
 on:
   push:
     branches: [feature/aether-android-tv]
     paths: ['android-tv/**', '.github/workflows/android-tv-apk.yml']
+    # A tag like androidtv-v1.0.0-beta.1 also publishes a GitHub pre-release with the APK (it does not match the iOS "v*" tags).
+    tags: ['androidtv-v*']
   workflow_dispatch:
     inputs:
       release:
@@ -100,3 +103,36 @@ jobs:
           name: Aether-AndroidTV-release-apk
           path: android-tv/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+
+  release:
+    name: Publish the GitHub pre-release
+    needs: apk
+    if: startsWith(github.ref, 'refs/tags/androidtv-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Aether-TV-debug-apk
+          path: dist
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          VERSION="${TAG#androidtv-v}"
+          cp dist/app-debug.apk "dist/Aether-TV-${VERSION}.apk"
+          NOTES="android-tv/docs/release-notes/${TAG}.md"
+          [ -f "$NOTES" ] || { echo "Missing $NOTES" >&2; exit 1; }
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "dist/Aether-TV-${VERSION}.apk" --clobber
+            gh release edit "$TAG" --notes-file "$NOTES" --prerelease
+          else
+            gh release create "$TAG" "dist/Aether-TV-${VERSION}.apk" --title "Aether TV ${VERSION} (Android TV)" --notes-file "$NOTES" --prerelease --verify-tag
+          fi
