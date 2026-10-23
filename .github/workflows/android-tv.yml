@@ -1,0 +1,132 @@
+name: Android TV
+
+# Aether for Android TV (android-tv/). Completely separate from the iPhone app: it builds on Linux, needs no Apple tooling and is
+# started only by changes to android-tv/ or to this file.
+#
+#   test    pure-Kotlin core: unit tests (protocol, manifests, ranking, library, backup, TorBox, skip segments)
+#   build   Android app: lint, unit tests, debug APK (installable by sideloading) and, when the signing secrets exist, a signed release APK
+#
+# The APK is attached to the run as an artifact (Actions > the run > Artifacts). Signing secrets, all optional:
+#   ANDROID_KEYSTORE_BASE64     base64 of the .jks keystore
+#   ANDROID_KEYSTORE_PASSWORD   keystore password
+#   ANDROID_KEY_ALIAS           key alias
+#   ANDROID_KEY_PASSWORD        key password
+# Without them only the debug APK (signed with the debug key) is produced. No secret is ever written to the repository.
+on:
+  push:
+    branches: ['**']
+    paths: ['android-tv/**', '.github/workflows/android-tv.yml']
+  pull_request:
+    paths: ['android-tv/**', '.github/workflows/android-tv.yml']
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Also build the signed release APK (needs the signing secrets)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: android-tv-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: android-tv
+
+jobs:
+  core:
+    name: Core (Kotlin tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test the core
+        run: ./gradlew :core:test -PcoreOnly=true --stacktrace
+      - name: Test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-tv-core-test-report
+          path: android-tv/core/build/reports/tests/test
+          if-no-files-found: ignore
+
+  app:
+    name: App (lint, tests, APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build, lint and test
+        run: ./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest --stacktrace
+
+      - name: Check the package is an Android TV app
+        run: |
+          set -eu
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/aapt2" dump badging "$APK" > /tmp/badging.txt
+          grep -q "package: name='app.aether.tv'" /tmp/badging.txt
+          grep -q "leanback-launchable-activity" /tmp/badging.txt
+          grep -q "android.software.leanback" /tmp/badging.txt
+          grep -q "uses-feature-not-required: name='android.hardware.touchscreen'" /tmp/badging.txt
+          grep -q "banner" /tmp/badging.txt || grep -q "application-banner" /tmp/badging.txt
+          head -12 /tmp/badging.txt
+
+      - name: Guard against iOS files in the Android build
+        run: |
+          set -eu
+          if git ls-files android-tv | grep -Ei '\.(swift|xcodeproj|xcworkspace|pbxproj|plist|xcconfig)$'; then
+            echo "iOS files found inside android-tv/" >&2; exit 1
+          fi
+          echo "android-tv/ contains no iOS files"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Aether-AndroidTV-debug-apk
+          path: android-tv/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Signed release APK
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -eu
+          if [ -z "${KEYSTORE_B64:-}" ]; then echo "The signing secrets are not set: no release APK." >&2; exit 1; fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          ./gradlew :app:assembleRelease \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.jks" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+        with:
+          name: Aether-AndroidTV-release-apk
+          path: android-tv/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-tv-lint-report
+          path: android-tv/app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore

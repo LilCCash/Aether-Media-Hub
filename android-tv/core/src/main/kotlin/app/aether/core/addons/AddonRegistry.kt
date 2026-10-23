@@ -86,9 +86,10 @@ class AddonRegistry(
     private val urls = HashMap<String, String>()
     private var loaded = false
 
-    /** Observers (the UI) are told after every change. */
-    @Volatile
-    var onChange: (() -> Unit)? = null
+    private val _revision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+
+    /** Increases after every change to the installed addons: the screens that show their catalogs reload. */
+    val revision: kotlinx.coroutines.flow.StateFlow<Long> get() = _revision
 
     /** Loads persisted addons and their secret URLs. Safe to call repeatedly. */
     suspend fun load(): List<InstalledAddon> = lock.withLock { loadLocked(); addons.toList() }
@@ -266,7 +267,7 @@ class AddonRegistry(
 
     private fun persist() {
         store.save(AddonRegistryState(addons = addons.toList()))
-        onChange?.invoke()
+        _revision.value = _revision.value + 1
     }
 
     companion object {
