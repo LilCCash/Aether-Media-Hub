@@ -90,7 +90,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         val best = rows.firstOrNull() ?: return meta
         val id = best.string("tvdb_id") ?: best.string("id") ?: return meta
         val detailResponse = http.send(HttpRequest(
-            url = "https://api4.thetvdb.com/v4/$kind/$id/extended",
+            url = "https://api4.thetvdb.com/v4/${if (kind == "series") "series" else "movies"}/$id/extended",
             headers = mapOf("Authorization" to "Bearer $token"), timeoutSeconds = 8,
         ))
         if (!detailResponse.isSuccess) return meta
