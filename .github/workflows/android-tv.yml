@@ -73,6 +73,32 @@ jobs:
       - name: Build, lint and test
         run: ./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest --stacktrace
 
+      - name: Lint summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, xml.etree.ElementTree as ET
+          path = "app/build/reports/lint-results-debug.xml"
+          if not os.path.exists(path):
+              print("no lint report"); raise SystemExit
+          issues = ET.parse(path).getroot().findall("issue")
+          counts = {}
+          for i in issues:
+              counts[i.get("severity")] = counts.get(i.get("severity"), 0) + 1
+          print("lint:", counts)
+          for i in issues:
+              if i.get("severity") in ("Fatal", "Error"):
+                  loc = i.find("location")
+                  print(i.get("severity"), i.get("id"), (i.get("message") or "")[:160], loc.get("file", "")[-80:] if loc is not None else "", loc.get("line", "") if loc is not None else "")
+          print("--- warnings by kind")
+          kinds = {}
+          for i in issues:
+              if i.get("severity") == "Warning":
+                  kinds[i.get("id")] = kinds.get(i.get("id"), 0) + 1
+          for k, v in sorted(kinds.items(), key=lambda x: -x[1])[:25]:
+              print(f"{v:4d} {k}")
+          PY
+
       - name: Check the package is an Android TV app
         run: |
           set -eu

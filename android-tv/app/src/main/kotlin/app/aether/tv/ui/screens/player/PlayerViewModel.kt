@@ -312,9 +312,8 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
     /** Adds to a seek in progress: many presses in a row become one jump, committed when the remote pauses. */
     fun seekBy(deltaMs: Long) {
-        val duration = player.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
         val base = _state.value.pendingSeekMs ?: player.currentPosition
-        val target = (base + deltaMs).coerceIn(0, duration)
+        val target = app.aether.core.playback.SeekSteps.target(base, deltaMs, player.duration)
         _state.update { it.copy(pendingSeekMs = target) }
         seekJob?.cancel()
         seekJob = viewModelScope.launch {
@@ -323,13 +322,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         }
     }
 
-    /** How far one press of Left/Right goes: the usual step, then more the longer the button is held. */
-    fun stepFor(repeatCount: Int, baseSeconds: Int): Int = when {
-        repeatCount > 30 -> baseSeconds * 6
-        repeatCount > 15 -> baseSeconds * 3
-        repeatCount > 5 -> baseSeconds * 2
-        else -> baseSeconds
-    }
+    fun stepFor(repeatCount: Int, baseSeconds: Int): Int = app.aether.core.playback.SeekSteps.stepSeconds(repeatCount, baseSeconds)
 
     fun seekTo(ms: Long) {
         _state.update { it.copy(pendingSeekMs = ms.coerceAtLeast(0)) }
