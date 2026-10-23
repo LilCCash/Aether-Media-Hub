@@ -321,6 +321,9 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
             onDelay = { value -> engine.settings.update { it.copy(playback = it.playback.copy(subtitleDelayMillis = value)) }; touch() },
             onDismiss = { panel = Panel.NONE; touch() },
         )
+        Panel.SPEED -> ChoiceDialog(
+            "Velocità", listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).map { it to if (it == 1f) "Normale" else "${it}×" }, state.speed, vm::setSpeed, { panel = Panel.NONE; touch() },
+        )
         Panel.SLEEP -> ChoiceDialog(
             "Timer di spegnimento", listOf(0 to "Spento", 15 to "15 minuti", 30 to "30 minuti", 45 to "45 minuti", 60 to "1 ora", 90 to "1 ora e 30", 120 to "2 ore"), 0, vm::setSleepTimer, { panel = Panel.NONE; touch() },
         )
