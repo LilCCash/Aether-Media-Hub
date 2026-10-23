@@ -1,6 +1,7 @@
 package app.aether.tv.ui.screens.player
 
 import android.content.Context
+import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -108,6 +109,21 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
     private var seekJob: Job? = null
     private var countdownJob: Job? = null
     private var savedAt = 0L
+    private var loudnessEnhancer: LoudnessEnhancer? = null
+
+    private fun applyAudioGain(gainDb: Int) {
+        val effect = loudnessEnhancer ?: return
+        runCatching {
+            effect.setTargetGain((gainDb.coerceIn(0, 18) * 100).toInt())
+            effect.enabled = gainDb > 0
+        }
+    }
+
+    private fun attachAudioGain(audioSessionId: Int) {
+        runCatching { loudnessEnhancer?.release() }
+        loudnessEnhancer = if (audioSessionId > 0) runCatching { LoudnessEnhancer(audioSessionId) }.getOrNull() else null
+        applyAudioGain(settings.audioGainDb)
+    }
 
     private val _state = MutableStateFlow(
         UiState(
@@ -138,6 +154,8 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
         override fun onTracksChanged(tracks: Tracks) = publishTracks(tracks)
 
+        override fun onAudioSessionIdChanged(audioSessionId: Int) = attachAudioGain(audioSessionId)
+
         override fun onPlayerError(error: PlaybackException) {
             _state.update { it.copy(error = describe(error), buffering = false) }
             saveProgress(force = true)
@@ -146,6 +164,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
     init {
         player.addListener(listener)
+        viewModelScope.launch { engine.settings.value.value.collect { current -> applyAudioGain(current.playback.audioGainDb) } }
         player.playWhenReady = true
         load(request, startAt = startPosition(request))
         tickJob = viewModelScope.launch {
@@ -446,6 +465,8 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         saveProgress(force = true)
         tickJob?.cancel(); seekJob?.cancel(); countdownJob?.cancel()
         player.removeListener(listener)
+        runCatching { loudnessEnhancer?.release() }
+        loudnessEnhancer = null
         player.release()
         Session.playback = null
     }
