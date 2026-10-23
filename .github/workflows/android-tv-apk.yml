@@ -1,9 +1,12 @@
 name: Aether TV · Build APK
 # Builds the installable APK (debug, signed with the debug key) and attaches it to the run: Actions > the run > Artifacts.
-# Run it by hand ("Run workflow"). Tick "release" to also build a signed release APK; that needs these repository secrets:
+# It runs on every push to the Android TV branch (feature/aether-android-tv) and can also be run by hand ("Run workflow"). Tick "release" to also build a signed release APK; that needs these repository secrets:
 #   ANDROID_KEYSTORE_BASE64  ANDROID_KEYSTORE_PASSWORD  ANDROID_KEY_ALIAS  ANDROID_KEY_PASSWORD
 # No secret is ever written to the repository. Tests are a separate workflow ("Aether TV · Test").
 on:
+  push:
+    branches: [feature/aether-android-tv]
+    paths: ['android-tv/**', '.github/workflows/android-tv-apk.yml']
   workflow_dispatch:
     inputs:
       release:
