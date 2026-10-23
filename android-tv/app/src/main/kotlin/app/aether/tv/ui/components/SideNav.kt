@@ -73,7 +73,7 @@ fun SideNav(current: String, onSelect: (String) -> Unit, modifier: Modifier = Mo
             .background(
                 Brush.horizontalGradient(
                     0f to AetherColors.Background,
-                    if (expanded) 0.88f else 0.6f to AetherColors.Background.copy(alpha = if (expanded) 0.97f else 0.8f),
+                    (if (expanded) 0.88f else 0.6f) to AetherColors.Background.copy(alpha = if (expanded) 0.97f else 0.8f),
                     1f to Color.Transparent,
                 ),
             )

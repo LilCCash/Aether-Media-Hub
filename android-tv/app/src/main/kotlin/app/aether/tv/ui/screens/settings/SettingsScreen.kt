@@ -301,7 +301,7 @@ private fun ImportDialog(engine: AetherEngine, context: Context, onDone: () -> U
         if (c == null) {
             Text("Scegli un backup salvato su questa TV, oppure apri un file con il selettore del sistema (se la TV ne ha uno).", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
             error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = AetherColors.Danger) }
-            LazyColumn(Modifier.height(if (files.isEmpty()) 0.dp else minOf(files.size, 4) * 56.dp), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(4.dp)) {
+            LazyColumn(Modifier.height(if (files.isEmpty()) 0.dp else (minOf(files.size, 4) * 56).dp), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(4.dp)) {
                 items(files.size) { i ->
                     FocusSurface({ scope.launch { val text = withContext(Dispatchers.IO) { files[i].readText() }; read(text) } }, Modifier.fillMaxWidth().height(48.dp), focusRequester = if (i == 0) first else null) {
                         Text(files[i].name, Modifier.padding(horizontal = 14.dp).align(Alignment.CenterStart), style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground, maxLines = 1)
