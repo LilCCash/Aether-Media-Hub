@@ -1,5 +1,6 @@
 package app.aether.tv.ui.screens.search
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -63,7 +64,15 @@ class SearchViewModel(private val engine: AetherEngine) : ViewModel() {
         val searchableCatalogs: Int = -1,
         val type: String? = null,
         val history: List<SearchHistoryItem> = emptyList(),
-    )
+        val decade: Int? = null,
+        val genre: String? = null,
+    ) {
+        /** Applies the year and genre filters to a list of results. */
+        fun keep(items: List<MetaItem>): List<MetaItem> = items.filter { m ->
+            (decade == null || (m.year?.let { y -> if (decade == 0) y < 2000 else y >= decade && y < decade + 10 } ?: false)) &&
+                (genre == null || m.genres.any { it.equals(genre, ignoreCase = true) })
+        }
+    }
 
     private val _state = MutableStateFlow(UiState(history = engine.library.searchHistory()))
     val state: StateFlow<UiState> get() = _state
@@ -93,6 +102,9 @@ class SearchViewModel(private val engine: AetherEngine) : ViewModel() {
         _state.update { it.copy(query = item.query) }
         submit()
     }
+
+    fun setDecade(decade: Int?) = _state.update { it.copy(decade = decade) }
+    fun setGenre(genre: String?) = _state.update { it.copy(genre = genre) }
 
     fun setType(type: String?) {
         _state.update { it.copy(type = type) }
@@ -159,6 +171,17 @@ fun SearchScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, mod
                 testTag = "search.type.${type ?: "all"}",
             )
         }
+        if (state.searched.isNotEmpty()) {
+            val genres = remember(state.rows) { state.rows.flatMap { it.items }.flatMap { it.genres }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(12).map { it.key } }
+            Row0 {
+                for ((decade, label) in listOf<Pair<Int?, String>>(null to "Ogni anno", 2020 to "2020+", 2010 to "2010–19", 2000 to "2000–09", 0 to "Prima del 2000"))
+                    TvChip(label, state.decade == decade, { vm.setDecade(decade) }, testTag = "search.decade.${decade ?: "all"}")
+            }
+            if (genres.isNotEmpty()) Row0 {
+                TvChip("Ogni genere", state.genre == null, { vm.setGenre(null) }, testTag = "search.genre.all")
+                for (g in genres) TvChip(g, state.genre == g, { vm.setGenre(g) })
+            }
+        }
         when {
             state.searchableCatalogs == 0 -> EmptyState(
                 "Nessun addon può cercare",
@@ -173,7 +196,7 @@ fun SearchScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, mod
 
 @Composable
 private fun Row0(content: @Composable () -> Unit) {
-    androidx.compose.foundation.layout.Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), horizontalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+    androidx.compose.foundation.layout.Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = AetherDimens.ScreenHorizontal), horizontalArrangement = Arrangement.spacedBy(10.dp)) { content() }
 }
 
 @Composable
@@ -193,14 +216,14 @@ private fun HistoryBlock(state: SearchViewModel.UiState, vm: SearchViewModel) {
 
 @Composable
 private fun Results(state: SearchViewModel.UiState, onOpenDetail: (MetaItem) -> Unit, memory: app.aether.tv.ui.components.FocusMemory, sort: SearchSort, vm: SearchViewModel, scale: Float) {
-    val rowsWithItems = state.rows.filter { it.items.isNotEmpty() }
+    val rowsWithItems = state.rows.map { it.copy(items = state.keep(it.items)) }.filter { it.items.isNotEmpty() }
     val failed = state.rows.filter { it.error != null }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (state.searching) item(key = "progress") {
             Text("Cerco in ${state.total.takeIf { it > 0 } ?: "…"} cataloghi (${state.completed} risposte)…", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
         }
-        if (state.local.isNotEmpty()) item(key = "local") {
-            ContentRow("Nella tua libreria", state.local, { it.id }, rowId = "local", memory = memory) { meta, requester, onFocused ->
+        if (state.keep(state.local).isNotEmpty()) item(key = "local") {
+            ContentRow("Nella tua libreria", state.keep(state.local), { it.id }, rowId = "local", memory = memory) { meta, requester, onFocused ->
                 PosterCard(meta, { onOpenDetail(meta) }, focusRequester = requester, onFocused = onFocused)
             }
         }

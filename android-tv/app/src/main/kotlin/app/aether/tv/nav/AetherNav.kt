@@ -93,7 +93,7 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
             ) { backStack ->
                 val type = backStack.arguments?.getString("type").orEmpty()
                 val id = backStack.arguments?.getString("id").orEmpty()
-                DetailScreen(type, id, onPlay = ::openStreams)
+                DetailScreen(type, id, onPlay = ::openStreams, onOpenTitle = { t, i -> nav.navigate(Routes.detail(t, i)) })
             }
             composable(Routes.STREAMS) {
                 StreamsScreen(onPlayerReady = { nav.navigate(Routes.PLAYER) }, onBack = { nav.popBackStack() })

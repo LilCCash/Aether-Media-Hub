@@ -75,6 +75,10 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         val nextCountdown: Int? = null,
         val alternatives: List<RankedStream> = emptyList(),
         val sourceLabel: String = "",
+        /** Wall-clock time (ms) at which the sleep timer pauses the video, or null. */
+        val sleepEndsAtMs: Long? = null,
+        /** Subtitle lines on screen, already cleaned and delayed according to the settings. */
+        val cues: List<androidx.media3.common.text.Cue> = emptyList(),
     )
 
     private val settings get() = engine.settings.value.value.playback
@@ -156,6 +160,8 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
         override fun onAudioSessionIdChanged(audioSessionId: Int) = attachAudioGain(audioSessionId)
 
+        override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) = showCues(cueGroup.cues)
+
         override fun onPlayerError(error: PlaybackException) {
             _state.update { it.copy(error = describe(error), buffering = false) }
             saveProgress(force = true)
@@ -167,6 +173,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         viewModelScope.launch { engine.settings.value.collect { current -> applyAudioGain(current.playback.audioGainDb) } }
         player.playWhenReady = true
         load(request, startAt = startPosition(request))
+        if (settings.defaultSleepTimerMinutes > 0) setSleepTimer(settings.defaultSleepTimerMinutes)
         tickJob = viewModelScope.launch {
             while (isActive) {
                 val position = player.currentPosition.coerceAtLeast(0)
@@ -361,6 +368,39 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         player.seekTo((segment.end * 1000).toLong())
     }
 
+    private var sleepJob: Job? = null
+    private var cueJob: Job? = null
+
+    /** Strips hearing-impaired notes and applies the subtitle delay (a delay can only postpone, never anticipate). */
+    private fun showCues(raw: List<androidx.media3.common.text.Cue>) {
+        val strip = settings.stripHearingImpairedTags
+        val cues = raw.mapNotNull { cue ->
+            val text = cue.text
+            if (!strip || text == null) cue else {
+                val cleaned = app.aether.core.playback.SubtitleCleaner.strip(text.toString())
+                if (cleaned.isEmpty()) null else cue.buildUpon().setText(cleaned).build()
+            }
+        }
+        cueJob?.cancel()
+        val delayMs = settings.subtitleDelayMillis
+        if (delayMs <= 0 || cues.isEmpty() && raw.isEmpty()) { _state.update { it.copy(cues = cues) }; return }
+        cueJob = viewModelScope.launch { delay(delayMs); _state.update { it.copy(cues = cues) } }
+    }
+
+    /** Pauses the video after [minutes] (0 turns the timer off). */
+    fun setSleepTimer(minutes: Int) {
+        sleepJob?.cancel()
+        if (minutes <= 0) { _state.update { it.copy(sleepEndsAtMs = null) }; return }
+        val endsAt = System.currentTimeMillis() + minutes * 60_000L
+        _state.update { it.copy(sleepEndsAtMs = endsAt) }
+        sleepJob = viewModelScope.launch {
+            delay(minutes * 60_000L)
+            player.pause()
+            saveProgress(force = true)
+            _state.update { it.copy(sleepEndsAtMs = null) }
+        }
+    }
+
     fun setSpeed(speed: Float) {
         player.playbackParameters = PlaybackParameters(speed)
         _state.update { it.copy(speed = speed) }
@@ -463,7 +503,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
     override fun onCleared() {
         saveProgress(force = true)
-        tickJob?.cancel(); seekJob?.cancel(); countdownJob?.cancel()
+        tickJob?.cancel(); seekJob?.cancel(); countdownJob?.cancel(); sleepJob?.cancel(); cueJob?.cancel()
         player.removeListener(listener)
         runCatching { loudnessEnhancer?.release() }
         loudnessEnhancer = null

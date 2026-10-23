@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -82,7 +83,7 @@ import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.LocalAccent
 import kotlinx.coroutines.delay
 
-private enum class Panel { NONE, AUDIO, GAIN, TEXT, SPEED, SOURCES }
+private enum class Panel { NONE, AUDIO, GAIN, TEXT, DELAY, SPEED, SLEEP, SOURCES }
 
 /**
  * The player. The remote works the way people expect from a TV: OK pauses, Left/Right jump (and keep the bar on screen while the
@@ -185,6 +186,8 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
                     keepScreenOn = true
                     setShutterBackgroundColor(AndroidColor.BLACK)
                     player = vm.player
+                    // The lines are drawn by our own view below, so they can be cleaned and delayed.
+                    subtitleView?.visibility = android.view.View.GONE
                 }
             },
             update = { view ->
@@ -204,6 +207,27 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
                     setFractionalTextSize(0.0533f * style.sizePercent / 100f)
                     setBottomPaddingFraction((style.bottomOffsetPercent / 100f).coerceIn(0f, 0.4f))
                 }
+            },
+        )
+
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx -> androidx.media3.ui.SubtitleView(ctx).apply { isFocusable = false; isFocusableInTouchMode = false } },
+            update = { view ->
+                val style = settings.playback.subtitleStyle
+                view.setStyle(
+                    CaptionStyleCompat(
+                        style.textColor.toInt(),
+                        AndroidColor.argb((style.backgroundOpacityPercent * 255 / 100).coerceIn(0, 255), 0, 0, 0),
+                        AndroidColor.TRANSPARENT,
+                        if (style.outline) CaptionStyleCompat.EDGE_TYPE_OUTLINE else CaptionStyleCompat.EDGE_TYPE_NONE,
+                        AndroidColor.BLACK,
+                        if (style.bold) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT,
+                    ),
+                )
+                view.setFractionalTextSize(0.0533f * style.sizePercent / 100f)
+                view.setBottomPaddingFraction((style.bottomOffsetPercent / 100f).coerceIn(0f, 0.4f))
+                view.setCues(state.cues)
             },
         )
 
@@ -292,6 +316,13 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
         Panel.SPEED -> ChoiceDialog(
             "Velocità", listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).map { it to if (it == 1f) "Normale" else "${it}×" }, state.speed, vm::setSpeed, { panel = Panel.NONE; touch() },
         )
+        Panel.DELAY -> ChoiceDialog(
+            "Ritardo dei sottotitoli", listOf(0L to "Nessuno", 500L to "+0,5 s", 1000L to "+1 s", 2000L to "+2 s", 3000L to "+3 s", 5000L to "+5 s", 10000L to "+10 s"), settings.playback.subtitleDelayMillis,
+            { value -> engine.settings.update { it.copy(playback = it.playback.copy(subtitleDelayMillis = value)) }; touch() }, { panel = Panel.NONE; touch() },
+        )
+        Panel.SLEEP -> ChoiceDialog(
+            "Timer di spegnimento", listOf(0 to "Spento", 15 to "15 minuti", 30 to "30 minuti", 45 to "45 minuti", 60 to "1 ora", 90 to "1 ora e 30", 120 to "2 ore"), 0, vm::setSleepTimer, { panel = Panel.NONE; touch() },
+        )
         Panel.SOURCES -> ChoiceDialog(
             "Altra sorgente",
             state.alternatives.map { it.id to ((it.stream.name ?: "Sorgente") + (it.stream.addonName?.let { a -> " · $a" } ?: "") + (it.info.badges.firstOrNull()?.let { b -> " · $b" } ?: "")) },
@@ -351,7 +382,9 @@ private fun Controls(
                 PanelButton(Icons.Filled.Audiotrack, "Audio", { openPanel(Panel.AUDIO) }, "player.audio")
                 PanelButton(Icons.Filled.VolumeUp, if (audioGainDb == 0) "Gain" else "Gain +${audioGainDb} dB", { openPanel(Panel.GAIN) }, "player.audioGain")
                 PanelButton(Icons.Filled.Subtitles, "Sottotitoli", { openPanel(Panel.TEXT) }, "player.subtitles")
+                PanelButton(Icons.Filled.Subtitles, "Ritardo sottotitoli", { openPanel(Panel.DELAY) }, "player.subtitleDelay")
                 PanelButton(Icons.Filled.Speed, if (state.speed == 1f) "Velocità" else "${state.speed}×", { openPanel(Panel.SPEED) }, "player.speed")
+                PanelButton(Icons.Filled.Bedtime, if (state.sleepEndsAtMs == null) "Timer" else "Timer attivo", { openPanel(Panel.SLEEP) }, "player.sleep")
                 PanelButton(Icons.Filled.AspectRatio, when (state.resizeMode) { 4 -> "Riempi"; 3 -> "Allunga"; else -> "Adatta" }, onResize, "player.resize")
                 if (state.alternatives.isNotEmpty()) PanelButton(Icons.Filled.SwapHoriz, "Sorgenti", { openPanel(Panel.SOURCES) }, "player.sources")
             }

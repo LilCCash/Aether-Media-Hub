@@ -31,6 +31,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.aether.core.AetherEngine
+import app.aether.tv.ui.screens.addons.AddonRemoteServer
+import fi.iki.elonen.NanoHTTPD
 import app.aether.tv.ui.components.AetherLogo
 import app.aether.core.debrid.DebridError
 import app.aether.core.metadata.MetadataEnrichment
@@ -103,6 +105,9 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             section("Riproduzione")
             toggleRow("Riprendi da dove eri", "Riparte dal punto in cui avevi lasciato.", p.autoResume, "playback.autoResume") { v -> update { it.copy(playback = it.playback.copy(autoResume = v)) } }
             choiceRow("Amplificazione audio", if (p.audioGainDb == 0) "Disattivata" else "+${p.audioGainDb} dB", "playback.audioGain") { choose("Amplificazione audio", listOf(0 to "Disattivata", 3 to "+3 dB", 6 to "+6 dB", 9 to "+9 dB", 12 to "+12 dB", 18 to "+18 dB"), p.audioGainDb) { v -> update { it.copy(playback = it.playback.copy(audioGainDb = v)) } } }
+            toggleRow("Rimuovi le annotazioni per non udenti", "Toglie «[porta che sbatte]», «(sospira)» e le note musicali dai sottotitoli.", p.stripHearingImpairedTags, "playback.stripHearing") { v -> update { it.copy(playback = it.playback.copy(stripHearingImpairedTags = v)) } }
+            choiceRow("Ritardo predefinito dei sottotitoli", if (p.subtitleDelayMillis == 0L) "Nessuno" else "+${p.subtitleDelayMillis / 1000.0} s", "playback.subDelay") { choose("Ritardo predefinito dei sottotitoli", listOf(0L, 500L, 1000L, 2000L, 3000L, 5000L, 10000L).map { it to if (it == 0L) "Nessuno" else "+${it / 1000.0} s" }, p.subtitleDelayMillis) { v -> update { it.copy(playback = it.playback.copy(subtitleDelayMillis = v)) } } }
+            choiceRow("Timer di spegnimento predefinito", if (p.defaultSleepTimerMinutes == 0) "Spento" else "${p.defaultSleepTimerMinutes} min", "playback.sleep") { choose("Timer di spegnimento predefinito", listOf(0, 15, 30, 45, 60, 90, 120).map { it to if (it == 0) "Spento" else "$it min" }, p.defaultSleepTimerMinutes) { v -> update { it.copy(playback = it.playback.copy(defaultSleepTimerMinutes = v)) } } }
             choiceRow("Riavvolgi alla ripresa", "${p.resumeRewindSeconds} s", "playback.rewind") { choose("Riavvolgi alla ripresa", listOf(0, 5, 10, 15).map { it to "$it s" }, p.resumeRewindSeconds) { v -> update { it.copy(playback = it.playback.copy(resumeRewindSeconds = v)) } } }
             choiceRow("Salto indietro", "${p.skipBackSeconds} s", "playback.skipBack") { choose("Salto indietro", listOf(5, 10, 15, 30).map { it to "$it s" }, p.skipBackSeconds) { v -> update { it.copy(playback = it.playback.copy(skipBackSeconds = v)) } } }
             choiceRow("Salto avanti", "${p.skipForwardSeconds} s", "playback.skipForward") { choose("Salto avanti", listOf(5, 10, 15, 30).map { it to "$it s" }, p.skipForwardSeconds) { v -> update { it.copy(playback = it.playback.copy(skipForwardSeconds = v)) } } }
@@ -133,22 +138,25 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             choiceRow("Ordine dei risultati", c.searchSort.title, "content.searchSort") { choose("Ordine dei risultati", SearchSort.entries.map { it to it.title }, c.searchSort) { v -> update { it.copy(content = it.content.copy(searchSort = v)) } } }
             choiceRow("Aggiorna i cataloghi ogni", "${c.catalogRefreshMinutes} min", "content.refresh") { choose("Aggiorna i cataloghi ogni", listOf(5, 10, 30, 60, 180).map { it to "$it min" }, c.catalogRefreshMinutes) { v -> update { it.copy(content = it.content.copy(catalogRefreshMinutes = v)) } } }
 
-            section("Metadati")
-            actionRow("Chiave API TMDB", if (engine.secrets.get(MetadataEnrichment.TMDbKey).isNullOrBlank()) "Non impostata" else "Impostata · cifrata sul dispositivo", "metadata.tmdb") {
+            section("Metadati (TMDB e TheTVDB)")
+            fun keyRow(title: String, key: String, tag: String, hint: String) = actionRow(title, if (engine.secrets.get(key).isNullOrBlank()) "Non impostata" else "Impostata · cifrata sul dispositivo", tag) {
                 var text by mutableStateOf("")
-                dialog = { TextDialog("Chiave API TMDB", "Facoltativa. Arricchisce le schede con descrizione, locandina, voto, generi e cast. La chiave viene conservata cifrata sul dispositivo. Lascia vuoto per rimuoverla.", text, true, { text = it }, {
-                    if (text.isBlank()) engine.secrets.remove(MetadataEnrichment.TMDbKey) else engine.secrets.put(MetadataEnrichment.TMDbKey, text.trim())
-                    notice = if (text.isBlank()) "Chiave TMDB rimossa." else "Chiave TMDB salvata."
+                dialog = { TextDialog(title, "$hint Lascia vuoto per rimuoverla. Digitare con il telecomando è lento: dal telefono puoi usare «Inserisci le chiavi dal telefono».", text, true, { text = it }, {
+                    if (text.isBlank()) engine.secrets.remove(key) else engine.secrets.put(key, text.trim())
+                    engine.metadata.clearCaches()
+                    notice = if (text.isBlank()) "$title rimossa." else "$title salvata. Usa «Verifica» per controllarla."
                     close()
                 }, ::close) }
             }
-            actionRow("Chiave API TheTVDB", if (engine.secrets.get(MetadataEnrichment.TVDbKey).isNullOrBlank()) "Non impostata" else "Impostata · cifrata sul dispositivo", "metadata.tvdb") {
-                var text by mutableStateOf("")
-                dialog = { TextDialog("Chiave API TheTVDB", "Facoltativa. Usata come supporto quando TMDB non restituisce descrizione o locandina. La chiave viene conservata cifrata sul dispositivo. Lascia vuoto per rimuoverla.", text, true, { text = it }, {
-                    if (text.isBlank()) engine.secrets.remove(MetadataEnrichment.TVDbKey) else engine.secrets.put(MetadataEnrichment.TVDbKey, text.trim())
-                    notice = if (text.isBlank()) "Chiave TheTVDB rimossa." else "Chiave TheTVDB salvata."
-                    close()
-                }, ::close) }
+            keyRow("Chiave TMDB", MetadataEnrichment.TMDbKey, "metadata.tmdb", "Chiave API v3 (32 caratteri) oppure token di lettura v4 («eyJ…»). Aggiunge cast con foto, trailer, produzioni e titoli simili.")
+            actionRow("Verifica TMDB", "Controlla che TMDB accetti la chiave.", "metadata.tmdb.verify") { scope.launch { notice = "Controllo TMDB…"; notice = engine.metadata.checkTmdb()?.let { "TMDB: $it" } ?: "TMDB: chiave accettata." } }
+            keyRow("Chiave TheTVDB", MetadataEnrichment.TVDbKey, "metadata.tvdb", "Chiave API v4. Aggiunge trame, locandine e immagini degli episodi.")
+            keyRow("PIN TheTVDB", MetadataEnrichment.TVDbPin, "metadata.tvdbPin", "Solo per le chiavi degli abbonati.")
+            actionRow("Verifica TheTVDB", "Controlla che TheTVDB accetti la chiave.", "metadata.tvdb.verify") { scope.launch { notice = "Controllo TheTVDB…"; notice = engine.metadata.checkTvdb()?.let { "TheTVDB: $it" } ?: "TheTVDB: chiave accettata." } }
+            actionRow("Inserisci le chiavi dal telefono", "Apre una pagina sul telefono (stessa Wi-Fi) per TMDB, TheTVDB e TorBox.", "metadata.phone") {
+                val server = AddonRemoteServer(engine)
+                val address = try { server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false); server.localUrl ?: "IP della TV:8765" } catch (e: Exception) { notice = "Non riesco ad aprire l'accesso locale: ${e.message ?: "porta occupata"}"; null }
+                if (address != null) dialog = { PhoneLinkDialog(address) { runCatching { server.stop() }; close() } }
             }
 
             section("Rete")
@@ -356,4 +364,14 @@ private suspend fun installAddons(engine: AetherEngine, contents: BackupContents
     var failed = 0
     for (url in contents.addonUrls) { try { engine.registry.install(url); ok++ } catch (_: Throwable) { failed++ } }
     return "Backup ripristinato: $ok addon installati" + if (failed > 0) ", $failed non raggiungibili." else "."
+}
+
+@Composable
+private fun PhoneLinkDialog(address: String, onClose: () -> Unit) {
+    AetherDialog("Dal telefono", onClose, width = 720.dp) {
+        Text("Collega il telefono alla stessa Wi-Fi della TV e apri questo indirizzo nel browser:", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
+        Text(address, style = MaterialTheme.typography.titleLarge, color = LocalAccent.current)
+        Text("La pagina è temporanea, protetta da un codice, e si chiude quando premi Chiudi.", style = MaterialTheme.typography.bodySmall, color = AetherColors.OnSurfaceMuted)
+        TvButton("Chiudi", onClose, primary = true, testTag = "phoneLink.close")
+    }
 }

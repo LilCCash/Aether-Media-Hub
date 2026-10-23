@@ -128,3 +128,13 @@ class PlaybackTest {
         assertNotNull(NextEpisodeResolver.episodeToPlay(meta, setOf("tt1:1:1", "tt1:1:2"), "tt1:1:2", null))
     }
 }
+
+class SubtitleCleanerTest {
+    @kotlin.test.Test fun removesNotesForTheHardOfHearing() {
+        val strip = app.aether.core.playback.SubtitleCleaner::strip
+        kotlin.test.assertEquals("Chi è?", strip("[bussano alla porta]\nChi è?"))
+        kotlin.test.assertEquals("Ciao", strip("MARCO: Ciao"))
+        kotlin.test.assertEquals("", strip("♪ musica ♪"))
+        kotlin.test.assertEquals("Vieni !", strip("Vieni (subito) !"))
+    }
+}

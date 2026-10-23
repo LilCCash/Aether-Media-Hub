@@ -62,6 +62,8 @@ data class PlaybackSettings(
     val watchedThreshold: Double = 0.9,
     val skipSegmentsEnabled: Boolean = true,
     val stripHearingImpairedTags: Boolean = false,
+    /** Minutes after which every video pauses by itself; 0 = off. */
+    val defaultSleepTimerMinutes: Int = 0,
 )
 
 @Serializable

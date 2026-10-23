@@ -60,6 +60,9 @@ import app.aether.tv.ui.components.TvChip
 import app.aether.tv.ui.components.TvIconButton
 import app.aether.tv.ui.components.factsLine
 import app.aether.tv.ui.components.formatDuration
+import app.aether.tv.ui.components.ContentRow
+import app.aether.tv.ui.components.PosterCard
+import androidx.compose.foundation.layout.aspectRatio
 import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.AetherDimens
 import app.aether.tv.ui.theme.backdropScrimHorizontal
@@ -82,6 +85,7 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
         val inWatchlist: Boolean = false,
         val favorite: Boolean = false,
         val primary: Video? = null,
+        val rich: app.aether.core.metadata.RichDetails? = null,
     )
 
     private val _state = MutableStateFlow(UiState(Session.preview(type, id) ?: MetaItem(id, type, id)))
@@ -108,6 +112,8 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
                     )
                 }
                 refreshLibrary()
+                val rich = engine.metadata.rich(meta)
+                _state.update { it.copy(rich = rich) }
             } catch (error: Throwable) {
                 if (error is kotlin.coroutines.cancellation.CancellationException) throw error
                 _state.update { it.copy(loading = false, error = AddonError.from(error).message) }
@@ -128,6 +134,14 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
         }
     }
 
+    /** Opens a similar title: TMDB only knows its own id, so the IMDb id is asked first. */
+    fun openSimilar(similar: app.aether.core.metadata.RichDetails.Similar, open: (String, String) -> Unit) {
+        viewModelScope.launch {
+            val imdb = engine.metadata.imdbIdFor(similar) ?: return@launch
+            open(if (similar.isMovie) "movie" else "series", imdb)
+        }
+    }
+
     fun selectSeason(season: Int) = _state.update { it.copy(season = season) }
     fun toggleWatchlist() { val s = _state.value; engine.library.setWatchlist(!s.inWatchlist, s.meta) }
     fun toggleFavorite() { val s = _state.value; engine.library.setFavorite(!s.favorite, s.meta) }
@@ -145,7 +159,7 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
 }
 
 @Composable
-fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -> Unit, modifier: Modifier = Modifier) {
+fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -> Unit, onOpenTitle: (String, String) -> Unit = { _, _ -> }, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val engine = context.aether
     val vm: DetailViewModel = viewModel(key = "detail/$type/$id") { DetailViewModel(engine, type, id) }
@@ -255,11 +269,60 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                         InfoLine("Lingua", listOfNotNull(meta.language))
                         InfoLine("Paese", listOfNotNull(meta.country))
                         InfoLine("Premi", listOfNotNull(meta.awards))
+                        state.rich?.let { r ->
+                            InfoLine("Regia", r.directors.takeIf { meta.directors.isEmpty() }.orEmpty())
+                            InfoLine("Creato da", r.creators)
+                            InfoLine("Produzione", r.companies)
+                            InfoLine("Paese", r.countries.takeIf { meta.country == null }.orEmpty())
+                            InfoLine("Stato", listOfNotNull(r.status))
+                            InfoLine("Lingua originale", listOfNotNull(r.originalLanguage?.uppercase()))
+                            if (r.seasonCount != null) InfoLine("Stagioni", listOfNotNull("${r.seasonCount}" + (r.episodeCount?.let { " · $it episodi" } ?: "")))
+                            InfoLine("Budget", listOfNotNull(r.budget?.let(::money)))
+                            InfoLine("Incassi", listOfNotNull(r.revenue?.let(::money)))
+                        }
                         state.provider?.let { Text("Dettagli forniti da $it", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, modifier = Modifier.padding(top = 8.dp)) }
+                    }
+                }
+                state.rich?.let { r ->
+                    if (r.cast.isNotEmpty()) item(key = "cast") {
+                        ContentRow("Cast", r.cast, { it.name + it.role }, rowId = "cast") { person, requester, onFocused -> PersonCard(person, requester, onFocused) }
+                    }
+                    if (r.trailers.isNotEmpty()) item(key = "trailers") {
+                        Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Trailer", style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                r.trailers.forEachIndexed { i, t ->
+                                    TvChip("${if (t.type == "Teaser") "Teaser" else "Trailer"} ${i + 1}", false, {
+                                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(t.watchUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                                    }, testTag = "detail.richTrailer.$i")
+                                }
+                            }
+                        }
+                    }
+                    if (r.similar.isNotEmpty()) item(key = "similar") {
+                        ContentRow("Titoli simili", r.similar, { "${it.tmdbId}" }, rowId = "similar") { sim, requester, onFocused ->
+                            PosterCard(
+                                MetaItem("tmdb:${sim.tmdbId}", if (sim.isMovie) "movie" else "series", sim.title, poster = sim.poster, releaseInfo = sim.year),
+                                { vm.openSimilar(sim, onOpenTitle) }, focusRequester = requester, onFocused = onFocused, testTag = "detail.similar.${sim.tmdbId}",
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+private fun money(value: Long): String = if (value >= 1_000_000) "%.1f M$".format(java.util.Locale.ITALY, value / 1_000_000.0) else "%,d $".format(java.util.Locale.ITALY, value)
+
+@Composable
+private fun PersonCard(person: app.aether.core.metadata.RichDetails.Person, requester: FocusRequester?, onFocused: () -> Unit) {
+    Column(Modifier.width(120.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FocusSurface({}, Modifier.fillMaxWidth().aspectRatio(0.75f), shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), focusRequester = requester, onFocused = onFocused) {
+            RemoteImage(person.photo, person.name, Modifier.fillMaxSize())
+        }
+        Text(person.name, style = MaterialTheme.typography.labelMedium, color = AetherColors.OnBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        person.role?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceMuted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
 }
 

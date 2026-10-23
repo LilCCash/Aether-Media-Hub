@@ -84,7 +84,7 @@ fun AddonsScreen(initialInput: String?, modifier: Modifier = Modifier) {
     var message by remember { mutableStateOf<String?>(null) }
     var refreshing by remember { mutableStateOf(false) }
     var remoteAddress by remember { mutableStateOf<String?>(null) }
-    val remoteServer = remember { AddonRemoteServer(engine.registry) }
+    val remoteServer = remember { AddonRemoteServer(engine) }
     DisposableEffect(remoteServer) { onDispose { runCatching { remoteServer.stop() } } }
     val addButton = remember { FocusRequester() }
     LaunchedEffect(Unit) { Session.pendingAddonInput = null }
