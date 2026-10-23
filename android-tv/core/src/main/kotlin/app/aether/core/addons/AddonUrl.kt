@@ -144,7 +144,7 @@ object ResourceUrlBuilder {
             uri?.host.equals("v3-cinemeta.strem.io", ignoreCase = true) &&
             path.resource.equals("catalog", ignoreCase = true)
         ) {
-            val queryPart = uri.rawQuery?.let { "?$it" }.orEmpty()
+            val queryPart = uri?.rawQuery?.let { "?$it" }.orEmpty()
             return "https://cinemeta-catalogs.strem.io/${encode(path.id)}/$resourcePath$queryPart"
         }
         return "$base/$resourcePath$query"
