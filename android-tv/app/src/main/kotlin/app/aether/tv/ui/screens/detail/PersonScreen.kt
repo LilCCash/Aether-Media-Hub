@@ -15,7 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -40,7 +39,8 @@ import kotlinx.coroutines.launch
 fun PersonScreen(personId: Int, name: String, onOpenTitle: (String, String) -> Unit, modifier: Modifier = Modifier) {
     val engine = LocalContext.current.aether
     val scope = rememberCoroutineScope()
-    val credits by produceState<List<RichDetails.Credit>?>(null, personId) { value = engine.metadata.personCredits(personId) }
+    var credits by remember { mutableStateOf<List<RichDetails.Credit>?>(null) }
+    androidx.compose.runtime.LaunchedEffect(personId) { credits = engine.metadata.personCredits(personId) }
     var opening by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     Column(modifier.fillMaxSize().padding(top = AetherDimens.ScreenVertical), verticalArrangement = Arrangement.spacedBy(8.dp)) {
