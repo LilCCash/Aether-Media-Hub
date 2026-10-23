@@ -46,7 +46,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build the debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
+        run: ./gradlew :app:assembleDebug --console=plain
 
       - name: Check the package is an Android TV app
         run: |
