@@ -23,11 +23,11 @@ Ricavata leggendo il codice di `Packages/AetherCore` e dell'app iOS (non le desc
 | | Sezioni nascoste/riordinabili, saluto personalizzato, temi/sfondi/cornici (personalizzazione grafica 1.1) | solo accento, dimensione locandine, animazioni, sezioni «Continua» e «Prossimo» on/off | 🟡 (la personalizzazione grafica ampia dell'iPhone non è portata) |
 | **Scopri** | Tipi, cataloghi, filtro per genere, paginazione `skip` | `DiscoverScreen`, `DiscoverViewModel` | 🟦 |
 | **Cerca** | Ricerca su tutti i cataloghi con `search`, risultati man mano, ordine, ricerche recenti, ricerca locale | `SearchService` (✅ test), `SearchScreen` | ✅ core · 🟦 UI |
-| | Filtri per anno/genere nella ricerca | solo filtro per tipo (Tutto/Film/Serie) | 🟡 |
+| | Filtri per anno (decennio) e genere nella ricerca | sui risultati ottenuti | 🟦 |
 | **Dettagli** | Scheda con sfondo, trama, generi, cast, regia, stagioni ed episodi, visto/progressi | `DetailScreen` | 🟦 |
 | | Preferiti, watchlist, segna come visto (titolo, episodio, stagione) | sì | ✅ core · 🟦 UI |
 | | Trailer | apre YouTube con l'app della TV, se c'è | 🟡 |
-| | Scheda ricca con TMDB/TheTVDB (cast con foto, produzioni, budget, titoli simili) | **non portata** | ⛔ (richiede le chiavi dell'utente e un lavoro a parte) |
+| | Scheda ricca con TMDB/TheTVDB (cast con foto, produzioni, budget/incassi, trailer, titoli simili, immagini e trame degli episodi) | `core/metadata`, `DetailScreen`; chiave v3 o token v4; verifica nelle impostazioni | ✅ core (test con server finto) · 🟦 UI · ⛔ mai provato contro i servizi veri |
 | **Sorgenti** | Analisi dei nomi (qualità, codec, HDR, audio, lingua, dimensione, formato), ordine per addon o «migliori», scelta automatica con continuità della release | `StreamAnalyzer`, `StreamSelector`, `StreamsScreen` | ✅ core · 🟦 UI |
 | | TorBox: chiave, controllo cache, torrent→link, download con conferma, scelta del file, progresso | `core/debrid`, `StreamsScreen` | ✅ core (con server finto) · 🟦 UI · ⛔ mai provato contro il vero TorBox |
 | | Server di streaming esterno per i torrent | URL configurabile | ✅ costruzione dell'indirizzo · 🟦 resto |
@@ -43,12 +43,13 @@ Ricavata leggendo il codice di `Packages/AetherCore` e dell'app iOS (non le desc
 | | Errori spiegati, riprova, altra sorgente | sì | 🟦 |
 | | Gesti sul video, luminosità, Picture in Picture, AirPlay, Google Cast, DLNA | **non applicabili/non portati** su una TV | ⛔ |
 | | Hash dei sottotitoli calcolato sul dispositivo (OpenSubtitles) | usa solo hash/dimensione/nome dichiarati dall'addon | 🟡 |
-| | Rimozione dei tag per non udenti dai sottotitoli | **non portata** (impostazione presente nel modello, non applicata) | ⛔ |
+| | Rimozione dei tag per non udenti dai sottotitoli; ritardo dei sottotitoli | `SubtitleCleaner` (✅ test) + sottotitoli disegnati dall'app; il ritardo può solo posticipare (non anticipare) | ✅ core · 🟦 player |
 | **Libreria** | Continua, watchlist, preferiti, cronologia (rimuovi voce, cancella tutto) | `LibraryScreen` | ✅ core · 🟦 UI |
 | | Download per vedere offline | **non portati** (Android TV non è pensato per scaricare; nessun download manager) | ⛔ |
 | **Impostazioni** | Aspetto, riproduzione, contenuti/ricerca, rete, servizi (TorBox), privacy | `SettingsScreen` | 🟦 |
 | | Backup/ripristino: stesso formato `app.aether.backup` dell'iPhone (libreria) | `BackupCodec` legge anche i backup dell'iPhone | ✅ |
 | | Registro diagnostico (Avanzate ▸ Diagnostica) | **non portato** | ⛔ |
-| | Chiavi TMDB/TheTVDB, easter egg, intro, personalizzazione Home | non portati | ⛔ |
+| | Chiavi TMDB/TheTVDB (anche dal telefono), easter egg sul logo, timer di spegnimento, amplificazione audio | sì | 🟦 |
+| | Personalizzazione della Home (sezioni, saluto, temi) | **non portata** | ⛔ |
 | **Theater Mode** | Interfaccia a schermo intero in orizzontale | nessun pulsante, voce o impostazione | ➖ |
 | **Navigazione TV** | — | D-pad, OK, Indietro, Play/Pausa, menu laterale che si espande, focus evidente (ingrandimento + bordo + ombra), ritorno sul poster dove eri | 🎮 pulsanti, riga di pulsanti, menu laterale, memoria del focus sui poster · 🟦 tasti del player, dialoghi, tastiera |
