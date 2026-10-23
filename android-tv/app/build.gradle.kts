@@ -81,6 +81,7 @@ dependencies {
     implementation(libs.media3.exoplayer.dash)
     implementation(libs.media3.datasource.okhttp)
     implementation(libs.media3.common)
+    implementation(libs.nanohttpd)
     implementation(libs.media3.ui)
 
     debugImplementation(libs.androidx.compose.ui.test.manifest)
