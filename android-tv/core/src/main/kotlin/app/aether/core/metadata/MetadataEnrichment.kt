@@ -29,7 +29,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         val tvdbKey = secrets.get(TVDbKey).orEmpty().trim()
         var result = meta
         if (tmdbKey.isNotEmpty()) result = runCatching { fromTmdb(result, tmdbKey) }.getOrDefault(result)
-        if (tvdbKey.isNotEmpty() && (result.description.isNullOrBlank() || result.poster.isNullOrBlank())) {
+        if (tvdbKey.isNotEmpty() && (tmdbKey.isEmpty() || result.description.isNullOrBlank() || result.poster.isNullOrBlank())) {
             result = runCatching { fromTvdb(result, tvdbKey) }.getOrDefault(result)
         }
         return result
