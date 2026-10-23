@@ -97,13 +97,14 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
             _state.update { it.copy(loading = true, error = null) }
             try {
                 val resolution = engine.addons.meta(type, id, Session.preview(type, id), mode)
+                val meta = engine.metadata.enrich(resolution.meta)
                 val handles = engine.addons.handles()
-                val playableId = resolution.meta.videos.firstOrNull()?.id ?: resolution.meta.id
+                val playableId = meta.videos.firstOrNull()?.id ?: meta.id
                 val error = if (!resolution.hadDetailProvider && Session.preview(type, id) == null) "Nessun addon fornisce i dettagli di questo titolo." else null
                 _state.update {
                     it.copy(
-                        meta = resolution.meta, loading = false, provider = resolution.providerName, error = error,
-                        canPlay = RequestPlanner.canProvideStreams(resolution.meta.type, playableId, handles),
+                        meta = meta, loading = false, provider = resolution.providerName, error = error,
+                        canPlay = RequestPlanner.canProvideStreams(meta.type, playableId, handles),
                     )
                 }
                 refreshLibrary()
