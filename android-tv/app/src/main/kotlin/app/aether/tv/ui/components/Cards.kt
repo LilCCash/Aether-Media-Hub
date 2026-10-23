@@ -41,16 +41,17 @@ import coil.request.ImageRequest
 
 /** A picture from the network with a calm placeholder behind it (a gradient from the title, never an empty box). */
 @Composable
-fun RemoteImage(url: String?, seed: String, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop) {
+fun RemoteImage(url: String?, seed: String, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop, alignment: Alignment = Alignment.Center) {
     val hue = ((seed.hashCode() and 0x7fffffff) % 360).toFloat()
     val base = Color.hsv(hue, 0.35f, 0.32f)
     val top = Color.hsv((hue + 30f) % 360f, 0.4f, 0.2f)
     Box(modifier.background(Brush.linearGradient(listOf(base, top)))) {
         if (!url.isNullOrBlank()) {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(true).build(),
+                model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(120).allowRgb565(true).build(),
                 contentDescription = null,
                 contentScale = contentScale,
+                alignment = alignment,
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
@@ -114,11 +115,13 @@ fun PosterCard(
             style = MaterialTheme.typography.labelMedium,
             color = AetherColors.OnBackground,
             maxLines = 2,
+            minLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
         )
+        // Always two title lines and one detail line, so every card has the same height and rows never jump.
         val sub = listOfNotNull(meta.year?.toString(), meta.genres.firstOrNull()).joinToString(" · ")
-        if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 2.dp))
+        Text(sub.ifEmpty { " " }, style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 2.dp))
     }
 }
 

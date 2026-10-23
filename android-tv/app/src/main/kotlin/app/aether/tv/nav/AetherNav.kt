@@ -94,7 +94,13 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
             ) { backStack ->
                 val type = backStack.arguments?.getString("type").orEmpty()
                 val id = backStack.arguments?.getString("id").orEmpty()
-                DetailScreen(type, id, onPlay = ::openStreams, onOpenTitle = { t, i -> nav.navigate(Routes.detail(t, i)) })
+                DetailScreen(type, id, onPlay = ::openStreams, onOpenTitle = { t, i -> nav.navigate(Routes.detail(t, i)) }, onOpenPerson = { pid, name -> nav.navigate(Routes.person(pid, name)) })
+            }
+            composable(Routes.PERSON) { entry ->
+                app.aether.tv.ui.screens.detail.PersonScreen(
+                    entry.arguments?.getString("id")?.toIntOrNull() ?: 0, entry.arguments?.getString("name").orEmpty(),
+                    onOpenTitle = { t, i -> nav.navigate(Routes.detail(t, i)) },
+                )
             }
             composable(Routes.STREAMS) {
                 StreamsScreen(onPlayerReady = { nav.navigate(Routes.PLAYER) }, onBack = { nav.popBackStack() })

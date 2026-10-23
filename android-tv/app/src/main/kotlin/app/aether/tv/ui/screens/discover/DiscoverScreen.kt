@@ -2,6 +2,7 @@ package app.aether.tv.ui.screens.discover
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,6 +34,7 @@ import app.aether.core.addons.RequestPlanner
 import app.aether.core.model.MetaItem
 import app.aether.tv.aether
 import app.aether.tv.ui.components.EmptyState
+import app.aether.tv.ui.components.FilterPill
 import app.aether.tv.ui.components.ErrorState
 import app.aether.tv.ui.components.LoadingState
 import app.aether.tv.ui.components.PosterCard
@@ -53,12 +55,14 @@ fun DiscoverScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, m
     val memory = rememberFocusMemory()
     val firstChip = remember { FocusRequester() }
     val restore = remember { FocusRequester() }
-    val restoreIndex = state.items.indexOfFirst { it.id == memory.key }
+    var decade by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
+    val shown = remember(state.items, decade) { if (decade.isEmpty()) state.items else state.items.filter { decadeMatches(it.year, decade) } }
+    val restoreIndex = shown.indexOfFirst { it.id == memory.key }
 
     // Paging: when the remote gets near the end of what is loaded, the next page is asked for.
-    LaunchedEffect(gridState, state.items.size) {
+    LaunchedEffect(gridState, state.items.size, shown.size) {
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { last ->
-            if (state.items.isNotEmpty() && last >= state.items.size - 14) vm.loadMore()
+            if (state.items.isNotEmpty() && (last >= shown.size - 14)) vm.loadMore()
         }
     }
     if (restoreIndex >= 0) {
@@ -81,32 +85,29 @@ fun DiscoverScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, m
             }
             else -> {
                 if (memory.key.isEmpty()) RequestFocusOnce(firstChip, state.type)
-                ChipRow(state.types, selected = state.type, label = { RequestPlanner.friendlyTypeName(it) }, onSelect = vm::selectType, firstRequester = firstChip, tagPrefix = "discover.type")
-                if (state.catalogs.size > 1) ChipRow(state.catalogs.map { it.id }, selected = state.catalog?.id, label = { id -> state.catalogs.first { it.id == id }.let { "${it.title} · ${it.addonName}" } }, onSelect = { id -> state.catalogs.firstOrNull { it.id == id }?.let(vm::selectCatalog) }, tagPrefix = "discover.catalog")
-                if (state.genres.isNotEmpty()) {
-                    val required = state.catalog?.catalog?.extraProperty("genre")?.isRequired == true
-                    ChipRow(
-                        (if (required) state.genres else listOf("") + state.genres),
-                        selected = state.genre ?: "",
-                        label = { if (it.isEmpty()) "Tutti i generi" else it },
-                        onSelect = { vm.selectGenre(it.ifEmpty { null }) },
-                        tagPrefix = "discover.genre",
-                    )
+                Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    FilterPill("Tipo", state.types.map { it to RequestPlanner.friendlyTypeName(it) }, state.type.orEmpty(), vm::selectType, focusRequester = firstChip, testTag = "discover.type")
+                    if (state.catalogs.size > 1) FilterPill("Catalogo", state.catalogs.map { it.id to "${it.title} · ${it.addonName}" }, state.catalog?.id.orEmpty(), { id -> state.catalogs.firstOrNull { it.id == id }?.let(vm::selectCatalog) }, testTag = "discover.catalog")
+                    if (state.genres.isNotEmpty()) {
+                        val required = state.catalog?.catalog?.extraProperty("genre")?.isRequired == true
+                        FilterPill("Genere", (if (required) emptyList() else listOf("" to "Tutti")) + state.genres.map { it to it }, state.genre.orEmpty(), { vm.selectGenre(it.ifEmpty { null }) }, testTag = "discover.genre")
+                    }
+                    FilterPill("Anno", decadeOptions, decade, { decade = it }, testTag = "discover.year")
                 }
                 Box(Modifier.fillMaxSize()) {
                     when {
                         state.loading -> LoadingState("Carico il catalogo…", Modifier.align(Alignment.Center))
                         state.error != null && state.items.isEmpty() -> ErrorState(state.error ?: "", { vm.load(AddonClient.LoadMode.RELOAD) }, Modifier.align(Alignment.Center))
-                        state.items.isEmpty() -> EmptyState("Nessun titolo", "Questo catalogo non ha restituito titoli per i filtri scelti.", Modifier.align(Alignment.Center))
+                        shown.isEmpty() -> EmptyState("Nessun titolo", "Questo catalogo non ha restituito titoli per i filtri scelti.", Modifier.align(Alignment.Center))
                         else -> LazyVerticalGrid(
                             state = gridState,
                             columns = GridCells.Adaptive((140 * settings.appearance.posterSize.scale).dp),
-                            contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 16.dp, bottom = 48.dp),
+                            contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 20.dp, bottom = 72.dp),
                             horizontalArrangement = Arrangement.spacedBy(AetherDimens.RowSpacing),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            items(state.items, key = { it.id }) { meta ->
+                            items(shown, key = { it.id }) { meta ->
                                 PosterCard(
                                     meta,
                                     onClick = { onOpenDetail(meta) },
@@ -147,4 +148,12 @@ private fun ChipRow(
             )
         }
     }
+}
+
+private val decadeOptions = listOf("" to "Tutti", "2020" to "2020+", "2010" to "2010–2019", "2000" to "2000–2009", "1990" to "1990–1999", "1980" to "1980–1989", "0" to "Prima del 1980")
+
+private fun decadeMatches(year: Int?, decade: String): Boolean {
+    if (year == null) return false
+    val d = decade.toIntOrNull() ?: return true
+    return when (d) { 0 -> year < 1980; 2020 -> year >= 2020; else -> year in d..(d + 9) }
 }

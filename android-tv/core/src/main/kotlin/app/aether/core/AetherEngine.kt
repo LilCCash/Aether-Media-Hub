@@ -39,7 +39,7 @@ class AetherEngine(
 
     val http: HttpClient = http ?: OkHttpTransport(::currentPolicy)
     val cache = ResponseCache()
-    val metadata = MetadataEnrichment(this.http, secrets)
+    val metadata = MetadataEnrichment(this.http, secrets) { settings.value.value.content.metadataLanguage }
     val client = AddonClient(
         this.http, cache,
         cacheEnabled = { settings.value.value.network.cacheResponses },
@@ -82,5 +82,39 @@ class AetherEngine(
                 streamingServer = s.network.streamingServerUrl.trim().ifEmpty { null },
             ),
         )
+    }
+
+    /** The keys a backup may carry: TMDB, TheTVDB (with PIN) and TorBox. */
+    fun backupKeys(): Map<String, String> = buildMap {
+        secrets.get(MetadataEnrichment.TMDbKey)?.takeIf { it.isNotBlank() }?.let { put("tmdb", it) }
+        secrets.get(MetadataEnrichment.TVDbKey)?.takeIf { it.isNotBlank() }?.let { put("tvdb", it) }
+        secrets.get(MetadataEnrichment.TVDbPin)?.takeIf { it.isNotBlank() }?.let { put("tvdbPin", it) }
+        secrets.get(TorBoxClient.KEY_SECRET)?.takeIf { it.isNotBlank() }?.let { put("torbox", it) }
+    }
+
+    /** Stores the keys of a backup so the services are configured by themselves; returns the names that were set. */
+    fun applyBackupKeys(keys: Map<String, String>): List<String> {
+        val done = ArrayList<String>()
+        keys["tmdb"]?.let { secrets.put(MetadataEnrichment.TMDbKey, it.trim()); done.add("TMDB") }
+        keys["tvdb"]?.let { secrets.put(MetadataEnrichment.TVDbKey, it.trim()); done.add("TheTVDB") }
+        keys["tvdbPin"]?.let { secrets.put(MetadataEnrichment.TVDbPin, it.trim()) }
+        keys["torbox"]?.let { try { torBox.saveKey(it); done.add("TorBox") } catch (_: IllegalArgumentException) { } }
+        if (done.isNotEmpty()) metadata.clearCaches()
+        return done
+    }
+
+    /** Restores a decoded backup: library (merged or replaced), addons and keys. Returns a sentence for the viewer. */
+    suspend fun restoreBackup(contents: app.aether.core.library.BackupContents, replace: Boolean): String {
+        if (replace) library.replace(contents.library) else library.merge(contents.library)
+        var ok = 0
+        var failed = 0
+        for (url in contents.addonUrls) { try { registry.install(url); ok++ } catch (_: Throwable) { failed++ } }
+        val keys = applyBackupKeys(contents.keys)
+        return buildString {
+            append(if (replace) "Libreria sostituita con il backup" else "Backup unito alla libreria")
+            if (contents.addonUrls.isNotEmpty()) append(": $ok addon installati" + if (failed > 0) ", $failed non raggiungibili" else "")
+            if (keys.isNotEmpty()) append(". Chiavi configurate: ${keys.joinToString(", ")}")
+            append(".")
+        }
     }
 }

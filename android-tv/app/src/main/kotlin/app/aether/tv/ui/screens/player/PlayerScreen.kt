@@ -9,6 +9,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import app.aether.tv.ui.components.ProgressLine
+import app.aether.tv.ui.components.AetherDialog
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
@@ -146,7 +151,7 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
     BackHandler {
         when {
             panel != Panel.NONE -> { panel = Panel.NONE; touch(); runCatching { playPause.requestFocus() } }
-            controlsVisible && state.error == null -> { controlsVisible = false; runCatching { root.requestFocus() } }
+            controlsVisible && state.error == null && state.started && state.preparing == null -> { controlsVisible = false; runCatching { root.requestFocus() } }
             else -> exit()
         }
     }
@@ -287,6 +292,33 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
             }
         }
 
+        val covering = state.error == null && !state.askDownload && state.fileChoice == null && (state.preparing != null || !state.started)
+        if (covering) PreparingOverlay(state.title, state.logoUrl, state.preparing, Modifier.fillMaxSize())
+        if (state.askDownload) {
+            val yes = remember { FocusRequester() }
+            AetherDialog("Torrent non in cache", vm::declineDownload) {
+                Text("TorBox non ha questo torrent già pronto: scaricarlo richiede tempo, spazio e traffico sul tuo account TorBox. Vuoi scaricarlo?", style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnSurfaceMuted)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TvButton("Scarica su TorBox", vm::confirmDownload, primary = true, focusRequester = yes, testTag = "player.confirmDownload")
+                    TvButton("No, altra sorgente", vm::declineDownload)
+                }
+                RequestFocusOnce(yes)
+            }
+        }
+        state.fileChoice?.let { files ->
+            val first = remember { FocusRequester() }
+            AetherDialog("Scegli il file", { vm.chooseFile(null) }, width = 760.dp) {
+                Text("Non riesco a capire da solo quale file corrisponde a questo episodio.", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
+                androidx.compose.foundation.lazy.LazyColumn(Modifier.height(280.dp), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
+                    items(files.size) { i ->
+                        FocusSurface(onClick = { vm.chooseFile(files[i]) }, modifier = Modifier.fillMaxWidth().height(48.dp), focusRequester = if (i == 0) first else null) {
+                            Text(files[i].shortName, Modifier.padding(horizontal = 14.dp).align(Alignment.CenterStart), style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+                RequestFocusOnce(first)
+            }
+        }
         state.error?.let { message ->
             val retry = remember { FocusRequester() }
             Column(Modifier.align(Alignment.Center).width(620.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xF0100E1A)).padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -376,7 +408,7 @@ private fun Controls(
                 SeekBar(position, state.durationMs, state.bufferedMs, onSeekBy, onToggle, skipSeconds, stepFor, seekBarRequester, Modifier.weight(1f))
                 Text(if (state.durationMs > 0) "-" + formatDuration((state.durationMs - position).coerceAtLeast(0) / 1000.0) else "--:--", style = MaterialTheme.typography.labelLarge, color = Color.White, modifier = Modifier.width(80.dp))
             }
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (state.hasPrevious) RoundControl(Icons.Filled.SkipPrevious, "Episodio precedente", onPrevious)
                 RoundControl(Icons.Filled.FastRewind, "Indietro di $backSeconds secondi", { onSeekBy(-backSeconds * 1000L) })
                 RoundControl(if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (state.isPlaying) "Pausa" else "Riproduci", onPlayPause, requester = playPause, big = true, tag = "player.playPause")
@@ -461,6 +493,23 @@ private fun SeekBar(
         Box(Modifier.fillMaxWidth(fraction).height(barHeight).clip(RoundedCornerShape(5.dp)).background(accent))
         if (focused) Box(Modifier.fillMaxWidth(fraction), contentAlignment = Alignment.CenterEnd) {
             Box(Modifier.size(18.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.White))
+        }
+    }
+}
+
+/** The screen shown while the source is prepared: the film's own logo (or its title) with what is happening. */
+@Composable
+private fun PreparingOverlay(title: String, logoUrl: String?, preparing: PlayerViewModel.Preparing?, modifier: Modifier = Modifier) {
+    Box(modifier.background(Color(0xFF0B0A12)), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            if (logoUrl != null) coil.compose.AsyncImage(
+                model = logoUrl, contentDescription = title, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.widthIn(max = 560.dp).heightIn(max = 220.dp),
+            ) else Text(title, style = MaterialTheme.typography.headlineLarge, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 800.dp))
+            if (preparing?.fraction != null) ProgressLine(preparing.fraction!!, Modifier.width(420.dp))
+            else CircularProgressIndicator(Modifier.size(44.dp), color = LocalAccent.current, strokeWidth = 4.dp)
+            Text(preparing?.message ?: "Preparo il video…", style = MaterialTheme.typography.titleMedium, color = AetherColors.OnSurfaceMuted)
+            preparing?.detail?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = AetherColors.OnSurfaceMuted) }
         }
     }
 }

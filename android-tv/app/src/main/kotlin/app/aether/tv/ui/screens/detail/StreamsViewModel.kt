@@ -15,6 +15,7 @@ import app.aether.core.playback.PlaybackSupport
 import app.aether.core.playback.RankedStream
 import app.aether.core.playback.StreamResolver
 import app.aether.core.playback.StreamSelector
+import app.aether.tv.PendingResolve
 import app.aether.tv.PlaybackRequest
 import app.aether.tv.Session
 import app.aether.tv.StreamRequest
@@ -173,6 +174,11 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
             if (url != null) handOver(item, url) else _state.update { it.copy(blocked = DebridError.NotConfigured.message) }
             return
         }
+        if (!allowDownload) {
+            // The player opens at once and talks to TorBox itself (with the film's logo on screen).
+            handOver(item, "", PendingResolve(source.infoHash, source.trackers, source.fileIndex, item.stream.behaviorHints.filename, request.video?.id ?: request.meta.id))
+            return
+        }
         resolveJob?.cancel()
         _state.update { it.copy(resolvingId = item.id, progress = DebridProgress("Controllo TorBox…", null, null), rowFailure = null) }
         resolveJob = viewModelScope.launch {
@@ -219,14 +225,14 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
         _state.update { it.copy(resolvingId = null, progress = null, fileChoice = null) }
     }
 
-    private fun handOver(item: RankedStream, url: String) {
+    private fun handOver(item: RankedStream, url: String, pending: PendingResolve? = null) {
         if (played) return
         played = true
         item.stream.behaviorHints.bingeGroup?.let { bingeGroups[request.meta.id] = it }
         val alternatives = _state.value.ranked.filter { it.id != item.id && it.info.support.isPlayable }
         Session.playback = PlaybackRequest(
             meta = request.meta, video = request.video, stream = item.stream, url = url,
-            headers = item.stream.behaviorHints.proxyRequestHeaders, alternatives = alternatives, startPositionSeconds = request.resumeAt,
+            headers = item.stream.behaviorHints.proxyRequestHeaders, alternatives = alternatives, startPositionSeconds = request.resumeAt, pending = pending,
         )
         _play.tryEmit(Unit)
     }

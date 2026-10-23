@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -71,7 +72,11 @@ fun FocusSurface(
                 focused = state.isFocused
                 if (state.isFocused) onFocused?.invoke()
             }
-            .then(if (focused) Modifier.shadow(14.dp, shape, ambientColor = accent, spotColor = accent) else Modifier)
+            // A cheap, exact glow: a few outline strokes that follow the shape (the platform shadow was costly and drifted below the button).
+            .then(if (focused) Modifier.drawBehind {
+                val outline = shape.createOutline(size, layoutDirection, this)
+                for (i in 4 downTo 1) drawOutline(outline, accent.copy(alpha = 0.07f * (5 - i)), style = androidx.compose.ui.graphics.drawscope.Stroke(width = i * 3.dp.toPx()))
+            } else Modifier)
             .clip(shape)
             .background(if (focused) focusedContainerColor else containerColor, shape)
             .then(if (focused) Modifier.border(borderWidth, accent, shape) else Modifier)

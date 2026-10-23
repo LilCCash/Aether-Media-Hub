@@ -38,7 +38,8 @@ data class RichDetails(
     val seasonCount: Int? = null,
     val episodeCount: Int? = null,
 ) {
-    data class Person(val name: String, val role: String?, val photo: String?)
+    data class Person(val name: String, val role: String?, val photo: String?, val id: Int? = null)
+    data class Credit(val tmdbId: Int, val isMovie: Boolean, val title: String, val character: String?, val poster: String?, val year: String?)
     data class Similar(val tmdbId: Int, val title: String, val poster: String?, val year: String?, val isMovie: Boolean)
 
     val isEmpty: Boolean
@@ -85,10 +86,49 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
     }
 
     /** The IMDb id of a similar title, so it can be opened like any catalog entry. */
-    suspend fun imdbIdFor(similar: RichDetails.Similar): String? = runCatching {
-        val kind = if (similar.isMovie) "movie" else "tv"
-        tmdbGet("/$kind/${similar.tmdbId}/external_ids").str("imdb_id")?.takeIf { it.isNotBlank() }
+    suspend fun imdbIdFor(similar: RichDetails.Similar): String? = imdbIdFor(similar.tmdbId, similar.isMovie)
+
+    suspend fun imdbIdFor(tmdbId: Int, isMovie: Boolean): String? = runCatching {
+        tmdbGet("/${if (isMovie) "movie" else "tv"}/$tmdbId/external_ids").str("imdb_id")?.takeIf { it.isNotBlank() }
     }.getOrNull()
+
+    /** What a person appeared in (most known first), with the character they played. */
+    suspend fun personCredits(personId: Int): List<RichDetails.Credit> = runCatching {
+        val rows = tmdbGet("/person/$personId/combined_credits").arr("cast")
+        rows.filter { r -> r.str("poster_path") != null && !r.str("character").isNullOrBlank() && r.arr("genre_ids").none { it.int() in setOf(10767, 10763, 10764) } }
+            .sortedByDescending { it.dbl("popularity") ?: 0.0 }
+            .take(80)
+            .mapNotNull { r ->
+                val id = r.int("id") ?: return@mapNotNull null
+                val movie = r.str("media_type") != "tv"
+                RichDetails.Credit(id, movie, r.str("title") ?: r.str("name") ?: return@mapNotNull null, r.str("character"), r.str("poster_path")?.let { "$IMAGE_BASE/w342$it" },
+                    (r.str("release_date") ?: r.str("first_air_date"))?.take(4))
+            }
+    }.getOrDefault(emptyList())
+
+    private val logoCache = ConcurrentHashMap<String, String>()
+
+    /** The title's transparent logo from fanart.tv (movies by IMDb/TMDB id, series by TheTVDB id), or null. */
+    suspend fun titleLogo(meta: MetaItem): String? {
+        val series = meta.type in SERIES
+        val id = if (series) meta.externalIds.tvdb?.toString() else (meta.imdbId ?: meta.externalIds.imdb ?: meta.externalIds.tmdb?.toString())
+        if (id == null) return null
+        val cacheKey = "${meta.type}:$id"
+        logoCache[cacheKey]?.let { return it.takeIf { u -> u.isNotEmpty() } }
+        val key = secrets.get(FanartKey)?.takeIf { it.isNotBlank() } ?: DEFAULT_FANART_KEY
+        val found = runCatching {
+            val response = http.send(HttpRequest("https://webservice.fanart.tv/v3/${if (series) "tv" else "movies"}/$id?api_key=${enc(key)}", headers = mapOf("Accept" to "application/json"), timeoutSeconds = 6, maxBytes = 1024 * 1024))
+            if (!response.isSuccess) null else {
+                val root = json.parseToJsonElement(response.text) as? JsonObject
+                val logos = listOf("hdmovielogo", "hdtvlogo", "movielogo", "clearlogo").flatMap { root?.arr(it).orEmpty() }
+                val wanted = language().take(2)
+                logos.sortedWith(compareByDescending<JsonElement> { it.str("lang") == wanted }.thenByDescending { it.str("lang") == "en" }.thenByDescending { it.str("likes")?.toIntOrNull() ?: 0 })
+                    .firstNotNullOfOrNull { it.str("url")?.takeIf { u -> u.startsWith("https://") } }
+            }
+        }.getOrNull()
+        logoCache[cacheKey] = found.orEmpty()
+        return found
+    }
 
     /** Settings: null when the key is accepted, else a short reason. */
     suspend fun checkTmdb(): String? = try { tmdbGet("/configuration"); null } catch (e: Throwable) { reason(e) }
@@ -138,12 +178,13 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         return meta.copy(
             poster = meta.poster ?: detail.str("poster_path")?.let { "$IMAGE_BASE/w500$it" },
             background = meta.background ?: detail.str("backdrop_path")?.let { "$IMAGE_BASE/w1280$it" },
-            description = meta.description?.takeIf { it.isNotBlank() } ?: detail.str("overview")?.takeIf { it.isNotBlank() },
+            // The viewer's language wins over the addon's text (Cinemeta is English).
+            description = detail.str("overview")?.takeIf { it.isNotBlank() } ?: meta.description?.takeIf { it.isNotBlank() },
             releaseInfo = meta.releaseInfo ?: date?.take(4),
             imdbRating = meta.imdbRating ?: detail.dbl("vote_average")?.takeIf { it > 0 }?.let { "%.1f".format(java.util.Locale.US, it) },
             releasedMillis = meta.releasedMillis ?: dateMillis(date),
             runtime = meta.runtime ?: (detail.int("runtime") ?: detail.arr("episode_run_time").firstOrNull()?.int())?.let { "$it min" },
-            genres = meta.genres.ifEmpty { genres },
+            genres = genres.ifEmpty { meta.genres },
             cast = meta.cast.ifEmpty { cast },
             directors = meta.directors.ifEmpty { directors },
             trailers = meta.trailers.ifEmpty { trailers },
@@ -160,7 +201,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         val rich = RichDetails(
             tmdbId = id, isMovie = !series,
             cast = credits?.arr("cast").orEmpty().take(16).mapNotNull { p ->
-                RichDetails.Person(p.str("name") ?: return@mapNotNull null, p.str("character")?.takeIf { it.isNotBlank() }, p.str("profile_path")?.let { "$IMAGE_BASE/w185$it" })
+                RichDetails.Person(p.str("name") ?: return@mapNotNull null, p.str("character")?.takeIf { it.isNotBlank() }, p.str("profile_path")?.let { "$IMAGE_BASE/w185$it" }, p.int("id"))
             },
             directors = if (series) emptyList() else credits?.arr("crew").orEmpty().filter { it.str("job") == "Director" }.mapNotNull { it.str("name") }.distinct(),
             creators = detail.arr("created_by").mapNotNull { it.str("name") },
@@ -319,6 +360,9 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         const val TMDbKey = "metadata.tmdb.apiKey"
         const val TVDbKey = "metadata.tvdb.apiKey"
         const val TVDbPin = "metadata.tvdb.pin"
+        const val FanartKey = "metadata.fanart.apiKey"
+        /** The project key of fanart.tv supplied by the app owner; it can be replaced from the settings. */
+        const val DEFAULT_FANART_KEY = "865bdb842d9ea7d5eaf169b0ff0f272d"
         private const val IMAGE_BASE = "https://image.tmdb.org/t/p"
         private val SERIES = setOf("series", "tv", "show")
     }

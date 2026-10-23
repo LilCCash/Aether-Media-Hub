@@ -30,6 +30,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -159,13 +163,14 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
 }
 
 @Composable
-fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -> Unit, onOpenTitle: (String, String) -> Unit = { _, _ -> }, modifier: Modifier = Modifier) {
+fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -> Unit, onOpenTitle: (String, String) -> Unit = { _, _ -> }, onOpenPerson: (Int, String) -> Unit = { _, _ -> }, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val engine = context.aether
     val vm: DetailViewModel = viewModel(key = "detail/$type/$id") { DetailViewModel(engine, type, id) }
     val state by vm.state.collectAsStateWithLifecycle()
     val meta = state.meta
     val primaryRequester = remember { FocusRequester() }
+    var opened by remember { mutableStateOf<Pair<String, String>?>(null) }
     val listState = rememberLazyListState()
     if (!state.loading) RequestFocusOnce(primaryRequester, meta.id)
 
@@ -177,8 +182,16 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
         primaryVideo?.episodeLabel?.let { append(" ").append(it) }
     }
 
+    opened?.let { (title, text) ->
+        app.aether.tv.ui.components.AetherDialog(title, { opened = null }, width = 760.dp) {
+            Text(text, style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnBackground)
+            val close = remember { FocusRequester() }
+            TvButton("Chiudi", { opened = null }, primary = true, focusRequester = close)
+            RequestFocusOnce(close)
+        }
+    }
     Box(modifier.fillMaxSize()) {
-        RemoteImage(meta.background ?: meta.poster, meta.name, Modifier.fillMaxSize())
+        RemoteImage(meta.background ?: meta.poster, meta.name, Modifier.fillMaxSize(), alignment = androidx.compose.ui.BiasAlignment(0f, -0.4f))
         Box(Modifier.fillMaxSize().background(backdropScrimHorizontal()))
         Box(Modifier.fillMaxSize().background(backdropScrimVertical()))
         if (state.loading && meta.name == meta.id) {
@@ -198,7 +211,9 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                         Text(meta.name, style = MaterialTheme.typography.displayMedium, color = AetherColors.OnBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         meta.factsLine().takeIf { it.isNotEmpty() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted) }
                         meta.description?.takeIf { it.isNotBlank() }?.let {
-                            Text(it, style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground.copy(alpha = 0.88f), maxLines = 5, overflow = TextOverflow.Ellipsis)
+                            FocusSurface({ opened = "Trama" to it }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), focusScale = 1.01f, containerColor = Color.Transparent) {
+                                Text(it, Modifier.padding(horizontal = 6.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground.copy(alpha = 0.88f), maxLines = 4, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                         if (resume != null) Column(Modifier.width(320.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             ProgressLine(resume.fraction)
@@ -261,31 +276,30 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                     }
                 }
                 item(key = "credits") {
-                    Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal).fillMaxWidth(0.8f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        InfoLine("Cast", meta.cast.take(10))
-                        InfoLine("Regia", meta.directors)
-                        InfoLine("Sceneggiatura", meta.writers)
-                        InfoLine("Generi", meta.genres)
-                        InfoLine("Lingua", listOfNotNull(meta.language))
-                        InfoLine("Paese", listOfNotNull(meta.country))
-                        InfoLine("Premi", listOfNotNull(meta.awards))
-                        state.rich?.let { r ->
-                            InfoLine("Regia", r.directors.takeIf { meta.directors.isEmpty() }.orEmpty())
-                            InfoLine("Creato da", r.creators)
-                            InfoLine("Produzione", r.companies)
-                            InfoLine("Paese", r.countries.takeIf { meta.country == null }.orEmpty())
-                            InfoLine("Stato", listOfNotNull(r.status))
-                            InfoLine("Lingua originale", listOfNotNull(r.originalLanguage?.uppercase()))
-                            if (r.seasonCount != null) InfoLine("Stagioni", listOfNotNull("${r.seasonCount}" + (r.episodeCount?.let { " · $it episodi" } ?: "")))
-                            InfoLine("Budget", listOfNotNull(r.budget?.let(::money)))
-                            InfoLine("Incassi", listOfNotNull(r.revenue?.let(::money)))
+                    Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal - 6.dp).fillMaxWidth(0.8f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        val r = state.rich
+                        if (r == null) InfoLine("Cast", meta.cast.take(10)) { l, t -> opened = l to t }
+                        InfoLine("Regia", meta.directors.ifEmpty { r?.directors.orEmpty() }) { l, t -> opened = l to t }
+                        InfoLine("Creato da", r?.creators.orEmpty()) { l, t -> opened = l to t }
+                        InfoLine("Sceneggiatura", meta.writers) { l, t -> opened = l to t }
+                        InfoLine("Generi", meta.genres) { l, t -> opened = l to t }
+                        InfoLine("Lingua", listOfNotNull(meta.language)) { l, t -> opened = l to t }
+                        InfoLine("Paese", if (meta.country != null) listOf(meta.country!!) else r?.countries.orEmpty()) { l, t -> opened = l to t }
+                        InfoLine("Premi", listOfNotNull(meta.awards)) { l, t -> opened = l to t }
+                        if (r != null) {
+                            InfoLine("Produzione", r.companies) { l, t -> opened = l to t }
+                            InfoLine("Stato", listOfNotNull(r.status)) { l, t -> opened = l to t }
+                            InfoLine("Lingua originale", listOfNotNull(r.originalLanguage?.uppercase())) { l, t -> opened = l to t }
+                            if (r.seasonCount != null) InfoLine("Stagioni", listOfNotNull("${r.seasonCount}" + (r.episodeCount?.let { " · $it episodi" } ?: ""))) { l, t -> opened = l to t }
+                            InfoLine("Budget", listOfNotNull(r.budget?.let(::money))) { l, t -> opened = l to t }
+                            InfoLine("Incassi", listOfNotNull(r.revenue?.let(::money))) { l, t -> opened = l to t }
                         }
-                        state.provider?.let { Text("Dettagli forniti da $it", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, modifier = Modifier.padding(top = 8.dp)) }
+                        state.provider?.let { Text("Dettagli forniti da $it · premi OK su una voce per leggerla intera", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, modifier = Modifier.padding(start = 6.dp, top = 8.dp)) }
                     }
                 }
                 state.rich?.let { r ->
                     if (r.cast.isNotEmpty()) item(key = "cast") {
-                        ContentRow("Cast", r.cast, { it.name + it.role }, rowId = "cast") { person, requester, onFocused -> PersonCard(person, requester, onFocused) }
+                        ContentRow("Cast", r.cast, { it.name + it.role }, rowId = "cast") { person, requester, onFocused -> PersonCard(person, requester, onFocused) { person.id?.let { onOpenPerson(it, person.name) } } }
                     }
                     if (r.trailers.isNotEmpty()) item(key = "trailers") {
                         Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -316,9 +330,9 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
 private fun money(value: Long): String = if (value >= 1_000_000) "%.1f M$".format(java.util.Locale.ITALY, value / 1_000_000.0) else "%,d $".format(java.util.Locale.ITALY, value)
 
 @Composable
-private fun PersonCard(person: app.aether.core.metadata.RichDetails.Person, requester: FocusRequester?, onFocused: () -> Unit) {
+private fun PersonCard(person: app.aether.core.metadata.RichDetails.Person, requester: FocusRequester?, onFocused: () -> Unit, onClick: () -> Unit) {
     Column(Modifier.width(120.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FocusSurface({}, Modifier.fillMaxWidth().aspectRatio(0.75f), shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), focusRequester = requester, onFocused = onFocused) {
+        FocusSurface(onClick, Modifier.fillMaxWidth().aspectRatio(0.75f), focusRequester = requester, onFocused = onFocused) {
             RemoteImage(person.photo, person.name, Modifier.fillMaxSize())
         }
         Text(person.name, style = MaterialTheme.typography.labelMedium, color = AetherColors.OnBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -327,11 +341,14 @@ private fun PersonCard(person: app.aether.core.metadata.RichDetails.Person, requ
 }
 
 @Composable
-private fun InfoLine(label: String, values: List<String>) {
+private fun InfoLine(label: String, values: List<String>, onOpen: (String, String) -> Unit) {
     if (values.isEmpty()) return
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, Modifier.width(120.dp), style = MaterialTheme.typography.labelMedium, color = AetherColors.OnSurfaceFaint)
-        Text(values.joinToString(", "), style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground.copy(alpha = 0.9f))
+    val text = values.joinToString(", ")
+    FocusSurface({ onOpen(label, text) }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), focusScale = 1.01f, containerColor = Color.Transparent) {
+        Row(Modifier.padding(horizontal = 6.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(label, Modifier.width(150.dp), style = MaterialTheme.typography.labelMedium, color = AetherColors.OnSurfaceFaint)
+            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground.copy(alpha = 0.9f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 

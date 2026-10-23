@@ -62,3 +62,42 @@ class MetadataTest {
         assertNull(MetadataEnrichment(http, secrets).checkTvdb())
     }
 }
+
+class MetadataExtrasTest {
+    private fun engine(http: FakeHttp, tmdb: String = "0123456789abcdef0123456789abcdef") =
+        MetadataEnrichment(http, InMemorySecretStore().also { it.put(MetadataEnrichment.TMDbKey, tmdb) }) { "en-US" }
+
+    @Test fun personCreditsShowFilmAndCharacter() = runBlocking {
+        val http = FakeHttp().on("/person/5/combined_credits", body = """{"cast":[
+            {"id":1,"media_type":"movie","title":"Film A","character":"Bella","poster_path":"/a.jpg","release_date":"2023-01-01","popularity":50,"genre_ids":[18]},
+            {"id":2,"media_type":"tv","name":"Talk","character":"Self","poster_path":"/t.jpg","popularity":90,"genre_ids":[10767]},
+            {"id":3,"media_type":"movie","title":"Senza ruolo","character":"","poster_path":"/b.jpg","popularity":10,"genre_ids":[]}]}""")
+        val credits = engine(http).personCredits(5)
+        assertEquals(1, credits.size)
+        assertEquals("Film A", credits[0].title)
+        assertEquals("Bella", credits[0].character)
+        assertTrue(http.requests.single().url.contains("language=en-US"))
+    }
+
+    @Test fun logoPrefersTheViewersLanguageThenLikes() = runBlocking {
+        val http = FakeHttp().on("webservice.fanart.tv/v3/movies/tt1", body = """{"hdmovielogo":[
+            {"url":"https://x/en.png","lang":"en","likes":"9"},{"url":"https://x/it.png","lang":"it","likes":"1"}]}""")
+        val logo = MetadataEnrichment(http, InMemorySecretStore()) { "it-IT" }.titleLogo(MetaItem("tt1", "movie", "X"))
+        assertEquals("https://x/it.png", logo)
+        assertTrue("api_key=" in http.requests.single().url)
+    }
+
+    @Test fun tmdbTextBeatsTheAddonText() = runBlocking {
+        val http = FakeHttp().on("/find/tt1", body = """{"movie_results":[{"id":1}]}""")
+            .on("/movie/1", body = """{"overview":"Trama italiana","genres":[{"name":"Commedia"}]}""")
+        val meta = engine(http).enrich(MetaItem("tt1", "movie", "X", description = "English plot", genres = listOf("Comedy")))
+        assertEquals("Trama italiana", meta.description)
+        assertEquals(listOf("Commedia"), meta.genres)
+    }
+
+    @Test fun backupCarriesKeys() {
+        val text = app.aether.core.library.BackupCodec.encode(app.aether.core.library.LibraryState(), emptyList(), false, "1", keys = mapOf("tmdb" to "k1", "torbox" to "k2"))
+        assertEquals(mapOf("tmdb" to "k1", "torbox" to "k2"), app.aether.core.library.BackupCodec.decode(text).keys)
+        assertTrue(app.aether.core.library.BackupCodec.decode(app.aether.core.library.BackupCodec.encode(app.aether.core.library.LibraryState(), emptyList(), false, "1")).keys.isEmpty())
+    }
+}

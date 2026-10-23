@@ -72,12 +72,16 @@ data class PlaybackSettings(
     val stripHearingImpairedTags: Boolean = false,
     /** Minutes after which every video pauses by itself; 0 = off. */
     val defaultSleepTimerMinutes: Int = 0,
+    /** The film's logo (from fanart.tv) shown while the source is being prepared. */
+    val showTitleLogos: Boolean = true,
 )
 
 @Serializable
 data class ContentSettings(
     /** "system" or a language code (metadata language). */
     val preferredLanguage: String = "system",
+    /** Language of plot, genres and details when TMDB is configured (e.g. "it-IT"). */
+    val metadataLanguage: String = "it-IT",
     val catalogRefreshMinutes: Int = 10,
     val hideAdultCatalogs: Boolean = true,
     val searchLocal: Boolean = true,

@@ -21,7 +21,8 @@ class AetherApp : Application(), ImageLoaderFactory {
 
     /** Posters and backdrops are cached on disk and in memory; a TV has little RAM, so the memory share stays modest. */
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
-        .crossfade(true)
+        .crossfade(120)
+        .allowRgb565(true)
         .respectCacheHeaders(false)
         .memoryCache { MemoryCache.Builder(this).maxSizePercent(0.18).build() }
         .diskCache { DiskCache.Builder().directory(cacheDir.resolve("images")).maxSizeBytes(200L * 1024 * 1024).build() }

@@ -25,6 +25,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Movie
@@ -353,4 +355,29 @@ fun <T> ChoiceDialog(
         }
         requesters.getOrNull(start)?.let { RequestFocusOnce(it) }
     }
+}
+
+/** A drop-down filter: a pill showing "Label: value ▾" that opens the list of choices in a dialog. */
+@Composable
+fun FilterPill(
+    label: String,
+    options: List<Pair<String, String>>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
+    testTag: String? = null,
+) {
+    var open by remember { mutableStateOf(false) }
+    val shown = options.firstOrNull { it.first == selected }?.second ?: selected
+    FocusSurface(
+        { open = true }, modifier.height(40.dp), shape = RoundedCornerShape(20.dp), focusScale = 1.04f, focusRequester = focusRequester, testTag = testTag,
+    ) {
+        Row(Modifier.padding(horizontal = 16.dp).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("$label:", style = MaterialTheme.typography.labelMedium, color = AetherColors.OnSurfaceMuted, maxLines = 1)
+            Text(shown, style = MaterialTheme.typography.labelLarge, color = AetherColors.OnBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
+            Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(20.dp), tint = AetherColors.OnSurfaceMuted)
+        }
+    }
+    if (open) ChoiceDialog(label, options, selected, onSelect, { open = false })
 }

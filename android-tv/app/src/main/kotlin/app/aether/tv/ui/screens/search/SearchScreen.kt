@@ -40,6 +40,7 @@ import app.aether.tv.ui.components.ContentRow
 import app.aether.tv.ui.components.EmptyState
 import app.aether.tv.ui.components.LoadingState
 import app.aether.tv.ui.components.PosterCard
+import app.aether.tv.ui.components.FilterPill
 import app.aether.tv.ui.components.TvChip
 import app.aether.tv.ui.components.TvTextField
 import app.aether.tv.ui.components.rememberFocusMemory
@@ -69,7 +70,7 @@ class SearchViewModel(private val engine: AetherEngine) : ViewModel() {
     ) {
         /** Applies the year and genre filters to a list of results. */
         fun keep(items: List<MetaItem>): List<MetaItem> = items.filter { m ->
-            (decade == null || (m.year?.let { y -> if (decade == 0) y < 2000 else y >= decade && y < decade + 10 } ?: false)) &&
+            (decade == null || (m.year?.let { y -> if (decade == 0) y < 1990 else if (decade == 2020) y >= 2020 else y >= decade && y < decade + 10 } ?: false)) &&
                 (genre == null || m.genres.any { it.equals(genre, ignoreCase = true) })
         }
     }
@@ -164,22 +165,11 @@ fun SearchScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, mod
             testTag = "search.field",
         )
         Row0 {
-            for (type in types) TvChip(
-                text = when (type) { null -> "Tutto"; else -> RequestPlanner.friendlyTypeName(type) },
-                selected = state.type == type,
-                onClick = { vm.setType(type) },
-                testTag = "search.type.${type ?: "all"}",
-            )
-        }
-        if (state.searched.isNotEmpty()) {
-            val genres = remember(state.rows) { state.rows.flatMap { it.items }.flatMap { it.genres }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(12).map { it.key } }
-            Row0 {
-                for ((decade, label) in listOf<Pair<Int?, String>>(null to "Ogni anno", 2020 to "2020+", 2010 to "2010–19", 2000 to "2000–09", 0 to "Prima del 2000"))
-                    TvChip(label, state.decade == decade, { vm.setDecade(decade) }, testTag = "search.decade.${decade ?: "all"}")
-            }
-            if (genres.isNotEmpty()) Row0 {
-                TvChip("Ogni genere", state.genre == null, { vm.setGenre(null) }, testTag = "search.genre.all")
-                for (g in genres) TvChip(g, state.genre == g, { vm.setGenre(g) })
+            FilterPill("Tipo", types.map { (it ?: "") to (if (it == null) "Tutto" else RequestPlanner.friendlyTypeName(it)) }, state.type.orEmpty(), { vm.setType(it.ifEmpty { null }) }, testTag = "search.type")
+            if (state.searched.isNotEmpty()) {
+                val genres = remember(state.rows) { state.rows.flatMap { it.items }.flatMap { it.genres }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(30).map { it.key } }
+                FilterPill("Anno", listOf("" to "Tutti", "2020" to "2020+", "2010" to "2010–2019", "2000" to "2000–2009", "1990" to "1990–1999", "0" to "Prima del 1990"), state.decade?.toString().orEmpty(), { vm.setDecade(it.toIntOrNull()) }, testTag = "search.year")
+                if (genres.isNotEmpty()) FilterPill("Genere", listOf("" to "Tutti") + genres.map { it to it }, state.genre.orEmpty(), { vm.setGenre(it.ifEmpty { null }) }, testTag = "search.genre")
             }
         }
         when {

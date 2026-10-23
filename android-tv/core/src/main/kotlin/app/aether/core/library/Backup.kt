@@ -30,6 +30,8 @@ data class BackupContents(
     val addonUrls: List<String>,
     val includesAddonUrls: Boolean,
     val platform: String?,
+    /** Keys saved by Aether for Android TV ("tmdb", "tvdb", "tvdbPin", "torbox"); empty for other backups. */
+    val keys: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -40,7 +42,7 @@ object BackupCodec {
     const val MARKER = "app.aether.backup"
     const val FORMAT = 1
 
-    fun encode(library: LibraryState, addonUrls: List<String>, includeAddonUrls: Boolean, appVersion: String, now: Long = System.currentTimeMillis()): String {
+    fun encode(library: LibraryState, addonUrls: List<String>, includeAddonUrls: Boolean, appVersion: String, now: Long = System.currentTimeMillis(), keys: Map<String, String> = emptyMap()): String {
         val root = buildJsonObject {
             put("marker", MARKER)
             put("formatVersion", FORMAT)
@@ -80,6 +82,7 @@ object BackupCodec {
                     for (item in library.searchHistory) add(buildJsonObject { put("query", item.query); put("date", iso(item.date)) })
                 }
             }
+            if (keys.isNotEmpty()) putJsonObject("aetherTvKeys") { for ((k, v) in keys) put(k, v) }
             putJsonArray("addons") {
                 if (includeAddonUrls) for (url in addonUrls) add(buildJsonObject { put("url", url) })
             }
@@ -132,6 +135,7 @@ object BackupCodec {
             return BackupContents(
                 createdAt = millis(root.flexString("createdAt")), library = LibraryState(entries = entries, progress = progress, searchHistory = history),
                 addonUrls = urls, includesAddonUrls = root.flexBool("includesAddonURLs") ?: false, platform = root.flexString("platform"),
+                keys = (root["aetherTvKeys"] as? JsonObject)?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content?.takeIf { it.isNotBlank() }?.let { k to it } }?.toMap().orEmpty(),
             )
         } catch (error: Exception) {
             throw BackupError.Unreadable

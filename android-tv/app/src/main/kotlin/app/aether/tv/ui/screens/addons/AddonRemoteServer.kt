@@ -21,8 +21,9 @@ class AddonRemoteServer(private val engine: app.aether.core.AetherEngine) : Nano
     override fun serve(session: IHTTPSession): Response {
         val supplied = session.parameters["token"]?.firstOrNull().orEmpty()
         if (!constantTimeEquals(token, supplied)) return html(Response.Status.FORBIDDEN, page("Accesso negato", "Token non valido. Torna alla TV e riapri la pagina di collegamento."))
-        if (session.method == Method.GET) return html(Response.Status.OK, formPage(session.parameters["ok"]?.firstOrNull(), session.parameters["keys"]?.firstOrNull()))
+        if (session.method == Method.GET) return html(Response.Status.OK, formPage(session.parameters["ok"]?.firstOrNull(), session.parameters["keys"]?.firstOrNull(), session.parameters["restored"]?.firstOrNull()))
         if (session.method == Method.POST && session.uri == "/keys") return saveKeys(session)
+        if (session.method == Method.POST && session.uri == "/restore") return restore(session)
         if (session.method != Method.POST || session.uri != "/install") {
             return html(Response.Status.NOT_FOUND, page("Pagina non trovata", "Torna alla pagina principale."))
         }
@@ -41,6 +42,25 @@ class AddonRemoteServer(private val engine: app.aether.core.AetherEngine) : Nano
         }
     }
 
+    private fun restore(session: IHTTPSession): Response {
+        val files = HashMap<String, String>()
+        session.parseBody(files)
+        val path = files["backup"] ?: return html(Response.Status.BAD_REQUEST, page("Nessun file", "Scegli un file di backup (.json)."))
+        val message = try {
+            val text = java.io.File(path).readText()
+            val contents = app.aether.core.library.BackupCodec.decode(text)
+            val replace = session.parameters["mode"]?.firstOrNull() == "replace"
+            runBlocking { engine.restoreBackup(contents, replace) }
+        } catch (error: app.aether.core.library.BackupError) {
+            return html(Response.Status.BAD_REQUEST, page("Backup non valido", "Il file non è un backup di Aether. Scegli un file creato da Aether per Android TV o per iPhone."))
+        } catch (error: Throwable) {
+            return html(Response.Status.BAD_REQUEST, page("Ripristino non riuscito", escape(error.message ?: "errore")))
+        }
+        val redirect = newFixedLengthResponse(Response.Status.REDIRECT_SEE_OTHER, "text/plain", "")
+        redirect.addHeader("Location", "/?token=$token&restored=" + java.net.URLEncoder.encode(message, "UTF-8"))
+        return redirect
+    }
+
     private fun saveKeys(session: IHTTPSession): Response {
         session.parseBody(HashMap())
         fun field(name: String) = session.parameters[name]?.firstOrNull()?.trim().orEmpty()
@@ -57,7 +77,7 @@ class AddonRemoteServer(private val engine: app.aether.core.AetherEngine) : Nano
         return redirect
     }
 
-    private fun formPage(installed: String?, keys: String?): String = """
+    private fun formPage(installed: String?, keys: String?, restored: String?): String = """
         <!doctype html><html lang="it"><meta name="viewport" content="width=device-width,initial-scale=1">
         <meta charset="utf-8"><title>Aether · Aggiungi addon</title>
         <style>body{font:16px system-ui;background:#101018;color:#f5f3ff;margin:0;padding:24px}main{max-width:520px;margin:auto}input,button{box-sizing:border-box;width:100%;font:inherit;padding:14px;margin:8px 0;border-radius:12px;border:1px solid #555;background:#20202c;color:white}button{background:#8b7cff;border:0;font-weight:700}p{color:#c7c3d8;line-height:1.5}</style>
@@ -66,6 +86,9 @@ class AddonRemoteServer(private val engine: app.aether.core.AetherEngine) : Nano
         <label for="url">Link manifest</label><input id="url" name="url" type="url" required autofocus value="" placeholder="https://…/manifest.json">
         <button type="submit">Verifica e installa</button></form><h2>Chiavi dei servizi</h2>${keys?.let { "<p style=\"background:#1f3d2b;color:#9df0b8;padding:12px;border-radius:12px\">✅ Salvate: ${escape(it)}.</p>" }.orEmpty()}<p>Facoltative. Lascia vuoto quello che non vuoi cambiare. Vengono salvate cifrate sulla TV.</p>
         <form method="post" action="/keys?token=$token"><label>Chiave o token TMDB</label><input name="tmdb" autocomplete="off"><label>Chiave API TheTVDB</label><input name="tvdb" autocomplete="off"><label>PIN TheTVDB (solo abbonati)</label><input name="pin" autocomplete="off"><label>Chiave TorBox</label><input name="torbox" autocomplete="off"><button type="submit">Salva le chiavi</button></form>
+        <h2>Ripristina un backup</h2>${restored?.let { "<p style=\"background:#1f3d2b;color:#9df0b8;padding:12px;border-radius:12px\">✅ ${escape(it)}</p>" }.orEmpty()}<p>Scegli sul telefono un file di backup (.json) creato da Aether: libreria, addon e chiavi (se incluse) tornano sulla TV.</p>
+        <form method="post" action="/restore?token=$token" enctype="multipart/form-data"><input type="file" name="backup" accept=".json,application/json,text/plain" required>
+        <label><input type="radio" name="mode" value="merge" checked style="width:auto"> Unisci a quello che ho</label><label><input type="radio" name="mode" value="replace" style="width:auto"> Sostituisci tutto</label><button type="submit">Ripristina</button></form>
         <p>Installa solo addon di cui ti fidi. Questo collegamento è temporaneo e si chiude quando esci dalla schermata Addon sulla TV.</p></main></html>
     """.trimIndent()
 

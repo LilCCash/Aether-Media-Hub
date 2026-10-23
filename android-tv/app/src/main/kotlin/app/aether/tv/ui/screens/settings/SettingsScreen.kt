@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -75,6 +76,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
     var dialog by remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     val first = remember { FocusRequester() }
+    var tab by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
     RequestFocusOnce(first)
 
     fun update(change: (AppSettings) -> AppSettings) { engine.settings.update(change); engine.syncLibraryPolicy() }
@@ -92,10 +94,16 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxSize().padding(top = AetherDimens.ScreenVertical)) {
         Text("Impostazioni", style = MaterialTheme.typography.headlineLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
         notice?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = LocalAccent.current, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 4.dp)) }
+        androidx.compose.foundation.layout.Row(
+            Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            settingsTabs.forEachIndexed { i, name -> app.aether.tv.ui.components.TvChip(name, tab == i, { tab = i }, focusRequester = if (i == tab) first else null, testTag = "settings.tab.$i") }
+        }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 12.dp, bottom = 56.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            item { AetherLogo(Modifier.padding(bottom = 8.dp)) }
-            section("Aspetto")
-            choiceRow("Colore d'accento", a.accent.title, "appearance.accent", first) { choose("Colore d'accento", AccentChoice.entries.map { it to it.title }, a.accent) { v -> update { it.copy(appearance = it.appearance.copy(accent = v)) } } }
+            if (tab == 0) item { AetherLogo(Modifier.padding(bottom = 8.dp)) }
+            if (tab == 0) {
+            choiceRow("Colore d'accento", a.accent.title, "appearance.accent") { choose("Colore d'accento", AccentChoice.entries.map { it to it.title }, a.accent) { v -> update { it.copy(appearance = it.appearance.copy(accent = v)) } } }
             choiceRow("Dimensione delle locandine", a.posterSize.title, "appearance.posterSize") { choose("Dimensione delle locandine", PosterSize.entries.map { it to it.title }, a.posterSize) { v -> update { it.copy(appearance = it.appearance.copy(posterSize = v)) } } }
             choiceRow("Sfondo", a.background.title, "appearance.background") { choose("Sfondo", app.aether.core.settings.BackgroundStyle.entries.map { it to it.title }, a.background) { v -> update { it.copy(appearance = it.appearance.copy(background = v)) } } }
             choiceRow("Angoli di locandine e pulsanti", a.corners.title, "appearance.corners") { choose("Angoli di locandine e pulsanti", app.aether.core.settings.CornerStyle.entries.map { it to it.title }, a.corners) { v -> update { it.copy(appearance = it.appearance.copy(corners = v)) } } }
@@ -103,10 +111,12 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             toggleRow("Titolo in evidenza che scorre", "Nella Home passa da un titolo all'altro da solo.", a.heroAutoScroll, "appearance.heroAuto") { v -> update { it.copy(appearance = it.appearance.copy(heroAutoScroll = v)) } }
             toggleRow("Mostra «Continua a guardare»", "Nella Home.", a.showContinueWatching, "appearance.continue") { v -> update { it.copy(appearance = it.appearance.copy(showContinueWatching = v)) } }
             toggleRow("Mostra «Prossimo episodio»", "Nella Home, per le serie che stai seguendo.", a.showNextUp, "appearance.nextUp") { v -> update { it.copy(appearance = it.appearance.copy(showNextUp = v)) } }
+            }
 
-            section("Riproduzione")
+            if (tab == 1) {
             toggleRow("Riprendi da dove eri", "Riparte dal punto in cui avevi lasciato.", p.autoResume, "playback.autoResume") { v -> update { it.copy(playback = it.playback.copy(autoResume = v)) } }
             choiceRow("Amplificazione audio", if (p.audioGainDb == 0) "Disattivata" else "+${p.audioGainDb} dB", "playback.audioGain") { choose("Amplificazione audio", listOf(0 to "Disattivata", 3 to "+3 dB", 6 to "+6 dB", 9 to "+9 dB", 12 to "+12 dB", 18 to "+18 dB"), p.audioGainDb) { v -> update { it.copy(playback = it.playback.copy(audioGainDb = v)) } } }
+            toggleRow("Logo del film mentre carico", "Mostra il logo del titolo (da fanart.tv) mentre la sorgente si prepara.", p.showTitleLogos, "playback.logos") { v -> update { it.copy(playback = it.playback.copy(showTitleLogos = v)) } }
             toggleRow("Rimuovi le annotazioni per non udenti", "Toglie «[porta che sbatte]», «(sospira)» e le note musicali dai sottotitoli.", p.stripHearingImpairedTags, "playback.stripHearing") { v -> update { it.copy(playback = it.playback.copy(stripHearingImpairedTags = v)) } }
             choiceRow("Sincronia predefinita dei sottotitoli", subtitleShift(p.subtitleDelayMillis), "playback.subDelay") { choose("Sincronia predefinita dei sottotitoli", listOf(-5000L, -3000L, -2000L, -1000L, -500L, 0L, 500L, 1000L, 2000L, 3000L, 5000L).map { it to subtitleShift(it) }, p.subtitleDelayMillis) { v -> update { it.copy(playback = it.playback.copy(subtitleDelayMillis = v)) } } }
             choiceRow("Timer di spegnimento predefinito", if (p.defaultSleepTimerMinutes == 0) "Spento" else "${p.defaultSleepTimerMinutes} min", "playback.sleep") { choose("Timer di spegnimento predefinito", listOf(0, 15, 30, 45, 60, 90, 120).map { it to if (it == 0) "Spento" else "$it min" }, p.defaultSleepTimerMinutes) { v -> update { it.copy(playback = it.playback.copy(defaultSleepTimerMinutes = v)) } } }
@@ -132,15 +142,18 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             choiceRow("Nascondi i controlli dopo", "${p.controlsAutoHideSeconds} s", "playback.controlsHide") { choose("Nascondi i controlli dopo", listOf(3, 4, 6, 8, 12).map { it to "$it s" }, p.controlsAutoHideSeconds) { v -> update { it.copy(playback = it.playback.copy(controlsAutoHideSeconds = v)) } } }
             choiceRow("Segna come visto a", "${(p.watchedThreshold * 100).toInt()}%", "playback.watched") { choose("Segna come visto a", listOf(0.8, 0.9, 0.95).map { it to "${(it * 100).toInt()}%" }, p.watchedThreshold) { v -> update { it.copy(playback = it.playback.copy(watchedThreshold = v)) } } }
             toggleRow("Salta intro e riassunto", "Mostra il pulsante per saltarli, con i dati di IntroDB (si consulta con il codice IMDb, la stagione e l'episodio).", p.skipSegmentsEnabled, "playback.skipSegments") { v -> update { it.copy(playback = it.playback.copy(skipSegmentsEnabled = v)) } }
+            }
 
-            section("Contenuti e ricerca")
+            if (tab == 2) {
             toggleRow("Nascondi gli addon per adulti", "Non mostra i cataloghi degli addon che si dichiarano per adulti.", c.hideAdultCatalogs, "content.hideAdult") { v -> update { it.copy(content = it.content.copy(hideAdultCatalogs = v)) } }
             toggleRow("Salva le ricerche recenti", "", c.saveSearchHistory, "content.saveSearch") { v -> update { it.copy(content = it.content.copy(saveSearchHistory = v)) } }
             toggleRow("Cerca anche nella libreria", "I titoli salvati o guardati compaiono tra i risultati, anche senza rete.", c.searchLocal, "content.searchLocal") { v -> update { it.copy(content = it.content.copy(searchLocal = v)) } }
+            choiceRow("Lingua di trama e dettagli", metaLanguages.firstOrNull { it.first == c.metadataLanguage }?.second ?: c.metadataLanguage, "content.metaLang") { choose("Lingua di trama e dettagli", metaLanguages, c.metadataLanguage) { v -> update { it.copy(content = it.content.copy(metadataLanguage = v)) }; engine.metadata.clearCaches() } }
             choiceRow("Ordine dei risultati", c.searchSort.title, "content.searchSort") { choose("Ordine dei risultati", SearchSort.entries.map { it to it.title }, c.searchSort) { v -> update { it.copy(content = it.content.copy(searchSort = v)) } } }
             choiceRow("Aggiorna i cataloghi ogni", "${c.catalogRefreshMinutes} min", "content.refresh") { choose("Aggiorna i cataloghi ogni", listOf(5, 10, 30, 60, 180).map { it to "$it min" }, c.catalogRefreshMinutes) { v -> update { it.copy(content = it.content.copy(catalogRefreshMinutes = v)) } } }
+            }
 
-            section("Metadati (TMDB e TheTVDB)")
+            if (tab == 3) {
             fun keyRow(title: String, key: String, tag: String, hint: String) = actionRow(title, if (engine.secrets.get(key).isNullOrBlank()) "Non impostata" else "Impostata · cifrata sul dispositivo", tag) {
                 var text by mutableStateOf("")
                 dialog = { TextDialog(title, "$hint Lascia vuoto per rimuoverla. Digitare con il telecomando è lento: dal telefono puoi usare «Inserisci le chiavi dal telefono».", text, true, { text = it }, {
@@ -153,15 +166,17 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             keyRow("Chiave TMDB", MetadataEnrichment.TMDbKey, "metadata.tmdb", "Chiave API v3 (32 caratteri) oppure token di lettura v4 («eyJ…»). Aggiunge cast con foto, trailer, produzioni e titoli simili.")
             actionRow("Verifica TMDB", "Controlla che TMDB accetti la chiave.", "metadata.tmdb.verify") { scope.launch { notice = "Controllo TMDB…"; notice = engine.metadata.checkTmdb()?.let { "TMDB: $it" } ?: "TMDB: chiave accettata." } }
             keyRow("Chiave TheTVDB", MetadataEnrichment.TVDbKey, "metadata.tvdb", "Chiave API v4. Aggiunge trame, locandine e immagini degli episodi.")
+            keyRow("Chiave fanart.tv (facoltativa)", MetadataEnrichment.FanartKey, "metadata.fanart", "Usata per i loghi dei film. Se vuota, l'app usa la chiave di progetto inclusa.")
             keyRow("PIN TheTVDB", MetadataEnrichment.TVDbPin, "metadata.tvdbPin", "Solo per le chiavi degli abbonati.")
             actionRow("Verifica TheTVDB", "Controlla che TheTVDB accetti la chiave.", "metadata.tvdb.verify") { scope.launch { notice = "Controllo TheTVDB…"; notice = engine.metadata.checkTvdb()?.let { "TheTVDB: $it" } ?: "TheTVDB: chiave accettata." } }
-            actionRow("Inserisci le chiavi dal telefono", "Apre una pagina sul telefono (stessa Wi-Fi) per TMDB, TheTVDB e TorBox.", "metadata.phone") {
+            actionRow("Chiavi e backup dal telefono", "Apre una pagina sul telefono (stessa Wi-Fi): inserisci le chiavi TMDB, TheTVDB, TorBox o carica un file di backup.", "metadata.phone") {
                 val server = AddonRemoteServer(engine)
                 val address = try { server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false); server.localUrl ?: "IP della TV:8765" } catch (e: Exception) { notice = "Non riesco ad aprire l'accesso locale: ${e.message ?: "porta occupata"}"; null }
                 if (address != null) dialog = { PhoneLinkDialog(address) { runCatching { server.stop() }; close() } }
             }
+            }
 
-            section("Rete")
+            if (tab == 4) {
             toggleRow("Consenti la rete locale", "Permette addon su indirizzi di casa (192.168.x.x, un NAS). Attivala solo se sai cosa stai collegando.", n.allowLocalNetwork, "network.local") { v -> update { it.copy(network = it.network.copy(allowLocalNetwork = v)) } }
             toggleRow("Ricorda le risposte degli addon", "Più veloce e funziona anche quando un addon è lento; si può spegnere.", n.cacheResponses, "network.cache") { v -> update { it.copy(network = it.network.copy(cacheResponses = v)) } }
             actionRow("Server di streaming per i torrent", n.streamingServerUrl.ifBlank { "Non impostato" }, "network.server") {
@@ -173,8 +188,9 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
                 scope.launch(Dispatchers.IO) { context.cacheDir.resolve("images").deleteRecursively() }
                 notice = "Memoria temporanea svuotata."
             }
+            }
 
-            section("Servizi")
+            if (tab == 5) {
             actionRow("Chiave TorBox", if (engine.torBox.isConfigured) "Impostata" else "Non impostata", "services.torbox") {
                 var text by mutableStateOf("")
                 dialog = {
@@ -188,8 +204,9 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
                 actionRow("Verifica la chiave TorBox", "Controlla che TorBox la riconosca.", "services.torbox.verify") { scope.launch { notice = "Controllo…"; notice = verifyKey(engine) } }
                 actionRow("Rimuovi la chiave TorBox", "Cancella la chiave dal dispositivo.", "services.torbox.remove") { engine.torBox.removeKey(); notice = "Chiave rimossa." }
             }
+            }
 
-            section("Privacy e dati")
+            if (tab == 6) {
             toggleRow("Registra la cronologia", "Ricorda cosa guardi e dove ti fermi. Spenta, «Continua a guardare» non si aggiorna.", settings.privacy.recordHistory, "privacy.history") { v -> update { it.copy(privacy = it.privacy.copy(recordHistory = v)) } }
             actionRow("Cancella la cronologia", "Anche i punti in cui ti sei fermato.", "privacy.clearHistory") { engine.library.clearHistory(); notice = "Cronologia cancellata." }
             actionRow("Cancella le ricerche recenti", "", "privacy.clearSearch") { engine.library.clearSearchHistory(); notice = "Ricerche cancellate." }
@@ -201,13 +218,19 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
                     scope.launch { engine.registry.removeAll(); engine.library.deleteAll(); engine.settings.reset(); engine.torBox.removeKey(); engine.cache.clear(); notice = "Tutti i dati sono stati cancellati." }; close()
                 }, ::close) }
             }
+            }
 
-            section("Informazioni")
+            if (tab == 7) {
             actionRow("Informazioni su Aether", "Versione ${BuildConfig.VERSION_NAME}, licenze e avvertenze.", "about.open") { onOpenAbout() }
+            }
         }
     }
     dialog?.invoke()
 }
+
+private val metaLanguages = listOf("it-IT" to "Italiano", "en-US" to "English", "fr-FR" to "Français", "es-ES" to "Español", "de-DE" to "Deutsch", "pt-PT" to "Português")
+
+private val settingsTabs = listOf("Aspetto", "Riproduzione", "Contenuti", "Metadati", "Rete", "Servizi", "Dati", "Informazioni")
 
 private fun languageLabel(code: String, systemLabel: String): String = when (code) { "system" -> systemLabel; "off" -> "Disattivati"; else -> languageChoices.firstOrNull { it.first == code }?.second ?: code }
 private fun colorLabel(color: Long): String = when (color) { 0xFFFFE066L -> "Giallo"; 0xFF9BE7FFL -> "Azzurro"; 0xFFB6F5B6L -> "Verde"; else -> "Bianco" }
@@ -287,17 +310,20 @@ private fun backupDir(context: Context): File = File(context.getExternalFilesDir
 private fun ExportDialog(engine: AetherEngine, context: Context, onDone: () -> Unit, report: (String) -> Unit) {
     val scope = rememberCoroutineScope()
     var withUrls by remember { mutableStateOf(false) }
+    var withKeys by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     AetherDialog("Esporta un backup", onDone, width = 700.dp) {
         Text("Il file contiene la tua libreria, la cronologia e le ricerche. Gli indirizzi degli addon possono contenere le tue chiavi personali: includili solo se il backup resta tuo.", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
         TvButton(if (withUrls) "Includi gli indirizzi degli addon: sì" else "Includi gli indirizzi degli addon: no", { withUrls = !withUrls }, focusRequester = first, testTag = "export.urls")
+        TvButton(if (withKeys) "Includi le chiavi (TMDB, TheTVDB, TorBox): sì" else "Includi le chiavi (TMDB, TheTVDB, TorBox): no", { withKeys = !withKeys }, testTag = "export.keys")
+        if (withKeys) Text("Le chiavi restano in chiaro nel file: tienilo al sicuro. Ripristinandolo, i servizi si configurano da soli.", style = MaterialTheme.typography.bodySmall, color = AetherColors.Warning)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             TvButton("Salva il backup", {
                 scope.launch {
                     val message = withContext(Dispatchers.IO) {
                         try {
                             val urls = if (withUrls) engine.registry.handles(includeDisabled = true).map { it.transportUrl } else emptyList()
-                            val text = BackupCodec.encode(engine.library.snapshot(), urls, withUrls, BuildConfig.VERSION_NAME)
+                            val text = BackupCodec.encode(engine.library.snapshot(), urls, withUrls, BuildConfig.VERSION_NAME, keys = if (withKeys) engine.backupKeys() else emptyMap())
                             val file = File(backupDir(context), "Aether-backup-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date()) + ".json")
                             file.writeText(text)
                             "Backup salvato in ${file.absolutePath}"
@@ -351,21 +377,13 @@ private fun ImportDialog(engine: AetherEngine, context: Context, onDone: () -> U
             Text("Il backup contiene $entries titoli salvati, ${c.library.progress.size} punti di visione e ${c.library.searchHistory.size} ricerche" + (if (c.addonUrls.isNotEmpty()) ", più ${c.addonUrls.size} addon." else "."), style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnBackground)
             if (c.platform == null) Text("Creato da Aether per iPhone: le impostazioni dei due programmi sono diverse e non vengono importate.", style = MaterialTheme.typography.bodySmall, color = AetherColors.OnSurfaceMuted)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                TvButton("Unisci a quello che ho", { engine.library.merge(c.library); scope.launch { report(installAddons(engine, c) ?: "Backup unito alla libreria."); onDone() } }, primary = true, focusRequester = first, testTag = "import.merge")
-                TvButton("Sostituisci tutto", { engine.library.replace(c.library); scope.launch { report(installAddons(engine, c) ?: "Libreria sostituita con il backup."); onDone() } }, testTag = "import.replace")
+                TvButton("Unisci a quello che ho", { scope.launch { report(engine.restoreBackup(c, replace = false)); onDone() } }, primary = true, focusRequester = first, testTag = "import.merge")
+                TvButton("Sostituisci tutto", { scope.launch { report(engine.restoreBackup(c, replace = true)); onDone() } }, testTag = "import.replace")
                 TvButton("Indietro", { contents = null })
             }
             RequestFocusOnce(first)
         }
     }
-}
-
-private suspend fun installAddons(engine: AetherEngine, contents: BackupContents): String? {
-    if (contents.addonUrls.isEmpty()) return null
-    var ok = 0
-    var failed = 0
-    for (url in contents.addonUrls) { try { engine.registry.install(url); ok++ } catch (_: Throwable) { failed++ } }
-    return "Backup ripristinato: $ok addon installati" + if (failed > 0) ", $failed non raggiungibili." else "."
 }
 
 @Composable

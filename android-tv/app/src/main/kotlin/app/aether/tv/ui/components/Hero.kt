@@ -78,7 +78,7 @@ fun HeroBanner(
     Box(modifier.fillMaxWidth().height(height)) {
         Crossfade(targetState = item, animationSpec = tween(if (animated) 600 else 0), label = "hero") { current ->
             Box(Modifier.fillMaxSize()) {
-                RemoteImage(current.background ?: current.poster, current.name, Modifier.fillMaxSize())
+                RemoteImage(current.background ?: current.poster, current.name, Modifier.fillMaxSize(), alignment = androidx.compose.ui.BiasAlignment(0f, -0.6f))
                 Box(Modifier.fillMaxSize().background(backdropScrimHorizontal()))
                 Box(Modifier.fillMaxSize().background(backdropScrimVertical()))
                 Column(

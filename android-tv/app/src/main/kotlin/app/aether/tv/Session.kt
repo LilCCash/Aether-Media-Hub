@@ -18,7 +18,12 @@ data class PlaybackRequest(
     val headers: Map<String, String>,
     val alternatives: List<RankedStream>,
     val startPositionSeconds: Double?,
+    /** Set when the address is not known yet: the player asks TorBox for it (so the screen opens at once). */
+    val pending: PendingResolve? = null,
 )
+
+/** A torrent to be turned into a link by TorBox inside the player. */
+data class PendingResolve(val infoHash: String, val trackers: List<String>, val fileIndex: Int?, val filename: String?, val stremioId: String?)
 
 /**
  * Hand-over between screens for objects that do not fit in a navigation route (a title preview, the stream chosen). It lives as long as

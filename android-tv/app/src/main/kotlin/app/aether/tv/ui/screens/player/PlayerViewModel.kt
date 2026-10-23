@@ -20,6 +20,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import app.aether.core.AetherEngine
+import app.aether.core.debrid.DebridFile
 import app.aether.core.model.AddonSubtitle
 import app.aether.core.model.MetaItem
 import app.aether.core.model.Video
@@ -79,7 +80,16 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         /** Subtitle lines on screen, already cleaned and delayed according to the settings. */
         val cues: List<androidx.media3.common.text.Cue> = emptyList(),
         val subtitleNote: String? = null,
+        /** While TorBox prepares the link: what is going on. The player shows the film's logo meanwhile. */
+        val preparing: Preparing? = null,
+        val logoUrl: String? = null,
+        /** True once the first picture is ready; until then the logo screen covers the player. */
+        val started: Boolean = false,
+        val askDownload: Boolean = false,
+        val fileChoice: List<DebridFile>? = null,
     )
+
+    data class Preparing(val message: String, val fraction: Double?, val detail: String?)
 
     private val settings get() = engine.settings.value.value.playback
     private val trackSelector = DefaultTrackSelector(context).apply {
@@ -126,11 +136,16 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
     private var seekJob: Job? = null
     private var countdownJob: Job? = null
     private var savedAt = 0L
+    private var gainNoteJob: Job? = null
+
     private fun applyAudioGain(gainDb: Int) {
         gainProcessor.setGainDb(gainDb)
         val passthroughKind = player.audioFormat?.sampleMimeType in setOf(MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC, MimeTypes.AUDIO_DTS, MimeTypes.AUDIO_DTS_HD, MimeTypes.AUDIO_TRUEHD)
         if (gainDb > 0 && passthroughKind && settings.audioGainDb != gainAtStart) {
-            _state.update { it.copy(audioWarning = "Per amplificare l'audio Dolby/DTS chiudi e riapri il video: il guadagno è già impostato.") }
+            val note = "Per amplificare l'audio Dolby/DTS chiudi e riapri il video: il guadagno è già impostato."
+            _state.update { it.copy(audioWarning = note) }
+            gainNoteJob?.cancel()
+            gainNoteJob = viewModelScope.launch { delay(5000); _state.update { s -> if (s.audioWarning == note) s.copy(audioWarning = null) else s } }
         }
     }
 
@@ -154,7 +169,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
-            _state.update { it.copy(buffering = playbackState == Player.STATE_BUFFERING, ended = playbackState == Player.STATE_ENDED, durationMs = player.duration.coerceAtLeast(0)) }
+            _state.update { it.copy(buffering = playbackState == Player.STATE_BUFFERING, ended = playbackState == Player.STATE_ENDED, started = it.started || playbackState == Player.STATE_READY, durationMs = player.duration.coerceAtLeast(0)) }
             if (playbackState == Player.STATE_ENDED) onEnded()
         }
 
@@ -178,7 +193,8 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         player.addListener(listener)
         viewModelScope.launch { engine.settings.value.collect { current -> applyAudioGain(current.playback.audioGainDb) } }
         player.playWhenReady = true
-        load(request, startAt = startPosition(request))
+        if (request.pending == null) load(request, startAt = startPosition(request)) else resolvePending(allowDownload = false)
+        if (settings.showTitleLogos) viewModelScope.launch { _state.update { it.copy(logoUrl = engine.metadata.titleLogo(request.meta)) } }
         if (settings.defaultSleepTimerMinutes > 0) setSleepTimer(settings.defaultSleepTimerMinutes)
         tickJob = viewModelScope.launch {
             while (isActive) {
@@ -444,7 +460,45 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
     // MARK: Errors and alternatives
 
+    private var resolveJob: Job? = null
+    private var fileReply: kotlinx.coroutines.CompletableDeferred<DebridFile?>? = null
+
+    /** Asks TorBox for the link while the player is already open. */
+    private fun resolvePending(allowDownload: Boolean) {
+        val p = request.pending ?: return
+        resolveJob?.cancel()
+        _state.update { it.copy(preparing = Preparing("Controllo TorBox…", null, null), error = null, askDownload = false) }
+        resolveJob = viewModelScope.launch {
+            try {
+                val link = engine.debrid.resolve(
+                    app.aether.core.debrid.DebridRequest(p.infoHash, p.trackers, p.fileIndex, p.filename, p.stremioId),
+                    if (allowDownload) app.aether.core.debrid.DebridResolver.Mode.AllowDownload else app.aether.core.debrid.DebridResolver.Mode.CachedOnly,
+                    onProgress = { pr -> _state.update { it.copy(preparing = Preparing(pr.message, pr.fraction, pr.detail)) } },
+                    chooseFile = { candidates ->
+                        val reply = kotlinx.coroutines.CompletableDeferred<DebridFile?>()
+                        fileReply = reply
+                        _state.update { it.copy(fileChoice = candidates) }
+                        reply.await()
+                    },
+                )
+                _state.update { it.copy(preparing = null) }
+                load(request.copy(url = link, pending = null), startAt = startPosition(request))
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                _state.update { it.copy(preparing = null) }
+                val debrid = error as? app.aether.core.debrid.DebridError
+                if (debrid is app.aether.core.debrid.DebridError.NotCached) _state.update { it.copy(askDownload = true) }
+                else _state.update { it.copy(error = debrid?.message ?: app.aether.core.net.AddonError.from(error).message) }
+            }
+        }
+    }
+
+    fun confirmDownload() = resolvePending(allowDownload = true)
+    fun declineDownload() = _state.update { it.copy(askDownload = false, error = "Il torrent non è in cache su TorBox: scegli un'altra sorgente.") }
+    fun chooseFile(file: DebridFile?) { _state.update { it.copy(fileChoice = null) }; fileReply?.complete(file); fileReply = null }
+
     fun retry() {
+        if (current.pending != null) { resolvePending(allowDownload = false); return }
         val position = player.currentPosition
         _state.update { it.copy(error = null, buffering = true) }
         player.setMediaItem(player.currentMediaItem ?: return, position)
@@ -533,7 +587,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
     override fun onCleared() {
         saveProgress(force = true)
-        tickJob?.cancel(); seekJob?.cancel(); countdownJob?.cancel(); sleepJob?.cancel(); cueJob?.cancel(); addonCueJob?.cancel()
+        tickJob?.cancel(); seekJob?.cancel(); countdownJob?.cancel(); sleepJob?.cancel(); cueJob?.cancel(); addonCueJob?.cancel(); resolveJob?.cancel()
         player.removeListener(listener)
         player.release()
         Session.playback = null
