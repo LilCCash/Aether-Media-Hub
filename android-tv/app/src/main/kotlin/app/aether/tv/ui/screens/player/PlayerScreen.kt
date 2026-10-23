@@ -310,6 +310,7 @@ private val handledWhenHidden = setOf(
 private fun Controls(
     state: PlayerViewModel.UiState,
     skipSeconds: Int,
+    audioGainDb: Int,
     backSeconds: Int,
     onTouch: () -> Unit,
     onPlayPause: () -> Unit,
