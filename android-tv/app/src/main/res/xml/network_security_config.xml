@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Addons on the viewer's own network (a NAS, a server at home) are usually plain http; the app's NetworkPolicy decides which
-     addresses may be contacted and shows a warning. Public addresses over http are the viewer's choice and are warned about. -->
-<network-security-config>
-    <base-config cleartextTrafficPermitted="true" />
-</network-security-config>
