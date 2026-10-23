@@ -13,6 +13,12 @@ name: Android TV
 #   ANDROID_KEY_PASSWORD        key password
 # Without them only the debug APK (signed with the debug key) is produced. No secret is ever written to the repository.
 on:
+  push:
+    branches:
+      - feature/aether-android-tv-2
+    paths:
+      - "android-tv/**"
+      - ".github/workflows/android-tv.yml"
   workflow_dispatch:
     inputs:
       release:
