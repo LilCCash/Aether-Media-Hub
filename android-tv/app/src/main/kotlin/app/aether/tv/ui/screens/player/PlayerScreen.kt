@@ -110,7 +110,13 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
     var startOnSeekBar by remember { mutableStateOf(false) }
     val skipRequester = remember { FocusRequester() }
 
+    fun exit() { vm.onLeave(); onExit() }
+
     LaunchedEffect(Unit) { vm.goNext.collect { onNextEpisode(it) } }
+    // A film (or the last episode) that has ended closes the player after a moment, back to where it was chosen.
+    LaunchedEffect(state.ended, state.hasNext) {
+        if (state.ended && !state.hasNext) { delay(1800); exit() }
+    }
     LaunchedEffect(Unit) { runCatching { root.requestFocus() } }
 
     // Pause when the TV goes to the background and keep the point reached.
@@ -129,8 +135,6 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
     }
 
     fun touch() { lastInteraction = System.currentTimeMillis(); controlsVisible = true }
-
-    fun exit() { vm.onLeave(); onExit() }
 
     BackHandler {
         when {
