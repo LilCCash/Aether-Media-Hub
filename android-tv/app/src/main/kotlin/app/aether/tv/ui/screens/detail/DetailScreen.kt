@@ -210,9 +210,9 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                         Text(RequestPlanner.friendlyTypeName(meta.type).uppercase(), style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceMuted)
                         Text(meta.name, style = MaterialTheme.typography.displayMedium, color = AetherColors.OnBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         meta.factsLine().takeIf { it.isNotEmpty() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted) }
-                        meta.description?.takeIf { it.isNotBlank() }?.let {
-                            FocusSurface({ opened = "Trama" to it }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), focusScale = 1.01f, containerColor = Color.Transparent) {
-                                Text(it, Modifier.padding(horizontal = 6.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground.copy(alpha = 0.88f), maxLines = 4, overflow = TextOverflow.Ellipsis)
+                        meta.description?.takeIf { it.isNotBlank() }?.let { plot ->
+                            FocusSurface({ opened = "Trama" to plot }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), focusScale = 1.01f, containerColor = Color.Transparent) {
+                                Text(plot, Modifier.padding(horizontal = 6.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground.copy(alpha = 0.88f), maxLines = 4, overflow = TextOverflow.Ellipsis)
                             }
                         }
                         if (resume != null) Column(Modifier.width(320.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {

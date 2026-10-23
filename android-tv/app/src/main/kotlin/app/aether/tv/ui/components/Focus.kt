@@ -75,7 +75,15 @@ fun FocusSurface(
             // A cheap, exact glow: a few outline strokes that follow the shape (the platform shadow was costly and drifted below the button).
             .then(if (focused) Modifier.drawBehind {
                 val outline = shape.createOutline(size, layoutDirection, this)
-                for (i in 4 downTo 1) drawOutline(outline, accent.copy(alpha = 0.07f * (5 - i)), style = androidx.compose.ui.graphics.drawscope.Stroke(width = i * 3.dp.toPx()))
+                for (i in 4 downTo 1) {
+                    val color = accent.copy(alpha = 0.07f * (5 - i))
+                    val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = i * 3.dp.toPx())
+                    when (outline) {
+                        is androidx.compose.ui.graphics.Outline.Rounded -> outline.roundRect.let { r -> drawRoundRect(color, androidx.compose.ui.geometry.Offset(r.left, r.top), androidx.compose.ui.geometry.Size(r.width, r.height), r.topLeftCornerRadius, stroke) }
+                        is androidx.compose.ui.graphics.Outline.Rectangle -> drawRect(color, androidx.compose.ui.geometry.Offset(outline.rect.left, outline.rect.top), androidx.compose.ui.geometry.Size(outline.rect.width, outline.rect.height), style = stroke)
+                        is androidx.compose.ui.graphics.Outline.Generic -> drawPath(outline.path, color, style = stroke)
+                    }
+                }
             } else Modifier)
             .clip(shape)
             .background(if (focused) focusedContainerColor else containerColor, shape)
