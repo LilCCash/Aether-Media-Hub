@@ -66,11 +66,12 @@ fun DiscoverScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, m
             if (state.items.isNotEmpty() && (last >= shown.size - 14)) vm.loadMore()
         }
     }
-    if (restoreIndex >= 0) {
-        LaunchedEffect(restoreIndex) {
+    if (restoreIndex >= 0 && !hasRestoredFocus) {
+        LaunchedEffect(restoreTarget, restoreIndex) {
             gridState.scrollToItem(restoreIndex)
             kotlinx.coroutines.delay(60)
             runCatching { restore.requestFocus() }
+            hasRestoredFocus = true
         }
     }
 
