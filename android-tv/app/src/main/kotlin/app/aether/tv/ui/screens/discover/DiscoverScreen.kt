@@ -58,7 +58,11 @@ fun DiscoverScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, m
     val restore = remember { FocusRequester() }
     var decade by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     val shown = remember(state.items, decade) { if (decade.isEmpty()) state.items else state.items.filter { decadeMatches(it.year, decade) } }
-    val restoreIndex = shown.indexOfFirst { it.id == memory.key }
+    // Restore only the item that was focused when Discover was entered. The live memory changes
+    // on every D-pad move, so reading memory.key directly here causes scrollToItem() to fight navigation.
+    val restoreTarget = remember { memory.key }
+    var hasRestoredFocus by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val restoreIndex = shown.indexOfFirst { it.id == restoreTarget }
 
     // Paging: when the remote gets near the end of what is loaded, the next page is asked for.
     LaunchedEffect(gridState, state.items.size, shown.size) {
@@ -66,11 +70,12 @@ fun DiscoverScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, m
             if (state.items.isNotEmpty() && (last >= shown.size - 14)) vm.loadMore()
         }
     }
-    if (restoreIndex >= 0) {
-        LaunchedEffect(restoreIndex) {
+    if (restoreIndex >= 0 && !hasRestoredFocus) {
+        LaunchedEffect(restoreTarget, restoreIndex) {
             gridState.scrollToItem(restoreIndex)
             kotlinx.coroutines.delay(60)
             runCatching { restore.requestFocus() }
+            hasRestoredFocus = true
         }
     }
 
@@ -113,7 +118,7 @@ fun DiscoverScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, m
                                     meta,
                                     onClick = { onOpenDetail(meta) },
                                     width = (140 * settings.appearance.posterSize.scale).dp,
-                                    focusRequester = if (meta.id == memory.key) restore else null,
+                                    focusRequester = if (meta.id == restoreTarget) restore else null,
                                     onFocused = { memory.remember(meta.id) },
                                 )
                             }
