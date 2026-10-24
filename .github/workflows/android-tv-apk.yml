@@ -1,0 +1,143 @@
+name: Aether TV · Build APK
+# Builds the installable APK (debug, signed with the debug key) and attaches it to the run: Actions > the run > Artifacts.
+# It runs on every push to the Android TV branch (feature/aether-android-tv) and can also be run by hand ("Run workflow"). Tick "release" to also build a signed release APK; that needs these repository secrets:
+#   ANDROID_KEYSTORE_BASE64  ANDROID_KEYSTORE_PASSWORD  ANDROID_KEY_ALIAS  ANDROID_KEY_PASSWORD
+# Publishing: push a tag "androidtv-v<version>"; notes come from android-tv/docs/release-notes/<tag>.md.
+# No secret is ever written to the repository. Tests are a separate workflow ("Aether TV · Test").
+on:
+  push:
+    branches: [feature/aether-android-tv]
+    paths: ['android-tv/**', '.github/workflows/android-tv-apk.yml']
+    # A tag like androidtv-v1.0.0-beta.1 also publishes a GitHub pre-release with the APK (it does not match the iOS "v*" tags).
+    tags: ['androidtv-v*']
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Also build the signed release APK (needs the signing secrets)"
+        type: boolean
+        default: false
+      publish_tag:
+        description: "Publish a GitHub pre-release with this tag (e.g. androidtv-v1.0.0-beta.1); created on the built commit"
+        type: string
+        default: ''
+
+concurrency:
+  group: android-tv-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: android-tv
+
+jobs:
+  apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      # The runner image already carries the Android SDK (ANDROID_HOME); only the licenses are accepted here.
+      - name: Accept the Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the debug APK
+        run: ./gradlew :app:assembleDebug --console=plain
+
+      - name: Check the package is an Android TV app
+        run: |
+          set -eu
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/aapt2" dump badging "$APK" > /tmp/badging.txt
+          grep -q "package: name='app.aether.tv'" /tmp/badging.txt
+          grep -q "leanback-launchable-activity" /tmp/badging.txt
+          grep -q "android.software.leanback" /tmp/badging.txt
+          grep -q "uses-feature-not-required: name='android.hardware.touchscreen'" /tmp/badging.txt
+          grep -q "banner" /tmp/badging.txt || grep -q "application-banner" /tmp/badging.txt
+          head -12 /tmp/badging.txt
+
+      - name: Guard against iOS files in the Android build
+        run: |
+          set -eu
+          if git ls-files android-tv | grep -Ei '\.(swift|xcodeproj|xcworkspace|pbxproj|plist|xcconfig)$'; then
+            echo "iOS files found inside android-tv/" >&2; exit 1
+          fi
+          echo "android-tv/ contains no iOS files"
+
+      - name: Guard against iOS files in the Android build
+        run: |
+          set -eu
+          if git ls-files android-tv | grep -Ei '\.(swift|xcodeproj|xcworkspace|pbxproj|plist|xcconfig)$'; then
+            echo "iOS files found inside android-tv/" >&2; exit 1
+          fi
+          echo "android-tv/ contains no iOS files"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Aether-TV-debug-apk
+          path: android-tv/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Signed release APK
+        if: ${{ inputs.release }}
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -eu
+          if [ -z "${KEYSTORE_B64:-}" ]; then echo "The signing secrets are not set: no release APK." >&2; exit 1; fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          ./gradlew :app:assembleRelease \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.jks" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.release }}
+        with:
+          name: Aether-AndroidTV-release-apk
+          path: android-tv/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+  release:
+    name: Publish the GitHub pre-release
+    needs: apk
+    if: startsWith(github.ref, 'refs/tags/androidtv-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_tag != '')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Aether-TV-debug-apk
+          path: dist
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.publish_tag || github.ref_name }}
+        run: |
+          set -eu
+          case "$TAG" in androidtv-v*) ;; *) echo "The tag must start with androidtv-v" >&2; exit 1;; esac
+          VERSION="${TAG#androidtv-v}"
+          cp dist/app-debug.apk "dist/Aether-TV-${VERSION}.apk"
+          NOTES="android-tv/docs/release-notes/${TAG}.md"
+          [ -f "$NOTES" ] || { echo "Missing $NOTES" >&2; exit 1; }
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "dist/Aether-TV-${VERSION}.apk" --clobber
+            gh release edit "$TAG" --notes-file "$NOTES" --prerelease
+          else
+            gh release create "$TAG" "dist/Aether-TV-${VERSION}.apk" --title "Aether TV ${VERSION} (Android TV)" --notes-file "$NOTES" --prerelease --target "$GITHUB_SHA"
+          fi
