@@ -58,7 +58,9 @@ fun DiscoverScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, m
     val restore = remember { FocusRequester() }
     var decade by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     val shown = remember(state.items, decade) { if (decade.isEmpty()) state.items else state.items.filter { decadeMatches(it.year, decade) } }
-    // Restore only the item that was focused when Discover was entered. The live memory changes\n    // on every D-pad move, so reading memory.key directly here causes scrollToItem() to fight navigation.\n    val restoreTarget = remember { memory.key }\n    var hasRestoredFocus by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }\n    val restoreIndex = shown.indexOfFirst { it.id == restoreTarget }
+    // Restore only the item that was focused when Discover was entered. The live memory changes
+    // on every D-pad move, so reading memory.key directly here causes scrollToItem() to fight navigation.
+    val restoreTarget = remember { memory.key }\n    var hasRestoredFocus by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }\n    val restoreIndex = shown.indexOfFirst { it.id == restoreTarget }
 
     // Paging: when the remote gets near the end of what is loaded, the next page is asked for.
     LaunchedEffect(gridState, state.items.size, shown.size) {
