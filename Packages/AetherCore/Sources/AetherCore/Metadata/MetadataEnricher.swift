@@ -272,6 +272,21 @@ public actor MetadataEnricher {
         }
     }
 
+    /// What a person appeared in (the best known first, with the character played), from TMDB.
+    /// Empty when there is no key, the service does not answer or the person is unknown. Never throws.
+    public func filmography(personID: Int, language: String) async -> [PersonCredit] {
+        guard let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb) else { return [] }
+        do {
+            let credits = try await tmdb.personCredits(id: personID, language: language)
+            return PersonCredit.make(from: credits)
+        } catch let error as MetadataError {
+            note(error, service: .tmdb)
+            return []
+        } catch {
+            return []
+        }
+    }
+
     /// The IMDb id of a TMDB title (what a catalog address is made of), so that a similar title can be opened like any other.
     /// Nil when TMDB does not know one or the service does not answer.
     public func imdbID(forTMDBID id: Int, metaType: String) async -> String? {

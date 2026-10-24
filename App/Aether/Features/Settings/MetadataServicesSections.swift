@@ -9,6 +9,7 @@ struct MetadataServicesSections: View {
     var body: some View {
         MetadataKeySection(kind: .tmdb, credentials: env.credentials)
         MetadataKeySection(kind: .tvdb, credentials: env.credentials)
+        FanartKeySection(credentials: env.credentials)
     }
 }
 
@@ -93,7 +94,7 @@ private struct MetadataKeySection: View {
     }
 
     private var footer: String {
-        let privacy = "La chiave resta nel Portachiavi di questo iPhone (mai nei backup né nei log). Senza chiave l'app funziona come prima: i dati dell'addon non vengono mai sostituiti, solo completati dove mancano."
+        let privacy = "La chiave resta nel Portachiavi di questo iPhone (mai nei log; nei backup solo se scegli tu di includerla). Senza chiave l'app funziona come prima: i dati dell'addon non vengono mai sostituiti, solo completati dove mancano."
         switch kind {
         case .tmdb:
             return "Aggiunge locandina, sfondo, logo, trama, cast e titoli degli episodi quando l'addon non li fornisce. Crea un account gratuito su themoviedb.org e copia il «Token di lettura API» da Impostazioni ▸ API. \(privacy)\n\n\(MetadataService.tmdb.attribution)"
@@ -136,5 +137,39 @@ private struct MetadataKeySection: View {
                 check = .rejected(error.message)
             }
         }
+    }
+}
+
+/// Impostazioni ▸ Servizi ▸ fanart.tv: la chiave API dell'utente per i loghi dei film. Senza chiave il player mostra solo il titolo.
+private struct FanartKeySection: View {
+    @ObservedObject var credentials: ServiceCredentials
+    @State private var draft = ""
+
+    var body: some View {
+        Section {
+            if credentials.isConfigured(.fanart) {
+                Label("Chiave salvata nel Portachiavi", systemImage: "key.fill")
+                    .accessibilityIdentifier("service.fanart.saved")
+                Button("Rimuovi la chiave", role: .destructive) { credentials.remove(.fanart) }
+                    .accessibilityIdentifier("service.fanart.remove")
+            } else {
+                SecureField("Chiave API di fanart.tv", text: $draft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("service.fanart.key")
+                Button("Salva la chiave") { save() }
+                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("service.fanart.save")
+            }
+        } header: {
+            Text("fanart.tv")
+        } footer: {
+            Text("Con la chiave, scegliendo una sorgente il player si apre subito e mostra il logo del film mentre TorBox prepara il link; senza chiave mostra solo il titolo. Crea un account gratuito su fanart.tv e copia la tua chiave API personale dal profilo. La chiave resta nel Portachiavi di questo iPhone (mai nei log; nei backup solo se scegli tu di includerla).")
+        }
+    }
+
+    private func save() {
+        try? credentials.save(draft, for: .fanart)
+        draft = ""
     }
 }

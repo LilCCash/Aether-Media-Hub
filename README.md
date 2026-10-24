@@ -6,7 +6,7 @@
 
 <p align="center">
   <em>Il tuo media center per iPhone e per Android TV, fatto a modo tuo.</em><br>
-  iPhone: versione 1.3 rev2 · iOS 17 o successivo · Android TV: Aether TV 1.0.0 Beta 1 · licenza MIT
+  iPhone: versione 1.4 · iOS 17 o successivo · Android TV: Aether TV 1.0.0 Beta 1 · licenza MIT
 </p>
 
 ---
@@ -18,7 +18,7 @@
 | Dove sta il codice | questo branch (`main`) | branch [`feature/aether-android-tv`](../../tree/feature/aether-android-tv), cartella `android-tv/` |
 | Come si scarica | [Releases](../../releases): `Aether-unsigned.ipa` (tag `v…`) | [Releases](../../releases): `Aether-TV-….apk` (tag `androidtv-v…`) |
 | Tecnologia | Swift, SwiftUI | Kotlin, Jetpack Compose, Media3 |
-| Stato | 1.3 rev2 | 1.0.0 Beta 1 (pre-release, non ancora provata a lungo su una TV vera) |
+| Stato | 1.4 (prima release ufficiale) | 1.0.0 Beta 1 (pre-release, non ancora provata a lungo su una TV vera) |
 
 Le due app sono indipendenti e leggono gli stessi addon; i backup sono nello stesso formato, quindi si possono spostare dall'una all'altra. **Aether TV** ha Home, Scopri, Cerca con filtri, scheda del titolo (con TMDB e TheTVDB), sorgenti con TorBox, player completo (tracce, sottotitoli, amplificazione audio, timer di spegnimento, Salta intro) e libreria, tutto comandato dal telecomando; gli addon si aggiungono anche dal telefono con un codice QR. Non ha Theater Mode, Cast, AirPlay, Picture in Picture né download. Il dettaglio è nelle note della release e in `android-tv/docs/PARITA.md` (sul branch Android TV).
 
@@ -35,7 +35,7 @@ Aether **non fornisce nessun contenuto**: sei tu a installare gli addon che vuoi
 - **Un po' di fantasia.** Atmosfere di colore, sfondi (anche in movimento), cornici, angoli e caratteri a scelta, con un'anteprima. E se tocchi più volte il logo in *Altro ▸ Informazioni*… prova.
 - **Scopri e Cerca** con filtri per tipo, genere e anno.
 - **Libreria** con watchlist, preferiti, cronologia e «Continua a guardare».
-- **Scheda del titolo** ricca con la chiave TMDB (cast con foto, produzioni, budget, trailer, titoli simili) e con tutte le sorgenti degli addon, ordinate e spiegate; con la tua chiave **TorBox** vedi subito quali sono già «In cache».
+- **Scheda del titolo** ricca con la chiave TMDB (cast con foto — tocca un attore per vedere la sua filmografia —, produzioni, budget, trailer, titoli simili; trama e generi nella lingua che scegli) e con tutte le sorgenti degli addon, ordinate e spiegate; con la tua chiave **TorBox** vedi subito quali sono già «In cache».
 - **Player** con due motori: quello di Apple per MP4 e simili e **MPV** per MKV, AVI e gli altri formati. HDR, sottotitoli degli addon (OpenSubtitles), tracce audio, velocità, gesti, timer di spegnimento, **Salta intro** e **Salta riassunto** per le serie.
 - **Download** per guardare senza rete.
 - **Trasmettere sul televisore** con AirPlay, Google Cast e DLNA. Il telefono può fare da **ponte** (il televisore non riceve mai la tua chiave TorBox) e **converte al volo gli MKV** per AVPlayer, AirPlay e Cast.

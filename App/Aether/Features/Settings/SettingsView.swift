@@ -418,12 +418,17 @@ struct ContentSettingsView: View {
                     ForEach(SearchSort.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
             }
-            Section(header: Text("Lingua")) {
+            Section(header: Text("Lingua di trama e dettagli"), footer: Text("Con la chiave TMDB, trama, generi, cast e titoli arrivano in questa lingua anche quando l'addon li fornisce in inglese.")) {
                 Picker("Lingua preferita", selection: settings.binding(\.content.preferredLanguage)) {
                     Text("Lingua del sistema").tag("system")
                     Text("Italiano").tag("it")
                     Text("Inglese").tag("en")
+                    Text("Francese").tag("fr")
+                    Text("Spagnolo").tag("es")
+                    Text("Tedesco").tag("de")
+                    Text("Portoghese").tag("pt")
                 }
+                .accessibilityIdentifier("settings.contentLanguage")
             }
             Section(header: Text("Cronologia")) {
                 Button("Cancella cronologia di visione", role: .destructive) { confirmClearHistory = true }
@@ -562,6 +567,7 @@ struct AccountDataSettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var env: AppEnvironment
     @State private var includeURLs = false
+    @State private var includeKeys = false
     @State private var exportURL: URL?
     @State private var showingImporter = false
     /// The backup the viewer picked, read and checked, waiting for the choice of how to restore it.
@@ -593,8 +599,10 @@ struct AccountDataSettingsView: View {
                 Text("Aether non invia nessun dato a server propri: niente analytics, niente crash reporting. Le richieste partono verso gli addon che installi, verso gli indirizzi delle immagini e dei video che questi restituiscono, verso IntroDB per i tempi di «Salta intro» (codice IMDb, stagione ed episodio; si spegne in Riproduzione ▸ Episodi) e, solo se inserisci una tua chiave in Servizi, verso TorBox, TMDB e TheTVDB. Per cercare i sottotitoli gli addon di sottotitoli ricevono il nome del file e, quando è calcolabile, l'impronta (hash) del video.")
                     .font(.footnote).foregroundStyle(Color.aetherSecondary)
             }
-            Section(header: Text("Backup e ripristino"), footer: Text("Il backup contiene libreria, cronologia, impostazioni e l'elenco degli addon. Gli indirizzi degli addon possono contenere chiavi personali: inclusi solo se lo scegli, e il file non è cifrato.")) {
+            Section(header: Text("Backup e ripristino"), footer: Text("Il backup contiene libreria, cronologia, impostazioni e l'elenco degli addon. Gli indirizzi degli addon e le chiavi dei servizi (TorBox, TMDB, TheTVDB, fanart.tv) sono personali: inclusi solo se lo scegli, e il file non è cifrato. Ripristinando un backup con le chiavi, i servizi si configurano da soli.")) {
                 Toggle("Includi gli indirizzi degli addon", isOn: $includeURLs)
+                Toggle("Includi le chiavi dei servizi", isOn: $includeKeys)
+                    .accessibilityIdentifier("backup.includeKeys")
                 Button("Crea backup…") { Task { await export() } }
                     .accessibilityIdentifier("backup.export")
                 if let url = exportURL {
@@ -669,8 +677,8 @@ struct AccountDataSettingsView: View {
 
     private func export() async {
         do {
-            exportURL = try await BackupService.makeBackup(env: env, includeAddonURLs: includeURLs)
-            resultMessage = includeURLs ? "Backup creato con gli indirizzi degli addon: conservalo con cura." : "Backup creato."
+            exportURL = try await BackupService.makeBackup(env: env, includeAddonURLs: includeURLs, includeServiceKeys: includeKeys)
+            resultMessage = (includeURLs || includeKeys) ? "Backup creato con dati personali (indirizzi degli addon o chiavi): conservalo con cura." : "Backup creato."
         } catch {
             resultMessage = "Backup non riuscito: \(error.localizedDescription)"
         }
@@ -700,7 +708,7 @@ struct AccountDataSettingsView: View {
         pendingRestore = nil
         do {
             let summary = try await BackupService.restore(data: picked.data, env: env, mode: mode, applySettings: applySettings)
-            resultMessage = "Ripristino completato: \(summary.entries) titoli salvati, \(summary.progressRecords) punti di visione, \(summary.addonsAdded) addon\(summary.addonsWithoutURL > 0 ? " (\(summary.addonsWithoutURL) senza indirizzo: da reinstallare)" : "")."
+            resultMessage = "Ripristino completato: \(summary.entries) titoli salvati, \(summary.progressRecords) punti di visione, \(summary.addonsAdded) addon\(summary.addonsWithoutURL > 0 ? " (\(summary.addonsWithoutURL) senza indirizzo: da reinstallare)" : "")." + (summary.keysRestored.isEmpty ? "" : " Chiavi configurate: \(summary.keysRestored.joined(separator: ", ")).")
         } catch let error as BackupError {
             resultMessage = error.message
         } catch {

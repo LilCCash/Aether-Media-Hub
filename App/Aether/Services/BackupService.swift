@@ -12,6 +12,8 @@ struct RestoreSummary {
     var addonsAdded: Int
     var addonsWithoutURL: Int
     var settingsApplied: Bool
+    /// The services whose keys came back with the backup (by name).
+    var keysRestored: [String] = []
 }
 
 /// Why a backup file could not be read, in words for the viewer.
@@ -75,6 +77,7 @@ struct BackupPreview: Equatable {
     var addons: Int
     var addonsWithURL: Int
     var hasSettings: Bool
+    var serviceKeys: Int
     var appVersion: String
     var createdAt: Date
 
@@ -84,6 +87,7 @@ struct BackupPreview: Equatable {
         addons = backup.addons.count
         addonsWithURL = backup.addons.filter { $0.url != nil }.count
         hasSettings = backup.settings != nil
+        serviceKeys = backup.serviceKeys?.count ?? 0
         appVersion = backup.appVersion
         createdAt = backup.createdAt
     }
@@ -92,6 +96,7 @@ struct BackupPreview: Equatable {
         var parts = ["\(entries) titoli salvati", "\(progressRecords) punti di visione", "\(addons) addon"]
         if addons > 0 && addonsWithURL < addons { parts[2] += " (\(addons - addonsWithURL) senza indirizzo: da reinstallare)" }
         parts.append(hasSettings ? "impostazioni incluse" : "senza impostazioni")
+        if serviceKeys > 0 { parts.append("chiavi dei servizi incluse") }
         return parts.joined(separator: " · ")
     }
 }
@@ -99,7 +104,7 @@ struct BackupPreview: Equatable {
 /// Local backup / restore / export. Nothing leaves the device unless the user shares the file.
 @MainActor
 enum BackupService {
-    static func makeBackup(env: AppEnvironment, includeAddonURLs: Bool, includeSettings: Bool = true) async throws -> URL {
+    static func makeBackup(env: AppEnvironment, includeAddonURLs: Bool, includeSettings: Bool = true, includeServiceKeys: Bool = false) async throws -> URL {
         let library = await env.libraryStore.snapshot()
         var addonEntries: [BackupAddon] = []
         for addon in await env.registry.all() {
@@ -112,7 +117,8 @@ enum BackupService {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let backup = AetherBackup(appVersion: version, library: library,
                                   settings: includeSettings ? env.settings.value : nil,
-                                  addons: addonEntries, includesAddonURLs: includeAddonURLs)
+                                  addons: addonEntries, includesAddonURLs: includeAddonURLs,
+                                  serviceKeys: includeServiceKeys ? serviceKeys(env: env) : nil)
         let data = try BackupCodec.encode(backup)
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmm"
@@ -152,7 +158,32 @@ enum BackupService {
             env.settings.value = restored
             settingsApplied = true
         }
+        var keysRestored: [String] = []
+        if let keys = backup.serviceKeys {
+            let services: [(String, ServiceKind)] = [("torbox", .torbox), ("tmdb", .tmdb), ("tvdb", .tvdb), ("fanart", .fanart)]
+            for (name, kind) in services {
+                guard let secret = keys[name], !secret.isEmpty else { continue }
+                do {
+                    try env.credentials.save(secret, for: kind, pin: kind == .tvdb ? keys["tvdbPin"] : nil)
+                    keysRestored.append(kind.title)
+                } catch {
+                    continue
+                }
+            }
+        }
         return RestoreSummary(entries: backup.library.entries.count, progressRecords: backup.library.progress.count,
-                              addonsAdded: added, addonsWithoutURL: withoutURL, settingsApplied: settingsApplied)
+                              addonsAdded: added, addonsWithoutURL: withoutURL, settingsApplied: settingsApplied,
+                              keysRestored: keysRestored)
+    }
+
+    /// The keys the viewer chose to carry in a backup (plain text in the file: the screen says so).
+    private static func serviceKeys(env: AppEnvironment) -> [String: String]? {
+        var keys: [String: String] = [:]
+        let services: [(String, ServiceKind)] = [("torbox", .torbox), ("tmdb", .tmdb), ("tvdb", .tvdb), ("fanart", .fanart)]
+        for (name, kind) in services {
+            if let secret = env.credentials.secret(for: kind) { keys[name] = secret }
+        }
+        if let pin = env.credentials.pin(for: .tvdb) { keys["tvdbPin"] = pin }
+        return keys.isEmpty ? nil : keys
     }
 }

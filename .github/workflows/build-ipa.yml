@@ -31,6 +31,10 @@ on:
         description: Publish the unsigned IPA as a GitHub pre-release (needs release_tag)
         type: boolean
         default: false
+      official_release:
+        description: Publish as an official release (not marked as a pre-release)
+        type: boolean
+        default: false
       release_tag:
         description: "Tag of the release, for example v1.0.0-alpha.1 (created on the built commit if it does not exist yet)"
         type: string
@@ -183,6 +187,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.release_tag }}
+          OFFICIAL: ${{ inputs.official_release }}
           SHA: ${{ github.sha }}
           RUN_NUMBER: ${{ github.run_number }}
         run: |
@@ -204,7 +209,11 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" Aether-unsigned.ipa --clobber
           else
-            gh release create "$TAG" Aether-unsigned.ipa --target "$SHA" --title "Aether $TAG (unsigned IPA)" --notes-file "$RUNNER_TEMP/notes.md" --prerelease
+            if [ "$OFFICIAL" = "true" ]; then
+              gh release create "$TAG" Aether-unsigned.ipa --target "$SHA" --title "Aether ${TAG#v} (IPA non firmato)" --notes-file "$RUNNER_TEMP/notes.md" --latest
+            else
+              gh release create "$TAG" Aether-unsigned.ipa --target "$SHA" --title "Aether $TAG (unsigned IPA)" --notes-file "$RUNNER_TEMP/notes.md" --prerelease
+            fi
           fi
           gh release view "$TAG" --json url,tagName,isPrerelease,assets --jq '{url, tagName, isPrerelease, assets: [.assets[] | {name, size}]}'
 

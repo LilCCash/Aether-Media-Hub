@@ -91,9 +91,11 @@ public struct AetherBackup: Codable, Sendable {
     public var addons: [BackupAddon]
     /// True if addon URLs (which may contain API keys) are included.
     public var includesAddonURLs: Bool
+    /// Keys of the optional services ("tmdb", "tvdb", "tvdbPin", "torbox", "fanart"), only when the user chose to include them.
+    public var serviceKeys: [String: String]?
 
     public init(createdAt: Date = Date(), appVersion: String, library: LibraryState, settings: AppSettings?,
-                addons: [BackupAddon], includesAddonURLs: Bool) {
+                addons: [BackupAddon], includesAddonURLs: Bool, serviceKeys: [String: String]? = nil) {
         self.marker = AetherBackup.marker
         self.formatVersion = AetherBackup.currentFormat
         self.createdAt = createdAt
@@ -102,6 +104,7 @@ public struct AetherBackup: Codable, Sendable {
         self.settings = settings
         self.addons = addons
         self.includesAddonURLs = includesAddonURLs
+        self.serviceKeys = serviceKeys
     }
 }
 

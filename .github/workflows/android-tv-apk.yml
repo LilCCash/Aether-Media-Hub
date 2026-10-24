@@ -1,28 +1,32 @@
 name: Aether TV · Build APK
 # Builds the installable APK (debug, signed with the debug key) and attaches it to the run: Actions > the run > Artifacts.
-# It runs on every push to the Android TV branch (feature/aether-android-tv) and can also be run by hand ("Run workflow"). Tick "release" to also build a signed release APK; that needs these repository secrets:
+# This copy lives on the default branch so it appears in the Actions list; it builds the Android TV branch (see "ref"). Run it by hand ("Run workflow"). Tick "release" to also build a signed release APK; that needs these repository secrets:
 #   ANDROID_KEYSTORE_BASE64  ANDROID_KEYSTORE_PASSWORD  ANDROID_KEY_ALIAS  ANDROID_KEY_PASSWORD
 # Publishing: push a tag "androidtv-v<version>"; notes come from android-tv/docs/release-notes/<tag>.md.
 # No secret is ever written to the repository. Tests are a separate workflow ("Aether TV · Test").
 on:
-  push:
-    branches: [feature/aether-android-tv]
-    paths: ['android-tv/**', '.github/workflows/android-tv-apk.yml']
-    # A tag like androidtv-v1.0.0-beta.1 also publishes a GitHub pre-release with the APK (it does not match the iOS "v*" tags).
-    tags: ['androidtv-v*']
   workflow_dispatch:
     inputs:
       release:
         description: "Also build the signed release APK (needs the signing secrets)"
         type: boolean
         default: false
+      abis:
+        description: "Native libraries to include: all (phones + emulators/VibeView), devices (arm only, smaller) or emulators (x86 only)"
+        type: choice
+        options: [all, devices, emulators]
+        default: all
+      ref:
+        description: "Branch or tag of the Android TV code to build"
+        type: string
+        default: 'feature/aether-android-tv'
       publish_tag:
         description: "Publish a GitHub pre-release with this tag (e.g. androidtv-v1.0.0-beta.1); created on the built commit"
         type: string
         default: ''
 
 concurrency:
-  group: android-tv-apk-${{ github.ref }}
+  group: android-tv-apk-${{ inputs.ref }}
   cancel-in-progress: true
 
 defaults:
@@ -36,6 +40,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+        with:
+          ref: ${{ inputs.ref || github.ref }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -45,8 +53,18 @@ jobs:
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Choose the native libraries
+        env:
+          CHOICE: ${{ inputs.abis || 'all' }}
+        run: |
+          case "$CHOICE" in
+            devices) echo "ABIS=arm64-v8a,armeabi-v7a" >> "$GITHUB_ENV" ;;
+            emulators) echo "ABIS=x86_64,x86" >> "$GITHUB_ENV" ;;
+            *) echo "ABIS=" >> "$GITHUB_ENV" ;;
+          esac
+
       - name: Build the debug APK
-        run: ./gradlew :app:assembleDebug --console=plain
+        run: ./gradlew :app:assembleDebug ${ABIS:+-PaetherAbis=$ABIS} --console=plain
 
       - name: Check the package is an Android TV app
         run: |
@@ -139,5 +157,5 @@ jobs:
             gh release upload "$TAG" "dist/Aether-TV-${VERSION}.apk" --clobber
             gh release edit "$TAG" --notes-file "$NOTES" --prerelease
           else
-            gh release create "$TAG" "dist/Aether-TV-${VERSION}.apk" --title "Aether TV ${VERSION} (Android TV)" --notes-file "$NOTES" --prerelease --target "$GITHUB_SHA"
+            gh release create "$TAG" "dist/Aether-TV-${VERSION}.apk" --title "Aether TV ${VERSION} (Android TV)" --notes-file "$NOTES" --prerelease --target "$(git rev-parse HEAD)"
           fi

@@ -461,25 +461,34 @@ final class StreamPickerModel: ObservableObject {
             guard token == resolutionToken else { return }
             if let blocked = await env.validateMediaURL(result.url) {
                 finishResolution(token)
+                await settleCover()
                 blockedMessage = blocked.message
                 return
             }
             guard token == resolutionToken, !Task.isCancelled else { return }
             env.debrid.stashResolution(result, for: item.stream, stremioID: stremioID)
-            finishResolution(token)
+            // The full-screen page stays up while the sheet leaves, so the viewer sees no flash of the list before the player.
             await present(item, env: env, dismiss: dismiss)
+            finishResolution(token)
         } catch is CancellationError {
             finishResolution(token)
         } catch let error as DebridError {
             guard token == resolutionToken else { return }
             finishResolution(token)
+            await settleCover()
             handle(error, item: item, mode: mode, file: file)
         } catch {
             guard token == resolutionToken else { return }
             finishResolution(token)
+            await settleCover()
             rowFailure = DebridRowFailure(itemID: item.id, message: DebridErrorText.describe(error), isRetryable: false,
                                           mode: mode, file: file)
         }
+    }
+
+    /// A dialog asked for while the full-screen page is still leaving is dropped by iOS: wait for it to be gone.
+    private func settleCover() async {
+        try? await Task.sleep(nanoseconds: 450_000_000)
     }
 
     private func receive(_ progress: DebridProgress, sequence: Int, token: UUID) {
@@ -637,6 +646,11 @@ struct StreamPickerSheet: View {
             Button("Annulla", role: .cancel) {}
         } message: { (_: RankedStream) in
             Text(DebridUserText.downloadConfirmationMessage)
+        }
+        // The page of the player opens at once while TorBox is contacted: the film's logo (with a fanart.tv key) or its title.
+        .fullScreenCover(isPresented: Binding(get: { model.resolution != nil }, set: { if !$0 { model.cancelResolution() } })) {
+            PlaybackPreparingView(meta: request.meta, resolution: model.resolution) { model.cancelResolution() }
+                .environmentObject(env)
         }
         .sheet(item: $model.fileChoice) { (choice: DebridFileChoice) in
             DebridFileChoiceSheet(choice: choice) { (file: DebridFileCandidate) in

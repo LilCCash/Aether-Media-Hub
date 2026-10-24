@@ -3,8 +3,8 @@
 //   APP_BUNDLE_ID = com.yourname.aether
 APP_BUNDLE_ID = app.aether.mediahub
 DEVELOPMENT_TEAM =
-MARKETING_VERSION = 1.3.0
-// Pre-release label shown in Settings > Informazioni; it is not part of the version number iOS compares.
-AETHER_RELEASE_LABEL = Beta 1
+MARKETING_VERSION = 1.4.0
+// Pre-release label shown in Settings > Informazioni ("Beta 1", "rev2"…); empty for an official release. It is not part of the version number iOS compares.
+AETHER_RELEASE_LABEL =
 CURRENT_PROJECT_VERSION = 1
 #include? "Signing.local.xcconfig"

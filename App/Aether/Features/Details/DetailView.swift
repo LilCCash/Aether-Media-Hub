@@ -80,7 +80,7 @@ final class DetailViewModel: ObservableObject {
         let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
         guard let enrichment = await env.metadata.enrich(base, language: language), !Task.isCancelled, meta.id == base.id else { return }
         attributions = enrichment.creditLines(whenMergedInto: base)
-        meta = base.merging(enrichment: enrichment)
+        meta = base.merging(enrichment: enrichment, preferProviderText: true)
         if selectedSeason == nil { selectedSeason = initialSeason() }
     }
 
@@ -146,6 +146,7 @@ struct DetailView: View {
     @State private var picker: StreamPickerRequest?
     @State private var descriptionExpanded = false
     @State private var openedSimilar: MetaRoute?
+    @State private var openedPerson: PersonRoute?
     @State private var similarProblem: String?
     /// True while TMDB is asked for the IMDb code of a similar title: more taps meanwhile would start more lookups.
     @State private var lookingUpSimilar = false
@@ -189,6 +190,7 @@ struct DetailView: View {
             StreamPickerSheet(request: request)
         }
         .navigationDestination(item: $openedSimilar) { DetailView(route: $0) }
+        .navigationDestination(item: $openedPerson) { PersonFilmographyView(route: $0) }
         .alert("Titolo non disponibile", isPresented: Binding(get: { similarProblem != nil }, set: { if !$0 { similarProblem = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -364,7 +366,11 @@ struct DetailView: View {
     @ViewBuilder
     private var richSections: some View {
         if let rich = model.rich {
-            if !rich.cast.isEmpty { TitleCastSection(people: rich.cast) }
+            if !rich.cast.isEmpty {
+                TitleCastSection(people: rich.cast) { person in
+                    if let id = person.tmdbPersonID { openedPerson = PersonRoute(personID: id, name: person.name) }
+                }
+            }
             if !rich.trailers.isEmpty { TitleTrailersSection(trailers: rich.trailers) }
             if !rich.companies.isEmpty { TitleCompaniesSection(companies: rich.companies) }
             if rich.budget != nil || rich.revenue != nil { TitleFinancialsSection(budget: rich.budget, revenue: rich.revenue) }

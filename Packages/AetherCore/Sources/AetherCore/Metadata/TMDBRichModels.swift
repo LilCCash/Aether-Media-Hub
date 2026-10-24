@@ -204,3 +204,36 @@ struct TMDBRichDetails: Decodable {
         externalIDs = c.lenient(TMDBExternalIDs.self, forKey: .external_ids)
     }
 }
+
+/// One line of a person's `combined_credits` (a film or a series with the character played).
+struct TMDBPersonCreditEntry: Decodable {
+    var id: Int?
+    var mediaType: String?
+    var title: String?
+    var character: String?
+    var posterPath: String?
+    var releaseDate: String?
+    var popularity: Double?
+    var genreIDs: [Int]
+    private enum CodingKeys: String, CodingKey { case id, media_type, title, name, character, poster_path, release_date, first_air_date, popularity, genre_ids }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.flexInt(.id)
+        mediaType = c.flexString(.media_type)
+        title = c.flexString(.title) ?? c.flexString(.name)
+        character = c.flexString(.character)
+        posterPath = c.flexString(.poster_path)
+        releaseDate = c.flexString(.release_date) ?? c.flexString(.first_air_date)
+        popularity = try? c.decodeIfPresent(Double.self, forKey: .popularity)
+        genreIDs = (try? c.decodeIfPresent([Int].self, forKey: .genre_ids)) ?? []
+    }
+}
+
+struct TMDBPersonCredits: Decodable {
+    var cast: [TMDBPersonCreditEntry]
+    private enum CodingKeys: String, CodingKey { case cast }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        cast = c.lossyArray(TMDBPersonCreditEntry.self, forKey: .cast)
+    }
+}

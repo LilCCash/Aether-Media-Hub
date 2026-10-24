@@ -18,6 +18,8 @@ private struct TitleSectionHeader: View {
 /// The cast as a row of round photos with the name and the character underneath.
 struct TitleCastSection: View {
     let people: [TitleRichDetails.Person]
+    /// A tap on a person opens their filmography.
+    let open: (TitleRichDetails.Person) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -25,6 +27,9 @@ struct TitleCastSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 14) {
                     ForEach(Array(people.enumerated()), id: \.offset) { _, person in
+                        Button {
+                            open(person)
+                        } label: {
                         VStack(spacing: 6) {
                             RemoteImage(urlString: person.photoURL, width: 160, placeholderSeed: person.name, systemPlaceholder: "person.fill")
                                 .frame(width: 76, height: 76)
@@ -42,8 +47,12 @@ struct TitleCastSection: View {
                             }
                         }
                         .frame(width: 92)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(person.tmdbPersonID == nil)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(person.role.map { "\(person.name), \($0)" } ?? person.name)
+                        .accessibilityHint("Mostra i film e le serie in cui compare")
                     }
                 }
                 .padding(.horizontal, Theme.pageMargin)

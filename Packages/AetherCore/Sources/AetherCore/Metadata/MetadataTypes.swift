@@ -107,7 +107,7 @@ public struct MetadataEnrichment: Codable, Equatable, Sendable {
 
 extension MetaItem {
     /// Fills ONLY what the addon left empty. Nothing the addon provided is overwritten and ids never change.
-    public func merging(enrichment: MetadataEnrichment) -> MetaItem {
+    public func merging(enrichment: MetadataEnrichment, preferProviderText: Bool = false) -> MetaItem {
         var result = self
         func blank(_ value: String?) -> Bool { return (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         if blank(result.poster), let value = enrichment.poster { result.poster = value }
@@ -115,6 +115,11 @@ extension MetaItem {
         if blank(result.logo), let value = enrichment.logo { result.logo = value }
         if blank(result.description), let value = enrichment.overview ?? enrichment.tagline { result.description = value }
         if result.genres.isEmpty { result.genres = enrichment.genres }
+        if preferProviderText {
+            // The viewer chose a language: the plot and the genres of the service (in that language) win over the addon's (often English).
+            if let overview = enrichment.overview, !blank(overview) { result.description = overview }
+            if !enrichment.genres.isEmpty { result.genres = enrichment.genres }
+        }
         if result.cast.isEmpty { result.cast = enrichment.cast }
         if result.directors.isEmpty { result.directors = enrichment.directors }
         if blank(result.runtime), let minutes = enrichment.runtimeMinutes, minutes > 0 { result.runtime = "\(minutes) min" }

@@ -11,6 +11,8 @@ public struct TitleRichDetails: Codable, Equatable, Sendable {
         /// The character, for an actor.
         public var role: String?
         public var photoURL: String?
+        /// TMDB's id of the person, used to open their filmography.
+        public var tmdbPersonID: Int?
     }
 
     public struct Company: Codable, Equatable, Sendable {
@@ -249,7 +251,8 @@ public struct TitleRichDetails: Codable, Equatable, Sendable {
                 guard seen.insert(member.id.map(String.init) ?? name).inserted else { continue }
                 let role = member.character?.trimmingCharacters(in: .whitespacesAndNewlines)
                 cast.append(Person(name: name, role: (role ?? "").isEmpty ? nil : role,
-                                   photoURL: image(configuration.profileSizes, 185, member.profilePath)))
+                                   photoURL: image(configuration.profileSizes, 185, member.profilePath),
+                                   tmdbPersonID: member.id))
                 if cast.count >= 24 { break }
             }
             if isMovie {
