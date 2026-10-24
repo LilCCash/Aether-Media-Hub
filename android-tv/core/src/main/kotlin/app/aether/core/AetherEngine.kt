@@ -89,6 +89,7 @@ class AetherEngine(
         secrets.get(MetadataEnrichment.TMDbKey)?.takeIf { it.isNotBlank() }?.let { put("tmdb", it) }
         secrets.get(MetadataEnrichment.TVDbKey)?.takeIf { it.isNotBlank() }?.let { put("tvdb", it) }
         secrets.get(MetadataEnrichment.TVDbPin)?.takeIf { it.isNotBlank() }?.let { put("tvdbPin", it) }
+        secrets.get(MetadataEnrichment.FanartKey)?.takeIf { it.isNotBlank() }?.let { put("fanart", it) }
         secrets.get(TorBoxClient.KEY_SECRET)?.takeIf { it.isNotBlank() }?.let { put("torbox", it) }
     }
 
@@ -98,6 +99,7 @@ class AetherEngine(
         keys["tmdb"]?.let { secrets.put(MetadataEnrichment.TMDbKey, it.trim()); done.add("TMDB") }
         keys["tvdb"]?.let { secrets.put(MetadataEnrichment.TVDbKey, it.trim()); done.add("TheTVDB") }
         keys["tvdbPin"]?.let { secrets.put(MetadataEnrichment.TVDbPin, it.trim()) }
+        keys["fanart"]?.let { secrets.put(MetadataEnrichment.FanartKey, it.trim()); done.add("fanart.tv") }
         keys["torbox"]?.let { try { torBox.saveKey(it); done.add("TorBox") } catch (_: IllegalArgumentException) { } }
         if (done.isNotEmpty()) metadata.clearCaches()
         return done

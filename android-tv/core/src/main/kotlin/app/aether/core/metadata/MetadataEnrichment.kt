@@ -115,7 +115,8 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         if (id == null) return null
         val cacheKey = "${meta.type}:$id"
         logoCache[cacheKey]?.let { return it.takeIf { u -> u.isNotEmpty() } }
-        val key = secrets.get(FanartKey)?.takeIf { it.isNotBlank() } ?: DEFAULT_FANART_KEY
+        // Without the viewer's own fanart.tv key there is no logo: the player shows the title instead.
+        val key = secrets.get(FanartKey)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         val found = runCatching {
             val response = http.send(HttpRequest("https://webservice.fanart.tv/v3/${if (series) "tv" else "movies"}/$id?api_key=${enc(key)}", headers = mapOf("Accept" to "application/json"), timeoutSeconds = 6, maxBytes = 1024 * 1024))
             if (!response.isSuccess) null else {
@@ -361,8 +362,6 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         const val TVDbKey = "metadata.tvdb.apiKey"
         const val TVDbPin = "metadata.tvdb.pin"
         const val FanartKey = "metadata.fanart.apiKey"
-        /** The project key of fanart.tv supplied by the app owner; it can be replaced from the settings. */
-        const val DEFAULT_FANART_KEY = "865bdb842d9ea7d5eaf169b0ff0f272d"
         private const val IMAGE_BASE = "https://image.tmdb.org/t/p"
         private val SERIES = setOf("series", "tv", "show")
     }

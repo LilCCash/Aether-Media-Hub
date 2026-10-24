@@ -16,6 +16,15 @@ on:
         description: "Also build the signed release APK (needs the signing secrets)"
         type: boolean
         default: false
+      abis:
+        description: "Native libraries to include: all (phones + emulators/VibeView), devices (arm only, smaller) or emulators (x86 only)"
+        type: choice
+        options: [all, devices, emulators]
+        default: all
+      ref:
+        description: "Branch or tag to build (empty = the one the run was started from)"
+        type: string
+        default: ''
       publish_tag:
         description: "Publish a GitHub pre-release with this tag (e.g. androidtv-v1.0.0-beta.1); created on the built commit"
         type: string
@@ -36,6 +45,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+        with:
+          ref: ${{ inputs.ref || github.ref }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -45,8 +58,18 @@ jobs:
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Choose the native libraries
+        env:
+          CHOICE: ${{ inputs.abis || 'all' }}
+        run: |
+          case "$CHOICE" in
+            devices) echo "ABIS=arm64-v8a,armeabi-v7a" >> "$GITHUB_ENV" ;;
+            emulators) echo "ABIS=x86_64,x86" >> "$GITHUB_ENV" ;;
+            *) echo "ABIS=" >> "$GITHUB_ENV" ;;
+          esac
+
       - name: Build the debug APK
-        run: ./gradlew :app:assembleDebug --console=plain
+        run: ./gradlew :app:assembleDebug ${ABIS:+-PaetherAbis=$ABIS} --console=plain
 
       - name: Check the package is an Android TV app
         run: |
@@ -139,5 +162,5 @@ jobs:
             gh release upload "$TAG" "dist/Aether-TV-${VERSION}.apk" --clobber
             gh release edit "$TAG" --notes-file "$NOTES" --prerelease
           else
-            gh release create "$TAG" "dist/Aether-TV-${VERSION}.apk" --title "Aether TV ${VERSION} (Android TV)" --notes-file "$NOTES" --prerelease --target "$GITHUB_SHA"
+            gh release create "$TAG" "dist/Aether-TV-${VERSION}.apk" --title "Aether TV ${VERSION} (Android TV)" --notes-file "$NOTES" --prerelease --target "$(git rev-parse HEAD)"
           fi

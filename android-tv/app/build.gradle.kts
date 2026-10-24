@@ -10,6 +10,8 @@ android {
 
     defaultConfig {
         applicationId = "app.aether.tv"
+        // -PaetherAbis=arm64-v8a,armeabi-v7a (or x86_64,x86) keeps only those native libraries; unset = all of them.
+        (project.findProperty("aetherAbis") as String?)?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.takeIf { it.isNotEmpty() }?.let { abis -> ndk { abiFilters += abis } }
         minSdk = 24
         targetSdk = 35
         versionCode = (project.findProperty("aetherVersionCode") as String?)?.toIntOrNull() ?: 3

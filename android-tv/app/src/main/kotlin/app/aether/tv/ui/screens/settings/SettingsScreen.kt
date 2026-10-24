@@ -166,7 +166,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             keyRow("Chiave TMDB", MetadataEnrichment.TMDbKey, "metadata.tmdb", "Chiave API v3 (32 caratteri) oppure token di lettura v4 («eyJ…»). Aggiunge cast con foto, trailer, produzioni e titoli simili.")
             actionRow("Verifica TMDB", "Controlla che TMDB accetti la chiave.", "metadata.tmdb.verify") { scope.launch { notice = "Controllo TMDB…"; notice = engine.metadata.checkTmdb()?.let { "TMDB: $it" } ?: "TMDB: chiave accettata." } }
             keyRow("Chiave TheTVDB", MetadataEnrichment.TVDbKey, "metadata.tvdb", "Chiave API v4. Aggiunge trame, locandine e immagini degli episodi.")
-            keyRow("Chiave fanart.tv (facoltativa)", MetadataEnrichment.FanartKey, "metadata.fanart", "Usata per i loghi dei film. Se vuota, l'app usa la chiave di progetto inclusa.")
+            keyRow("Chiave fanart.tv", MetadataEnrichment.FanartKey, "metadata.fanart", "La tua chiave API di fanart.tv (gratuita): con la chiave il player mostra il logo del film mentre carica, senza solo il titolo.")
             keyRow("PIN TheTVDB", MetadataEnrichment.TVDbPin, "metadata.tvdbPin", "Solo per le chiavi degli abbonati.")
             actionRow("Verifica TheTVDB", "Controlla che TheTVDB accetti la chiave.", "metadata.tvdb.verify") { scope.launch { notice = "Controllo TheTVDB…"; notice = engine.metadata.checkTvdb()?.let { "TheTVDB: $it" } ?: "TheTVDB: chiave accettata." } }
             actionRow("Chiavi e backup dal telefono", "Apre una pagina sul telefono (stessa Wi-Fi): inserisci le chiavi TMDB, TheTVDB, TorBox o carica un file di backup.", "metadata.phone") {
