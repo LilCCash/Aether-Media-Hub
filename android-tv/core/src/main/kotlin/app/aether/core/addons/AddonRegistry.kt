@@ -252,13 +252,20 @@ class AddonRegistry(
 
     suspend fun refreshAll(): List<RefreshOutcome> = all().mapNotNull { refresh(it.id) }
 
-    /** Health bookkeeping after a request: shown on the addons screen, never changes behaviour. */
+    /**
+     * Health bookkeeping after a request: shown on the addons screen, never changes catalog configuration.
+     *
+     * Do not call [persist] here: it increments [revision], which the HomeViewModel observes to reload every
+     * catalog. A catalog request updating its own health would therefore cancel the other in-flight requests
+     * (including Cinemeta), restart the whole feed, and potentially create a cancellation/reload loop.
+     */
     suspend fun recordHealth(id: String, error: String?) = lock.withLock {
         loadLocked()
         val index = addons.indexOfFirst { it.id == id }
         if (index >= 0 && addons[index].lastError != error) {
             addons[index] = addons[index].copy(lastError = error)
-            persist()
+            // Persist health without publishing a catalog/configuration revision.
+            store.save(AddonRegistryState(addons = addons.toList()))
         }
     }
 
