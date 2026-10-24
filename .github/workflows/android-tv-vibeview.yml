@@ -1,0 +1,62 @@
+name: Aether TV · Upload to VibeView
+# Uploads the Android TV APK of a GitHub release to VibeView, so it can be run on its cloud Android TV devices.
+# One-time setup: create an API token in VibeView (Settings > API token, Developer role) and save it as the
+# repository secret VIBEVIEW_API_TOKEN (Settings > Secrets and variables > Actions). Then: Actions > this workflow > Run workflow.
+# "tag" is the release to upload (for example androidtv-v1.2.0-beta.1); leave it empty for the newest Android TV release.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to upload (empty = newest androidtv-v* release)"
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    name: Upload the APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download the APK from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 30 --json tagName --jq '[.[] | select(.tagName | startswith("androidtv-v"))][0].tagName')
+          fi
+          [ -n "$TAG" ] && [ "$TAG" != "null" ] || { echo "::error::No Android TV release found."; exit 1; }
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          mkdir -p dist
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.apk' --dir dist
+          ls -l dist
+      - name: Check the package
+        run: |
+          set -eu
+          APK=$(ls dist/*.apk | head -1)
+          echo "APK=$APK" >> "$GITHUB_ENV"
+          # An Android TV build with native libraries must carry x86_64 and x86 for the VibeView emulators.
+          unzip -l "$APK" | grep -q "lib/x86_64/" && unzip -l "$APK" | grep -q "lib/x86/" || { echo "::error::The APK has no x86/x86_64 libraries."; exit 1; }
+      - name: Upload to VibeView
+        env:
+          VIBEVIEW_API_TOKEN: ${{ secrets.VIBEVIEW_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VIBEVIEW_API_TOKEN:-}" ]; then
+            echo "::error::Missing VIBEVIEW_API_TOKEN. Add it in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          RESULT=$(npx -y vibeview upload-app "$APK" --token "$VIBEVIEW_API_TOKEN" --name "Aether TV" --note "GitHub release $TAG" --output json)
+          echo "$RESULT"
+          {
+            echo "## VibeView upload"
+            echo "- Release: \`$TAG\`"
+            echo "- Response: \`$RESULT\`"
+          } >> "$GITHUB_STEP_SUMMARY"
