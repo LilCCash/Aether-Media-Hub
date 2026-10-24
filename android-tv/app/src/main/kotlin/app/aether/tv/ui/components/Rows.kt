@@ -57,7 +57,7 @@ fun <T> ContentRow(
     val state = rememberLazyListState()
     // Two entries with the same key would crash a lazy list: the first one wins.
     val unique = remember(items) { items.distinctBy { key(it) } }
-    val restoreKey = memory?.key?.takeIf { it.startsWith("$rowId|") }?.removePrefix("$rowId|")
+    // Snapshot the focus target when this row enters composition. Updating FocusMemory while moving\n    // between posters must not restart the restore effect and pull focus/scroll back on every move.\n    val restoreKey = remember(rowId) { memory?.key?.takeIf { it.startsWith("$rowId|") }?.removePrefix("$rowId|") }
     val restoreIndex = restoreKey?.let { target -> unique.indexOfFirst { key(it) == target } } ?: -1
     val requester = remember(restoreKey) { FocusRequester() }
     var arrived by remember(restoreKey) { androidx.compose.runtime.mutableStateOf(false) }
@@ -85,7 +85,7 @@ fun <T> ContentRow(
             items(unique.size, key = { key(unique[it]) }) { index ->
                 val item = unique[index]
                 val itemKey = key(item)
-                card(item, if (index == restoreIndex) requester else null) { arrived = true; memory?.remember("$rowId|$itemKey") }
+                card(item, if (index == restoreIndex) requester else null) {\n                    if (index == restoreIndex) arrived = true\n                    memory?.remember("$rowId|$itemKey")\n                }
             }
         }
     }
