@@ -109,6 +109,7 @@ struct SettingsRootView: View {
 
 struct AppearanceSettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var env: AppEnvironment
 
     var body: some View {
         Form {
@@ -151,6 +152,24 @@ struct AppearanceSettingsView: View {
                     Label("Stile e grafica", systemImage: "sparkles")
                 }
                 .accessibilityIdentifier("settings.style")
+                NavigationLink {
+                    CatalogLayoutSettingsView()
+                } label: {
+                    Label("Cataloghi: nomi, ordine, visibilità", systemImage: "list.bullet.rectangle")
+                }
+                .accessibilityIdentifier("settings.catalogs")
+                NavigationLink {
+                    StreamDisplaySettingsView()
+                } label: {
+                    Label("Sorgenti: badge, logo e formato", systemImage: "tag")
+                }
+                .accessibilityIdentifier("settings.streams")
+                NavigationLink {
+                    TitlePageSettingsView(credentials: env.credentials)
+                } label: {
+                    Label("Scheda del titolo: moduli e voti", systemImage: "rectangle.stack.person.crop")
+                }
+                .accessibilityIdentifier("settings.titlePage")
             }
             Section(header: Text("Cataloghi")) {
                 Picker("Dimensione delle schede", selection: settings.binding(\.appearance.posterSize)) {

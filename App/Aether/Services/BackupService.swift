@@ -160,7 +160,7 @@ enum BackupService {
         }
         var keysRestored: [String] = []
         if let keys = backup.serviceKeys {
-            let services: [(String, ServiceKind)] = [("torbox", .torbox), ("tmdb", .tmdb), ("tvdb", .tvdb), ("fanart", .fanart)]
+            let services: [(String, ServiceKind)] = [("torbox", .torbox), ("tmdb", .tmdb), ("tvdb", .tvdb), ("fanart", .fanart), ("mdblist", .mdblist)]
             for (name, kind) in services {
                 guard let secret = keys[name], !secret.isEmpty else { continue }
                 do {
@@ -179,7 +179,7 @@ enum BackupService {
     /// The keys the viewer chose to carry in a backup (plain text in the file: the screen says so).
     private static func serviceKeys(env: AppEnvironment) -> [String: String]? {
         var keys: [String: String] = [:]
-        let services: [(String, ServiceKind)] = [("torbox", .torbox), ("tmdb", .tmdb), ("tvdb", .tvdb), ("fanart", .fanart)]
+        let services: [(String, ServiceKind)] = [("torbox", .torbox), ("tmdb", .tmdb), ("tvdb", .tvdb), ("fanart", .fanart), ("mdblist", .mdblist)]
         for (name, kind) in services {
             if let secret = env.credentials.secret(for: kind) { keys[name] = secret }
         }

@@ -74,8 +74,9 @@ struct AetherBackdrop: View {
         return .cyan
     }
 
-    private var strong: Double { scheme == .dark ? 0.28 : 0.14 }
-    private var soft: Double { scheme == .dark ? 0.16 : 0.08 }
+    private var intensity: Double { return min(max(settings.value.appearance.backdropIntensity, 0), 1.5) }
+    private var strong: Double { (scheme == .dark ? 0.28 : 0.14) * intensity }
+    private var soft: Double { (scheme == .dark ? 0.16 : 0.08) * intensity }
 
     /// Drifting washes only move when nothing asks for calm: the animations switch, Reduce Motion, Low Power Mode, and a
     /// foreground app.
@@ -87,7 +88,11 @@ struct AetherBackdrop: View {
 
     var body: some View {
         ZStack {
-            Color(scheme == .dark ? UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: 1) : UIColor.systemGroupedBackground)
+            if let hex = settings.value.appearance.customBackgroundHex {
+                Color(hex: hex)
+            } else {
+                Color(scheme == .dark ? UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: 1) : UIColor.systemGroupedBackground)
+            }
             if !settings.reduceEffects {
                 washes
             }

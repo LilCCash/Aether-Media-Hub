@@ -259,7 +259,10 @@ public actor MetadataEnricher {
             let configuration = await imageConfiguration(client)
             let id = try await resolveTMDBID(client, kind: kind, ids: ids)
             let details = try await client.richDetails(kind: kind, id: id, language: language)
-            let rich = TitleRichDetails.make(from: details, tmdbID: id, isMovie: kind == .movie, configuration: configuration, language: language)
+            var rich = TitleRichDetails.make(from: details, tmdbID: id, isMovie: kind == .movie, configuration: configuration, language: language)
+            if kind == .movie, let reference = details.collection, let collectionID = reference.id, let name = reference.name, !name.isEmpty {
+                rich.collection = TitleRichDetails.CollectionRef(id: collectionID, name: name)
+            }
             if let cache = cache, let data = try? JSONEncoder().encode(rich) {
                 await cache.store(key: cacheKey, data: data, kind: .meta, hints: CacheHints(maxAge: ttl, staleError: 0))
             }
@@ -269,6 +272,28 @@ public actor MetadataEnricher {
             return nil
         } catch {
             return nil
+        }
+    }
+
+    /// The films of a saga, oldest first, as `Similar` entries (so the title page can show them like the similar titles).
+    /// Empty when there is no key or TMDB does not answer.
+    public func collectionParts(id: Int, language: String) async -> [TitleRichDetails.Similar] {
+        guard let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb) else { return [] }
+        do {
+            let collection = try await tmdb.collection(id: id, language: language)
+            let parts = collection.parts.compactMap { part -> (date: String, item: TitleRichDetails.Similar)? in
+                guard let partID = part.id, let title = part.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else { return nil }
+                let item = TitleRichDetails.Similar(tmdbID: partID, title: title, posterURL: PersonCredit.posterURL(part.posterPath),
+                                                    year: MetadataEnricher.year(from: part.releaseDate),
+                                                    rating: part.voteAverage.flatMap { $0 > 0 ? $0 : nil })
+                return (date: part.releaseDate ?? "9999", item: item)
+            }
+            return parts.sorted { $0.date < $1.date }.map { $0.item }
+        } catch let error as MetadataError {
+            note(error, service: .tmdb)
+            return []
+        } catch {
+            return []
         }
     }
 

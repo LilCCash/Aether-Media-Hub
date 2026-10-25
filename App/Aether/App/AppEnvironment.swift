@@ -34,6 +34,8 @@ final class AppEnvironment: ObservableObject {
     let metadata: MetadataEnricher
     /// The film's logo from fanart.tv (needs the user's own key; without it the player shows the title).
     let fanart: FanartClient
+    /// Ratings from IMDb, Rotten Tomatoes, Metacritic… via the viewer's own MDBList key.
+    let mdblist: MDBListClient
     /// Debrid providers: connection status, cache checks and torrent resolution into playable links (user-supplied keys).
     let debrid: DebridService
     /// "Salta intro" / "Salta riassunto": the timing of an episode's intro and recap, from IntroDB (no key, nothing stored on disk).
@@ -99,6 +101,7 @@ final class AppEnvironment: ObservableObject {
             tvdb: TVDBClient(http: http, apiKey: serviceKeys.provider(for: .tvdb), pin: serviceKeys.pinProvider(for: .tvdb), baseURL: tvdbBase),
             cache: responseCache)
         fanart = FanartClient(http: http, credentials: serviceKeys.provider(for: .fanart))
+        mdblist = MDBListClient(http: http, credentials: serviceKeys.provider(for: .mdblist))
         // The UI tests point TorBox at their fixture server (a loopback address); a normal launch always uses api.torbox.app.
         let torboxBase = hooks.torboxServerURL.flatMap { DebridService.fixtureAPIBase(from: $0) } ?? TorBoxClient.productionBaseURL
         debrid = DebridService(credentials: serviceKeys, http: http, baseURL: torboxBase, log: diagnostics)

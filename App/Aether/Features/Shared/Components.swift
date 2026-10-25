@@ -87,8 +87,15 @@ struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
 
 struct RatingBadge: View {
     let rating: String
+    @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
+        if settings.value.appearance.showPosterRatings {
+            badge
+        }
+    }
+
+    private var badge: some View {
         HStack(spacing: 3) {
             Image(systemName: "star.fill").font(.system(size: 9))
             Text(rating).font(.system(size: 11, weight: .semibold, design: AetherTypography.design))

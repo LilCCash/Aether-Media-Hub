@@ -41,7 +41,7 @@ public struct PersonCredit: Equatable, Sendable, Identifiable {
         return result
     }
 
-    private static func posterURL(_ path: String?) -> String? {
+    static func posterURL(_ path: String?) -> String? {
         guard let path = path, path.hasPrefix("/"), !path.contains("..") else { return nil }
         return "https://image.tmdb.org/t/p/w342" + path
     }

@@ -654,9 +654,9 @@ struct SearchView: View {
                 PosterRowView(items: presentation.merged, watchlistIDs: library.watchlistIDs)
             }
             .accessibilityIdentifier("search.merged")
-            ForEach(presentation.rows) { row in
+            ForEach(settings.value.content.catalogLayout.sorted(presentation.rows, id: { $0.id })) { row in
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionHeader(title: row.title, subtitle: row.subtitle)
+                    SectionHeader(title: settings.value.content.catalogLayout.title(forID: row.id, fallback: row.title), subtitle: row.subtitle)
                     PosterRowView(items: row.items, watchlistIDs: library.watchlistIDs)
                 }
             }

@@ -214,11 +214,13 @@ struct TitleFactsSection: View {
 /// Posters of similar titles; a tap opens the title like any other.
 struct TitleSimilarSection: View {
     let titles: [TitleRichDetails.Similar]
+    var heading = "Titoli simili"
+    var identifier = "detail.similar"
     let open: (TitleRichDetails.Similar) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            TitleSectionHeader(title: "Titoli simili")
+            TitleSectionHeader(title: heading)
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 12) {
                     ForEach(Array(titles.enumerated()), id: \.offset) { index, item in
@@ -249,13 +251,40 @@ struct TitleSimilarSection: View {
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(item.year.map { "\(item.title), \($0)" } ?? item.title)
                         .accessibilityHint("Apre la scheda del titolo")
-                        .accessibilityIdentifier("detail.similar.\(index)")
+                        .accessibilityIdentifier("\(identifier).\(index)")
                     }
                 }
                 .padding(.horizontal, Theme.pageMargin)
             }
         }
-        .accessibilityIdentifier("detail.similar")
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// The ratings of the services the viewer chose, from MDBList.
+struct TitleRatingsSection: View {
+    let ratings: [MDBRating]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            TitleSectionHeader(title: "Voti")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(ratings) { rating in
+                        VStack(spacing: 2) {
+                            Text(rating.display ?? "").font(.system(.title3, design: .rounded).weight(.bold))
+                            Text(rating.title).font(.caption2).foregroundStyle(Color.aetherSecondary)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(rating.title): \(rating.display ?? "")")
+                    }
+                }
+                .padding(.horizontal, Theme.pageMargin)
+            }
+        }
+        .accessibilityIdentifier("detail.ratings")
     }
 }
 

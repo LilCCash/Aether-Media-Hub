@@ -16,6 +16,9 @@ final class DetailViewModel: ObservableObject {
     /// What TMDB adds to the page (cast with photos, trailers, producers, facts, similar titles); nil without a key or an answer.
     @Published private(set) var rich: TitleRichDetails?
     @Published private(set) var tmdbConfigured = true
+    /// Ratings from MDBList (IMDb, Rotten Tomatoes, Metacritic…) and the films of the saga the title belongs to.
+    @Published private(set) var ratings: [MDBRating] = []
+    @Published private(set) var sagaFilms: [TitleRichDetails.Similar] = []
     @Published var selectedSeason: Int?
 
     let route: MetaRoute
@@ -57,6 +60,19 @@ final class DetailViewModel: ObservableObject {
         let result = await env.metadata.richDetails(for: base, language: language)
         guard !Task.isCancelled, meta.id == base.id else { return }
         rich = result
+        guard let result else { return }
+        let content = env.settings.value.content
+        var films: [TitleRichDetails.Similar] = []
+        if content.titleModules.collection, let collection = result.collection {
+            films = await env.metadata.collectionParts(id: collection.id, language: language)
+        }
+        var found: [MDBRating] = []
+        if content.ratings.enabled, env.mdblist.isConfigured {
+            found = await env.mdblist.ratings(tmdbID: result.tmdbID, isMovie: result.isMovie)
+        }
+        guard !Task.isCancelled, meta.id == base.id else { return }
+        sagaFilms = films.count > 1 ? films : []
+        ratings = found
     }
 
     /// The page can offer to add a key only for the types TMDB covers.
@@ -366,17 +382,24 @@ struct DetailView: View {
     @ViewBuilder
     private var richSections: some View {
         if let rich = model.rich {
-            if !rich.cast.isEmpty {
+            let modules = env.settings.value.content.titleModules
+            let shown = env.settings.value.content.ratings
+            let chosen = model.ratings.filter { shown.sources.contains($0.source) && $0.display != nil }
+            if !chosen.isEmpty { TitleRatingsSection(ratings: chosen) }
+            if !rich.cast.isEmpty && modules.cast {
                 TitleCastSection(people: rich.cast) { person in
                     if let id = person.tmdbPersonID { openedPerson = PersonRoute(personID: id, name: person.name) }
                 }
             }
-            if !rich.trailers.isEmpty { TitleTrailersSection(trailers: rich.trailers) }
-            if !rich.companies.isEmpty { TitleCompaniesSection(companies: rich.companies) }
-            if rich.budget != nil || rich.revenue != nil { TitleFinancialsSection(budget: rich.budget, revenue: rich.revenue) }
+            if !rich.trailers.isEmpty && modules.trailers { TitleTrailersSection(trailers: rich.trailers) }
+            if !model.sagaFilms.isEmpty, let saga = rich.collection {
+                TitleSimilarSection(titles: model.sagaFilms, heading: saga.name, identifier: "detail.saga", open: openSimilar)
+            }
+            if !rich.companies.isEmpty && modules.companies { TitleCompaniesSection(companies: rich.companies) }
+            if (rich.budget != nil || rich.revenue != nil) && modules.financials { TitleFinancialsSection(budget: rich.budget, revenue: rich.revenue) }
             let rows = rich.detailRows()
-            if !rows.isEmpty { TitleFactsSection(rows: rows) }
-            if !rich.similar.isEmpty { TitleSimilarSection(titles: rich.similar, open: openSimilar) }
+            if !rows.isEmpty && modules.facts { TitleFactsSection(rows: rows) }
+            if !rich.similar.isEmpty && modules.similar { TitleSimilarSection(titles: rich.similar, open: openSimilar) }
         } else if model.suggestsTMDBKey {
             TMDBKeyHint()
         }

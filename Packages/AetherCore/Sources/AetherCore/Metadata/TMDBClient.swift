@@ -78,6 +78,11 @@ public struct TMDBClient: Sendable {
         return try await get("/\(kind.rawValue)/\(id)/external_ids", query: [])
     }
 
+    /// The films of a saga (`/collection/{id}`).
+    func collection(id: Int, language: String) async throws -> TMDBCollection {
+        return try await get("/collection/\(id)", query: [("language", language)])
+    }
+
     /// Every film and series the person acted in (`combined_credits`).
     func personCredits(id: Int, language: String) async throws -> TMDBPersonCredits {
         return try await get("/person/\(id)/combined_credits", query: [("language", language)])

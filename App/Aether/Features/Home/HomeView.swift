@@ -166,7 +166,7 @@ final class HomeViewModel: ObservableObject {
             let adultAddons = Set(handles.filter { $0.addon.manifest.behaviorHints.adult }.map { $0.addon.id })
             refs.removeAll(where: { adultAddons.contains($0.addonID) })
         }
-        catalogRefs = refs
+        catalogRefs = env.settings.value.content.catalogLayout.sorted(refs, id: { $0.id })
         await loadHero(env: env, refs: refs, mode: mode)
         await loadNextUp(env: env)
     }
@@ -258,6 +258,7 @@ private struct CatalogRowBody: View {
     let size: PosterSize
     @StateObject private var model: CatalogRowModel
     @EnvironmentObject private var library: LibraryModel
+    @EnvironmentObject private var settings: SettingsStore
 
     init(ref: CatalogRef, style: HomeCardStyle, size: PosterSize, env: AppEnvironment) {
         self.ref = ref
@@ -271,21 +272,21 @@ private struct CatalogRowBody: View {
             switch model.state {
             case .idle, .loading:
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionHeader(title: ref.title, subtitle: subtitle)
+                    SectionHeader(title: catalogName, subtitle: subtitle)
                     SkeletonRow(posterWidth: HomeCardMetrics.width(style: style, size: size),
                                 aspectRatio: HomeCardMetrics.aspectRatio(style: style))
                 }
             case .loaded(let items):
                 if !items.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        SectionHeader(title: ref.title, subtitle: subtitle)
+                        SectionHeader(title: catalogName, subtitle: subtitle)
                         PosterRowView(items: items, watchlistIDs: library.watchlistIDs, style: style, size: size)
                     }
                 }
                 // Empty catalogs collapse completely: no empty categories.
             case .failed(let message):
                 VStack(alignment: .leading, spacing: 8) {
-                    SectionHeader(title: ref.title, subtitle: subtitle)
+                    SectionHeader(title: catalogName, subtitle: subtitle)
                     InlineErrorView(message: message) { Task { await model.load(force: true) } }
                 }
             }
@@ -295,6 +296,11 @@ private struct CatalogRowBody: View {
 
     private var subtitle: String {
         "\(ref.addonName) · \(RequestPlanner.friendlyTypeName(ref.type))"
+    }
+
+    /// The viewer's name for this catalog (Impostazioni ▸ Cataloghi), or its own.
+    private var catalogName: String {
+        return settings.value.content.catalogLayout.title(forID: ref.id, fallback: ref.title)
     }
 }
 

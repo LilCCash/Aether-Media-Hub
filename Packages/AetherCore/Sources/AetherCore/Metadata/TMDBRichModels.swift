@@ -168,8 +168,10 @@ struct TMDBRichDetails: Decodable {
     var releaseDates: TMDBReleaseDates?
     var contentRatings: TMDBContentRatings?
     var externalIDs: TMDBExternalIDs?
+    var collection: TMDBCollectionRef?
 
     private enum CodingKeys: String, CodingKey {
+        case belongs_to_collection
         case id, status, release_date, first_air_date, last_air_date, runtime, episode_run_time, original_language
         case production_countries, origin_country, production_companies, networks, created_by, budget, revenue
         case number_of_seasons, number_of_episodes, vote_average, vote_count
@@ -202,6 +204,47 @@ struct TMDBRichDetails: Decodable {
         releaseDates = c.lenient(TMDBReleaseDates.self, forKey: .release_dates)
         contentRatings = c.lenient(TMDBContentRatings.self, forKey: .content_ratings)
         externalIDs = c.lenient(TMDBExternalIDs.self, forKey: .external_ids)
+        collection = c.lenient(TMDBCollectionRef.self, forKey: .belongs_to_collection)
+    }
+}
+
+/// The saga a film belongs to, as the film's own details name it.
+struct TMDBCollectionRef: Decodable {
+    var id: Int?
+    var name: String?
+    private enum CodingKeys: String, CodingKey { case id, name }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.flexInt(.id)
+        name = c.flexString(.name)
+    }
+}
+
+struct TMDBCollectionPart: Decodable {
+    var id: Int?
+    var title: String?
+    var posterPath: String?
+    var releaseDate: String?
+    var voteAverage: Double?
+    private enum CodingKeys: String, CodingKey { case id, title, poster_path, release_date, vote_average }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.flexInt(.id)
+        title = c.flexString(.title)
+        posterPath = c.flexString(.poster_path)
+        releaseDate = c.flexString(.release_date)
+        voteAverage = c.flexString(.vote_average).flatMap { Double($0) }
+    }
+}
+
+struct TMDBCollection: Decodable {
+    var name: String?
+    var parts: [TMDBCollectionPart]
+    private enum CodingKeys: String, CodingKey { case name, parts }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = c.flexString(.name)
+        parts = c.lossyArray(TMDBCollectionPart.self, forKey: .parts)
     }
 }
 

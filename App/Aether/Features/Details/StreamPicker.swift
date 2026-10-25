@@ -819,6 +819,15 @@ struct StreamRow: View {
     var debrid: DebridRowAppearance? = nil
     let action: () -> Void
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var env: AppEnvironment
+
+    private var display: StreamDisplaySettings { settings.value.content.streamDisplay }
+
+    /// The logo of the addon that produced this source, when the viewer asked for it and the addon has one.
+    private var addonLogo: URL? {
+        guard display.showAddonLogo, let name = item.stream.addonName else { return nil }
+        return env.addons.addons.first(where: { $0.displayName == name })?.manifest.logo.flatMap { URL(string: $0) }
+    }
 
     var body: some View {
         Button(action: action) {
@@ -831,17 +840,36 @@ struct StreamRow: View {
                     }
                     Spacer()
                     if let addon = item.stream.addonName {
-                        Text(addon).font(.caption2).foregroundStyle(Color.aetherSecondary)
+                        HStack(spacing: 4) {
+                            if let logo = addonLogo {
+                                AsyncImage(url: logo) { image in
+                                    image.resizable().scaledToFit()
+                                } placeholder: {
+                                    Color.clear
+                                }
+                                .frame(width: 14, height: 14)
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                                .accessibilityHidden(true)
+                            }
+                            Text(addon).font(.caption2).foregroundStyle(Color.aetherSecondary)
+                        }
                     }
                 }
-                Text(item.stream.name ?? "Sorgente")
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                if let details = item.stream.details, !details.isEmpty {
-                    Text(details).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(3)
+                if display.template.isEmpty {
+                    Text(item.stream.name ?? "Sorgente")
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    if let details = item.stream.details, !details.isEmpty {
+                        Text(details).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(3)
+                    }
+                } else {
+                    Text(StreamFormatter.line(template: display.template, info: item.info, stream: item.stream))
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(3)
                 }
-                FlowBadges(info: item.info)
+                FlowBadges(info: item.info, display: display)
                 if let debrid = debrid {
                     DebridBadgeRow(appearance: debrid)
                 }
@@ -1044,29 +1072,50 @@ struct DebridFileChoiceSheet: View {
 /// Wrapping row of small badges (quality, codec, HDR, audio, languages, size).
 struct FlowBadges: View {
     let info: StreamInfo
+    var display = StreamDisplaySettings()
 
     var body: some View {
-        let badges = info.badges
-            + info.languages.map { LanguageCodes.displayName($0) }
-            + [info.sizeLabel].compactMap { $0 }
-        if !badges.isEmpty || info.formatLabel != nil {
+        let badges = StreamFormatter.badges(for: info, settings: display)
+        if !badges.isEmpty {
             WrappingHStack(spacing: 6) {
                 ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
-                    Text(badge)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .background(Color.primary.opacity(0.09), in: Capsule())
-                }
-                if let format = info.formatLabel {
-                    // The file format, drawn as an outline so it reads apart from quality, codec and language.
-                    Text(format)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.35), lineWidth: 1))
-                        .accessibilityLabel("Formato \(format)")
-                        .accessibilityIdentifier("stream.format")
+                    if badge.kind == .format {
+                        // The file format keeps its own look so it reads apart from quality, codec and language.
+                        Text(badge.text)
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .padding(.horizontal, 7).padding(.vertical, 3)
+                            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.35), lineWidth: 1))
+                            .accessibilityLabel("Formato \(badge.text)")
+                            .accessibilityIdentifier("stream.format")
+                    } else {
+                        pill(badge)
+                    }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func pill(_ badge: StreamBadge) -> some View {
+        let text = Text(badge.text).font(.system(size: 11, weight: .semibold, design: .rounded))
+        switch display.badgeStyle {
+        case .filled:
+            text.padding(.horizontal, 7).padding(.vertical, 3).background(tint(badge.kind).opacity(0.16), in: Capsule())
+        case .outline:
+            text.padding(.horizontal, 7).padding(.vertical, 3).overlay(Capsule().strokeBorder(tint(badge.kind).opacity(0.6), lineWidth: 1))
+        case .plain:
+            text.foregroundStyle(tint(badge.kind))
+        }
+    }
+
+    private func tint(_ kind: StreamBadgeKind) -> Color {
+        switch kind {
+        case .quality: return .blue
+        case .hdr: return .orange
+        case .audio: return .purple
+        case .codec: return .teal
+        case .language: return .green
+        case .size, .format: return .gray
         }
     }
 }

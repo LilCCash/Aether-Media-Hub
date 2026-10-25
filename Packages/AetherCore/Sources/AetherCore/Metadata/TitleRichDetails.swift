@@ -15,6 +15,11 @@ public struct TitleRichDetails: Codable, Equatable, Sendable {
         public var tmdbPersonID: Int?
     }
 
+    public struct CollectionRef: Codable, Equatable, Sendable {
+        public var id: Int
+        public var name: String
+    }
+
     public struct Company: Codable, Equatable, Sendable {
         public var name: String
         public var logoURL: String?
@@ -72,6 +77,8 @@ public struct TitleRichDetails: Codable, Equatable, Sendable {
     public var seasonCount: Int?
     public var episodeCount: Int?
     public var imdbID: String?
+    /// The saga the film belongs to (its other films are asked on demand).
+    public var collection: CollectionRef?
 
     public var isEmpty: Bool {
         return cast.isEmpty && directors.isEmpty && creators.isEmpty && companies.isEmpty && budget == nil && revenue == nil

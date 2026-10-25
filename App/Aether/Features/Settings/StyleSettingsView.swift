@@ -40,6 +40,32 @@ struct StyleSettingsView: View {
                     ForEach(BackdropStyle.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .accessibilityIdentifier("settings.style.backdrop")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Intensità degli aloni")
+                    Slider(value: settings.binding(\.appearance.backdropIntensity), in: 0...1.5)
+                        .accessibilityLabel("Intensità degli aloni")
+                }
+                Toggle("Colore di sfondo personalizzato", isOn: Binding(get: { appearance.customBackgroundHex != nil }, set: { enabled in
+                    settings.value.appearance.customBackgroundHex = enabled ? (appearance.customBackgroundHex ?? "#0A0F1F") : nil
+                }))
+                if appearance.customBackgroundHex != nil {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(StyleSettingsView.backgroundPresets, id: \.hex) { preset in
+                                Button { settings.value.appearance.customBackgroundHex = preset.hex } label: {
+                                    Circle().fill(Color(hex: preset.hex))
+                                        .frame(width: 34, height: 34)
+                                        .overlay(Circle().stroke(Color.primary.opacity(0.4), lineWidth: appearance.customBackgroundHex == preset.hex ? 3 : 1))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(preset.name)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    ColorPicker("Altro colore", selection: customBackgroundColor, supportsOpacity: false)
+                }
+                Toggle("Voto sulle locandine", isOn: settings.binding(\.appearance.showPosterRatings))
             }
             Section(header: Text("Schede e testi")) {
                 Picker("Cornice", selection: settings.binding(\.appearance.cardChrome)) {
@@ -61,6 +87,9 @@ struct StyleSettingsView: View {
                     a.palette = .aether
                     a.customAccentHex = nil
                     a.backdrop = .aurora
+                    a.customBackgroundHex = nil
+                    a.backdropIntensity = 1
+                    a.showPosterRatings = true
                     a.cardChrome = .standard
                     a.cornerStyle = .standard
                     a.titleFont = .rounded
@@ -73,6 +102,21 @@ struct StyleSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+
+    static let backgroundPresets: [(name: String, hex: String)] = [
+        ("Nero", "#000000"), ("Notte", "#0A0F1F"), ("Grafite", "#1C1C1E"), ("Viola scuro", "#160B26"),
+        ("Verde bosco", "#07160F"), ("Bordeaux", "#1F0A12"), ("Blu oceano", "#04162B"), ("Marrone caffè", "#1A1008"),
+        ("Bianco", "#FFFFFF"), ("Grigio chiaro", "#F2F2F7")
+    ]
+
+    private var customBackgroundColor: Binding<Color> {
+        Binding(get: { Color(hex: settings.value.appearance.customBackgroundHex ?? "#0A0F1F") }, set: { color in
+            let ui = UIColor(color)
+            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 1
+            guard ui.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return }
+            settings.value.appearance.customBackgroundHex = String(format: "#%02X%02X%02X", Int(red * 255), Int(green * 255), Int(blue * 255))
+        })
+    }
 
     private var customAccentColor: Binding<Color> {
         Binding(get: { Color(hex: settings.value.appearance.customAccentHex ?? "#6E78FF") }, set: { color in

@@ -326,7 +326,9 @@ final class DiscoverViewModel: ObservableObject {
         }
         var list = capabilities.catalogsToBrowse(forType: type)
         list.append(contentsOf: DiscoverFiltering.yearCatalogs(handles: handles, typeID: type, hideAdultCatalogs: hideAdult))
-        catalogs = list
+        let ordered = env.settings.value.content.catalogLayout.sorted(list, id: { $0.id })
+        catalogs = ordered
+        list = ordered
 
         let previous = selectedCatalog
         if let current = selectedCatalog, list.contains(current) {
@@ -520,23 +522,27 @@ struct DiscoverView: View {
         .padding(.vertical, 8)
     }
 
+    private func catalogName(_ ref: CatalogRef) -> String {
+        return settings.value.content.catalogLayout.title(forID: ref.id, fallback: ref.title)
+    }
+
     @ViewBuilder
     private var catalogControl: some View {
         if model.catalogs.count > 1 {
             Menu {
                 Picker("Catalogo", selection: catalogSelection) {
                     ForEach(model.catalogs) { ref in
-                        Text("\(ref.title) · \(ref.addonName)").tag(ref.id)
+                        Text("\(catalogName(ref)) · \(ref.addonName)").tag(ref.id)
                     }
                 }
             } label: {
-                FilterMenuLabel(title: model.selectedCatalog?.title ?? "Catalogo", systemImage: "list.bullet")
+                FilterMenuLabel(title: model.selectedCatalog.map { catalogName($0) } ?? "Catalogo", systemImage: "list.bullet")
             }
             .accessibilityLabel("Catalogo")
-            .accessibilityValue(model.selectedCatalog?.title ?? "")
+            .accessibilityValue(model.selectedCatalog.map { catalogName($0) } ?? "")
             .accessibilityIdentifier("discover.catalogMenu")
         } else if let catalog = model.selectedCatalog {
-            Text("\(catalog.title) · \(catalog.addonName)")
+            Text("\(catalogName(catalog)) · \(catalog.addonName)")
                 .font(.footnote)
                 .foregroundStyle(Color.aetherSecondary)
                 .lineLimit(1)

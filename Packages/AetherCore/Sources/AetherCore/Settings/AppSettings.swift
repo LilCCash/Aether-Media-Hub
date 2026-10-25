@@ -146,6 +146,13 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var accent: AccentChoice = .aurora
     /// Optional custom accent in #RRGGBB; nil keeps the selected preset.
     public var customAccentHex: String? = nil
+    // 1.5
+    /// Optional custom background colour in #RRGGBB; nil keeps the palette's own.
+    public var customBackgroundHex: String? = nil
+    /// How strong the coloured washes of the background are (0 = none, 1 = as designed).
+    public var backdropIntensity: Double = 1
+    /// The star badge with the rating on the posters.
+    public var showPosterRatings: Bool = true
     public var posterSize: PosterSize = .medium
     public var density: CatalogDensity = .comfortable
     public var animationsEnabled: Bool = true
@@ -169,6 +176,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
+        case customBackgroundHex, backdropIntensity, showPosterRatings
         case theme, accent, customAccentHex, posterSize, density, animationsEnabled, reduceVisualEffects, homeSections
         case heroStyle, heroAutoScroll, palette, backdrop, cardChrome, cornerStyle, titleFont
         case greetingEnabled, greetingName, unlockedSecrets
@@ -184,6 +192,15 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
             guard hex.range(of: "^#[0-9A-F]{6}$", options: .regularExpression) != nil else { return nil }
             return hex
         }
+        let customBackground: String? = c.lenient(String.self, forKey: .customBackgroundHex)
+        customBackgroundHex = customBackground.flatMap { value in
+            let hex = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            guard hex.range(of: "^#[0-9A-F]{6}$", options: .regularExpression) != nil else { return nil }
+            return hex
+        }
+        let intensity: Double = c.value(.backdropIntensity, default: 1)
+        backdropIntensity = intensity.isFinite ? min(1, max(0, intensity)) : 1
+        showPosterRatings = c.value(.showPosterRatings, default: true)
         posterSize = c.value(.posterSize, default: .medium)
         density = c.value(.density, default: .comfortable)
         animationsEnabled = c.value(.animationsEnabled, default: true)
@@ -499,12 +516,22 @@ public struct ContentSettings: Codable, Equatable, Sendable {
     /// the installed addons provide). Empty until the user changes something: then every type is shown, in canonical order.
     /// Entries of types nobody provides right now are kept, so reinstalling an addon restores the choice.
     public var discoverTypes: [DiscoverTypeSetting] = []
+    // 1.5
+    /// The viewer's names and order for the addons' catalogs (Home, Discover, Search).
+    public var catalogLayout = CatalogLayoutSettings()
+    /// How the sources are written in the picker (logo of the addon, badges, own pattern).
+    public var streamDisplay = StreamDisplaySettings()
+    /// Which TMDB parts of the title page are shown.
+    public var titleModules = TitleModulesSettings()
+    /// Ratings from MDBList: on/off and which services.
+    public var ratings = RatingsSettings()
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case preferredLanguage, catalogRefreshMinutes, hideAdultCatalogs, searchRemote, searchLocal
         case saveSearchHistory, searchSort, discoverTypes
+        case catalogLayout, streamDisplay, titleModules, ratings
     }
 
     public init(from decoder: Decoder) throws {
@@ -517,6 +544,10 @@ public struct ContentSettings: Codable, Equatable, Sendable {
         saveSearchHistory = c.value(.saveSearchHistory, default: true)
         searchSort = c.value(.searchSort, default: .relevance)
         discoverTypes = c.lossyArray(DiscoverTypeSetting.self, forKey: .discoverTypes)
+        catalogLayout = c.value(.catalogLayout, default: CatalogLayoutSettings())
+        streamDisplay = c.value(.streamDisplay, default: StreamDisplaySettings())
+        titleModules = c.value(.titleModules, default: TitleModulesSettings())
+        ratings = c.value(.ratings, default: RatingsSettings())
     }
 }
 

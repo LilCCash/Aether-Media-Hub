@@ -10,6 +10,7 @@ struct MetadataServicesSections: View {
         MetadataKeySection(kind: .tmdb, credentials: env.credentials)
         MetadataKeySection(kind: .tvdb, credentials: env.credentials)
         FanartKeySection(credentials: env.credentials)
+        MDBListKeySection(credentials: env.credentials)
     }
 }
 
@@ -171,5 +172,54 @@ private struct FanartKeySection: View {
     private func save() {
         try? credentials.save(draft, for: .fanart)
         draft = ""
+    }
+}
+
+private struct MDBListKeySection: View {
+    @ObservedObject var credentials: ServiceCredentials
+    @EnvironmentObject private var env: AppEnvironment
+    @State private var draft = ""
+    @State private var status: String?
+
+    var body: some View {
+        Section {
+            if credentials.isConfigured(.mdblist) {
+                Label("Chiave salvata nel Portachiavi", systemImage: "key.fill")
+                    .accessibilityIdentifier("service.mdblist.saved")
+                Button("Verifica la chiave") { Task { await verify() } }
+                    .accessibilityIdentifier("service.mdblist.verify")
+                Button("Rimuovi la chiave", role: .destructive) { credentials.remove(.mdblist); status = nil }
+                    .accessibilityIdentifier("service.mdblist.remove")
+            } else {
+                SecureField("Chiave API di MDBList", text: $draft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("service.mdblist.key")
+                Button("Salva la chiave") { save() }
+                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("service.mdblist.save")
+            }
+            if let status {
+                Text(status).font(.footnote).foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("MDBList · voti")
+        } footer: {
+            Text("Con la chiave, la scheda di un film o di una serie mostra i voti di IMDb, Rotten Tomatoes, Metacritic e altri (li scegli in Impostazioni ▸ Scheda del titolo). Crea un account gratuito su mdblist.com e copia la chiave API dalla pagina del profilo.")
+        }
+    }
+
+    private func save() {
+        try? credentials.save(draft, for: .mdblist)
+        draft = ""
+        Task { await verify() }
+    }
+
+    private func verify() async {
+        status = "Verifica in corso…"
+        switch await env.mdblist.check() {
+        case .ok: status = "Chiave accettata."
+        case .failed: status = "MDBList non ha accettato la chiave (o non risponde)."
+        }
     }
 }
