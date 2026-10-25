@@ -28,13 +28,13 @@ final class AppEnvironment: ObservableObject {
     /// Converts Matroska files into HLS for the phone's own player (AVPlayer), on this phone only.
     let localRemux: LocalRemuxService
     let casting: CastCoordinator
-    /// Keys of the optional services (TorBox, TMDB, TheTVDB), kept in the Keychain.
+    /// Keys of optional services (TorBox, Real-Debrid, TMDB, TheTVDB, fanart.tv), kept in the Keychain.
     let credentials: ServiceCredentials
     /// Adds TMDB / TheTVDB data to addon metas when the user has stored a key for them (best effort, never overwrites).
     let metadata: MetadataEnricher
     /// The film's logo from fanart.tv (needs the user's own key; without it the player shows the title).
     let fanart: FanartClient
-    /// TorBox: connection status, cache check and resolution of torrent streams into playable links (user-supplied key).
+    /// Debrid providers: connection status, cache checks and torrent resolution into playable links (user-supplied keys).
     let debrid: DebridService
     /// "Salta intro" / "Salta riassunto": the timing of an episode's intro and recap, from IntroDB (no key, nothing stored on disk).
     let skipSegments: SkipSegmentsService
