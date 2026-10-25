@@ -33,30 +33,14 @@ public struct RealDebridClient: DebridProvider {
     }
 
     public func availability(infoHashes: [String]) async -> DebridAvailabilityReport {
-        var statuses: [String: DebridCacheStatus] = [:]
-        for raw in infoHashes {
-            guard let hash = DebridHash.normalize(raw) else {
-                statuses[raw] = .unknown
-                continue
-            }
-            do {
-                let data = try await requestJSON(path: "/torrents/instantAvailability/\(hash)", method: "GET")
-                // The API returns a hash-keyed object; any non-empty RD variant means a cached copy is available.
-                let variants = data[hash] as? [String: Any]
-                let rd = variants?["rd"] as? [Any] ?? []
-                statuses[raw] = rd.contains { item in
-                    guard let files = item as? [String: Any] else { return false }
-                    return !files.isEmpty
-                } ? .cached : .notCached
-            } catch let error as DebridError {
-                for missing in infoHashes where statuses[missing] == nil { statuses[missing] = .unknown }
-                return DebridAvailabilityReport(statuses: statuses, failure: error)
-            } catch {
-                for missing in infoHashes where statuses[missing] == nil { statuses[missing] = .unknown }
-                return DebridAvailabilityReport(statuses: statuses, failure: .network("Errore di rete verso Real-Debrid."))
-            }
-        }
-        return DebridAvailabilityReport(statuses: statuses)
+        // Real-Debrid disabled /torrents/instantAvailability (API error 37). Do not call it:
+        // a response from this retired endpoint must never be misreported as an invalid API token.
+        let statuses = Dictionary(uniqueKeysWithValues: infoHashes.map { ($0, DebridCacheStatus.unknown) })
+        guard !infoHashes.isEmpty else { return DebridAvailabilityReport() }
+        return DebridAvailabilityReport(
+            statuses: statuses,
+            failure: .api(code: "INSTANT_AVAILABILITY_UNSUPPORTED", detail: nil)
+        )
     }
 
     public func resolve(_ request: DebridRequest,
@@ -71,19 +55,16 @@ public struct RealDebridClient: DebridProvider {
         // Reuse an item already in the account when possible; never add a duplicate.
         var torrentID: String?
         var wasInAccount = false
-        let list = try? await requestJSONArray(path: "/torrents", method: "GET")
-        if let existing = list?.first(where: { (($0["hash"] as? String).map { DebridHash.normalize($0) } ?? nil) == hash }),
+        let list = try await requestJSONArray(path: "/torrents", method: "GET")
+        if let existing = list.first(where: { (($0["hash"] as? String).map { DebridHash.normalize($0) } ?? nil) == hash }),
            let id = existing["id"] as? String {
             torrentID = id
             wasInAccount = true
         }
 
         if request.mode == .cachedOnly && !wasInAccount {
-            let report = await availability(infoHashes: [hash])
-            if report.status(for: hash) != .cached {
-                if let failure = report.failure { throw failure }
-                throw DebridError.notCached
-            }
+            // There is no supported Real-Debrid cache probe. Never add a magnet silently in cached-only mode.
+            throw DebridError.api(code: "INSTANT_AVAILABILITY_UNSUPPORTED", detail: nil)
         }
 
         if torrentID == nil {
