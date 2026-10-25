@@ -24,7 +24,19 @@ struct HomeView: View {
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        router.theater = true
+                    } label: {
+                        Label("Theater Mode", systemImage: "film")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(settings.accentColor)
+                    .accessibilityLabel("Apri Theater Mode")
+                    .accessibilityIdentifier("home.theater")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingCast = true
                     } label: {
@@ -76,7 +88,6 @@ struct HomeView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 26, pinnedViews: []) {
                     OfflineBanner().frame(maxWidth: .infinity)
-                    theaterEntry
                     if settings.value.appearance.greetingEnabled {
                         greeting
                     }
@@ -88,28 +99,6 @@ struct HomeView: View {
             }
             .accessibilityIdentifier("home.scroll")
         }
-    }
-
-    /// The way into Theater Mode.
-    private var theaterEntry: some View {
-        Button { router.theater = true } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "sparkles.tv").font(.title2)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Theater Mode").font(.headline)
-                    Text("L'esperienza cinematografica a schermo intero").font(.caption).foregroundStyle(.white.opacity(0.75))
-                }
-                Spacer()
-                Image(systemName: "chevron.right").font(.footnote.weight(.bold))
-            }
-            .foregroundStyle(.white)
-            .padding(14)
-            .background(LinearGradient(colors: [.black, settings.accentColor.opacity(0.55)], startPoint: .leading, endPoint: .trailing),
-                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .padding(.horizontal, Theme.pageMargin)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("home.theater")
     }
 
     private var greeting: some View {
