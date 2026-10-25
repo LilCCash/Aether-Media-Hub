@@ -371,11 +371,14 @@ final class DebridServiceTests: XCTestCase {
         }
     }
 
-    func testRealDebridSelectionUsesOnlyItsOwnTokenAndEndpoint() async throws {
+    func testRealDebridUsesItsOwnTokenAndDoesNotCallDisabledInstantAvailabilityEndpoint() async throws {
         let realDebridKey = "rd-unit-test-token-012345"
         let hash = String(repeating: "a", count: 40)
-        let http = TorBoxStubHTTP { (_: HTTPRequest) -> TorBoxStubHTTP.Answer in
-            return TorBoxStubHTTP.Answer(status: 401, body: "{\"error\":\"bad_token\"}")
+        let http = TorBoxStubHTTP { (request: HTTPRequest) -> TorBoxStubHTTP.Answer in
+            if request.url.path.hasSuffix("/torrents") {
+                return TorBoxStubHTTP.Answer(status: 200, body: "[]")
+            }
+            return TorBoxStubHTTP.Answer(status: 501, body: "{\"error\":\"disabled_endpoint\",\"error_code\":37}")
         }
         let credentials = ServiceCredentials(secrets: InMemorySecretStore())
         try credentials.save(key, for: .torbox)
@@ -386,16 +389,25 @@ final class DebridServiceTests: XCTestCase {
 
         XCTAssertTrue(service.isConfigured, "configuration follows the selected provider")
         let report = await service.availability(infoHashes: [hash])
+        XCTAssertEqual(report.failure, DebridError.api(code: "INSTANT_AVAILABILITY_UNSUPPORTED", detail: nil))
+        XCTAssertEqual(report.status(for: hash), .unknown)
+        XCTAssertTrue(http.requests.isEmpty, "Real-Debrid instant availability is disabled; do not mistake its failure for a bad token")
 
-        XCTAssertEqual(report.failure, DebridError.authFailed)
+        do {
+            _ = try await service.resolve(DebridRequest(infoHash: hash, mode: .cachedOnly), onProgress: nil)
+            XCTFail("cached-only must not silently add a torrent when cache cannot be checked")
+        } catch let error as DebridError {
+            XCTAssertEqual(error, .api(code: "INSTANT_AVAILABILITY_UNSUPPORTED", detail: nil))
+        }
+
         let request = try XCTUnwrap(http.requests.first)
         XCTAssertEqual(request.url.host, "api.real-debrid.com", "Real-Debrid requests must never go to TorBox")
-        XCTAssertTrue(request.url.path.contains("/rest/1.0/torrents/instantAvailability/"))
+        XCTAssertEqual(request.url.path, "/rest/1.0/torrents")
         XCTAssertEqual(request.headers["Authorization"], "Bearer " + realDebridKey)
         XCTAssertFalse(request.headers["Authorization"]?.contains(key) ?? false)
         XCTAssertFalse(request.url.absoluteString.contains(realDebridKey))
-        XCTAssertEqual(http.requests.count, 1, "an auth failure must not fall back to TorBox")
-        XCTAssertEqual(service.status, .notConfigured, "a Real-Debrid auth error must not be shown as a TorBox key failure")
+        XCTAssertEqual(http.requests.count, 1, "no fallback to TorBox and no call to the retired cache endpoint")
+        XCTAssertEqual(service.status, .notConfigured, "a Real-Debrid issue must not be shown as a TorBox key failure")
     }
 
     func testTheCacheCheckAsksAtMostOneHundredHashesPerRequest() async throws {
