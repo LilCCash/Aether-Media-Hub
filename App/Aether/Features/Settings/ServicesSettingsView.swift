@@ -9,6 +9,7 @@ struct ServicesSettingsView: View {
     var body: some View {
         Form {
             TorBoxServiceSections(debrid: env.debrid, credentials: env.credentials)
+            RealDebridServiceSections(credentials: env.credentials, http: env.http)
             // MARK: - Metadata services
             MetadataServicesSections()
         }
