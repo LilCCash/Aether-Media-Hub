@@ -59,6 +59,11 @@ struct TheaterStreamPicker: View {
         } message: { (_: RankedStream) in
             Text(DebridUserText.downloadConfirmationMessage)
         }
+        // The page of the player opens at once while TorBox is contacted: the film's logo (with a fanart.tv key) or its title.
+        .fullScreenCover(isPresented: Binding(get: { model.resolution != nil }, set: { if !$0 { model.cancelResolution() } })) {
+            PlaybackPreparingView(meta: request.meta, resolution: model.resolution) { model.cancelResolution() }
+                .environmentObject(env)
+        }
         .sheet(item: $model.fileChoice) { (choice: DebridFileChoice) in
             DebridFileChoiceSheet(choice: choice) { (file: DebridFileCandidate) in
                 model.chooseFile(file, from: choice, env: env) { close() }

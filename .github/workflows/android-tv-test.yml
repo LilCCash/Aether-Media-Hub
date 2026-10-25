@@ -2,15 +2,16 @@ name: Aether TV · Test
 # Runs on every change to the Android TV code: Kotlin core tests, lint (blocking) and the app's unit / simulated-remote tests.
 # It builds no APK: for that use the "Aether TV · Build APK" workflow.
 on:
-  push:
-    branches: ['**']
-    paths: ['android-tv/**', '.github/workflows/android-tv-test.yml']
-  pull_request:
-    paths: ['android-tv/**', '.github/workflows/android-tv-test.yml']
+  # This copy lives on the default branch so it appears in the Actions list; it tests the Android TV branch (see "ref").
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or tag of the Android TV code to test"
+        type: string
+        default: 'feature/aether-android-tv'
 
 concurrency:
-  group: android-tv-test-${{ github.ref }}
+  group: android-tv-test-${{ inputs.ref }}
   cancel-in-progress: true
 
 defaults:
@@ -24,6 +25,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -45,6 +48,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
