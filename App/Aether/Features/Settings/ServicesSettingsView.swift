@@ -11,7 +11,7 @@ struct ServicesSettingsView: View {
             Section {
                 Picker("Provider per i torrent", selection: Binding(
                     get: { env.debrid.selectedProvider },
-                    set: { env.debrid.selectedProvider = $0 }
+                    set: { env.debrid.selectProvider($0) }
                 )) {
                     ForEach(DebridService.ProviderChoice.allCases) { provider in
                         Text(provider.title).tag(provider)
