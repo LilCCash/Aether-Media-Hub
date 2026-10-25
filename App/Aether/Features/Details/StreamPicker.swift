@@ -439,6 +439,7 @@ final class StreamPickerModel: ObservableObject {
         resolutionTask = nil
         resolutionToken = UUID()
         resolution = nil
+        OrientationController.restore()
     }
 
     private func startResolution(_ item: RankedStream, mode: DebridMode, file: DebridFileCandidate?,
@@ -485,7 +486,8 @@ final class StreamPickerModel: ObservableObject {
             env.debrid.stashResolution(result, for: item.stream, stremioID: stremioID)
             // The full-screen page stays up while the sheet leaves, so the viewer sees no flash of the list before the player.
             await present(item, env: env, dismiss: dismiss)
-            finishResolution(token)
+            // Keep landscape active as the player takes over the preparing cover.
+            finishResolution(token, restoreOrientation: false)
         } catch is CancellationError {
             finishResolution(token)
         } catch let error as DebridError {
@@ -514,8 +516,10 @@ final class StreamPickerModel: ObservableObject {
         resolution = current
     }
 
-    private func finishResolution(_ token: UUID) {
-        if token == resolutionToken { resolution = nil }
+    private func finishResolution(_ token: UUID, restoreOrientation: Bool = true) {
+        guard token == resolutionToken else { return }
+        resolution = nil
+        if restoreOrientation { OrientationController.restore() }
     }
 
     private func handle(_ error: DebridError, item: RankedStream, mode: DebridMode, file: DebridFileCandidate?,
