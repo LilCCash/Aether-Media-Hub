@@ -7,17 +7,23 @@ struct TheaterDetail: View {
     let meta: MetaItem
     let close: () -> Void
     let pick: (MetaItem, Video?) -> Void
+    /// Opens another title (a similar film, a film of the saga) in this same page.
+    let open: (MetaItem) -> Void
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var library: LibraryModel
     @AppStorage(TheaterPrefs.palette) private var palette = 0
     @AppStorage(TheaterPrefs.corners) private var corners = 1
     @StateObject private var model: DetailViewModel
     @State private var shown = false
+    @State private var person: PersonRoute?
+    @State private var lookingUp = false
+    @State private var problem: String?
 
-    init(meta: MetaItem, close: @escaping () -> Void, pick: @escaping (MetaItem, Video?) -> Void) {
+    init(meta: MetaItem, close: @escaping () -> Void, pick: @escaping (MetaItem, Video?) -> Void, open: @escaping (MetaItem) -> Void = { _ in }) {
         self.meta = meta
         self.close = close
         self.pick = pick
+        self.open = open
         _model = StateObject(wrappedValue: DetailViewModel(route: MetaRoute(meta: meta)))
     }
 
@@ -27,39 +33,139 @@ struct TheaterDetail: View {
     private var inWatchlist: Bool { library.watchlistIDs.contains(meta.id) }
 
     var body: some View {
-        ZStack {
-            backdrop
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Button(action: close) {
-                        Image(systemName: "chevron.down").font(.body.weight(.bold)).frame(width: 40, height: 40)
-                            .foregroundStyle(.white).background(.ultraThinMaterial, in: Circle())
-                    }
-                    .accessibilityLabel("Chiudi")
-                    .accessibilityIdentifier("theater.detail.close")
-                    Spacer()
-                }
-                Spacer(minLength: 0)
-                HStack(alignment: .bottom, spacing: 24) {
-                    info.frame(maxWidth: 540, alignment: .leading)
-                    Spacer(minLength: 0)
-                    if !model.isSeries {
-                        RemoteImage(urlString: current.poster ?? current.background, width: 260, placeholderSeed: current.name)
-                            .frame(width: 130, height: 195)
-                            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(.white.opacity(0.35), lineWidth: 1))
-                            .shadow(color: .black.opacity(0.7), radius: 16, y: 8)
-                            .accessibilityHidden(true)
+        GeometryReader { proxy in
+            ZStack {
+                backdrop
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        hero.frame(height: proxy.size.height)
+                        moreSections
                     }
                 }
-                if model.isSeries { episodes }
             }
-            .padding(.horizontal, 24).padding(.vertical, 12)
-            .opacity(shown ? 1 : 0).offset(y: shown ? 0 : 14)
         }
         .foregroundStyle(.white)
         .task { await model.load(env: env) }
         .onAppear { withAnimation(.easeOut(duration: 0.35).delay(0.08)) { shown = true } }
+        .fullScreenCover(item: $person) { route in
+            NavigationStack {
+                PersonFilmographyView(route: route)
+                    .navigationTitle(route.name)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) { Button("Chiudi") { person = nil } }
+                    }
+            }
+            .tint(accent)
+            .preferredColorScheme(.dark)
+        }
+        .alert("Titolo non disponibile", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(problem ?? "")
+        }
+    }
+
+    /// The first screen: facts, play button and, for a series, the episodes.
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Button(action: close) {
+                    Image(systemName: "chevron.down").font(.body.weight(.bold)).frame(width: 40, height: 40)
+                        .foregroundStyle(.white).background(.ultraThinMaterial, in: Circle())
+                }
+                .accessibilityLabel("Chiudi")
+                .accessibilityIdentifier("theater.detail.close")
+                Spacer()
+            }
+            Spacer(minLength: 0)
+            HStack(alignment: .bottom, spacing: 24) {
+                info.frame(maxWidth: 540, alignment: .leading)
+                Spacer(minLength: 0)
+                if !model.isSeries {
+                    RemoteImage(urlString: current.poster ?? current.background, width: 260, placeholderSeed: current.name)
+                        .frame(width: 130, height: 195)
+                        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(.white.opacity(0.35), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.7), radius: 16, y: 8)
+                        .accessibilityHidden(true)
+                }
+            }
+            if model.isSeries { episodes }
+        }
+        .padding(.horizontal, 24).padding(.vertical, 12)
+        .opacity(shown ? 1 : 0).offset(y: shown ? 0 : 14)
+    }
+
+    // MARK: Below the first screen: the same information as the page of the normal app
+
+    @ViewBuilder
+    private var moreSections: some View {
+        let modules = env.settings.value.content.titleModules
+        VStack(alignment: .leading, spacing: 22) {
+            if let text = current.description, !text.isEmpty {
+                block("Trama") { Text(text).font(.callout).foregroundStyle(.white.opacity(0.88)) }
+            }
+            let directors = current.directors
+            if !directors.isEmpty {
+                block("Regia") { Text(directors.joined(separator: ", ")).font(.callout).foregroundStyle(.white.opacity(0.88)) }
+            } else if let creators = model.rich?.creators, !creators.isEmpty {
+                block("Creato da") { Text(creators.joined(separator: ", ")).font(.callout).foregroundStyle(.white.opacity(0.88)) }
+            }
+            if let rich = model.rich {
+                let ratingChoice = env.settings.value.content.ratings
+                let chosen = model.ratings.filter { ratingChoice.sources.contains($0.source) && $0.display != nil }
+                if !chosen.isEmpty { TitleRatingsSection(ratings: chosen) }
+                if !rich.cast.isEmpty && modules.cast {
+                    TitleCastSection(people: rich.cast) { personItem in
+                        if let id = personItem.tmdbPersonID { person = PersonRoute(personID: id, name: personItem.name) }
+                    }
+                }
+                if !rich.trailers.isEmpty && modules.trailers { TitleTrailersSection(trailers: rich.trailers) }
+                if !model.sagaFilms.isEmpty, let saga = rich.collection {
+                    TitleSimilarSection(titles: model.sagaFilms, heading: saga.name, identifier: "theater.saga", open: openSimilar)
+                }
+                if !rich.companies.isEmpty && modules.companies { TitleCompaniesSection(companies: rich.companies) }
+                if (rich.budget != nil || rich.revenue != nil) && modules.financials { TitleFinancialsSection(budget: rich.budget, revenue: rich.revenue) }
+                let rows = rich.detailRows()
+                if !rows.isEmpty && modules.facts { TitleFactsSection(rows: rows) }
+                if !rich.similar.isEmpty && modules.similar { TitleSimilarSection(titles: rich.similar, open: openSimilar) }
+                TMDBAttributionView().padding(.horizontal, 24)
+            } else {
+                if !current.cast.isEmpty {
+                    block("Cast") { Text(current.cast.prefix(12).joined(separator: ", ")).font(.callout).foregroundStyle(.white.opacity(0.88)) }
+                }
+                if model.suggestsTMDBKey { TMDBKeyHint() }
+            }
+        }
+        .padding(.vertical, 26)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.black.opacity(0.84))
+        .environment(\.colorScheme, .dark)
+        .tint(accent)
+    }
+
+    private func block<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.system(size: 22, weight: .bold, design: .serif)).accessibilityAddTraits(.isHeader)
+            content()
+        }
+        .padding(.horizontal, 24)
+    }
+
+    /// A similar title is known to TMDB by its own id; the catalog knows it by its IMDb id, which is asked for first.
+    private func openSimilar(_ item: TitleRichDetails.Similar) {
+        guard !lookingUp else { return }
+        lookingUp = true
+        let type = model.meta.type
+        Task {
+            defer { lookingUp = false }
+            guard let imdb = await env.metadata.imdbID(forTMDBID: item.tmdbID, metaType: type) else {
+                problem = "Non riesco a trovare «\(item.title)» negli addon: TMDB non indica il suo codice IMDb oppure non risponde."
+                return
+            }
+            open(MetaItem(id: imdb, type: type, name: item.title, poster: item.posterURL))
+        }
     }
 
     private var backdrop: some View {

@@ -43,7 +43,7 @@ struct TheaterView: View {
             if let meta = openMeta {
                 TheaterDetail(meta: meta, close: { closeTitle() }, pick: { picked, video in
                     picker = StreamPickerRequest(meta: picked, video: video, resumeAt: nil)
-                })
+                }, open: { openTitle($0) })
                 .id(meta.id)
                 .transition(.opacity.combined(with: .scale(scale: 0.94)))
             }
