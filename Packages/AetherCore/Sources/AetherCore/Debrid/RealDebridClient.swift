@@ -185,7 +185,8 @@ public struct RealDebridClient: DebridProvider {
             body = Data(encoded.utf8)
             headers["Content-Type"] = "application/x-www-form-urlencoded"
         }
-        guard let url = URL(string: path, relativeTo: Self.productionBaseURL)?.absoluteURL else {
+        let relativePath = String(path.drop(while: { $0 == "/" }))
+        guard let url = URL(string: relativePath, relativeTo: Self.productionBaseURL.appendingPathComponent(""))?.absoluteURL else {
             throw DebridError.invalidResponse("Endpoint Real-Debrid non valido.")
         }
         let response: HTTPResponse
