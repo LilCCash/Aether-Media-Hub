@@ -34,7 +34,7 @@ private struct ProviderSelectionSection: View {
             }
             Text(debrid.selectedProvider == .torbox
                  ? "Aether userà TorBox per controllare la cache e preparare i link."
-                 : "Aether userà Real-Debrid per controllare la disponibilità e preparare i link.")
+                 : "Aether userà Real-Debrid per preparare i link. Il controllo istantaneo della cache non è supportato dall'API Real-Debrid.")
                 .font(.footnote)
                 .foregroundStyle(Color.aetherSecondary)
                 .fixedSize(horizontal: false, vertical: true)
