@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import AetherCore
 
 /// The player's own UIKit container. SwiftUI's `fullScreenCover` kept the orientation of the screen under it for the first
@@ -12,6 +13,21 @@ final class LandscapeHostingController: UIHostingController<AnyView> {
 
     override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation { return .landscapeRight }
     override var shouldAutorotate: Bool { return true }
+
+    /// The player on screen now, so its own close button can take it down without depending on a SwiftUI update.
+    nonisolated(unsafe) private(set) static weak var current: LandscapeHostingController?
+
+    @MainActor
+    static func dismissCurrent() {
+        let controller = current
+        current = nil
+        controller?.dismiss(animated: false)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        LandscapeHostingController.current = self
+    }
     override var prefersHomeIndicatorAutoHidden: Bool { return true }
 }
 
@@ -40,6 +56,7 @@ struct LandscapePlayerCover: ViewModifier {
                                     .environment(\.imageLoader, loader)
                                     .environment(\.aetherStyle, style))
                             },
+                            router: env.router,
                             dismissed: { item = nil })
                 .frame(width: 0, height: 0)
                 .accessibilityHidden(true)
@@ -50,6 +67,7 @@ struct LandscapePlayerCover: ViewModifier {
 private struct PlayerPresenter: UIViewRepresentable {
     let item: PlayerRequest?
     let makeRoot: (PlayerRequest) -> AnyView
+    let router: AppRouter
     let dismissed: () -> Void
 
     func makeCoordinator() -> Coordinator { return Coordinator() }
@@ -62,6 +80,7 @@ private struct PlayerPresenter: UIViewRepresentable {
     }
 
     func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.watch(router)
         context.coordinator.sync(item: item, view: view, makeRoot: makeRoot)
     }
 
@@ -70,6 +89,18 @@ private struct PlayerPresenter: UIViewRepresentable {
         private var controller: LandscapeHostingController?
         private var presentedID: UUID?
         private var task: Task<Void, Never>?
+        private var watching: AnyCancellable?
+
+        /// Closing the player clears the router's request: take the page down at once, whatever SwiftUI re-evaluates.
+        func watch(_ router: AppRouter) {
+            guard watching == nil else { return }
+            watching = router.$player.receive(on: DispatchQueue.main).sink { [weak self] request in
+                guard request == nil, let self = self, let controller = self.controller else { return }
+                self.controller = nil
+                self.presentedID = nil
+                controller.dismiss(animated: false)
+            }
+        }
 
         func sync(item: PlayerRequest?, view: UIView, makeRoot: @escaping (PlayerRequest) -> AnyView) {
             guard let item = item else {
