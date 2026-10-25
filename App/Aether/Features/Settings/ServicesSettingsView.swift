@@ -8,31 +8,7 @@ struct ServicesSettingsView: View {
 
     var body: some View {
         Form {
-            Section {
-                Picker("Provider per i torrent", selection: Binding(
-                    get: { env.debrid.selectedProvider },
-                    set: { env.debrid.selectProvider($0) }
-                )) {
-                    ForEach(DebridService.ProviderChoice.allCases) { provider in
-                        Text(provider.title).tag(provider)
-                    }
-                }
-                Text(env.debrid.selectedProvider == .torbox
-                     ? "Aether userà TorBox per controllare la cache e preparare i link."
-                     : "Aether userà Real-Debrid per controllare la disponibilità e preparare i link. Serve un token API valido.")
-                    .font(.footnote)
-                    .foregroundStyle(Color.aetherSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if env.debrid.selectedProvider == .torbox && !env.credentials.isConfigured(.torbox) {
-                    Label("Aggiungi la chiave TorBox qui sotto per usare questo provider.", systemImage: "info.circle")
-                        .font(.footnote)
-                } else if env.debrid.selectedProvider == .realdebrid && !env.credentials.isConfigured(.realdebrid) {
-                    Label("Aggiungi prima il token Real-Debrid nella sezione dedicata.", systemImage: "info.circle")
-                        .font(.footnote)
-                }
-            } header: {
-                Text("Provider debrid attivo")
-            }
+            ProviderSelectionSection(debrid: env.debrid, credentials: env.credentials)
             TorBoxServiceSections(debrid: env.debrid, credentials: env.credentials)
             RealDebridServiceSections(credentials: env.credentials, http: env.http)
             // MARK: - Metadata services
@@ -44,6 +20,37 @@ struct ServicesSettingsView: View {
 }
 
 /// The TorBox account: key entry, connection status, where to find the key, and what Aether does (and never does) with it.
+/// Observing DebridService directly ensures the Picker and its explanatory text refresh immediately.
+private struct ProviderSelectionSection: View {
+    @ObservedObject var debrid: DebridService
+    @ObservedObject var credentials: ServiceCredentials
+
+    var body: some View {
+        Section {
+            Picker("Provider per i torrent", selection: $debrid.selectedProvider) {
+                ForEach(DebridService.ProviderChoice.allCases) { provider in
+                    Text(provider.title).tag(provider)
+                }
+            }
+            Text(debrid.selectedProvider == .torbox
+                 ? "Aether userà TorBox per controllare la cache e preparare i link."
+                 : "Aether userà Real-Debrid per controllare la disponibilità e preparare i link.")
+                .font(.footnote)
+                .foregroundStyle(Color.aetherSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if debrid.selectedProvider == .torbox && !credentials.isConfigured(.torbox) {
+                Label("Aggiungi la chiave TorBox qui sotto per usare questo provider.", systemImage: "info.circle")
+                    .font(.footnote)
+            } else if debrid.selectedProvider == .realdebrid && !credentials.isConfigured(.realdebrid) {
+                Label("Aggiungi prima il token Real-Debrid nella sezione dedicata.", systemImage: "info.circle")
+                    .font(.footnote)
+            }
+        } header: {
+            Text("Provider debrid attivo")
+        }
+    }
+}
+
 private struct TorBoxServiceSections: View {
     @ObservedObject var debrid: DebridService
     @ObservedObject var credentials: ServiceCredentials
