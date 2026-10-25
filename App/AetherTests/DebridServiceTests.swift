@@ -371,6 +371,33 @@ final class DebridServiceTests: XCTestCase {
         }
     }
 
+    func testRealDebridSelectionUsesOnlyItsOwnTokenAndEndpoint() async throws {
+        let realDebridKey = "rd-unit-test-token-012345"
+        let hash = String(repeating: "a", count: 40)
+        let http = TorBoxStubHTTP { (_: HTTPRequest) -> TorBoxStubHTTP.Answer in
+            return TorBoxStubHTTP.Answer(status: 401, body: "{\"error\":\"bad_token\"}")
+        }
+        let credentials = ServiceCredentials(secrets: InMemorySecretStore())
+        try credentials.save(key, for: .torbox)
+        try credentials.save(realDebridKey, for: .realdebrid)
+        let service = DebridService(credentials: credentials, http: http,
+                                    retry: TorBoxClient.RetryPolicy.noRetry, clock: fixedClock())
+        service.selectProvider(.realdebrid)
+
+        XCTAssertTrue(service.isConfigured, "configuration follows the selected provider")
+        let report = await service.availability(infoHashes: [hash])
+
+        XCTAssertEqual(report.failure, DebridError.authFailed)
+        let request = try XCTUnwrap(http.requests.first)
+        XCTAssertEqual(request.url.host, "api.real-debrid.com", "Real-Debrid requests must never go to TorBox")
+        XCTAssertTrue(request.url.path.contains("/rest/1.0/torrents/instantAvailability/"))
+        XCTAssertEqual(request.headers["Authorization"], "Bearer " + realDebridKey)
+        XCTAssertFalse(request.headers["Authorization"]?.contains(key) ?? false)
+        XCTAssertFalse(request.url.absoluteString.contains(realDebridKey))
+        XCTAssertEqual(http.requests.count, 1, "an auth failure must not fall back to TorBox")
+        XCTAssertEqual(service.status, .notConfigured, "a Real-Debrid auth error must not be shown as a TorBox key failure")
+    }
+
     func testTheCacheCheckAsksAtMostOneHundredHashesPerRequest() async throws {
         let http = TorBoxStubHTTP(handler: cacheCheckHandler())
         let (service, _) = try makeService(http: http, clock: fixedClock())
