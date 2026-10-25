@@ -9,7 +9,10 @@ struct ServicesSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Provider per i torrent", selection: $env.debrid.selectedProvider) {
+                Picker("Provider per i torrent", selection: Binding(
+                    get: { env.debrid.selectedProvider },
+                    set: { env.debrid.selectedProvider = $0 }
+                )) {
                     ForEach(DebridService.ProviderChoice.allCases) { provider in
                         Text(provider.title).tag(provider)
                     }
