@@ -174,6 +174,7 @@ final class StreamPickerModel: ObservableObject {
     }
 
     var debridConfigured: Bool { return env?.debrid.isConfigured ?? false }
+    var debridProvider: DebridService.ProviderChoice { return env?.debrid.selectedProvider ?? .torbox }
 
     var hasTorrentRows: Bool {
         return ranked.contains(where: { (item: RankedStream) -> Bool in return DebridStreamLogic.isTorrent(item.stream) })
@@ -474,12 +475,12 @@ final class StreamPickerModel: ObservableObject {
             guard token == resolutionToken else { return }
             finishResolution(token)
             await settleCover()
-            handle(error, item: item, mode: mode, file: file)
+            handle(error, item: item, mode: mode, file: file, provider: env.debrid.selectedProvider)
         } catch {
             guard token == resolutionToken else { return }
             finishResolution(token)
             await settleCover()
-            rowFailure = DebridRowFailure(itemID: item.id, message: DebridErrorText.describe(error), isRetryable: false,
+            rowFailure = DebridRowFailure(itemID: item.id, message: DebridErrorText.describe(error, provider: env.debrid.selectedProvider), isRetryable: false,
                                           mode: mode, file: file)
         }
     }
@@ -500,7 +501,8 @@ final class StreamPickerModel: ObservableObject {
         if token == resolutionToken { resolution = nil }
     }
 
-    private func handle(_ error: DebridError, item: RankedStream, mode: DebridMode, file: DebridFileCandidate?) {
+    private func handle(_ error: DebridError, item: RankedStream, mode: DebridMode, file: DebridFileCandidate?,
+                        provider: DebridService.ProviderChoice) {
         switch error {
         case .notCached:
             if mode == DebridMode.cachedOnly {
@@ -516,7 +518,7 @@ final class StreamPickerModel: ObservableObject {
         default:
             break
         }
-        rowFailure = DebridRowFailure(itemID: item.id, message: DebridErrorText.message(for: error),
+        rowFailure = DebridRowFailure(itemID: item.id, message: DebridErrorText.message(for: error, provider: provider),
                                       isRetryable: error.isRetryable, mode: mode, file: file)
     }
 }
@@ -751,7 +753,9 @@ struct StreamPickerSheet: View {
 
     /// The cache check failed: the torrent rows carry no badge, and this says why (with a retry when trying again can help).
     private func cacheNotice(_ failure: DebridError) -> some View {
-        let text: String = "Non riesco a controllare la cache di TorBox. " + DebridErrorText.message(for: failure)
+        let provider = model.debridProvider.title
+        let text: String = "Non riesco a controllare la cache di \(provider). " +
+            DebridErrorText.message(for: failure, provider: model.debridProvider)
         let retryAction: (() -> Void)? = failure.isRetryable ? { () -> Void in model.retryCacheCheck() } : nil
         return DebridCacheNotice(message: text, retry: retryAction)
     }
