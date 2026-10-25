@@ -66,9 +66,11 @@ struct DebridRowResolution: Equatable {
     var mode: DebridMode
     var progress: DebridProgress?
 
+    var providerTitle: String = "TorBox"
+
     var message: String {
         if let progress = progress { return progress.message }
-        return mode == DebridMode.startIfNeeded ? "Avvio il download su TorBox…" : "Controllo TorBox…"
+        return mode == DebridMode.startIfNeeded ? "Avvio il download su \(providerTitle)…" : "Controllo \(providerTitle)…"
     }
 
     /// "42% · 15 MB/s · ancora 3 s" (only what TorBox reported).
@@ -156,6 +158,11 @@ final class StreamPickerModel: ObservableObject {
     /// Torrents known to be cached by the active provider come first; the other rows keep their place.
     var playable: [RankedStream] {
         let list = ranked.filter { $0.info.support.isPlayable }
+        // Real-Debrid mode only exposes torrent candidates that can be resolved through the selected RD account.
+        // Direct URLs returned by unrelated addons must not leak into the RD-only source list.
+        if debridProvider == .realdebrid && debridConfigured {
+            return list.filter { DebridStreamLogic.isTorrent($0.stream) }
+        }
         return DebridStreamLogic.cachedFirst(list, statuses: cacheStatuses)
     }
     var unplayable: [RankedStream] { ranked.filter { !$0.info.support.isPlayable } }
@@ -182,6 +189,8 @@ final class StreamPickerModel: ObservableObject {
 
     func appearance(for item: RankedStream) -> DebridRowAppearance? {
         guard DebridStreamLogic.isTorrent(item.stream) else { return nil }
+        // Real-Debrid does not expose the cache probe used for TorBox; don't show TorBox cache badges for RD.
+        guard debridProvider == .torbox else { return nil }
         let configured = debridConfigured
         var badge: DebridCacheBadge?
         if configured, let hash = DebridStreamLogic.canonicalHash(of: item.stream) {
@@ -279,7 +288,9 @@ final class StreamPickerModel: ObservableObject {
 
     /// Asks the active provider about torrents not checked yet, without blocking the list.
     private func scheduleAvailabilityCheck() {
-        guard let env = env, env.debrid.isConfigured else { return }
+        // Only TorBox supports the instant cache lookup used by this picker. RD candidates are routed
+        // through RD's own add-magnet/prepare/link flow when selected.
+        guard let env = env, env.debrid.isConfigured, env.debrid.selectedProvider == .torbox else { return }
         for hash in DebridStreamLogic.hashes(in: ranked) {
             if requestedHashes.insert(hash).inserted {
                 pendingHashes.append(hash)
@@ -361,7 +372,12 @@ final class StreamPickerModel: ObservableObject {
         cancelResolution()
         rowFailure = nil
         if DebridStreamLogic.isTorrent(item.stream) && env.debrid.isConfigured {
-            beginTorBox(item, env: env, dismiss: dismiss)
+            if env.debrid.selectedProvider == .realdebrid {
+                // RD decides whether the torrent is already ready or needs to be added/prepared, then returns its own link.
+                startResolution(item, mode: .startIfNeeded, file: nil, env: env, dismiss: dismiss)
+            } else {
+                beginTorBox(item, env: env, dismiss: dismiss)
+            }
             return
         }
         if let url = StreamResolver.playbackURL(for: item.stream, streamingServer: env.streamPreferences().streamingServer) {
@@ -432,7 +448,8 @@ final class StreamPickerModel: ObservableObject {
         resolutionToken = token
         progressSequence = 0
         rowFailure = nil
-        resolution = DebridRowResolution(itemID: item.id, mode: mode, progress: nil)
+        resolution = DebridRowResolution(itemID: item.id, mode: mode, progress: nil,
+                                         providerTitle: env.debrid.selectedProvider.title)
         resolutionTask = Task {
             await self.runResolution(item, mode: mode, file: file, token: token, env: env, dismiss: dismiss)
         }
@@ -560,7 +577,7 @@ struct StreamPickerSheet: View {
                 if model.addonNames.count > 1 {
                     Section { chips }.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 }
-                if let failure = model.cacheCheckFailure, model.hasTorrentRows {
+                if let failure = model.cacheCheckFailure, model.hasTorrentRows, model.debridProvider == .torbox {
                     Section { cacheNotice(failure) }.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 }
                 let playable = model.filtered(model.playable)
@@ -584,7 +601,7 @@ struct StreamPickerSheet: View {
                         }
                         .accessibilityIdentifier("stream.loading")
                     }
-                } else if model.ranked.isEmpty {
+                } else if model.ranked.isEmpty || (!model.isLoading && model.debridProvider == .realdebrid && model.debridConfigured && model.playable.isEmpty) {
                     Section { emptyState }
                 }
                 let unplayable = model.filtered(model.unplayable)
@@ -766,7 +783,9 @@ struct StreamPickerSheet: View {
         VStack(spacing: 8) {
             Image(systemName: "film.stack").font(.largeTitle).foregroundStyle(Color.aetherSecondary)
             Text("Nessuna sorgente trovata").font(.headline)
-            Text(handles.isEmpty ? "Non c'è nessun addon attivo." : "Gli addon attivi non hanno restituito sorgenti per questo titolo. Prova un altro addon o riprova più tardi.")
+            Text(handles.isEmpty ? "Non c'è nessun addon attivo." : (model.debridProvider == .realdebrid && model.debridConfigured
+                ? "Gli addon attivi non hanno restituito sorgenti torrent utilizzabili con Real-Debrid per questo titolo."
+                : "Gli addon attivi non hanno restituito sorgenti per questo titolo. Prova un altro addon o riprova più tardi."))
                 .font(.footnote).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.center)
             Button("Riprova") { model.start(env: env) { _ in } }.buttonStyle(SecondaryActionButtonStyle())
         }
