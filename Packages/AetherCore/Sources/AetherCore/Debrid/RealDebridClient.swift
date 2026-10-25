@@ -35,7 +35,8 @@ public struct RealDebridClient: DebridProvider {
     public func availability(infoHashes: [String]) async -> DebridAvailabilityReport {
         // Real-Debrid disabled /torrents/instantAvailability (API error 37). Do not call it:
         // a response from this retired endpoint must never be misreported as an invalid API token.
-        let statuses = Dictionary(uniqueKeysWithValues: infoHashes.map { ($0, DebridCacheStatus.unknown) })
+        var statuses: [String: DebridCacheStatus] = [:]
+        for hash in infoHashes { statuses[hash] = .unknown }
         guard !infoHashes.isEmpty else { return DebridAvailabilityReport() }
         return DebridAvailabilityReport(
             statuses: statuses,
