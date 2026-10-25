@@ -3,13 +3,14 @@ import AetherCore
 
 /// The optional third-party services Aether can talk to with the user's own account / key.
 enum ServiceKind: String, CaseIterable, Identifiable {
-    case torbox, tmdb, tvdb, fanart
+    case torbox, realdebrid, tmdb, tvdb, fanart
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .torbox: return "TorBox"
+        case .realdebrid: return "Real-Debrid"
         case .tmdb: return "TMDB"
         case .tvdb: return "TheTVDB"
         case .fanart: return "fanart.tv"
