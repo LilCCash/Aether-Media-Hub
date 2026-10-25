@@ -96,7 +96,9 @@ public struct RealDebridClient: DebridProvider {
                 try await clock.sleep(pollInterval)
                 continue
             }
-            if ["error", "virus", "dead", "magnet_error", "magnet_conversion"].contains(status) {
+            // magnet_conversion is a normal transient Real-Debrid state while the magnet metadata is being prepared.
+            // Keep polling it; only terminal failure states should reject a source.
+            if ["error", "virus", "dead", "magnet_error"].contains(status) {
                 throw DebridError.itemFailed(state: status)
             }
             if request.mode == .cachedOnly && !wasInAccount {
