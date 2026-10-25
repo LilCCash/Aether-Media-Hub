@@ -66,9 +66,7 @@ struct TheaterView: View {
         // Theater Mode is landscape: the player gives the orientation back to this when it closes, not to portrait.
         .onAppear { OrientationController.base = .landscape; OrientationController.set(.landscape) }
         .onDisappear { OrientationController.base = .portrait; OrientationController.set(.portrait); TheaterSound.stop() }
-        .fullScreenCover(item: Binding(get: { router.player }, set: { router.player = $0 })) { request in
-            PlayerView(request: request, env: env)
-        }
+        .landscapePlayer(Binding(get: { router.player }, set: { router.player = $0 }))
         // A marker, not an identifier on the container: an identifier on a container replaces those of everything inside it.
         .background(Color.clear.accessibilityElement().accessibilityIdentifier("theater.root"))
     }
