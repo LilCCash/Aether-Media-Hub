@@ -26,7 +26,7 @@ public struct RealDebridClient: DebridProvider {
     public func validateCredentials() async throws -> DebridAccount {
         let user = try await requestJSON(path: "/user", method: "GET")
         let premium = (user["type"] as? String)?.lowercased() == "premium"
-        let expiry = (user["expiration"] as? String).flatMap(AddonDate.parse)
+        let expiry = (user["expiration"] as? String).flatMap { AddonDate.parse($0) }
         return DebridAccount(planName: premium ? "Premium" : ((user["type"] as? String) ?? "Free"),
                              planCode: nil, isFreePlan: !premium, premiumExpiresAt: expiry,
                              cooldownUntil: nil, notice: premium ? nil : "Real-Debrid richiede un account Premium per molte funzioni.")
@@ -95,7 +95,7 @@ public struct RealDebridClient: DebridProvider {
             }
             torrentID = id
             // Selecting files is an explicit API step. "all" lets the service prepare the complete torrent.
-            _ = try await requestJSON(path: "/torrents/selectFiles/\(id)", method: "POST", form: ["files": "all"])
+            _ = try await send(path: "/torrents/selectFiles/\(id)", method: "POST", form: ["files": "all"])
         }
 
         guard let id = torrentID else { throw DebridError.invalidResponse("Torrent senza identificativo.") }
