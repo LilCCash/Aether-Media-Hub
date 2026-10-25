@@ -79,7 +79,7 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    var accentColor: Color { Theme.accent(for: value.appearance.accent) }
+    var accentColor: Color { value.appearance.customAccentHex.map(Color.init(hex:)) ?? Theme.accent(for: value.appearance.accent) }
 
     var animationsEnabled: Bool { value.appearance.animationsEnabled }
     var reduceEffects: Bool { value.appearance.reduceVisualEffects }
