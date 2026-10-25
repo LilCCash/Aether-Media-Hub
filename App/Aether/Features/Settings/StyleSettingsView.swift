@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import AetherCore
 
 /// Settings > Aspetto > Stile e grafica: the atmosphere (palette), the background, and the shape of posters and cards, with a
@@ -24,6 +25,16 @@ struct StyleSettingsView: View {
                 }
                 .padding(.vertical, 6)
             }
+            Section(header: Text("Colore d’accento"), footer: Text("Scegli un colore libero. Disattiva Colore personalizzato per tornare ai preset; la scelta viene salvata.")) {
+                Toggle("Colore personalizzato", isOn: Binding(get: { appearance.customAccentHex != nil }, set: { enabled in
+                    settings.value.appearance.customAccentHex = enabled ? (appearance.customAccentHex ?? "#6E78FF") : nil
+                }))
+                if appearance.customAccentHex != nil {
+                    ColorPicker("Colore", selection: customAccentColor, supportsOpacity: false)
+                    Text(appearance.customAccentHex ?? "#6E78FF").font(.system(.caption, design: .monospaced)).foregroundStyle(Color.aetherSecondary)
+                    Button("Copia colore esadecimale") { UIPasteboard.general.string = appearance.customAccentHex }
+                }
+            }
             Section(header: Text("Sfondo"), footer: Text(backdropFooter)) {
                 Picker("Sfondo", selection: settings.binding(\.appearance.backdrop)) {
                     ForEach(BackdropStyle.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -48,6 +59,7 @@ struct StyleSettingsView: View {
                 Button("Ripristina lo stile di Aether") {
                     var a = settings.value.appearance
                     a.palette = .aether
+                    a.customAccentHex = nil
                     a.backdrop = .aurora
                     a.cardChrome = .standard
                     a.cornerStyle = .standard
@@ -61,6 +73,15 @@ struct StyleSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+
+    private var customAccentColor: Binding<Color> {
+        Binding(get: { Color(hex: settings.value.appearance.customAccentHex ?? "#6E78FF") }, set: { color in
+            let ui = UIColor(color)
+            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 1
+            guard ui.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return }
+            settings.value.appearance.customAccentHex = String(format: "#%02X%02X%02X", Int(red * 255), Int(green * 255), Int(blue * 255))
+        })
+    }
     private var backdropFooter: String {
         var text = "Aurora e Faro sono fermi; Onde si muove piano. Con «Animazioni» spente, «Riduci movimento» o il Risparmio energetico lo sfondo resta fermo, e con «Riduci gli effetti visivi» diventa uniforme."
         if appearance.backdrop == .flow && !settings.animationsEnabled {
