@@ -1,6 +1,8 @@
 package app.aether.tv.ui.screens.player
 
 import android.graphics.Color as AndroidColor
+import android.view.LayoutInflater
+import app.aether.tv.R
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -188,11 +190,8 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
-                PlayerView(ctx).apply {
+                (LayoutInflater.from(ctx).inflate(R.layout.player_view_texture, null, false) as PlayerView).apply {
                     useController = false
-                    // Use a TextureView so the Compose subtitle overlay can render above the video surface.
-                    // SurfaceView may sit above sibling views on Android TV and hide the selected captions.
-                    useTextureView = true
                     isFocusable = false
                     isFocusableInTouchMode = false
                     keepScreenOn = true
