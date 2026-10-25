@@ -153,6 +153,14 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var backdropIntensity: Double = 1
     /// The star badge with the rating on the posters.
     public var showPosterRatings: Bool = true
+    /// Dynamic Cinematic UI: the whole app takes its atmosphere from the film being looked at.
+    public var dynamicCinematic: Bool = false
+    /// Cinematic: tint the background with the colours of the film's artwork.
+    public var cinematicMood: Bool = true
+    /// Cinematic: slow zoom of the artwork and a soft fade when a page opens (off with Reduce Motion / animations off).
+    public var cinematicMotion: Bool = true
+    /// True black background (OLED), with the washes toned down and text kept at full contrast.
+    public var amoled: Bool = false
     public var posterSize: PosterSize = .medium
     public var density: CatalogDensity = .comfortable
     public var animationsEnabled: Bool = true
@@ -176,7 +184,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case customBackgroundHex, backdropIntensity, showPosterRatings
+        case customBackgroundHex, backdropIntensity, showPosterRatings, dynamicCinematic, cinematicMood, cinematicMotion, amoled
         case theme, accent, customAccentHex, posterSize, density, animationsEnabled, reduceVisualEffects, homeSections
         case heroStyle, heroAutoScroll, palette, backdrop, cardChrome, cornerStyle, titleFont
         case greetingEnabled, greetingName, unlockedSecrets
@@ -201,6 +209,10 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         let intensity: Double = c.value(.backdropIntensity, default: 1)
         backdropIntensity = intensity.isFinite ? min(1, max(0, intensity)) : 1
         showPosterRatings = c.value(.showPosterRatings, default: true)
+        dynamicCinematic = c.value(.dynamicCinematic, default: false)
+        cinematicMood = c.value(.cinematicMood, default: true)
+        cinematicMotion = c.value(.cinematicMotion, default: true)
+        amoled = c.value(.amoled, default: false)
         posterSize = c.value(.posterSize, default: .medium)
         density = c.value(.density, default: .comfortable)
         animationsEnabled = c.value(.animationsEnabled, default: true)

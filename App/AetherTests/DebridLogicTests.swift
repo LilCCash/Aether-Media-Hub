@@ -100,7 +100,7 @@ final class DebridStreamLogicTests: XCTestCase {
         XCTAssertNil(waiting.detail)
         XCTAssertNil(waiting.determinateFraction)
         let confirmed = DebridRowResolution(itemID: "x", mode: DebridMode.startIfNeeded, progress: nil)
-        XCTAssertEqual(confirmed.message, "Avvio il download su TorBox…")
+        XCTAssertEqual(confirmed.message, "Preparo la sorgente su TorBox…")
 
         let adding = DebridRowResolution(itemID: "x", mode: DebridMode.startIfNeeded,
                                          progress: DebridProgress(phase: DebridProgress.Phase.adding, fraction: 0.5))

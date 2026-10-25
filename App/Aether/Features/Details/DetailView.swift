@@ -158,6 +158,9 @@ struct DetailView: View {
     @EnvironmentObject private var library: LibraryModel
     @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.openURL) private var openURL
+    @Environment(\.aetherStyle) private var style
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var zoomed = false
     @StateObject private var model: DetailViewModel
     @State private var picker: StreamPickerRequest?
     @State private var descriptionExpanded = false
@@ -202,6 +205,11 @@ struct DetailView: View {
             }
         }
         .task(id: network.reconnectToken) { await model.load(env: env) }
+        .task(id: model.meta.background ?? model.meta.poster) {
+            guard style.mood else { return }
+            CinematicMood.shared.color = await CinematicMood.color(fromURL: model.meta.background ?? model.meta.poster)
+        }
+        .onDisappear { CinematicMood.shared.color = nil }
         .sheet(item: $picker) { request in
             StreamPickerSheet(request: request)
         }
@@ -221,10 +229,14 @@ struct DetailView: View {
         ZStack(alignment: .bottomLeading) {
             RemoteImage(urlString: model.meta.background ?? model.meta.poster, width: 900, placeholderSeed: model.meta.name)
                 .frame(maxWidth: .infinity)
-                .frame(height: 330)
+                .frame(height: style.cinematic ? 470 : 330)
+                .scaleEffect(style.cinematic && style.motion && !reduceMotion && zoomed ? 1.08 : 1)
+                .animation(style.motion && !reduceMotion ? .easeInOut(duration: 14) : nil, value: zoomed)
                 .clipped()
+                .onAppear { zoomed = true }
                 .overlay(
-                    LinearGradient(colors: [.clear, Color(UIColor.systemBackground).opacity(0.0), Color(UIColor.systemBackground).opacity(0.95)],
+                    LinearGradient(colors: [.clear, Color(UIColor.systemBackground).opacity(style.cinematic ? 0.25 : 0.0),
+                                            (style.amoled ? Color.black : Color(UIColor.systemBackground)).opacity(0.97)],
                                    startPoint: .top, endPoint: .bottom)
                 )
             HStack(alignment: .bottom, spacing: 14) {

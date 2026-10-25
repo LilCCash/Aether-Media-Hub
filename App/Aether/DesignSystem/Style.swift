@@ -24,14 +24,23 @@ struct AetherStyle: Equatable {
     var chrome: CardChrome = .standard
     var posterRadius: CGFloat = 14
     var titleFont: TitleFont = .rounded
+    /// Dynamic Cinematic UI and its two options; true black background.
+    var cinematic = false
+    var mood = false
+    var motion = false
+    var amoled = false
 
     init() {}
 
     init(_ appearance: AppearanceSettings) {
         palette = appearance.palette
-        backdrop = appearance.backdrop
-        chrome = appearance.cardChrome
-        posterRadius = CGFloat(appearance.cornerStyle.radius)
+        backdrop = appearance.dynamicCinematic && appearance.backdrop == .aurora ? .spotlight : appearance.backdrop
+        chrome = appearance.dynamicCinematic && appearance.cardChrome == .standard ? .glow : appearance.cardChrome
+        cinematic = appearance.dynamicCinematic
+        mood = appearance.dynamicCinematic && appearance.cinematicMood
+        motion = appearance.dynamicCinematic && appearance.cinematicMotion
+        amoled = appearance.amoled
+        posterRadius = CGFloat(appearance.cornerStyle.radius) + (appearance.dynamicCinematic ? 4 : 0)
         titleFont = appearance.titleFont
     }
 

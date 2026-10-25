@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreImage
 import AetherCore
 
 /// Aether's visual language: deep "ether" backgrounds, luminous accents, generous radii.
@@ -63,20 +64,25 @@ struct AetherBackdrop: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.aetherStyle) private var style
     @EnvironmentObject private var settings: SettingsStore
+    @ObservedObject private var mood = CinematicMood.shared
 
     private var primary: Color {
+        if style.mood, let color = mood.color { return color }
         if let washes = style.palette.washes { return Color(hex: washes.primary) }
         return settings.accentColor
     }
 
     private var secondary: Color {
+        if style.mood, let color = mood.color { return color.opacity(0.8) }
         if let washes = style.palette.washes { return Color(hex: washes.secondary) }
         return .cyan
     }
 
     private var intensity: Double { return min(max(settings.value.appearance.backdropIntensity, 0), 1.5) }
-    private var strong: Double { (scheme == .dark ? 0.28 : 0.14) * intensity }
-    private var soft: Double { (scheme == .dark ? 0.16 : 0.08) * intensity }
+    /// AMOLED keeps the black and only lets a faint wash through; the cinematic mode lets the film's colours speak louder.
+    private var boost: Double { style.amoled ? 0.45 : (style.cinematic ? 1.5 : 1) }
+    private var strong: Double { (scheme == .dark ? 0.28 : 0.14) * intensity * boost }
+    private var soft: Double { (scheme == .dark ? 0.16 : 0.08) * intensity * boost }
 
     /// Drifting washes only move when nothing asks for calm: the animations switch, Reduce Motion, Low Power Mode, and a
     /// foreground app.
@@ -88,7 +94,9 @@ struct AetherBackdrop: View {
 
     var body: some View {
         ZStack {
-            if let hex = settings.value.appearance.customBackgroundHex {
+            if style.amoled {
+                Color.black
+            } else if let hex = settings.value.appearance.customBackgroundHex {
                 Color(hex: hex)
             } else {
                 Color(scheme == .dark ? UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: 1) : UIColor.systemGroupedBackground)
@@ -97,6 +105,7 @@ struct AetherBackdrop: View {
                 washes
             }
         }
+        .animation(style.motion ? .easeInOut(duration: 1.1) : nil, value: mood.color)
         .ignoresSafeArea()
     }
 
@@ -135,5 +144,28 @@ struct AetherBackdrop: View {
                            center: UnitPoint(x: 0.5 + 0.30 * sin(t / 12), y: 0.5 + 0.25 * cos(t / 9)),
                            startRadius: 10, endRadius: 300)
         }
+    }
+}
+
+/// The colour of the film on screen, for the Dynamic Cinematic UI. Set by the title page, cleared when it closes.
+@MainActor
+final class CinematicMood: ObservableObject {
+    static let shared = CinematicMood()
+    @Published var color: Color?
+
+    /// A lively, not-too-light average of the picture (the backdrop reads well over it).
+    static func color(fromURL string: String?) async -> Color? {
+        guard let string, let url = URL(string: string),
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let image = CIImage(data: data) else { return nil }
+        let filter = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: image, kCIInputExtentKey: CIVector(cgRect: image.extent)])
+        guard let output = filter?.outputImage else { return nil }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        CIContext(options: [.workingColorSpace: NSNull()]).render(output, toBitmap: &pixel, rowBytes: 4,
+                                                                  bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        UIColor(red: CGFloat(pixel[0]) / 255, green: CGFloat(pixel[1]) / 255, blue: CGFloat(pixel[2]) / 255, alpha: 1)
+            .getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        return Color(hue: Double(hue), saturation: Double(min(1, max(saturation, 0.45))), brightness: Double(min(0.9, max(brightness, 0.55))))
     }
 }

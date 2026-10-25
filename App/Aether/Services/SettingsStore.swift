@@ -72,6 +72,7 @@ final class SettingsStore: ObservableObject {
     // MARK: Derived presentation values
 
     var colorScheme: ColorScheme? {
+        if value.appearance.amoled { return .dark }
         switch value.appearance.theme {
         case .system: return nil
         case .light: return .light

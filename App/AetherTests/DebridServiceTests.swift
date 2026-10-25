@@ -158,6 +158,8 @@ final class DebridServiceTests: XCTestCase {
 
     private func makeService(http: HTTPClient, withKey: Bool = true,
                              clock: DebridClock) throws -> (service: DebridService, credentials: ServiceCredentials) {
+        // The provider choice is persisted in UserDefaults: never inherit another test's selection.
+        UserDefaults.standard.removeObject(forKey: "debrid.selectedProvider")
         let credentials = ServiceCredentials(secrets: InMemorySecretStore())
         if withKey { try credentials.save(key, for: ServiceKind.torbox) }
         let service = DebridService(credentials: credentials, http: http, retry: TorBoxClient.RetryPolicy.noRetry, clock: clock)
@@ -380,6 +382,7 @@ final class DebridServiceTests: XCTestCase {
             }
             return TorBoxStubHTTP.Answer(status: 501, body: "{\"error\":\"disabled_endpoint\",\"error_code\":37}")
         }
+        defer { UserDefaults.standard.removeObject(forKey: "debrid.selectedProvider") }
         let credentials = ServiceCredentials(secrets: InMemorySecretStore())
         try credentials.save(key, for: .torbox)
         try credentials.save(realDebridKey, for: .realdebrid)
@@ -407,7 +410,7 @@ final class DebridServiceTests: XCTestCase {
         XCTAssertFalse(request.headers["Authorization"]?.contains(key) ?? false)
         XCTAssertFalse(request.url.absoluteString.contains(realDebridKey))
         XCTAssertEqual(http.requests.count, 1, "no fallback to TorBox and no call to the retired cache endpoint")
-        XCTAssertEqual(service.status, .notConfigured, "a Real-Debrid issue must not be shown as a TorBox key failure")
+        XCTAssertEqual(service.status, .unverified, "a Real-Debrid issue must not change the TorBox connection status")
     }
 
     func testTheCacheCheckAsksAtMostOneHundredHashesPerRequest() async throws {

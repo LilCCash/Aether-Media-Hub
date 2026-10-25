@@ -189,4 +189,18 @@ final class ExperienceSettingsTests: XCTestCase {
         XCTAssertEqual(details.collection?.id, 10)
         XCTAssertEqual(details.collection?.name, "Saga")
     }
+
+    func testCinematicAndAmoledDefaultOffAndSurviveARoundTrip() throws {
+        var settings = AppSettings()
+        XCTAssertFalse(settings.appearance.dynamicCinematic)
+        XCTAssertFalse(settings.appearance.amoled)
+        settings.appearance.dynamicCinematic = true
+        settings.appearance.amoled = true
+        settings.appearance.cinematicMotion = false
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+        XCTAssertTrue(decoded.appearance.dynamicCinematic)
+        XCTAssertTrue(decoded.appearance.amoled)
+        XCTAssertFalse(decoded.appearance.cinematicMotion)
+        XCTAssertTrue(decoded.appearance.cinematicMood)
+    }
 }
