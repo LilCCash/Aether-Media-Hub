@@ -88,6 +88,14 @@ struct TheaterDetail: View {
                 if let runtime = current.runtime, !runtime.isEmpty { chip(runtime) }
                 ForEach(current.genres.prefix(3), id: \.self) { chip($0) }
             }
+            let shown = env.settings.value.content.ratings
+            let scores = model.ratings.filter { shown.sources.contains($0.source) }.compactMap { rating in rating.display.map { "\(rating.title) \($0)" } }
+            if !scores.isEmpty {
+                HStack(spacing: 8) { ForEach(scores, id: \.self) { chip($0) } }
+            }
+            if let saga = model.rich?.collection, model.sagaFilms.count > 1 {
+                Text("Saga: \(saga.name) · \(model.sagaFilms.count) film").font(.footnote.weight(.semibold)).foregroundStyle(accent)
+            }
             if let text = current.description, !text.isEmpty {
                 Text(text).font(.callout).foregroundStyle(.white.opacity(0.85)).lineLimit(model.isSeries ? 2 : 4)
             }

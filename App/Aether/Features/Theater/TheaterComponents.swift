@@ -120,6 +120,10 @@ struct TheaterCatalogRow: View {
         let ref: CatalogRef
         let open: (MetaItem) -> Void
         @StateObject private var model: CatalogRowModel
+        @EnvironmentObject private var settings: SettingsStore
+
+        /// The viewer's name for this catalog (Impostazioni ▸ Cataloghi).
+        private var displayTitle: String { settings.value.content.catalogLayout.title(forID: ref.id, fallback: ref.title) }
 
         init(ref: CatalogRef, open: @escaping (MetaItem) -> Void, env: AppEnvironment) {
             self.ref = ref
@@ -132,15 +136,15 @@ struct TheaterCatalogRow: View {
                 switch model.state {
                 case .idle, .loading:
                     VStack(alignment: .leading, spacing: 6) {
-                        TheaterHeading(title: ref.title)
+                        TheaterHeading(title: displayTitle)
                         ProgressView().tint(.white)
                     }
                     .padding(.leading, 24)
                 case .loaded(let items):
-                    if !items.isEmpty { TheaterRow(title: ref.title, items: items, open: open) }
+                    if !items.isEmpty { TheaterRow(title: displayTitle, items: items, open: open) }
                 case .failed(let message):
                     VStack(alignment: .leading, spacing: 6) {
-                        TheaterHeading(title: ref.title)
+                        TheaterHeading(title: displayTitle)
                         Text(message).font(.footnote).foregroundStyle(.white.opacity(0.6))
                         Button("Riprova") { Task { await model.load(force: true) } }.font(.footnote.weight(.semibold))
                     }

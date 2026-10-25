@@ -46,6 +46,7 @@ enum TheaterPalette: Int, CaseIterable, Identifiable {
 }
 
 struct TheaterSettingsView: View {
+    @EnvironmentObject private var env: AppEnvironment
     @AppStorage(TheaterPrefs.palette) private var palette = 0
     @AppStorage(TheaterPrefs.background) private var background = 1
     @AppStorage(TheaterPrefs.size) private var size = 1
@@ -104,6 +105,9 @@ struct TheaterSettingsView: View {
                 Toggle("Fori della pellicola sulle righe", isOn: $sprockets)
                 Toggle("Nomi accanto alle icone della barra", isOn: $railLabels)
             }
+            Section(header: Text("Provider debrid"), footer: Text("Vale anche per il resto dell'app. Le chiavi si inseriscono in Impostazioni ▸ Servizi.")) {
+                TheaterProviderPicker(debrid: env.debrid)
+            }
             Section(header: Text("Avvio")) {
                 Toggle("Introduzione cinematografica", isOn: $intro)
                 Toggle("Suono d'ingresso", isOn: $sound)
@@ -114,5 +118,17 @@ struct TheaterSettingsView: View {
         }
         .navigationTitle("Theater Mode")
         .accessibilityIdentifier("theater.settings")
+    }
+}
+
+struct TheaterProviderPicker: View {
+    @ObservedObject var debrid: DebridService
+
+    var body: some View {
+        Picker("Provider per i torrent", selection: $debrid.selectedProvider) {
+            ForEach(DebridService.ProviderChoice.allCases) { provider in
+                Text(provider.title).tag(provider)
+            }
+        }
     }
 }

@@ -111,8 +111,9 @@ struct TheaterStreamPicker: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("SCEGLI LA SORGENTE").font(.caption2.weight(.bold)).tracking(4).foregroundStyle(accent).padding(.top, 14)
+                TheaterProviderMenu(debrid: env.debrid, accent: accent) { model.start(env: env) { _ in } }
                 if model.addonNames.count > 1 { chips }
-                if let failure = model.cacheCheckFailure, model.hasTorrentRows { cacheNotice(failure) }
+                if let failure = model.cacheCheckFailure, model.hasTorrentRows, model.debridProvider == .torbox { cacheNotice(failure) }
                 let playable = model.filtered(model.playable)
                 ForEach(Array(playable.enumerated()), id: \.element.id) { offset, item in
                     streamEntry(offset: offset, item: item)
@@ -129,7 +130,7 @@ struct TheaterStreamPicker: View {
                     }
                     .padding(.vertical, 6)
                     .accessibilityIdentifier("stream.loading")
-                } else if model.ranked.isEmpty {
+                } else if model.ranked.isEmpty || (model.debridProvider == .realdebrid && model.debridConfigured && model.playable.isEmpty) {
                     emptyState
                 }
                 unplayableSection
@@ -195,7 +196,7 @@ struct TheaterStreamPicker: View {
     }
 
     private func cacheNotice(_ failure: DebridError) -> some View {
-        let text = "Non riesco a controllare la cache di TorBox. " + DebridErrorText.message(for: failure)
+        let text = "Non riesco a controllare la cache di \(model.debridProvider.title). " + DebridErrorText.message(for: failure, provider: model.debridProvider)
         let retryAction: (() -> Void)? = failure.isRetryable ? { () -> Void in model.retryCacheCheck() } : nil
         return DebridCacheNotice(message: text, retry: retryAction).padding(.horizontal, -Theme.pageMargin)
     }
@@ -204,7 +205,9 @@ struct TheaterStreamPicker: View {
         VStack(spacing: 8) {
             Image(systemName: "film.stack").font(.largeTitle).foregroundStyle(.white.opacity(0.6))
             Text("Nessuna sorgente trovata").font(.headline)
-            Text(env.addons.enabledAddons.isEmpty ? "Non c'è nessun addon attivo." : "Gli addon attivi non hanno restituito sorgenti per questo titolo. Prova un altro addon o riprova più tardi.")
+            Text(env.addons.enabledAddons.isEmpty ? "Non c'è nessun addon attivo." : (model.debridProvider == .realdebrid && model.debridConfigured
+                ? "Gli addon attivi non hanno restituito sorgenti torrent utilizzabili con Real-Debrid per questo titolo."
+                : "Gli addon attivi non hanno restituito sorgenti per questo titolo. Prova un altro addon o riprova più tardi."))
                 .font(.footnote).foregroundStyle(.white.opacity(0.65)).multilineTextAlignment(.center)
             Button("Riprova") { model.start(env: env) { _ in } }.buttonStyle(.bordered)
         }
@@ -241,5 +244,32 @@ struct TheaterStreamPicker: View {
                 }
             }
         }
+    }
+}
+
+/// Choose the debrid provider (TorBox or Real-Debrid) without leaving the source list; the list is rebuilt for the new one.
+struct TheaterProviderMenu: View {
+    @ObservedObject var debrid: DebridService
+    let accent: Color
+    let changed: () -> Void
+
+    var body: some View {
+        Menu {
+            ForEach(DebridService.ProviderChoice.allCases) { provider in
+                Button {
+                    guard provider != debrid.selectedProvider else { return }
+                    debrid.selectProvider(provider)
+                    changed()
+                } label: {
+                    if provider == debrid.selectedProvider { Label(provider.title, systemImage: "checkmark") } else { Text(provider.title) }
+                }
+            }
+        } label: {
+            Label("Provider: \(debrid.selectedProvider.title)", systemImage: "externaldrive.connected.to.line.below")
+                .font(.caption.weight(.semibold)).padding(.horizontal, 12).padding(.vertical, 7)
+                .background(Color.white.opacity(0.12), in: Capsule())
+                .foregroundStyle(accent)
+        }
+        .accessibilityIdentifier("theater.picker.provider")
     }
 }

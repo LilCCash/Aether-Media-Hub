@@ -92,7 +92,7 @@ struct TheaterSearch: View {
             .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .padding(.horizontal, 24)
             ForEach(rows.filter { !$0.items.isEmpty }) { row in
-                TheaterRow(title: row.ref.title, items: row.items, open: open)
+                TheaterRow(title: env.settings.value.content.catalogLayout.title(forID: row.ref.id, fallback: row.ref.title), items: row.items, open: open)
             }
         }
         .onDisappear { task?.cancel() }
