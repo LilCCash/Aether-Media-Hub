@@ -29,9 +29,18 @@ final class DebridService: ObservableObject {
     }
 
     @Published private(set) var status: ConnectionStatus
+    enum ProviderChoice: String, CaseIterable, Identifiable {
+        case torbox, realdebrid
+        var id: String { rawValue }
+        var title: String { self == .torbox ? "TorBox" : "Real-Debrid" }
+    }
+    @Published var selectedProvider: ProviderChoice {
+        didSet { UserDefaults.standard.set(selectedProvider.rawValue, forKey: "debrid.selectedProvider") }
+    }
 
     private let credentials: ServiceCredentials
     private let resolver: DebridResolver
+    private let realDebrid: RealDebridClient
     private let now: @Sendable () -> Date
     private var verifyGeneration = 0
 
@@ -59,6 +68,9 @@ final class DebridService: ObservableObject {
         let client = TorBoxClient(http: http, keyProvider: keyProvider, baseURL: baseURL, retry: retry, clock: clock, log: log)
         self.credentials = credentials
         self.resolver = DebridResolver(client: client, configuration: configuration, clock: clock, log: log)
+        self.realDebrid = RealDebridClient(http: http, tokenProvider: credentials.provider(for: .realdebrid), clock: clock)
+        let savedChoice = UserDefaults.standard.string(forKey: "debrid.selectedProvider")
+        self.selectedProvider = ProviderChoice(rawValue: savedChoice ?? "") ?? .torbox
         self.now = clock.now
         self.status = credentials.isConfigured(ServiceKind.torbox) ? ConnectionStatus.unverified : ConnectionStatus.notConfigured
     }
@@ -92,7 +104,13 @@ final class DebridService: ObservableObject {
         let generation = verifyGeneration
         status = ConnectionStatus.checking
         do {
-            let account = try await resolver.validateCredentials()
+            let account: DebridAccount
+            switch selectedProvider {
+            case .torbox:
+                account = try await resolver.validateCredentials()
+            case .realdebrid:
+                account = try await realDebrid.validateCredentials()
+            }
             guard generation == verifyGeneration, isConfigured else { return nil }
             status = ConnectionStatus.connected(DebridService.summary(of: account))
             return nil
@@ -144,7 +162,13 @@ final class DebridService: ObservableObject {
     /// `checkcached` for the hashes, in chunks of at most 100. Never throws: a failure leaves the hashes `.unknown` and is
     /// reported in the result.
     func availability(infoHashes: [String]) async -> DebridAvailabilityReport {
-        let report = await resolver.availability(infoHashes: infoHashes)
+        let report: DebridAvailabilityReport
+        switch selectedProvider {
+        case .torbox:
+            report = await resolver.availability(infoHashes: infoHashes)
+        case .realdebrid:
+            report = await realDebrid.availability(infoHashes: infoHashes)
+        }
         noteFailure(report.failure)
         return report
     }
@@ -152,7 +176,12 @@ final class DebridService: ObservableObject {
     func resolve(_ request: DebridRequest,
                  onProgress: (@Sendable (DebridProgress) -> Void)?) async throws -> DebridResolution {
         do {
-            return try await resolver.resolve(request, onProgress: onProgress)
+            switch selectedProvider {
+            case .torbox:
+                return try await resolver.resolve(request, onProgress: onProgress)
+            case .realdebrid:
+                return try await realDebrid.resolve(request, onProgress: onProgress)
+            }
         } catch let error as DebridError {
             noteFailure(error)
             throw error
