@@ -1,8 +1,6 @@
 package app.aether.tv.ui.screens.player
 
 import android.graphics.Color as AndroidColor
-import android.view.LayoutInflater
-import app.aether.tv.R
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -190,7 +188,7 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
-                (LayoutInflater.from(ctx).inflate(R.layout.player_view_texture, null, false) as PlayerView).apply {
+                PlayerView(ctx).apply {
                     useController = false
                     isFocusable = false
                     isFocusableInTouchMode = false
@@ -198,7 +196,7 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
                     setShutterBackgroundColor(AndroidColor.BLACK)
                     player = vm.player
                     // The lines are drawn by our own view below, so they can be cleaned and delayed.
-                    subtitleView?.visibility = android.view.View.GONE
+                    subtitleView?.visibility = android.view.View.VISIBLE
                 }
             },
             update = { view ->
@@ -217,31 +215,13 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
                     )
                     setFractionalTextSize(0.0533f * style.sizePercent / 100f)
                     setBottomPaddingFraction((style.bottomOffsetPercent / 100f).coerceIn(0f, 0.4f))
+                    // Embedded tracks are supplied by Media3. Only override cues for addon subtitles.
+                    if (state.addonSubtitleActive) setCues(state.cues)
                 }
             },
         )
 
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { ctx -> androidx.media3.ui.SubtitleView(ctx).apply { isFocusable = false; isFocusableInTouchMode = false } },
-            update = { view ->
-                val style = settings.playback.subtitleStyle
-                view.setStyle(
-                    CaptionStyleCompat(
-                        style.textColor.toInt(),
-                        AndroidColor.argb((style.backgroundOpacityPercent * 255 / 100).coerceIn(0, 255), 0, 0, 0),
-                        AndroidColor.TRANSPARENT,
-                        if (style.outline) CaptionStyleCompat.EDGE_TYPE_OUTLINE else CaptionStyleCompat.EDGE_TYPE_NONE,
-                        AndroidColor.BLACK,
-                        if (style.bold) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT,
-                    ),
-                )
-                view.setFractionalTextSize(0.0533f * style.sizePercent / 100f)
-                view.setBottomPaddingFraction((style.bottomOffsetPercent / 100f).coerceIn(0f, 0.4f))
-                view.setCues(state.cues)
-            },
-        )
-
+        // Addon subtitle cues are drawn by PlayerView's built-in subtitle overlay.
         if (state.buffering && state.error == null) CircularProgressIndicator(Modifier.align(Alignment.Center).size(56.dp), color = LocalAccent.current, strokeWidth = 5.dp)
 
         // Seek in progress with the controls away: just the time and how far it jumps.
