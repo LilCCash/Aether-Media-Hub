@@ -206,6 +206,12 @@ jobs:
           else
             printf '%s\n' "$NOTES" > "$RUNNER_TEMP/notes.md"
           fi
+          # An official release replaces an earlier one of the same tag (and the same version spelled with a trailing .0).
+          if [ "$OFFICIAL" = "true" ]; then
+            for OLD in "$TAG" "${TAG}.0"; do
+              if gh release view "$OLD" >/dev/null 2>&1; then gh release delete "$OLD" --cleanup-tag --yes; fi
+            done
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" Aether-unsigned.ipa --clobber
           else
