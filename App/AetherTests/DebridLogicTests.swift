@@ -190,6 +190,17 @@ final class DebridPresentationTests: XCTestCase {
         XCTAssertFalse(DebridErrorText.describe(foreign).contains("abc123"), "the text of a foreign error is never shown")
     }
 
+    func testProviderSpecificErrorsNeverMislabelRealDebridAsTorBox() {
+        let realDebridAuth = DebridErrorText.message(for: .authFailed, provider: .realdebrid)
+        XCTAssertTrue(realDebridAuth.contains("Real-Debrid"))
+        XCTAssertFalse(realDebridAuth.contains("TorBox"))
+        XCTAssertTrue(realDebridAuth.contains(DebridErrorText.settingsPath))
+
+        let realDebridCache = DebridErrorText.message(for: .notCached, provider: .realdebrid)
+        XCTAssertTrue(realDebridCache.contains("Real-Debrid"))
+        XCTAssertFalse(realDebridCache.contains("TorBox"))
+    }
+
     func testTheConnectionReasonsAreSpecific() {
         XCTAssertTrue(DebridErrorText.connectionMessage(for: DebridError.authFailed).contains("Chiave non valida"))
         XCTAssertTrue(DebridErrorText.connectionMessage(for: DebridError.planRestricted).contains("piano"))
