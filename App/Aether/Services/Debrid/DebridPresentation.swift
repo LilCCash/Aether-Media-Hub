@@ -97,23 +97,63 @@ enum DebridCacheBadge: Equatable {
 enum DebridErrorText {
     static let settingsPath = "Impostazioni › Servizi"
 
-    /// Shown next to a torrent in the picker and in the player. Wording that points at "the settings" is made concrete.
+    /// Provider-aware errors: the shared DebridError type has legacy TorBox wording, so never show that wording
+    /// when the active provider is Real-Debrid.
     static func message(for error: DebridError) -> String {
+        return message(for: error, provider: .torbox)
+    }
+
+    static func message(for error: DebridError, provider: DebridService.ProviderChoice) -> String {
+        let name = provider.title
         switch error {
         case .notConfigured:
-            return "Nessuna chiave TorBox salvata: aggiungila in \(settingsPath)."
+            return "Nessuna chiave \(name) salvata: aggiungila in \(settingsPath)."
         case .authFailed:
-            return "TorBox ha rifiutato la chiave. Controllala o creane una nuova, poi salvala in \(settingsPath)."
+            return "\(name) ha rifiutato il token API. Controllalo o rigeneralo e salvalo in \(settingsPath)."
+        case .planRestricted:
+            return "Questa funzione non è inclusa nel tuo piano \(name)."
+        case .notCached:
+            return "Questo contenuto non risulta nella cache di \(name): serve prima renderlo disponibile."
+        case .alreadyInAccount:
+            return "\(name) segnala che il torrent è già presente o in coda, ma non è visibile nella lista."
+        case .itemNotFound:
+            return "Elemento non trovato su \(name)."
+        case .queuedAtProvider:
+            return "Il torrent è in coda su \(name). Riprova tra poco."
+        case .downloadNotReady(let progress):
+            if let fraction = progress?.fraction {
+                let percent = Int((min(1, max(0, fraction)) * 100).rounded())
+                return "Il download su \(name) non è ancora completo (\(percent)%). Riprova tra poco."
+            }
+            return "Il download su \(name) non è ancora completo. Riprova tra poco."
+        case .itemFailed(let state):
+            return "\(name) segnala un errore su questo torrent (stato: \(state))."
+        case .serviceUnavailable(let status):
+            if let status = status { return "\(name) non risponde correttamente (errore \(status)). Riprova più tardi." }
+            return "\(name) non risponde correttamente. Riprova più tardi."
+        case .timeout:
+            return "\(name) non ha risposto in tempo."
+        case .unreachable:
+            return "Impossibile raggiungere \(name)."
+        case .refusedHost:
+            return "Connessione bloccata: l'indirizzo non corrisponde a \(name)."
+        case .rateLimited(let retryAfter):
+            if let seconds = retryAfter, seconds > 0 {
+                return "\(name) sta limitando le richieste. Riprova tra circa \(Int(seconds.rounded(.up))) secondi."
+            }
+            return "\(name) sta limitando le richieste. Riprova tra poco."
+        case .api(let code, _):
+            return "\(name) ha risposto con un errore (\(code))."
         default:
             return error.message
         }
     }
 
-    /// Any error thrown by a TorBox call, as text for the user.
-    static func describe(_ error: Error) -> String {
-        if let debrid = error as? DebridError { return message(for: debrid) }
+    /// Any error thrown while resolving through the selected provider.
+    static func describe(_ error: Error, provider: DebridService.ProviderChoice = .torbox) -> String {
+        if let debrid = error as? DebridError { return message(for: debrid, provider: provider) }
         if error is CancellationError { return "Operazione annullata." }
-        return "Errore imprevisto durante la comunicazione con TorBox."
+        return "Errore imprevisto durante la comunicazione con \(provider.title)."
     }
 
     /// Why the connection check of Settings > Servizi failed.
