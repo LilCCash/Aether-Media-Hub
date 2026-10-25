@@ -1,6 +1,6 @@
 name: Build IPA
 
-# Composes Aether.ipa on a GitHub macOS runner.
+# Composes Aether.ipa on a GitHub macOS runner; this workflow is also used to validate the main-secondary build.
 #
 #   unsigned  (default, no credentials needed)
 #       Builds a Release archive for real iPhones (arm64) with code signing disabled and packs it as
