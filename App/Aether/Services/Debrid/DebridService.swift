@@ -172,35 +172,41 @@ final class DebridService: ObservableObject {
     /// `checkcached` for the hashes, in chunks of at most 100. Never throws: a failure leaves the hashes `.unknown` and is
     /// reported in the result.
     func availability(infoHashes: [String]) async -> DebridAvailabilityReport {
+        // Snapshot the choice for the entire operation: a UI change must never redirect an in-flight request.
+        let provider = selectedProvider
         let report: DebridAvailabilityReport
-        switch selectedProvider {
+        switch provider {
         case .torbox:
             report = await resolver.availability(infoHashes: infoHashes)
         case .realdebrid:
             report = await realDebrid.availability(infoHashes: infoHashes)
         }
-        noteFailure(report.failure)
+        noteFailure(report.failure, from: provider)
         return report
     }
 
     func resolve(_ request: DebridRequest,
                  onProgress: (@Sendable (DebridProgress) -> Void)?) async throws -> DebridResolution {
+        // Keep provider and credentials paired for the full resolution; each client owns its own Keychain provider.
+        let provider = selectedProvider
         do {
-            switch selectedProvider {
+            switch provider {
             case .torbox:
                 return try await resolver.resolve(request, onProgress: onProgress)
             case .realdebrid:
                 return try await realDebrid.resolve(request, onProgress: onProgress)
             }
         } catch let error as DebridError {
-            noteFailure(error)
+            noteFailure(error, from: provider)
             throw error
         }
     }
 
-    /// A refused key is a fact worth keeping in the status, whichever call found it out.
-    private func noteFailure(_ error: DebridError?) {
-        guard let error = error, error == DebridError.authFailed, isConfigured else { return }
+    /// Only TorBox responses may update TorBox's connection status. Real-Debrid errors must never be presented as
+    /// a TorBox key failure: each service authenticates against its own API with its own Keychain entry.
+    private func noteFailure(_ error: DebridError?, from provider: ProviderChoice) {
+        guard provider == .torbox, let error = error, error == DebridError.authFailed,
+              isTorBoxConfigured else { return }
         status = ConnectionStatus.failed(DebridErrorText.connectionMessage(for: error))
     }
 
