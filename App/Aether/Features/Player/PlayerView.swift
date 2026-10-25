@@ -18,6 +18,7 @@ struct PlayerView: View {
     @State private var isLocked = false
     @State private var showUnlockHint = false
     @State private var hideTask: Task<Void, Never>?
+    @State private var orientationTask: Task<Void, Never>?
     @State private var tapRecognizer = SurfaceTapRecognizer()
     @State private var pendingHideTask: Task<Void, Never>?
     @State private var isScrubbing = false
@@ -269,7 +270,16 @@ struct PlayerView: View {
 
     private func appear() {
         originalBrightness = ScreenBrightness.value
-        OrientationController.set(playbackSettings.landscapeOnly ? .landscape : .allButUpsideDown)
+        // Always open sideways; the other orientations are only allowed once the phone is really held sideways, otherwise iOS
+        // would turn the player back to portrait at once.
+        OrientationController.set(.landscape)
+        if !playbackSettings.landscapeOnly {
+            orientationTask?.cancel()
+            orientationTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                if !Task.isCancelled, UIDevice.current.orientation.isLandscape { OrientationController.set(.allButUpsideDown) }
+            }
+        }
         model.start()
         casting.onRemoteSessionEnded = { position, reason in
             model.castDidEnd(position: position, resumeLocally: settings.value.casting.resumeLocallyOnDisconnect)
@@ -281,6 +291,7 @@ struct PlayerView: View {
     }
 
     private func disappear() {
+        orientationTask?.cancel()
         castTask?.cancel()
         hideTask?.cancel()
         pendingHideTask?.cancel()

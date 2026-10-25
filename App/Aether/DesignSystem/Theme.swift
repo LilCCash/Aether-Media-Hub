@@ -101,7 +101,7 @@ struct AetherBackdrop: View {
             } else {
                 Color(scheme == .dark ? UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: 1) : UIColor.systemGroupedBackground)
             }
-            if !settings.reduceEffects {
+            if !settings.reduceEffects && settings.value.appearance.showHalos {
                 washes
             }
         }
@@ -152,6 +152,8 @@ struct AetherBackdrop: View {
 final class CinematicMood: ObservableObject {
     static let shared = CinematicMood()
     @Published var color: Color?
+    /// The colour of the Home's featured film: what the other screens go back to when a title page closes.
+    var homeColor: Color?
 
     /// A lively, not-too-light average of the picture (the backdrop reads well over it).
     static func color(fromURL string: String?) async -> Color? {

@@ -8,25 +8,31 @@ struct PlaybackPreparingView: View {
     let resolution: DebridRowResolution?
     let cancel: () -> Void
     @EnvironmentObject private var env: AppEnvironment
-    @State private var logoURL: URL?
+    @State private var logo: UIImage?
+    @State private var lookupDone = false
+
+    init(meta: MetaItem, resolution: DebridRowResolution?, cancel: @escaping () -> Void) {
+        self.meta = meta
+        self.resolution = resolution
+        self.cancel = cancel
+        // A logo fetched ahead of time is on screen from the very first frame.
+        _logo = State(initialValue: FanartLogoStore.shared.cached(meta.id))
+    }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             VStack(spacing: 22) {
                 Spacer()
-                if let logoURL = logoURL {
-                    AsyncImage(url: logoURL) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().scaledToFit()
-                        default:
-                            titleText
-                        }
-                    }
-                    .frame(maxWidth: 320, maxHeight: 140)
-                } else {
+                if let logo = logo {
+                    Image(uiImage: logo)
+                        .resizable().scaledToFit()
+                        .frame(maxWidth: 420, maxHeight: 190)
+                        .accessibilityLabel(meta.name)
+                } else if lookupDone || !env.fanart.isConfigured {
                     titleText
+                } else {
+                    Color.clear.frame(height: 60)
                 }
                 VStack(spacing: 14) {
                     if let fraction = resolution?.determinateFraction {
@@ -75,25 +81,9 @@ struct PlaybackPreparingView: View {
             .lineLimit(3)
     }
 
-    /// Films are looked up by IMDb (or TMDB) code, series by their TheTVDB code. Without a fanart.tv key nothing is asked.
     private func loadLogo() async {
-        guard env.fanart.isConfigured else { return }
-        let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
-        let ids = meta.externalIDs
-        var found: URL?
-        if meta.type == "series" {
-            if let tvdb = ids.tvdb {
-                found = await env.fanart.logoURL(kind: .tv, id: String(tvdb), language: language)
-            }
-        } else {
-            let imdb = ids.imdb ?? (meta.id.hasPrefix("tt") ? meta.id : nil)
-            if let imdb = imdb {
-                found = await env.fanart.logoURL(kind: .movie, id: imdb, language: language)
-            }
-            if found == nil, let tmdb = ids.tmdb {
-                found = await env.fanart.logoURL(kind: .movie, id: String(tmdb), language: language)
-            }
-        }
-        logoURL = found
+        guard logo == nil, env.fanart.isConfigured, !FanartLogoStore.shared.isKnownMissing(meta.id) else { lookupDone = true; return }
+        logo = await FanartLogoStore.shared.load(meta: meta, env: env)
+        lookupDone = true
     }
 }

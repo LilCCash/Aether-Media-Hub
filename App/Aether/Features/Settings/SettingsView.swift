@@ -138,8 +138,17 @@ struct AppearanceSettingsView: View {
                 }
                 .padding(.vertical, 4)
             }
-            Section(header: Text("Personalizza"),
-                    footer: Text("Scegli quali sezioni mostra la Home, in che ordine, come sono fatte le schede e quanto sono grandi; poi atmosfera, sfondo, cornici e caratteri.")) {
+            Section(header: Text("Stile dell'app"),
+                    footer: Text("Colori, sfondo e atmosfera, più le modalità Dynamic Cinematic UI e AMOLED.")) {
+                NavigationLink {
+                    StyleSettingsView()
+                } label: {
+                    Label("Stile e grafica", systemImage: "sparkles")
+                }
+                .accessibilityIdentifier("settings.style")
+            }
+            Section(header: Text("Home e cataloghi"),
+                    footer: Text("Sezioni e carosello della Home, nome, ordine e visibilità dei cataloghi degli addon, categorie di Scopri.")) {
                 NavigationLink {
                     HomeLayoutSettingsView()
                 } label: {
@@ -147,17 +156,22 @@ struct AppearanceSettingsView: View {
                 }
                 .accessibilityIdentifier("settings.homeLayout")
                 NavigationLink {
-                    StyleSettingsView()
-                } label: {
-                    Label("Stile e grafica", systemImage: "sparkles")
-                }
-                .accessibilityIdentifier("settings.style")
-                NavigationLink {
                     CatalogLayoutSettingsView()
                 } label: {
                     Label("Cataloghi: nomi, ordine, visibilità", systemImage: "list.bullet.rectangle")
                 }
                 .accessibilityIdentifier("settings.catalogs")
+                NavigationLink("Categorie di Scopri") { DiscoverSettingsView() }
+                    .accessibilityIdentifier("settings.discover")
+                Picker("Dimensione delle schede", selection: settings.binding(\.appearance.posterSize)) {
+                    ForEach(PosterSize.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                Picker("Densità", selection: settings.binding(\.appearance.density)) {
+                    ForEach(CatalogDensity.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+            }
+            Section(header: Text("Sorgenti e scheda del titolo"),
+                    footer: Text("Come si presentano le sorgenti (badge, logo, testo, badge importati da un link) e quali blocchi e voti mostra la scheda di un film.")) {
                 NavigationLink {
                     StreamDisplaySettingsView()
                 } label: {
@@ -171,22 +185,10 @@ struct AppearanceSettingsView: View {
                 }
                 .accessibilityIdentifier("settings.titlePage")
             }
-            Section(header: Text("Cataloghi")) {
-                Picker("Dimensione delle schede", selection: settings.binding(\.appearance.posterSize)) {
-                    ForEach(PosterSize.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                Picker("Densità", selection: settings.binding(\.appearance.density)) {
-                    ForEach(CatalogDensity.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-            }
             Section(header: Text("Effetti"), footer: Text("Con gli effetti ridotti il vetro liquido viene sostituito da superfici opache e lo sfondo diventa uniforme. Aether rispetta anche «Riduci trasparenza» e «Riduci movimento» di iOS.")) {
                 Toggle("Animazioni", isOn: settings.binding(\.appearance.animationsEnabled))
                 Toggle("Riduci gli effetti visivi", isOn: settings.binding(\.appearance.reduceVisualEffects))
                     .accessibilityIdentifier("settings.reduceEffects")
-            }
-            Section(footer: Text("Quali tipi di contenuto mostra Scopri (film, serie, TV, sport…) e in che ordine. I tipi arrivano dagli addon installati.")) {
-                NavigationLink("Categorie di Scopri") { DiscoverSettingsView() }
-                    .accessibilityIdentifier("settings.discover")
             }
         }
         .navigationTitle("Aspetto")

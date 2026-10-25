@@ -201,6 +201,7 @@ final class StreamPickerModel: ObservableObject {
 
     func start(env: AppEnvironment, onAutoSelect: @escaping (RankedStream) -> Void) {
         self.env = env
+        FanartLogoStore.shared.prefetch(meta: request.meta, env: env)
         task?.cancel()
         availabilityTask?.cancel()
         availabilityTask = nil
@@ -869,7 +870,7 @@ struct StreamRow: View {
                         .foregroundStyle(.primary)
                         .lineLimit(3)
                 }
-                FlowBadges(info: item.info, display: display)
+                FlowBadges(info: item.info, display: display, stream: item.stream)
                 if let debrid = debrid {
                     DebridBadgeRow(appearance: debrid)
                 }
@@ -1073,10 +1074,12 @@ struct DebridFileChoiceSheet: View {
 struct FlowBadges: View {
     let info: StreamInfo
     var display = StreamDisplaySettings()
+    var stream: AddonStream?
 
     var body: some View {
         let badges = StreamFormatter.badges(for: info, settings: display)
-        if !badges.isEmpty {
+        let imported = stream.map { CustomBadgePack.badges(for: $0, rules: display.customBadges) } ?? []
+        if !badges.isEmpty || !imported.isEmpty {
             WrappingHStack(spacing: 6) {
                 ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
                     if badge.kind == .format {
@@ -1090,6 +1093,13 @@ struct FlowBadges: View {
                     } else {
                         pill(badge)
                     }
+                }
+                ForEach(imported) { rule in
+                    Text(rule.label)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .foregroundStyle(rule.colorHex.map { Color(hex: $0) } ?? Color.primary)
+                        .background((rule.colorHex.map { Color(hex: $0) } ?? Color.gray).opacity(0.18), in: Capsule())
                 }
             }
         }

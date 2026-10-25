@@ -11,6 +11,7 @@ struct HomeView: View {
     @StateObject private var model = HomeViewModel()
     @State private var showingInstall = false
     @State private var showingCast = false
+    @Environment(\.aetherStyle) private var style
 
     var body: some View {
         NavigationStack {
@@ -20,6 +21,17 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showingCast) {
                 CastSheet()
+            }
+            // Cinematic: the Home takes the colours of the featured film.
+            .task(id: (style.mood ? model.heroItems.first?.id : nil) ?? "") {
+                guard style.mood, let hero = model.heroItems.first else {
+                    CinematicMood.shared.homeColor = nil
+                    CinematicMood.shared.color = nil
+                    return
+                }
+                let color = await CinematicMood.color(fromURL: hero.background ?? hero.poster)
+                CinematicMood.shared.homeColor = color
+                CinematicMood.shared.color = color
             }
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.large)

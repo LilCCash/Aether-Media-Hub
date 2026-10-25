@@ -161,6 +161,8 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var cinematicMotion: Bool = true
     /// True black background (OLED), with the washes toned down and text kept at full contrast.
     public var amoled: Bool = false
+    /// The coloured washes of the background (also in the cinematic mode); off = a calm plain background.
+    public var showHalos: Bool = true
     public var posterSize: PosterSize = .medium
     public var density: CatalogDensity = .comfortable
     public var animationsEnabled: Bool = true
@@ -184,7 +186,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case customBackgroundHex, backdropIntensity, showPosterRatings, dynamicCinematic, cinematicMood, cinematicMotion, amoled
+        case customBackgroundHex, backdropIntensity, showPosterRatings, dynamicCinematic, cinematicMood, cinematicMotion, amoled, showHalos
         case theme, accent, customAccentHex, posterSize, density, animationsEnabled, reduceVisualEffects, homeSections
         case heroStyle, heroAutoScroll, palette, backdrop, cardChrome, cornerStyle, titleFont
         case greetingEnabled, greetingName, unlockedSecrets
@@ -213,6 +215,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         cinematicMood = c.value(.cinematicMood, default: true)
         cinematicMotion = c.value(.cinematicMotion, default: true)
         amoled = c.value(.amoled, default: false)
+        showHalos = c.value(.showHalos, default: true)
         posterSize = c.value(.posterSize, default: .medium)
         density = c.value(.density, default: .comfortable)
         animationsEnabled = c.value(.animationsEnabled, default: true)

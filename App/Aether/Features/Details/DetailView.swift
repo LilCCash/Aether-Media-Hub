@@ -43,9 +43,12 @@ final class DetailViewModel: ObservableObject {
         if selectedSeason == nil {
             selectedSeason = initialSeason()
         }
+        FanartLogoStore.shared.prefetch(meta: meta, env: env)
         async let enriched: Void = enrich(env: env)
         async let richLoaded: Void = loadRich(env: env)
         _ = await (enriched, richLoaded)
+        // The logo for the preparing page is fetched now, so it is on screen the moment a source is chosen.
+        FanartLogoStore.shared.prefetch(meta: meta, env: env)
     }
 
     /// The sections that need TMDB. Silent: without a key, or when the service does not answer, the page keeps what the addon gave.
@@ -209,7 +212,7 @@ struct DetailView: View {
             guard style.mood else { return }
             CinematicMood.shared.color = await CinematicMood.color(fromURL: model.meta.background ?? model.meta.poster)
         }
-        .onDisappear { CinematicMood.shared.color = nil }
+        .onDisappear { CinematicMood.shared.color = CinematicMood.shared.homeColor }
         .sheet(item: $picker) { request in
             StreamPickerSheet(request: request)
         }
@@ -234,9 +237,16 @@ struct DetailView: View {
                 .animation(style.motion && !reduceMotion ? .easeInOut(duration: 14) : nil, value: zoomed)
                 .clipped()
                 .onAppear { zoomed = true }
+                // Cinematic: the artwork itself dissolves into the page (a mask), so the film's colours flow into the background
+                // with no seam; the classic header keeps its fade to the system background.
+                .mask(
+                    LinearGradient(stops: style.cinematic
+                                   ? [.init(color: .black, location: 0), .init(color: .black, location: 0.45), .init(color: .clear, location: 1)]
+                                   : [.init(color: .black, location: 0), .init(color: .black, location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                )
                 .overlay(
-                    LinearGradient(colors: [.clear, Color(UIColor.systemBackground).opacity(style.cinematic ? 0.25 : 0.0),
-                                            (style.amoled ? Color.black : Color(UIColor.systemBackground)).opacity(0.97)],
+                    LinearGradient(colors: [.clear, Color(UIColor.systemBackground).opacity(0.0), Color(UIColor.systemBackground).opacity(style.cinematic ? 0 : 0.95)],
                                    startPoint: .top, endPoint: .bottom)
                 )
             HStack(alignment: .bottom, spacing: 14) {

@@ -203,4 +203,14 @@ final class ExperienceSettingsTests: XCTestCase {
         XCTAssertFalse(decoded.appearance.cinematicMotion)
         XCTAssertTrue(decoded.appearance.cinematicMood)
     }
+
+    func testImportedBadgesParseAndMatchSources() {
+        let json = #"{"badges":[{"name":"Remux","keywords":["remux"],"colour":"ff9500"},{"label":"Broken"},{"label":"HDR","match":"re:hdr10\\+?"}]}"#
+        let rules = CustomBadgePack.parse(Data(json.utf8))
+        XCTAssertEqual(rules.map { $0.label }, ["Remux", "HDR"])
+        XCTAssertEqual(rules.first?.colorHex, "#FF9500")
+        let stream = AddonStream(source: StreamSource.url("https://cdn.example.com/a.mkv"), name: "Film 2160p REMUX HDR10+")
+        XCTAssertEqual(CustomBadgePack.badges(for: stream, rules: rules).count, 2)
+        XCTAssertTrue(CustomBadgePack.parse(Data("nope".utf8)).isEmpty)
+    }
 }

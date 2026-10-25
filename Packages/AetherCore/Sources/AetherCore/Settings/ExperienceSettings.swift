@@ -113,6 +113,9 @@ public struct StreamDisplaySettings: Codable, Equatable, Sendable {
     public var hiddenBadges: [String] = []
     /// A line written with the viewer's own pattern ("{quality} · {codec} · {size}"); empty keeps the addon's own text.
     public var template: String = ""
+    /// Badges the viewer imported from a link (see `CustomBadgePack`), and the link they came from.
+    public var customBadges: [CustomBadgeRule] = []
+    public var customBadgesURL: String = ""
 
     public init() {}
 
@@ -127,7 +130,7 @@ public struct StreamDisplaySettings: Codable, Equatable, Sendable {
     /// The words a pattern may contain, for the settings screen.
     public static let tokens = ["{quality}", "{codec}", "{hdr}", "{audio}", "{language}", "{size}", "{format}", "{addon}", "{name}", "{details}"]
 
-    private enum CodingKeys: String, CodingKey { case showAddonLogo, badgeStyle, hiddenBadges, template }
+    private enum CodingKeys: String, CodingKey { case showAddonLogo, badgeStyle, hiddenBadges, template, customBadges, customBadgesURL }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -136,6 +139,8 @@ public struct StreamDisplaySettings: Codable, Equatable, Sendable {
         hiddenBadges = c.stringList(.hiddenBadges)
         let raw: String = c.value(.template, default: "")
         template = String(raw.prefix(200))
+        customBadges = Array(c.lossyArray(CustomBadgeRule.self, forKey: .customBadges).prefix(CustomBadgePack.maxRules))
+        customBadgesURL = String((c.value(.customBadgesURL, default: "") as String).prefix(500))
     }
 
     public func isShown(_ kind: StreamBadgeKind) -> Bool {
@@ -293,5 +298,79 @@ public struct RatingsSettings: Codable, Equatable, Sendable {
     public mutating func setShown(_ shown: Bool, _ source: RatingSource) {
         sources.removeAll(where: { $0 == source.rawValue })
         if shown { sources.append(source.rawValue) }
+    }
+}
+
+// MARK: - Badges imported from a link
+
+/// One imported badge: shown on every source whose text contains one of the words.
+public struct CustomBadgeRule: Codable, Equatable, Sendable, Identifiable {
+    public var label: String
+    /// Words (case-insensitive); an entry starting with "re:" is a regular expression.
+    public var match: [String]
+    public var colorHex: String?
+
+    public var id: String { return label + "|" + match.joined(separator: ",") }
+
+    public init(label: String, match: [String], colorHex: String? = nil) {
+        self.label = label
+        self.match = match
+        self.colorHex = colorHex
+    }
+
+    public func matches(_ text: String) -> Bool {
+        for entry in match {
+            if entry.hasPrefix("re:") {
+                let pattern = String(entry.dropFirst(3))
+                if !pattern.isEmpty, text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil { return true }
+            } else if !entry.isEmpty, text.range(of: entry, options: .caseInsensitive) != nil {
+                return true
+            }
+        }
+        return false
+    }
+}
+
+/// A badge pack as published at a link: `[{"label":"Remux","match":["remux"],"color":"#FF9500"}]`, or the same list inside
+/// `{"badges":[…]}` (also `name`/`text` for the label, `keywords`/`pattern` for the words, `colour`/`hex` for the colour).
+public enum CustomBadgePack {
+    public static let maxRules = 60
+    public static let maxBytes = 200_000
+
+    public static func parse(_ data: Data) -> [CustomBadgeRule] {
+        guard data.count <= maxBytes, let object = try? JSONSerialization.jsonObject(with: data) else { return [] }
+        var list: [Any] = []
+        if let array = object as? [Any] {
+            list = array
+        } else if let dictionary = object as? [String: Any] {
+            list = (dictionary["badges"] as? [Any]) ?? (dictionary["rules"] as? [Any]) ?? (dictionary["items"] as? [Any]) ?? []
+        }
+        var rules: [CustomBadgeRule] = []
+        for entry in list {
+            guard let item = entry as? [String: Any] else { continue }
+            let label = [item["label"], item["name"], item["text"]].compactMap { $0 as? String }.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            var words: [String] = []
+            for key in ["match", "keywords", "pattern", "regex", "contains"] {
+                if let one = item[key] as? String { words.append(key == "regex" || key == "pattern" ? "re:" + one : one) }
+                if let many = item[key] as? [Any] { words.append(contentsOf: many.compactMap { $0 as? String }) }
+            }
+            words = words.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            let color = [item["color"], item["colour"], item["hex"]].compactMap { $0 as? String }.first.flatMap { value -> String? in
+                let hex = value.trimmingCharacters(in: .whitespaces).uppercased()
+                let full = hex.hasPrefix("#") ? hex : "#" + hex
+                return full.range(of: "^#[0-9A-F]{6}$", options: .regularExpression) != nil ? full : nil
+            }
+            guard !label.isEmpty, !words.isEmpty else { continue }
+            rules.append(CustomBadgeRule(label: String(label.prefix(24)), match: Array(words.prefix(12)), colorHex: color))
+            if rules.count >= maxRules { break }
+        }
+        return rules
+    }
+
+    /// The imported badges that apply to a source.
+    public static func badges(for stream: AddonStream, rules: [CustomBadgeRule]) -> [CustomBadgeRule] {
+        if rules.isEmpty { return [] }
+        let text = [stream.name, stream.details].compactMap { $0 }.joined(separator: " ")
+        return rules.filter { $0.matches(text) }
     }
 }

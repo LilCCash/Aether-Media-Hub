@@ -16,6 +16,19 @@ struct StyleSettingsView: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
             }
+            Section(header: Text("Dynamic Cinematic UI"),
+                    footer: Text("Cambia l'aspetto di tutta l'app: sfondo a riflettore, schede con alone, angoli più morbidi e, nella scheda di un film, un'immagine a tutta altezza che sfuma nel fondo. Funziona insieme a palette, carattere, cornici e colori scelti qui sotto (cornice e sfondo restano quelli che scegli, salvo i predefiniti).")) {
+                Toggle("Dynamic Cinematic UI", isOn: settings.binding(\.appearance.dynamicCinematic))
+                    .accessibilityIdentifier("settings.style.cinematic")
+                if appearance.dynamicCinematic {
+                    Toggle("Atmosfera dai colori del film", isOn: settings.binding(\.appearance.cinematicMood))
+                    Toggle("Zoom lento dell'immagine e dissolvenze", isOn: settings.binding(\.appearance.cinematicMotion))
+                }
+            }
+            Section(header: Text("Modalità AMOLED"), footer: Text("Sfondo nero assoluto (tema scuro forzato), aloni ridotti: testi e controlli restano ad alto contrasto. Ha la precedenza sul colore di sfondo personalizzato.")) {
+                Toggle("Modalità AMOLED (neri totali)", isOn: settings.binding(\.appearance.amoled))
+                    .accessibilityIdentifier("settings.style.amoled")
+            }
             Section(header: Text("Atmosfera"),
                     footer: Text("I colori dello sfondo. Non toccano il testo: la leggibilità è la stessa con ogni atmosfera.")) {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 14) {
@@ -35,28 +48,19 @@ struct StyleSettingsView: View {
                     Button("Copia colore esadecimale") { UIPasteboard.general.string = appearance.customAccentHex }
                 }
             }
-            Section(header: Text("Dynamic Cinematic UI"),
-                    footer: Text("Cambia l'aspetto di tutta l'app: sfondo a riflettore, schede con alone, angoli più morbidi e, nella scheda di un film, un'immagine a tutta altezza che sfuma nel fondo. Funziona insieme a palette, carattere, cornici e colori scelti qui sotto (cornice e sfondo restano quelli che scegli, salvo i predefiniti).")) {
-                Toggle("Dynamic Cinematic UI", isOn: settings.binding(\.appearance.dynamicCinematic))
-                    .accessibilityIdentifier("settings.style.cinematic")
-                if appearance.dynamicCinematic {
-                    Toggle("Atmosfera dai colori del film", isOn: settings.binding(\.appearance.cinematicMood))
-                    Toggle("Zoom lento dell'immagine e dissolvenze", isOn: settings.binding(\.appearance.cinematicMotion))
-                }
-            }
-            Section(header: Text("AMOLED"), footer: Text("Sfondo nero assoluto (tema scuro forzato), aloni ridotti: testi e controlli restano ad alto contrasto. Ha la precedenza sul colore di sfondo personalizzato.")) {
-                Toggle("Modalità AMOLED (neri totali)", isOn: settings.binding(\.appearance.amoled))
-                    .accessibilityIdentifier("settings.style.amoled")
-            }
             Section(header: Text("Sfondo"), footer: Text(backdropFooter)) {
                 Picker("Sfondo", selection: settings.binding(\.appearance.backdrop)) {
                     ForEach(BackdropStyle.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .accessibilityIdentifier("settings.style.backdrop")
+                Toggle("Aloni colorati dello sfondo", isOn: settings.binding(\.appearance.showHalos))
+                    .accessibilityIdentifier("settings.style.halos")
+                if appearance.showHalos {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Intensità degli aloni")
                     Slider(value: settings.binding(\.appearance.backdropIntensity), in: 0...1)
                         .accessibilityLabel("Intensità degli aloni")
+                }
                 }
                 Toggle("Colore di sfondo personalizzato", isOn: Binding(get: { appearance.customBackgroundHex != nil }, set: { enabled in
                     settings.value.appearance.customBackgroundHex = enabled ? (appearance.customBackgroundHex ?? "#0A0F1F") : nil
@@ -105,6 +109,7 @@ struct StyleSettingsView: View {
                     a.showPosterRatings = true
                     a.dynamicCinematic = false
                     a.amoled = false
+                    a.showHalos = true
                     a.cardChrome = .standard
                     a.cornerStyle = .standard
                     a.titleFont = .rounded

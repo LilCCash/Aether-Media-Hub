@@ -105,6 +105,8 @@ struct StreamDisplaySettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
 
     private var display: StreamDisplaySettings { settings.value.content.streamDisplay }
+    @State private var importing = false
+    @State private var importMessage: String?
 
     var body: some View {
         Form {
@@ -121,6 +123,32 @@ struct StreamDisplaySettingsView: View {
                                                      set: { settings.value.content.streamDisplay.setShown($0, kind) }))
                 }
             }
+            Section(header: Text("Badge personalizzati"),
+                    footer: Text("Importa da un link (https) un elenco JSON di badge: ogni badge compare sulle sorgenti il cui testo contiene una delle parole. Esempio: [{\"label\":\"Remux\",\"match\":[\"remux\"],\"color\":\"#FF9500\"}] oppure {\"badges\":[…]}. Una parola che inizia con re: è un'espressione regolare.")) {
+                TextField("https://…/badge.json", text: settings.binding(\.content.streamDisplay.customBadgesURL))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .accessibilityIdentifier("settings.streams.badgeURL")
+                Button(importing ? "Importo…" : "Importa i badge") { Task { await importBadges() } }
+                    .disabled(importing || display.customBadgesURL.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .accessibilityIdentifier("settings.streams.badgeImport")
+                if let importMessage { Text(importMessage).font(.footnote).foregroundStyle(.secondary) }
+                ForEach(display.customBadges) { rule in
+                    HStack {
+                        Text(rule.label).font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 7).padding(.vertical, 3)
+                            .background((rule.colorHex.map { Color(hex: $0) } ?? Color.gray).opacity(0.25), in: Capsule())
+                        Text(rule.match.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                if !display.customBadges.isEmpty {
+                    Button("Rimuovi i badge importati", role: .destructive) {
+                        settings.value.content.streamDisplay.customBadges = []
+                        importMessage = nil
+                    }
+                }
+            }
             Section(header: Text("Formato del testo"),
                     footer: Text("Vuoto = testo originale dell'addon. Segnaposto: \(StreamDisplaySettings.tokens.joined(separator: " "))")) {
                 ForEach(StreamDisplaySettings.presets, id: \.title) { preset in
@@ -134,6 +162,32 @@ struct StreamDisplaySettingsView: View {
         }
         .navigationTitle("Sorgenti")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+extension StreamDisplaySettingsView {
+    fileprivate func importBadges() async {
+        let text = display.customBadgesURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: text), url.scheme?.lowercased() == "https", url.host != nil else {
+            importMessage = "Il link deve iniziare con https://"
+            return
+        }
+        importing = true
+        defer { importing = false }
+        var request = URLRequest(url: url, timeoutInterval: 12)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200 else {
+            importMessage = "Non riesco a scaricare il file."
+            return
+        }
+        let rules = CustomBadgePack.parse(data)
+        guard !rules.isEmpty else {
+            importMessage = "Nel file non ho trovato badge validi."
+            return
+        }
+        settings.value.content.streamDisplay.customBadges = rules
+        importMessage = "Importati \(rules.count) badge."
     }
 }
 
