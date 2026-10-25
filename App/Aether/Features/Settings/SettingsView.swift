@@ -147,43 +147,20 @@ struct AppearanceSettingsView: View {
                 }
                 .accessibilityIdentifier("settings.style")
             }
-            Section(header: Text("Home e cataloghi"),
-                    footer: Text("Sezioni e carosello della Home, nome, ordine e visibilità dei cataloghi degli addon, categorie di Scopri.")) {
+            Section(header: Text("Home"),
+                    footer: Text("Sezioni e carosello della Home, dimensione e densità delle schede. Nomi e ordine dei cataloghi sono in Contenuti e scoperta; badge e formato delle sorgenti in Riproduzione.")) {
                 NavigationLink {
                     HomeLayoutSettingsView()
                 } label: {
                     Label("Personalizza la Home", systemImage: "rectangle.3.group")
                 }
                 .accessibilityIdentifier("settings.homeLayout")
-                NavigationLink {
-                    CatalogLayoutSettingsView()
-                } label: {
-                    Label("Cataloghi: nomi, ordine, visibilità", systemImage: "list.bullet.rectangle")
-                }
-                .accessibilityIdentifier("settings.catalogs")
-                NavigationLink("Categorie di Scopri") { DiscoverSettingsView() }
-                    .accessibilityIdentifier("settings.discover")
                 Picker("Dimensione delle schede", selection: settings.binding(\.appearance.posterSize)) {
                     ForEach(PosterSize.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 Picker("Densità", selection: settings.binding(\.appearance.density)) {
                     ForEach(CatalogDensity.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
-            }
-            Section(header: Text("Sorgenti e scheda del titolo"),
-                    footer: Text("Come si presentano le sorgenti (badge, logo, testo, badge importati da un link) e quali blocchi e voti mostra la scheda di un film.")) {
-                NavigationLink {
-                    StreamDisplaySettingsView()
-                } label: {
-                    Label("Sorgenti: badge, logo e formato", systemImage: "tag")
-                }
-                .accessibilityIdentifier("settings.streams")
-                NavigationLink {
-                    TitlePageSettingsView(credentials: env.credentials)
-                } label: {
-                    Label("Scheda del titolo: moduli e voti", systemImage: "rectangle.stack.person.crop")
-                }
-                .accessibilityIdentifier("settings.titlePage")
             }
             Section(header: Text("Effetti"), footer: Text("Con gli effetti ridotti il vetro liquido viene sostituito da superfici opache e lo sfondo diventa uniforme. Aether rispetta anche «Riduci trasparenza» e «Riduci movimento» di iOS.")) {
                 Toggle("Animazioni", isOn: settings.binding(\.appearance.animationsEnabled))
@@ -207,6 +184,14 @@ struct PlaybackSettingsView: View {
 
     var body: some View {
         Form {
+            Section(header: Text("Sorgenti"), footer: Text("Come sono scritte le righe dell'elenco delle sorgenti: badge (4K, HDR, audio…), logo dell'addon, formato del testo e badge importati da un link.")) {
+                NavigationLink {
+                    StreamDisplaySettingsView()
+                } label: {
+                    Label("Badge, logo e formato delle sorgenti", systemImage: "tag")
+                }
+                .accessibilityIdentifier("settings.streams")
+            }
             Section(header: Text("Motore"),
                     footer: Text("Automatico usa AVPlayer (il player di Apple, l'unico che può mostrare il vero Dolby Vision) per MP4, MOV e HLS, e MPV per MKV, AVI, TS e i file che AVPlayer non sa decodificare. Se un motore non riesce ad aprire il file, Aether prova l'altro una volta.\(RemuxEngineFactory.isAvailable ? " «Converti i file MKV per AVPlayer» fa passare anche gli MKV da AVPlayer: il telefono li rimette al volo in pezzi HLS (video e audio copiati, non ricodificati), così funzionano Picture in Picture e AirPlay. Una traccia audio alla volta, niente sottotitoli incorporati, e non parte se l'audio è solo DTS/TrueHD o il video è VP9/AV1: in quel caso Automatico usa MPV." : "")")) {
                 Picker("Player", selection: settings.binding(\.playback.engine)) {
@@ -416,6 +401,20 @@ struct ContentSettingsView: View {
 
     var body: some View {
         Form {
+            Section(header: Text("Cataloghi e Scopri"), footer: Text("Nome, ordine e visibilità dei cataloghi di ogni addon (valgono in Home, Scopri e Cerca) e le categorie di Scopri.")) {
+                NavigationLink {
+                    CatalogLayoutSettingsView()
+                } label: {
+                    Label("Cataloghi: nomi, ordine, visibilità", systemImage: "list.bullet.rectangle")
+                }
+                .accessibilityIdentifier("settings.catalogs")
+                NavigationLink {
+                    DiscoverSettingsView()
+                } label: {
+                    Label("Categorie di Scopri", systemImage: "safari")
+                }
+                .accessibilityIdentifier("settings.discover")
+            }
             Section(header: Text("Addon")) {
                 NavigationLink {
                     AddonsView()

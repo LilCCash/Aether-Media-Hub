@@ -134,7 +134,7 @@ struct StreamDisplaySettingsView: View {
                     .disabled(importing || display.customBadgesURL.trimmingCharacters(in: .whitespaces).isEmpty)
                     .accessibilityIdentifier("settings.streams.badgeImport")
                 if let importMessage { Text(importMessage).font(.footnote).foregroundStyle(.secondary) }
-                ForEach(display.customBadges) { rule in
+                ForEach(Array(display.customBadges.prefix(6))) { rule in
                     HStack {
                         Text(rule.label).font(.footnote.weight(.semibold))
                             .padding(.horizontal, 7).padding(.vertical, 3)
@@ -142,6 +142,7 @@ struct StreamDisplaySettingsView: View {
                         Text(rule.match.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
+                if display.customBadges.count > 6 { Text("…e altri \(display.customBadges.count - 6)").font(.caption).foregroundStyle(.secondary) }
                 if !display.customBadges.isEmpty {
                     Button("Rimuovi i badge importati", role: .destructive) {
                         settings.value.content.streamDisplay.customBadges = []
@@ -193,14 +194,13 @@ extension StreamDisplaySettingsView {
 
 // MARK: - Title page: TMDB modules, saga, ratings
 
-struct TitlePageSettingsView: View {
+/// Servizi ▸ TMDB: which blocks of the title page come from TMDB, and the saga row.
+struct TitleModulesSettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
-    @EnvironmentObject private var env: AppEnvironment
-    @ObservedObject var credentials: ServiceCredentials
 
     var body: some View {
         Form {
-            Section(header: Text("Moduli TMDB"), footer: Text("Scegli quali blocchi mostra la scheda di un film o di una serie. Servono la chiave TMDB.")) {
+            Section(footer: Text("Scegli quali blocchi mostra la scheda di un film o di una serie. Servono la chiave TMDB.")) {
                 Toggle("Cast e troupe", isOn: settings.binding(\.content.titleModules.cast))
                 Toggle("Trailer", isOn: settings.binding(\.content.titleModules.trailers))
                 Toggle("Produzione", isOn: settings.binding(\.content.titleModules.companies))
@@ -209,9 +209,19 @@ struct TitlePageSettingsView: View {
                 Toggle("Titoli simili", isOn: settings.binding(\.content.titleModules.similar))
                 Toggle("Saga / collezione", isOn: settings.binding(\.content.titleModules.collection))
             }
-            Section(header: Text("Voti"), footer: Text(credentials.isConfigured(.mdblist)
-                    ? "Scegli i servizi da mostrare nella scheda del titolo."
-                    : "Per vedere i voti serve la chiave MDBList (Impostazioni ▸ Servizi).")) {
+        }
+        .navigationTitle("Moduli della scheda")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Servizi ▸ MDBList: which rating services the title page shows.
+struct RatingsSettingsView: View {
+    @EnvironmentObject private var settings: SettingsStore
+
+    var body: some View {
+        Form {
+            Section(footer: Text("Scegli i servizi di voto da mostrare nella scheda del titolo. Servono le chiavi MDBList e TMDB.")) {
                 Toggle("Mostra i voti", isOn: settings.binding(\.content.ratings.enabled))
                 if settings.value.content.ratings.enabled {
                     ForEach(RatingSource.allCases, id: \.self) { source in
@@ -221,7 +231,7 @@ struct TitlePageSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Scheda del titolo")
+        .navigationTitle("Voti")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

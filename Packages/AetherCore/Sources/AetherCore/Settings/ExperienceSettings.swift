@@ -303,39 +303,81 @@ public struct RatingsSettings: Codable, Equatable, Sendable {
 
 // MARK: - Badges imported from a link
 
-/// One imported badge: shown on every source whose text contains one of the words.
+/// One imported badge: shown on every source whose text matches one of the entries.
 public struct CustomBadgeRule: Codable, Equatable, Sendable, Identifiable {
+    public var uid: String
     public var label: String
     /// Words (case-insensitive); an entry starting with "re:" is a regular expression.
     public var match: [String]
+    /// Text / accent colour as #RRGGBB.
     public var colorHex: String?
+    public var borderHex: String?
+    public var fillHex: String?
+    public var fillAlpha: Double = 0.18
+    /// A ready-made picture of the badge (https), drawn instead of the text when present.
+    public var imageURL: String?
 
-    public var id: String { return label + "|" + match.joined(separator: ",") }
+    public var id: String { return uid }
 
-    public init(label: String, match: [String], colorHex: String? = nil) {
+    public init(uid: String? = nil, label: String, match: [String], colorHex: String? = nil, borderHex: String? = nil,
+                fillHex: String? = nil, fillAlpha: Double = 0.18, imageURL: String? = nil) {
+        self.uid = uid ?? (label + "|" + match.joined(separator: ","))
         self.label = label
         self.match = match
         self.colorHex = colorHex
+        self.borderHex = borderHex
+        self.fillHex = fillHex
+        self.fillAlpha = fillAlpha
+        self.imageURL = imageURL
     }
 
     public func matches(_ text: String) -> Bool {
         for entry in match {
             if entry.hasPrefix("re:") {
-                let pattern = String(entry.dropFirst(3))
-                if !pattern.isEmpty, text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil { return true }
+                if let regex = CustomBadgeRule.regex(String(entry.dropFirst(3))),
+                   regex.firstMatch(in: text, options: [], range: NSRange(text.startIndex..., in: text)) != nil { return true }
             } else if !entry.isEmpty, text.range(of: entry, options: .caseInsensitive) != nil {
                 return true
             }
         }
         return false
     }
+
+    private nonisolated(unsafe) static var cache: [String: NSRegularExpression?] = [:]
+    private static let lock = NSLock()
+
+    private static func regex(_ pattern: String) -> NSRegularExpression? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let known = cache[pattern] { return known }
+        let compiled = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+        cache[pattern] = .some(compiled)
+        return compiled
+    }
 }
 
-/// A badge pack as published at a link: `[{"label":"Remux","match":["remux"],"color":"#FF9500"}]`, or the same list inside
-/// `{"badges":[…]}` (also `name`/`text` for the label, `keywords`/`pattern` for the words, `colour`/`hex` for the colour).
+/// A badge pack as published at a link. Two shapes are understood:
+/// - the Nuvio/Fusion style `{"filters":[{"name","pattern","imageURL","tagColor","borderColor","textColor","isEnabled"}]}`;
+/// - the simple list `[{"label":"Remux","match":["remux"],"color":"#FF9500"}]` (or inside `{"badges":[…]}`).
 public enum CustomBadgePack {
-    public static let maxRules = 60
-    public static let maxBytes = 200_000
+    public static let maxRules = 300
+    public static let maxBytes = 1_500_000
+
+    /// "#RRGGBB" or "#AARRGGBB" (also without #) → colour and alpha.
+    static func color(_ value: Any?) -> (hex: String, alpha: Double)? {
+        guard let raw = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(), !raw.isEmpty else { return nil }
+        let digits = raw.hasPrefix("#") ? String(raw.dropFirst()) : raw
+        guard digits.range(of: "^[0-9A-F]+$", options: .regularExpression) != nil else { return nil }
+        if digits.count == 6 { return ("#" + digits, 1) }
+        if digits.count == 8, let alpha = Int(digits.prefix(2), radix: 16) { return ("#" + String(digits.dropFirst(2)), Double(alpha) / 255) }
+        return nil
+    }
+
+    static func https(_ value: Any?) -> String? {
+        guard let text = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let url = URL(string: text), url.scheme?.lowercased() == "https", url.host != nil else { return nil }
+        return text
+    }
 
     public static func parse(_ data: Data) -> [CustomBadgeRule] {
         guard data.count <= maxBytes, let object = try? JSONSerialization.jsonObject(with: data) else { return [] }
@@ -343,11 +385,12 @@ public enum CustomBadgePack {
         if let array = object as? [Any] {
             list = array
         } else if let dictionary = object as? [String: Any] {
-            list = (dictionary["badges"] as? [Any]) ?? (dictionary["rules"] as? [Any]) ?? (dictionary["items"] as? [Any]) ?? []
+            list = (dictionary["filters"] as? [Any]) ?? (dictionary["badges"] as? [Any]) ?? (dictionary["rules"] as? [Any]) ?? (dictionary["items"] as? [Any]) ?? []
         }
         var rules: [CustomBadgeRule] = []
         for entry in list {
             guard let item = entry as? [String: Any] else { continue }
+            if let enabled = item["isEnabled"] as? Bool, !enabled { continue }
             let label = [item["label"], item["name"], item["text"]].compactMap { $0 as? String }.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             var words: [String] = []
             for key in ["match", "keywords", "pattern", "regex", "contains"] {
@@ -355,13 +398,14 @@ public enum CustomBadgePack {
                 if let many = item[key] as? [Any] { words.append(contentsOf: many.compactMap { $0 as? String }) }
             }
             words = words.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-            let color = [item["color"], item["colour"], item["hex"]].compactMap { $0 as? String }.first.flatMap { value -> String? in
-                let hex = value.trimmingCharacters(in: .whitespaces).uppercased()
-                let full = hex.hasPrefix("#") ? hex : "#" + hex
-                return full.range(of: "^#[0-9A-F]{6}$", options: .regularExpression) != nil ? full : nil
-            }
             guard !label.isEmpty, !words.isEmpty else { continue }
-            rules.append(CustomBadgeRule(label: String(label.prefix(24)), match: Array(words.prefix(12)), colorHex: color))
+            let text = color(item["textColor"]) ?? color(item["color"]) ?? color(item["colour"]) ?? color(item["hex"])
+            let fill = color(item["tagColor"])
+            let border = color(item["borderColor"])
+            let uid = (item["id"] as? String).map { $0 + "#\(rules.count)" } ?? "\(rules.count)"
+            rules.append(CustomBadgeRule(uid: uid, label: String(label.prefix(24)), match: Array(words.prefix(12)),
+                                         colorHex: text?.hex, borderHex: border?.hex, fillHex: (fill ?? text)?.hex,
+                                         fillAlpha: fill?.alpha ?? 0.18, imageURL: https(item["imageURL"])))
             if rules.count >= maxRules { break }
         }
         return rules

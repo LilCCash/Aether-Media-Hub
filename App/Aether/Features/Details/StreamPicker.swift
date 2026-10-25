@@ -1095,11 +1095,7 @@ struct FlowBadges: View {
                     }
                 }
                 ForEach(imported) { rule in
-                    Text(rule.label)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .foregroundStyle(rule.colorHex.map { Color(hex: $0) } ?? Color.primary)
-                        .background((rule.colorHex.map { Color(hex: $0) } ?? Color.gray).opacity(0.18), in: Capsule())
+                    ImportedBadgeView(rule: rule)
                 }
             }
         }
@@ -1160,5 +1156,38 @@ struct WrappingHStack: Layout {
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
+    }
+}
+
+
+/// A badge imported from a link: its own picture when it has one (with the name as fallback), else a coloured pill.
+struct ImportedBadgeView: View {
+    let rule: CustomBadgeRule
+
+    var body: some View {
+        if let raw = rule.imageURL, let url = URL(string: raw) {
+            AsyncImage(url: url) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFit()
+                } else {
+                    pill
+                }
+            }
+            .frame(height: 20)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityLabel(rule.label)
+        } else {
+            pill
+        }
+    }
+
+    private var pill: some View {
+        let accent = rule.colorHex.map { Color(hex: $0) } ?? Color.primary
+        return Text(rule.label)
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .padding(.horizontal, 7).padding(.vertical, 3)
+            .foregroundStyle(accent)
+            .background((rule.fillHex.map { Color(hex: $0) } ?? Color.gray).opacity(rule.fillAlpha), in: Capsule())
+            .overlay(Capsule().strokeBorder(rule.borderHex.map { Color(hex: $0) } ?? Color.clear, lineWidth: 1))
     }
 }

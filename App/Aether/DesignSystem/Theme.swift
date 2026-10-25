@@ -59,6 +59,8 @@ extension Font {
 /// Page backdrop: soft colour washes behind scrolling content, in the palette and motion the viewer chose. Washes never go
 /// above `AppPalette.maxWashOpacity`, the opacity at which every palette is checked for text contrast.
 struct AetherBackdrop: View {
+    /// Cinematic title page: the whole screen takes the film's colours instead of the app's background.
+    var immersive = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -104,9 +106,31 @@ struct AetherBackdrop: View {
             if !settings.reduceEffects && settings.value.appearance.showHalos {
                 washes
             }
+            if style.cinematic && style.mood, let color = mood.color {
+                moodGradient(color)
+            }
         }
         .animation(style.motion ? .easeInOut(duration: 1.1) : nil, value: mood.color)
         .ignoresSafeArea()
+    }
+
+    /// The film's colour as a deep tone (dark scheme) or a pale tint (light scheme) of the same hue.
+    private func tone(_ color: Color, _ brightness: Double) -> Color {
+        var hue: CGFloat = 0, saturation: CGFloat = 0, value: CGFloat = 0, alpha: CGFloat = 0
+        UIColor(color).getHue(&hue, saturation: &saturation, brightness: &value, alpha: &alpha)
+        let dark = scheme == .dark || immersive
+        return Color(hue: Double(hue), saturation: Double(min(1, saturation)) * (dark ? 0.95 : 0.35),
+                     brightness: dark ? brightness * (style.amoled ? 0.6 : 1) : 0.97)
+    }
+
+    @ViewBuilder
+    private func moodGradient(_ color: Color) -> some View {
+        if immersive {
+            LinearGradient(colors: [tone(color, 0.62), tone(color, 0.34), tone(color, 0.12)], startPoint: .top, endPoint: .bottom)
+        } else {
+            LinearGradient(colors: [tone(color, 0.55).opacity(scheme == .dark ? 0.85 : 0.6), .clear],
+                           startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.75))
+        }
     }
 
     @ViewBuilder

@@ -28,6 +28,12 @@ final class PlayerHostView: UIView {
         fatalError("init(coder:) is not supported")
     }
 
+    /// The picture always follows the size the screen has now (it can change while the player turns sideways).
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        subviews.forEach { $0.frame = bounds }
+    }
+
     func show(_ video: UIView) {
         guard video.superview !== self else { return }
         subviews.forEach { $0.removeFromSuperview() }
@@ -112,7 +118,12 @@ enum OrientationController {
     static func set(_ mask: UIInterfaceOrientationMask) {
         AppDelegate.orientationMask = mask
         guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
-        scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        // The full-screen covers decide the orientation, not only the root: tell the whole presented chain.
+        var controller = scene.keyWindow?.rootViewController
+        while let current = controller {
+            current.setNeedsUpdateOfSupportedInterfaceOrientations()
+            controller = current.presentedViewController
+        }
         scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { _ in }
     }
 }

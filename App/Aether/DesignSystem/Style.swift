@@ -35,7 +35,7 @@ struct AetherStyle: Equatable {
     init(_ appearance: AppearanceSettings) {
         palette = appearance.palette
         backdrop = appearance.dynamicCinematic && appearance.backdrop == .aurora ? .spotlight : appearance.backdrop
-        chrome = appearance.dynamicCinematic && appearance.cardChrome == .standard ? .glow : appearance.cardChrome
+        chrome = appearance.dynamicCinematic && appearance.showHalos && appearance.cardChrome == .standard ? .glow : appearance.cardChrome
         cinematic = appearance.dynamicCinematic
         mood = appearance.dynamicCinematic && appearance.cinematicMood
         motion = appearance.dynamicCinematic && appearance.cinematicMotion

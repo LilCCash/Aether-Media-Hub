@@ -273,12 +273,17 @@ struct PlayerView: View {
         // Always open sideways; the other orientations are only allowed once the phone is really held sideways, otherwise iOS
         // would turn the player back to portrait at once.
         OrientationController.set(.landscape)
-        if !playbackSettings.landscapeOnly {
-            orientationTask?.cancel()
-            orientationTask = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 900_000_000)
-                if !Task.isCancelled, UIDevice.current.orientation.isLandscape { OrientationController.set(.allButUpsideDown) }
-            }
+        // The cover that presents the player may be laid out while the screen is still turning: ask again once it settled,
+        // so the picture and the controls get the sideways size.
+        orientationTask?.cancel()
+        let landscapeOnly = playbackSettings.landscapeOnly
+        orientationTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            OrientationController.set(.landscape)
+            guard !landscapeOnly else { return }
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            if !Task.isCancelled, UIDevice.current.orientation.isLandscape { OrientationController.set(.allButUpsideDown) }
         }
         model.start()
         casting.onRemoteSessionEnded = { position, reason in

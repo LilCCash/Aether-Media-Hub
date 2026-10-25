@@ -164,6 +164,7 @@ struct DetailView: View {
     @Environment(\.aetherStyle) private var style
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoomed = false
+    @State private var revealed = false
     @StateObject private var model: DetailViewModel
     @State private var picker: StreamPickerRequest?
     @State private var descriptionExpanded = false
@@ -180,7 +181,7 @@ struct DetailView: View {
 
     var body: some View {
         ZStack {
-            AetherBackdrop()
+            AetherBackdrop(immersive: style.cinematic)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
@@ -193,9 +194,14 @@ struct DetailView: View {
                     footer
                 }
                 .padding(.bottom, 40)
+                // Cinematic reveal: the page fades in and settles instead of just sliding in.
+                .opacity(style.cinematic && style.motion && !reduceMotion && !revealed ? 0 : 1)
+                .scaleEffect(style.cinematic && style.motion && !reduceMotion && !revealed ? 1.06 : 1, anchor: .top)
             }
             .ignoresSafeArea(edges: .top)
         }
+        .preferredColorScheme(style.cinematic ? .dark : nil)
+        .onAppear { withAnimation(.easeOut(duration: 0.8)) { revealed = true } }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
@@ -233,8 +239,8 @@ struct DetailView: View {
             RemoteImage(urlString: model.meta.background ?? model.meta.poster, width: 900, placeholderSeed: model.meta.name)
                 .frame(maxWidth: .infinity)
                 .frame(height: style.cinematic ? 470 : 330)
-                .scaleEffect(style.cinematic && style.motion && !reduceMotion && zoomed ? 1.08 : 1)
-                .animation(style.motion && !reduceMotion ? .easeInOut(duration: 14) : nil, value: zoomed)
+                .scaleEffect(style.cinematic && style.motion && !reduceMotion && zoomed ? 1.2 : 1)
+                .animation(style.motion && !reduceMotion ? .easeInOut(duration: 16) : nil, value: zoomed)
                 .clipped()
                 .onAppear { zoomed = true }
                 // Cinematic: the artwork itself dissolves into the page (a mask), so the film's colours flow into the background

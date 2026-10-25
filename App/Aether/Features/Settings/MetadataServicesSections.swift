@@ -8,9 +8,21 @@ struct MetadataServicesSections: View {
 
     var body: some View {
         MetadataKeySection(kind: .tmdb, credentials: env.credentials)
+        Section {
+            NavigationLink("Moduli della scheda del titolo") { TitleModulesSettingsView() }
+                .accessibilityIdentifier("service.tmdb.modules")
+        } footer: {
+            Text("Cast, trailer, produzione, incassi, dettagli, titoli simili e saghe: quali blocchi TMDB mostrare.")
+        }
         MetadataKeySection(kind: .tvdb, credentials: env.credentials)
         FanartKeySection(credentials: env.credentials)
         MDBListKeySection(credentials: env.credentials)
+        Section {
+            NavigationLink("Servizi di voto da mostrare") { RatingsSettingsView() }
+                .accessibilityIdentifier("service.mdblist.services")
+        } footer: {
+            Text("IMDb, Rotten Tomatoes, Metacritic e gli altri: quali voti compaiono nella scheda del titolo.")
+        }
     }
 }
 
