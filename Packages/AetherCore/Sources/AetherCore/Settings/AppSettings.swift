@@ -144,6 +144,8 @@ public struct HomeSectionConfig: Codable, Hashable, Identifiable, Sendable {
 public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var theme: ThemeMode = .system
     public var accent: AccentChoice = .aurora
+    /// Optional custom accent in #RRGGBB; nil keeps the selected preset.
+    public var customAccentHex: String? = nil
     public var posterSize: PosterSize = .medium
     public var density: CatalogDensity = .comfortable
     public var animationsEnabled: Bool = true
@@ -167,7 +169,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case theme, accent, posterSize, density, animationsEnabled, reduceVisualEffects, homeSections
+        case theme, accent, customAccentHex, posterSize, density, animationsEnabled, reduceVisualEffects, homeSections
         case heroStyle, heroAutoScroll, palette, backdrop, cardChrome, cornerStyle, titleFont
         case greetingEnabled, greetingName, unlockedSecrets
     }
@@ -176,6 +178,12 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         theme = c.value(.theme, default: .system)
         accent = c.value(.accent, default: .aurora)
+        let customAccent: String? = c.lenient(String.self, forKey: .customAccentHex)
+        customAccentHex = customAccent.flatMap { value in
+            let hex = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            guard hex.range(of: "^#[0-9A-F]{6}$", options: .regularExpression) != nil else { return nil }
+            return hex
+        }
         posterSize = c.value(.posterSize, default: .medium)
         density = c.value(.density, default: .comfortable)
         animationsEnabled = c.value(.animationsEnabled, default: true)
