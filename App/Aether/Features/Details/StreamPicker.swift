@@ -69,8 +69,8 @@ struct DebridRowResolution: Equatable {
     var providerTitle: String = "TorBox"
 
     var message: String {
-        if let progress = progress { return progress.message }
-        return mode == DebridMode.startIfNeeded ? "Avvio il download su \(providerTitle)…" : "Controllo \(providerTitle)…"
+        if let progress = progress { return progress.message.replacingOccurrences(of: "TorBox", with: providerTitle) }
+        return mode == DebridMode.startIfNeeded ? "Preparo la sorgente su \(providerTitle)…" : "Controllo \(providerTitle)…"
     }
 
     /// "42% · 15 MB/s · ancora 3 s" (only what TorBox reported).
