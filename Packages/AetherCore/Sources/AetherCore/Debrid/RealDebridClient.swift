@@ -111,6 +111,7 @@ public struct RealDebridClient: DebridProvider {
             if status == "downloaded" { break }
             if status == "waiting_files_selection" {
                 _ = try await send(path: "/torrents/selectFiles/\(id)", method: "POST", form: ["files": "all"])
+                try await clock.sleep(pollInterval)
                 continue
             }
             if ["error", "virus", "dead", "magnet_error", "magnet_conversion"].contains(status) {
