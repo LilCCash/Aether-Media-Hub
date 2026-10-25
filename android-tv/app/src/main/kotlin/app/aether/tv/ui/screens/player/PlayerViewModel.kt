@@ -79,6 +79,8 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         val sleepEndsAtMs: Long? = null,
         /** Subtitle lines on screen, already cleaned and delayed according to the settings. */
         val cues: List<androidx.media3.common.text.Cue> = emptyList(),
+        /** Addon subtitles are rendered by PlayerView's overlay so HDR can keep SurfaceView. */
+        val addonSubtitleActive: Boolean = false,
         val subtitleNote: String? = null,
         /** While TorBox prepares the link: what is going on. The player shows the film's logo meanwhile. */
         val preparing: Preparing? = null,
@@ -337,7 +339,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         addonCueJob?.cancel()
         selectedAddonSubtitle = null
         addonCues = emptyList()
-        _state.update { it.copy(cues = emptyList(), subtitleNote = null) }
+        _state.update { it.copy(cues = emptyList(), addonSubtitleActive = false, subtitleNote = null) }
     }
 
     /** A subtitle of an addon is downloaded and read by the app itself, so it can be shifted both later and earlier. */
@@ -345,7 +347,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         addonCueJob?.cancel()
         selectedAddonSubtitle = sub
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
-        _state.update { it.copy(cues = emptyList(), subtitleNote = "Scarico i sottotitoli…") }
+        _state.update { it.copy(cues = emptyList(), addonSubtitleActive = true, subtitleNote = "Scarico i sottotitoli…") }
         publishTracks(player.currentTracks)
         addonCueJob = viewModelScope.launch {
             val cues = try {
