@@ -8,6 +8,28 @@ struct ServicesSettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                Picker("Provider per i torrent", selection: $env.debrid.selectedProvider) {
+                    ForEach(DebridService.ProviderChoice.allCases) { provider in
+                        Text(provider.title).tag(provider)
+                    }
+                }
+                Text(env.debrid.selectedProvider == .torbox
+                     ? "Aether userà TorBox per controllare la cache e preparare i link."
+                     : "Aether userà Real-Debrid per controllare la disponibilità e preparare i link. Serve un token API valido.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.aetherSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if env.debrid.selectedProvider == .torbox && !env.credentials.isConfigured(.torbox) {
+                    Label("Aggiungi la chiave TorBox qui sotto per usare questo provider.", systemImage: "info.circle")
+                        .font(.footnote)
+                } else if env.debrid.selectedProvider == .realdebrid && !env.credentials.isConfigured(.realdebrid) {
+                    Label("Aggiungi prima il token Real-Debrid nella sezione dedicata.", systemImage: "info.circle")
+                        .font(.footnote)
+                }
+            } header: {
+                Text("Provider debrid attivo")
+            }
             TorBoxServiceSections(debrid: env.debrid, credentials: env.credentials)
             RealDebridServiceSections(credentials: env.credentials, http: env.http)
             // MARK: - Metadata services
