@@ -88,7 +88,7 @@ final class DebridService: ObservableObject {
     }
 
     /// A key is saved. It may still be wrong: only `status` says what TorBox answered.
-    var isConfigured: Bool { return credentials.isConfigured(selectedProvider == .torbox ? ServiceKind.torbox : ServiceKind.realdebrid) }
+    var isConfigured: Bool { return credentials.isConfigured(ServiceKind.torbox) }
 
     // MARK: Connection
 
@@ -104,13 +104,7 @@ final class DebridService: ObservableObject {
         let generation = verifyGeneration
         status = ConnectionStatus.checking
         do {
-            let account: DebridAccount
-            switch selectedProvider {
-            case .torbox:
-                account = try await resolver.validateCredentials()
-            case .realdebrid:
-                account = try await realDebrid.validateCredentials()
-            }
+            let account = try await resolver.validateCredentials()
             guard generation == verifyGeneration, isConfigured else { return nil }
             status = ConnectionStatus.connected(DebridService.summary(of: account))
             return nil
@@ -144,7 +138,7 @@ final class DebridService: ObservableObject {
 
     /// Removes the key from the Keychain. Nothing is deleted from the user's TorBox account.
     func forget() {
-        credentials.remove(selectedProvider == .torbox ? ServiceKind.torbox : ServiceKind.realdebrid)
+        credentials.remove(ServiceKind.torbox)
         credentialsDidChange()
     }
 
