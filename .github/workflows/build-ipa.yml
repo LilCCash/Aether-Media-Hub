@@ -2,7 +2,7 @@ name: Build IPA
 
 # Composes Aether.ipa on a GitHub macOS runner; this workflow is also used to validate the main-secondary build.
 #
-#   unsigned  (default, no credentials needed; validates Real-Debrid-only torrent routing, automatic preparation, landscape loading, and provider-specific error reporting)
+#   unsigned  (default, no credentials needed; validates current UI, custom accent color, catalog settings, metadata integrations, and playback paths)
 #       Builds a Release archive for real iPhones (arm64) with code signing disabled and packs it as
 #       Aether-unsigned.ipa. iOS refuses to install an unsigned IPA as it is: it has to be re-signed first, for example
 #       with your own Apple ID through AltStore / Sideloadly, or with a certificate of your own. The job checks the
