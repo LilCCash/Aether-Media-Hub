@@ -94,8 +94,16 @@ final class DebridService: ObservableObject {
         return url
     }
 
-    /// A key is saved. It may still be wrong: only `status` says what TorBox answered.
-    var isConfigured: Bool { return credentials.isConfigured(ServiceKind.torbox) }
+    /// Whether the currently selected provider has a saved credential.
+    var isConfigured: Bool {
+        switch selectedProvider {
+        case .torbox: return isTorBoxConfigured
+        case .realdebrid: return credentials.isConfigured(.realdebrid)
+        }
+    }
+
+    /// TorBox-specific configuration used by its account-status UI.
+    var isTorBoxConfigured: Bool { credentials.isConfigured(.torbox) }
 
     // MARK: Connection
 
@@ -103,7 +111,7 @@ final class DebridService: ObservableObject {
     /// network) said no, nil when the key was accepted or the check was superseded by a newer one.
     @discardableResult
     func verifyConnection() async -> DebridError? {
-        guard isConfigured else {
+        guard isTorBoxConfigured else {
             status = ConnectionStatus.notConfigured
             return nil
         }
@@ -112,7 +120,7 @@ final class DebridService: ObservableObject {
         status = ConnectionStatus.checking
         do {
             let account = try await resolver.validateCredentials()
-            guard generation == verifyGeneration, isConfigured else { return nil }
+            guard generation == verifyGeneration, isTorBoxConfigured else { return nil }
             status = ConnectionStatus.connected(DebridService.summary(of: account))
             return nil
         } catch is CancellationError {
@@ -120,7 +128,7 @@ final class DebridService: ObservableObject {
             return nil
         } catch {
             guard generation == verifyGeneration else { return nil }
-            if isConfigured {
+            if isTorBoxConfigured {
                 status = ConnectionStatus.failed(DebridErrorText.connectionMessage(forAny: error))
             } else {
                 status = ConnectionStatus.notConfigured
@@ -131,7 +139,8 @@ final class DebridService: ObservableObject {
 
     /// Settings opens: a saved key that nobody has checked in this session is checked once.
     func verifyIfNeeded() async {
-        guard isConfigured else { return }
+        // `status` is specifically the TorBox account status; never verify TorBox when Real-Debrid is selected.
+        guard selectedProvider == .torbox, isTorBoxConfigured else { return }
         if case ConnectionStatus.unverified = status {
             await verifyConnection()
         }
@@ -155,7 +164,7 @@ final class DebridService: ObservableObject {
         prepared.removeAll()
         let resolver = self.resolver
         Task { await resolver.clearAvailabilityCache() }
-        status = isConfigured ? ConnectionStatus.unverified : ConnectionStatus.notConfigured
+        status = isTorBoxConfigured ? ConnectionStatus.unverified : ConnectionStatus.notConfigured
     }
 
     // MARK: Cache check and resolution
