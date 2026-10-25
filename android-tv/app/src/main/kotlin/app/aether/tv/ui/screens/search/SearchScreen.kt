@@ -47,7 +47,6 @@ import app.aether.tv.ui.components.rememberFocusMemory
 import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.AetherDimens
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -83,20 +82,19 @@ class SearchViewModel(private val engine: AetherEngine) : ViewModel() {
         viewModelScope.launch { _state.update { it.copy(searchableCatalogs = engine.search.searchableCatalogs().size) } }
     }
 
+    /** Editing the field is local-only; addon requests start only after an explicit Search/Enter action. */
     fun onQuery(text: String) {
         _state.update { it.copy(query = text) }
-        job?.cancel()
-        if (SearchService.normalisedQuery(text).isEmpty()) {
-            _state.update { it.copy(searched = "", rows = emptyList(), local = emptyList(), searching = false) }
-            return
-        }
-        // Typing: wait for a pause before asking every addon.
-        job = viewModelScope.launch { delay(550); run(text, remember = false) }
     }
 
     fun submit() {
         job?.cancel()
-        job = viewModelScope.launch { run(_state.value.query, remember = true) }
+        val query = SearchService.normalisedQuery(_state.value.query)
+        if (query.isEmpty()) {
+            _state.update { it.copy(searched = "", rows = emptyList(), local = emptyList(), searching = false, completed = 0, total = 0) }
+            return
+        }
+        job = viewModelScope.launch { run(query, remember = true) }
     }
 
     fun pick(item: SearchHistoryItem) {
@@ -192,7 +190,7 @@ private fun Row0(content: @Composable () -> Unit) {
 @Composable
 private fun HistoryBlock(state: SearchViewModel.UiState, vm: SearchViewModel) {
     if (state.history.isEmpty()) {
-        EmptyState("Cosa vuoi guardare?", "Scrivi un titolo: la ricerca interroga tutti i cataloghi dei tuoi addon e ti mostra i risultati man mano che arrivano.", Modifier.fillMaxWidth().padding(top = 24.dp), icon = Icons.Filled.Search)
+        EmptyState("Cosa vuoi guardare?", "Scrivi un titolo e premi Invio per avviare la ricerca nei cataloghi dei tuoi addon.", Modifier.fillMaxWidth().padding(top = 24.dp), icon = Icons.Filled.Search)
         return
     }
     Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), verticalArrangement = Arrangement.spacedBy(8.dp)) {
