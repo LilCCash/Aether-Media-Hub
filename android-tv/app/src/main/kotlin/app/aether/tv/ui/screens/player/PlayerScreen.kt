@@ -190,6 +190,9 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     useController = false
+                    // Use a TextureView so the Compose subtitle overlay can render above the video surface.
+                    // SurfaceView may sit above sibling views on Android TV and hide the selected captions.
+                    useTextureView = true
                     isFocusable = false
                     isFocusableInTouchMode = false
                     keepScreenOn = true
