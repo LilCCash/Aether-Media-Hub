@@ -19,9 +19,9 @@ extension AppEnvironment {
                 server = url
             }
         }
-        // A torrent counts as playable only when the user has saved a TorBox key (it is then resolved into a link on demand).
+        // A torrent counts as playable when the active debrid provider has credentials (it is resolved on demand).
         var capabilities = PlaybackEngineFactory.capabilities
-        capabilities.debridAvailable = credentials.isConfigured(ServiceKind.torbox)
+        capabilities.debridAvailable = debrid.isConfigured
         return StreamPreferences(
             qualityCap: value.playback.qualityCap,
             preferredLanguage: SettingsStore.resolvedLanguage(value.playback.preferredAudioLanguage),
@@ -153,7 +153,7 @@ final class StreamPickerModel: ObservableObject {
         availabilityTask?.cancel()
     }
 
-    /// Torrents known to be in TorBox's cache come first among the torrents; the other rows keep their place.
+    /// Torrents known to be cached by the active provider come first; the other rows keep their place.
     var playable: [RankedStream] {
         let list = ranked.filter { $0.info.support.isPlayable }
         return DebridStreamLogic.cachedFirst(list, statuses: cacheStatuses)
@@ -259,7 +259,7 @@ final class StreamPickerModel: ObservableObject {
 
     private func maybeAutoSelect(env: AppEnvironment, onAutoSelect: @escaping (RankedStream) -> Void) {
         guard !autoSelected, env.settings.value.playback.autoSelectStream else { return }
-        // Torrents wait for the cache check: only one that TorBox reports in cache may be chosen without the user's tap.
+        // Torrents wait for the active provider's cache check before automatic selection.
         if env.debrid.isConfigured && hasPendingCacheChecks {
             deferredAutoSelect = onAutoSelect
             return
@@ -276,8 +276,7 @@ final class StreamPickerModel: ObservableObject {
 
     private var hasPendingCacheChecks: Bool { return availabilityTask != nil || !pendingHashes.isEmpty }
 
-    /// Asks TorBox about the torrents that have not been asked about yet, in one request per 100 hashes, without blocking the
-    /// list: rows show "Verifica…" until the answer arrives, and nothing at all if the check fails.
+    /// Asks the active provider about torrents not checked yet, without blocking the list.
     private func scheduleAvailabilityCheck() {
         guard let env = env, env.debrid.isConfigured else { return }
         for hash in DebridStreamLogic.hashes(in: ranked) {
@@ -389,10 +388,9 @@ final class StreamPickerModel: ObservableObject {
         env.router.play(player)
     }
 
-    // MARK: Playing a torrent through TorBox
+    // MARK: Playing a torrent through the selected debrid provider
 
-    /// A torrent that TorBox already reported as not cached is never started without the user's confirmation; any other row is
-    /// first resolved in `cachedOnly` mode, which cannot start a download either (it ends in `notCached`, and that asks).
+    /// A torrent reported as not cached is never started without confirmation; otherwise it is resolved in `cachedOnly` mode.
     private func beginTorBox(_ item: RankedStream, env: AppEnvironment, dismiss: @escaping () -> Void) {
         if cacheStatus(of: item.stream) == DebridCacheStatus.notCached {
             pendingDownload = item
@@ -418,7 +416,7 @@ final class StreamPickerModel: ObservableObject {
         startResolution(item, mode: failure.mode, file: failure.file, env: env, dismiss: dismiss)
     }
 
-    /// Stops waiting for TorBox. A torrent already added to the account stays there: Aether never deletes the user's items.
+    /// Stops waiting for the selected provider. A torrent already added to the account stays there: Aether never deletes items.
     func cancelResolution() {
         resolutionTask?.cancel()
         resolutionTask = nil
