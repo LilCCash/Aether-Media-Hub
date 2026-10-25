@@ -41,6 +41,10 @@ final class DebridService: ObservableObject {
         }
     }
 
+    func selectProvider(_ provider: ProviderChoice) {
+        selectedProvider = provider
+    }
+
     private let credentials: ServiceCredentials
     private let resolver: DebridResolver
     private let realDebrid: RealDebridClient
