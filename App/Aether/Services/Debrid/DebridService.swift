@@ -35,7 +35,10 @@ final class DebridService: ObservableObject {
         var title: String { self == .torbox ? "TorBox" : "Real-Debrid" }
     }
     @Published var selectedProvider: ProviderChoice {
-        didSet { UserDefaults.standard.set(selectedProvider.rawValue, forKey: "debrid.selectedProvider") }
+        didSet {
+            UserDefaults.standard.set(selectedProvider.rawValue, forKey: "debrid.selectedProvider")
+            if oldValue != selectedProvider { prepared.removeAll() }
+        }
     }
 
     private let credentials: ServiceCredentials
