@@ -109,7 +109,11 @@ public struct RealDebridClient: DebridProvider {
                                        fraction: (info["progress"] as? NSNumber).map { $0.doubleValue / 100 },
                                        state: status))
             if status == "downloaded" { break }
-            if ["error", "virus", "dead", "magnet_error", "magnet_conversion", "waiting_files_selection"].contains(status) {
+            if status == "waiting_files_selection" {
+                _ = try await send(path: "/torrents/selectFiles/\(id)", method: "POST", form: ["files": "all"])
+                continue
+            }
+            if ["error", "virus", "dead", "magnet_error", "magnet_conversion"].contains(status) {
                 throw DebridError.itemFailed(state: status)
             }
             if request.mode == .cachedOnly && !wasInAccount {
