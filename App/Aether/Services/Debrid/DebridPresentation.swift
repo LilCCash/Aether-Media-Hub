@@ -143,6 +143,9 @@ enum DebridErrorText {
             }
             return "\(name) sta limitando le richieste. Riprova tra poco."
         case .api(let code, _):
+            if code == "INSTANT_AVAILABILITY_UNSUPPORTED" && provider == .realdebrid {
+                return "Real-Debrid non offre più il controllo istantaneo della cache. Il token può essere valido: per usare un torrent non già presente nel tuo account, scegli l'avvio del download; Aether non aggiungerà torrent in modalità istantanea."
+            }
             return "\(name) ha risposto con un errore (\(code))."
         default:
             return error.message
