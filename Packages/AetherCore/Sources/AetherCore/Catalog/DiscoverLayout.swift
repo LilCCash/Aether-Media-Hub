@@ -14,14 +14,23 @@ import Foundation
 public struct DiscoverTypeSetting: Codable, Hashable, Identifiable, Sendable {
     public var id: String
     public var isVisible: Bool
+    /// Optional user-defined label shown in the Discover category chips.
+    public var customTitle: String?
 
-    public init(id: String, isVisible: Bool = true) {
+    public init(id: String, isVisible: Bool = true, customTitle: String? = nil) {
         self.id = id
         self.isVisible = isVisible
+        let cleaned = customTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.customTitle = (cleaned?.isEmpty == false) ? String(cleaned!.prefix(40)) : nil
+    }
+
+    public var displayTitle: String? {
+        guard let customTitle = customTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !customTitle.isEmpty else { return nil }
+        return String(customTitle.prefix(40))
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, isVisible
+        case id, isVisible, customTitle
     }
 
     public init(from decoder: Decoder) throws {
@@ -37,6 +46,8 @@ public struct DiscoverTypeSetting: Codable, Hashable, Identifiable, Sendable {
         }
         self.id = trimmed
         self.isVisible = container.flexBool(.isVisible) ?? true
+        let rawTitle = container.flexString(.customTitle)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.customTitle = (rawTitle?.isEmpty == false) ? String(rawTitle!.prefix(40)) : nil
     }
 }
 
@@ -166,7 +177,7 @@ public enum DiscoverLayout {
             if trimmed.isEmpty { continue }
             let key = ContentTypes.canonicalID(trimmed)
             if seen.insert(key).inserted {
-                entries.append(DiscoverTypeSetting(id: key, isVisible: item.isVisible))
+                entries.append(DiscoverTypeSetting(id: key, isVisible: item.isVisible, customTitle: item.customTitle))
             }
         }
 
