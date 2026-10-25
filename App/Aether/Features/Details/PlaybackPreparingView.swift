@@ -60,6 +60,10 @@ struct PlaybackPreparingView: View {
             .padding(.horizontal, 28)
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            // Match the player orientation from the very first loading frame; do not wait for PlayerView.
+            OrientationController.set(.landscape)
+        }
         .task { await loadLogo() }
     }
 
