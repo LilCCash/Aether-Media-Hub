@@ -341,9 +341,9 @@ public actor MetadataEnricher {
             let tvID = try await resolveTMDBID(tmdb, kind: .tv, ids: ids)
             let response = try await tmdb.season(tvID: tvID, number: season, language: language)
             guard let item = response.episodes.first(where: { $0.number == episode }) else { return nil }
-            let imdbID = try? await tmdb.episodeExternalIDs(tvID: tvID, season: season, episode: episode).imdbID
+            let externalIDs = try? await tmdb.episodeExternalIDs(tvID: tvID, season: season, episode: episode)
             return EpisodeRichDetails(title: item.name, overview: item.overview, tmdbRating: item.voteAverage,
-                                      imdbID: imdbID ?? nil, season: season, episode: episode)
+                                      imdbID: externalIDs?.imdbID, season: season, episode: episode)
         } catch let error as MetadataError {
             note(error, service: .tmdb)
             return nil
