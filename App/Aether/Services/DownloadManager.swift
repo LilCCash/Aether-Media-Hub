@@ -357,7 +357,14 @@ extension DownloadManager: URLSessionDownloadDelegate, URLSessionTaskDelegate {
         let size = ((try? FileManager.default.attributesOfItem(atPath: location.path)[.size]) as? NSNumber)?.int64Value ?? 0
         let responseURL = response?.url
         let safeHost = responseURL?.host.map { Redactor.redact($0) } ?? "sconosciuto"
-        Task { await self.diagnostics.log(.info, "downloader", "Risposta HTTP \(status), host=\(safeHost), mime=\(mime.isEmpty ? "sconosciuto" : mime), bytes=\(size)") }
+        let previewData = (try? Data(contentsOf: location)) ?? Data()
+        let preview = String(decoding: previewData.prefix(320), as: UTF8.self)
+            .replacingOccurrences(of: "\\n", with: " ")
+            .replacingOccurrences(of: "\\r", with: " ")
+        Task {
+            await self.diagnostics.log(.info, "downloader",
+                "Risposta HTTP \(status), host=\(safeHost), mime=\(mime.isEmpty ? "sconosciuto" : mime), bytes=\(size), anteprima=\(Redactor.redact(preview))")
+        }
 
         guard (200..<300).contains(status) else {
             Task { @MainActor in
