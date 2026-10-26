@@ -162,6 +162,7 @@ final class ReleaseLanguageDetectorTests: XCTestCase {
     func testRecognizesItalianReleaseMarkers() {
         XCTAssertEqual(ReleaseLanguageDetector.language(in: "Example.S01E01.1080p.ITA.WEB-DL"), "it")
         XCTAssertEqual(ReleaseLanguageDetector.language(in: "Example S01E01 [IT] 1080p"), "it")
+        XCTAssertEqual(ReleaseLanguageDetector.language(in: "Example S01E01 (IT) 1080p"), "it")
         XCTAssertEqual(ReleaseLanguageDetector.language(in: "Example - Italian Audio"), "it")
     }
 
@@ -174,6 +175,7 @@ final class ReleaseLanguageDetectorTests: XCTestCase {
     func testDoesNotTreatOrdinaryEnglishWordsAsLanguageTags() {
         XCTAssertNil(ReleaseLanguageDetector.language(in: "It was a good episode"))
         XCTAssertNil(ReleaseLanguageDetector.language(in: "Show.S01E01.1080p.WEB-DL"))
+        XCTAssertNil(ReleaseLanguageDetector.language(in: "Show.S01E01 [XX] 1080p"))
     }
 }
 
