@@ -325,8 +325,14 @@ final class DownloadManager: NSObject, ObservableObject {
 
     /// CDN/provider 5xx responses are often transient. Retry twice before surfacing the error,
     /// keeping ephemeral provider URLs in memory and never persisting their credentials.
-    fileprivate func retryTransientHTTPFailure(id: UUID, status: Int) async {
+    fileprivate func retryTransientHTTPFailure(id: UUID, status: Int, bodyPreview: String = "") async {
+        if bodyPreview.localizedCaseInsensitiveContains("torbox http 401") {
+            if await retryNextSeasonFallback(id: id, reason: "TorBox HTTP 401 via StremThru") { return }
+            await fail(id, message: "TorBox non autorizzato tramite StremThru (HTTP 401). Controlla l'addon o prova un'altra sorgente.")
+            return
+        }
         guard (500..<600).contains(status) else {
+            if await retryNextSeasonFallback(id: id, reason: "HTTP \(status)") { return }
             await fail(id, message: "Il server ha risposto con errore HTTP \(status).")
             return
         }
@@ -407,7 +413,7 @@ extension DownloadManager: URLSessionDownloadDelegate, URLSessionTaskDelegate {
 
         guard (200..<300).contains(status) else {
             Task { @MainActor in
-                await self.retryTransientHTTPFailure(id: id, status: status)
+                await self.retryTransientHTTPFailure(id: id, status: status, bodyPreview: preview)
             }
             return
         }
