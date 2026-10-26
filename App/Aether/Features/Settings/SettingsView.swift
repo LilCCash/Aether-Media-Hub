@@ -472,6 +472,7 @@ struct StorageSettingsView: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var downloads: DownloadManager
     @State private var report: AppEnvironment.StorageReport?
+    @State private var seasonDownloadAddons: [AddonHandle] = []
     @State private var message: String?
 
     var body: some View {
@@ -525,10 +526,35 @@ struct StorageSettingsView: View {
                 Picker("Gestione dello spazio", selection: settings.binding(\.storage.seasonDownloadSizePolicy)) {
                     ForEach(SeasonDownloadSizePolicy.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
+                if seasonDownloadAddons.isEmpty {
+                    Text("Nessun addon disponibile per la selezione delle sorgenti.")
+                        .font(.footnote).foregroundStyle(Color.aetherSecondary)
+                } else {
+                    ForEach(seasonDownloadAddons, id: \.id) { handle in
+                        Toggle(isOn: Binding(
+                            get: { !settings.value.storage.seasonDownloadDisabledAddonIDs.contains(handle.id.uuidString) },
+                            set: { enabled in
+                                var disabled = settings.value.storage.seasonDownloadDisabledAddonIDs
+                                if enabled {
+                                    disabled.removeAll { $0 == handle.id.uuidString }
+                                } else if !disabled.contains(handle.id.uuidString) {
+                                    disabled.append(handle.id.uuidString)
+                                }
+                                settings.value.storage.seasonDownloadDisabledAddonIDs = disabled.sorted()
+                            }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(handle.addon.displayName)
+                                Text("Usa questo addon per i download stagionali")
+                                    .font(.caption).foregroundStyle(Color.aetherSecondary)
+                            }
+                        }
+                    }
+                }
             }
         }
         .navigationTitle("Archiviazione")
-        .task { await refresh() }
+        .task { await refresh(); seasonDownloadAddons = await env.addons.handles() }
     }
 
     private func refresh() async {
