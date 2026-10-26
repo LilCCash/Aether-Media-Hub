@@ -47,7 +47,7 @@ on:
   push:
     tags: ['v*']
     branches: ['**']
-    paths: ['.github/workflows/build-ipa.yml', 'App/Aether/Features/Details/StreamPicker.swift', 'App/Aether/Features/Details/DetailView.swift', 'App/Aether/Features/Settings/SettingsView.swift', 'Packages/AetherCore/Sources/AetherCore/Settings/AppSettings.swift', 'App/Aether/Services/Debrid/DebridService.swift', 'App/Aether/Services/DownloadManager.swift']
+    paths: ['.github/workflows/build-ipa.yml', 'App/Aether/Features/Details/StreamPicker.swift', 'App/Aether/Features/Details/DetailView.swift', 'App/Aether/Features/Settings/SettingsView.swift', 'Packages/AetherCore/Sources/AetherCore/Settings/AppSettings.swift', 'Packages/AetherCore/Sources/AetherCore/Metadata/TMDBClient.swift', 'Packages/AetherCore/Sources/AetherCore/Metadata/TMDBModels.swift', 'Packages/AetherCore/Sources/AetherCore/Metadata/MetadataEnricher.swift', 'Packages/AetherCore/Sources/AetherCore/Metadata/EpisodeRichDetails.swift', 'Packages/AetherCore/Sources/AetherCore/Playback/ReleaseLanguageDetector.swift', 'Packages/AetherCore/Tests/AetherCoreTests/PlaybackTests.swift', 'App/Aether/Services/Debrid/DebridService.swift', 'App/Aether/Services/DownloadManager.swift']
 
 concurrency:
   group: build-ipa-${{ github.ref }}
