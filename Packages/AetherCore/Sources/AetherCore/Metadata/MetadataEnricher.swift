@@ -330,6 +330,28 @@ public actor MetadataEnricher {
         }
     }
 
+    /// Fetches the full plot and ratings for one episode on demand, using the user's TMDB key.
+    /// TMDB also supplies the IMDb title ID when available, but does not expose IMDb's own score in this endpoint.
+    public func episodeDetails(for meta: MetaItem, video: Video, language: String) async -> EpisodeRichDetails? {
+        guard let season = video.season, let episode = video.episode,
+              let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb),
+              let kind = MetadataEnricher.kind(forType: meta.type), kind == .tv else { return nil }
+        let ids = ExternalIDs.fromMetaID(meta.id).filling(from: meta.externalIDs)
+        do {
+            let tvID = try await resolveTMDBID(tmdb, kind: .tv, ids: ids)
+            let response = try await tmdb.season(tvID: tvID, number: season, language: language)
+            guard let item = response.episodes.first(where: { $0.number == episode }) else { return nil }
+            let imdbID = try? await tmdb.episodeExternalIDs(tvID: tvID, season: season, episode: episode).imdbID
+            return EpisodeRichDetails(title: item.name, overview: item.overview, tmdbRating: item.voteAverage,
+                                      imdbID: imdbID ?? nil, season: season, episode: episode)
+        } catch let error as MetadataError {
+            note(error, service: .tmdb)
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: TheTVDB
 
     private func loadTVDB(_ client: TVDBClient, ids: ExternalIDs, language: String, missing: [EpisodeKey]) async throws -> [EpisodeEnrichment] {
