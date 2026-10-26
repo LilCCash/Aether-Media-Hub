@@ -410,7 +410,7 @@ struct DetailView: View {
                 episodeStreams.append(stream)
             }
             await env.diagnostics.log(.info, "season-download",
-                "Ricerca episodio \(index + 1)/\(episodes.count): titolo=\(model.meta.name), file=\(video.name), videoID=\(video.id), stagione=\(video.season.map(String.init) ?? "?"), episodio=\(video.episode.map(String.init) ?? "?"), sorgentiRicevute=\(episodeStreams.count)")
+                "Ricerca episodio \(index + 1)/\(episodes.count): titolo=\(model.meta.name), file=\(video.title), videoID=\(video.id), stagione=\(video.season.map(String.init) ?? "?"), episodio=\(video.episode.map(String.init) ?? "?"), sorgentiRicevute=\(episodeStreams.count)")
             for (sourceIndex, source) in episodeStreams.enumerated() {
                 let kind: String
                 switch source.source {
@@ -436,7 +436,7 @@ struct DetailView: View {
             await env.diagnostics.log(.info, "season-download",
                 "Analisi sorgenti: ricevute=\(episodeStreams.count), candidateUtilizzabili=\(playable.count), debridConfigurato=\(env.debrid.isConfigured), lingua=\(storage.seasonDownloadLanguage), qualitàMax=\(preferences.qualityCap.maxHeight)")
             guard !playable.isEmpty else {
-                await env.diagnostics.log(.warning, "season-download", "Nessuna sorgente utilizzabile per \(video.name): verificare risposta addon, filtri lingua/qualità e configurazione TorBox.")
+                await env.diagnostics.log(.warning, "season-download", "Nessuna sorgente utilizzabile per \(video.title): verificare risposta addon, filtri lingua/qualità e configurazione TorBox.")
                 skipped += 1
                 continue
             }
