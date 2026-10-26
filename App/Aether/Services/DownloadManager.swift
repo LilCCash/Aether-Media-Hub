@@ -175,6 +175,7 @@ final class DownloadManager: NSObject, ObservableObject {
     func remove(_ id: UUID) {
         tasks[id]?.cancel()
         tasks.removeValue(forKey: id)
+        ephemeralURLs.removeValue(forKey: id)
         resumeData.removeValue(forKey: id)
         Task {
             if let removed = await store.remove(id: id), let name = removed.localFileName {
@@ -287,6 +288,7 @@ final class DownloadManager: NSObject, ObservableObject {
 
     fileprivate func finished(id: UUID, fileName: String, bytes: Int64) async {
         tasks.removeValue(forKey: id)
+        ephemeralURLs.removeValue(forKey: id)
         await store.update(id: id) {
             $0.state = .completed
             $0.localFileName = fileName
