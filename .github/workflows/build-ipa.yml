@@ -47,7 +47,7 @@ on:
   push:
     tags: ['v*']
     branches: ['**']
-    paths: ['.github/workflows/build-ipa.yml']
+    paths: ['.github/workflows/build-ipa.yml', 'App/Aether/Features/Details/StreamPicker.swift', 'App/Aether/Services/Debrid/DebridService.swift']
 
 concurrency:
   group: build-ipa-${{ github.ref }}

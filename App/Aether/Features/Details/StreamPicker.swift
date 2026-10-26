@@ -359,9 +359,39 @@ final class StreamPickerModel: ObservableObject {
 
     // MARK: Playing
 
-    /// Queues the file for offline viewing. Only direct files qualify; the planner explains refusals.
+    /// Queues direct files as-is; torrents are resolved through TorBox first, then the resulting single-file URL
+    /// enters the same offline queue. The signed CDN URL is never logged or persisted in diagnostics.
     func download(_ item: RankedStream, env: AppEnvironment) async {
         let allowLocal = env.settings.value.privacy.allowLocalNetwork
+        if DebridStreamLogic.isTorrent(item.stream) {
+            guard env.debrid.isTorBoxConfigured else {
+                blockedMessage = "Per scaricare un torrent configura la chiave API TorBox nelle impostazioni."
+                return
+            }
+            guard let request = DebridRequest(
+                stream: item.stream,
+                stremioID: DebridStreamLogic.stremioID(meta: self.request.meta, video: self.request.video),
+                mode: .startIfNeeded
+            ) else {
+                blockedMessage = "Questa sorgente torrent non contiene un hash valido."
+                return
+            }
+            do {
+                let resolution = try await env.debrid.resolveWithTorBox(request, onProgress: nil)
+                let resolvedStream = resolution.playableStream(from: item.stream)
+                if let refusal = await env.downloads.enqueue(meta: self.request.meta, video: self.request.video,
+                                                             stream: resolvedStream, allowLocalNetwork: allowLocal) {
+                    blockedMessage = refusal
+                } else {
+                    infoMessage = "Download avviato tramite TorBox. Lo trovi in Libreria ▸ Download."
+                }
+            } catch let error as DebridError {
+                blockedMessage = error.message
+            } catch {
+                blockedMessage = "TorBox non è riuscito a preparare il file. Riprova o scegli un'altra sorgente."
+            }
+            return
+        }
         if let refusal = await env.downloads.enqueue(meta: request.meta, video: request.video, stream: item.stream, allowLocalNetwork: allowLocal) {
             blockedMessage = refusal
         } else {
@@ -715,28 +745,22 @@ struct StreamPickerSheet: View {
 
     @ViewBuilder
     private func streamRow(offset: Int, item: RankedStream) -> some View {
-        let isTorrent = DebridStreamLogic.isTorrent(item.stream)
         StreamRow(item: item, isBest: offset == 0, debrid: model.appearance(for: item)) {
             Task { await model.play(item, env: env) { dismiss() } }
         }
         .accessibilityIdentifier("stream.row.\(offset)")
         .swipeActions(edge: .trailing) {
-            // A torrent is not a file: there is nothing to download for offline viewing.
-            if !isTorrent {
-                Button { Task { await model.download(item, env: env) } } label: {
-                    Label("Scarica", systemImage: "arrow.down.circle")
-                }
-                .tint(settings.accentColor)
+            Button { Task { await model.download(item, env: env) } } label: {
+                Label("Scarica", systemImage: "arrow.down.circle")
             }
+            .tint(settings.accentColor)
         }
         .contextMenu {
             Button { Task { await model.play(item, env: env) { dismiss() } } } label: {
                 Label("Riproduci", systemImage: "play.fill")
             }
-            if !isTorrent {
-                Button { Task { await model.download(item, env: env) } } label: {
-                    Label("Scarica per guardarlo offline", systemImage: "arrow.down.circle")
-                }
+            Button { Task { await model.download(item, env: env) } } label: {
+                Label("Scarica per guardarlo offline", systemImage: "arrow.down.circle")
             }
         }
     }

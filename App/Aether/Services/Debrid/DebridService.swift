@@ -185,6 +185,19 @@ final class DebridService: ObservableObject {
         return report
     }
 
+    /// Resolves a torrent specifically through TorBox, regardless of the provider selected for playback.
+    /// Used by offline downloads so they consistently use the TorBox account/API.
+    func resolveWithTorBox(_ request: DebridRequest,
+                           onProgress: (@Sendable (DebridProgress) -> Void)?) async throws -> DebridResolution {
+        guard isTorBoxConfigured else { throw DebridError.notConfigured }
+        do {
+            return try await resolver.resolve(request, onProgress: onProgress)
+        } catch let error as DebridError {
+            noteFailure(error, from: .torbox)
+            throw error
+        }
+    }
+
     func resolve(_ request: DebridRequest,
                  onProgress: (@Sendable (DebridProgress) -> Void)?) async throws -> DebridResolution {
         // Keep provider and credentials paired for the full resolution; each client owns its own Keychain provider.
