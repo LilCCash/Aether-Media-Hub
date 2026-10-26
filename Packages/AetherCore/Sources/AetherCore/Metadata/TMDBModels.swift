@@ -212,7 +212,8 @@ struct TMDBEpisode: Decodable {
     var stillPath: String?
     var airDate: String?
     var runtime: Int?
-    private enum CodingKeys: String, CodingKey { case episode_number, season_number, name, overview, still_path, air_date, runtime }
+    var voteAverage: Double?
+    private enum CodingKeys: String, CodingKey { case episode_number, season_number, name, overview, still_path, air_date, runtime, vote_average }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         number = c.flexInt(.episode_number)
@@ -222,6 +223,7 @@ struct TMDBEpisode: Decodable {
         stillPath = c.flexString(.still_path)
         airDate = c.flexString(.air_date)
         runtime = c.flexInt(.runtime)
+        voteAverage = c.flexString(.vote_average).flatMap { Double($0) }
     }
 }
 
