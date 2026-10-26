@@ -472,7 +472,6 @@ struct StorageSettingsView: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var downloads: DownloadManager
     @State private var report: AppEnvironment.StorageReport?
-    @State private var seasonDownloadAddons: [AddonHandle] = []
     @State private var message: String?
 
     var body: some View {
@@ -526,11 +525,38 @@ struct StorageSettingsView: View {
                 Picker("Gestione dello spazio", selection: settings.binding(\.storage.seasonDownloadSizePolicy)) {
                     ForEach(SeasonDownloadSizePolicy.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
-                if seasonDownloadAddons.isEmpty {
-                    Text("Nessun addon disponibile per la selezione delle sorgenti.")
-                        .font(.footnote).foregroundStyle(Color.aetherSecondary)
+                NavigationLink {
+                    SeasonDownloadAddonsSettingsView()
+                } label: {
+                    Label("Addon per i download stagionali", systemImage: "puzzlepiece.extension")
+                }
+                .accessibilityIdentifier("settings.seasonDownloadAddons")
+            }
+        }
+        .navigationTitle("Archiviazione")
+        .task { await refresh() }
+    }
+
+    private func refresh() async {
+        report = await env.storageReport()
+    }
+}
+
+// MARK: - Seasonal download addon preferences
+
+struct SeasonDownloadAddonsSettingsView: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var env: AppEnvironment
+    @State private var addons: [AddonHandle] = []
+
+    var body: some View {
+        Form {
+            Section(footer: Text("Disattivare un addon lo esclude soltanto dalla ricerca dei download stagionali; non cambia la riproduzione normale. I torrent richiedono un provider debrid configurato, ad esempio TorBox.")) {
+                if addons.isEmpty {
+                    Text("Nessun addon disponibile.")
+                        .foregroundStyle(Color.aetherSecondary)
                 } else {
-                    ForEach(seasonDownloadAddons, id: \.id) { handle in
+                    ForEach(addons, id: \.id) { handle in
                         Toggle(isOn: Binding(
                             get: { !settings.value.storage.seasonDownloadDisabledAddonIDs.contains(handle.id.uuidString) },
                             set: { enabled in
@@ -553,12 +579,8 @@ struct StorageSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Archiviazione")
-        .task { await refresh(); seasonDownloadAddons = await env.addons.handles() }
-    }
-
-    private func refresh() async {
-        report = await env.storageReport()
+        .navigationTitle("Addon download stagionali")
+        .task { addons = await env.addons.handles() }
     }
 }
 
