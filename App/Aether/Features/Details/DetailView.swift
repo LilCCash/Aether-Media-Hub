@@ -409,9 +409,34 @@ struct DetailView: View {
             for stream in fetchedStreams where !episodeStreams.contains(stream) {
                 episodeStreams.append(stream)
             }
+            await env.diagnostics.log(.info, "season-download",
+                "Ricerca episodio \(index + 1)/\(episodes.count): titolo=\(model.meta.name), file=\(video.name), videoID=\(video.id), stagione=\(video.season.map(String.init) ?? "?"), episodio=\(video.episode.map(String.init) ?? "?"), sorgentiRicevute=\(episodeStreams.count)")
+            for (sourceIndex, source) in episodeStreams.enumerated() {
+                let kind: String
+                switch source.source {
+                case .torrent(let infoHash, let fileIndex, _): kind = "torrent hash=\(infoHash) fileIndex=\(fileIndex.map(String.init) ?? "?")"
+                case .url(let raw): kind = "url host=\(URL(string: raw)?.host ?? "non-valido")"
+                case .youtube: kind = "youtube"
+                case .external: kind = "external"
+                case .playerFrame: kind = "playerFrame"
+                case .archive(let archive): kind = "archive:\(archive)"
+                case .unknown: kind = "unknown"
+                }
+                await env.diagnostics.log(.info, "season-download",
+                    "Sorgente \(sourceIndex + 1)/\(episodeStreams.count): addon=\(source.addonName ?? source.addonID ?? "sconosciuto"), tipo=\(kind), nomeFile=\(source.behaviorHints.filename ?? "n/d"), nome=\(source.name ?? "n/d"), dettagli=\(source.details ?? "n/d"), bytes=\(source.behaviorHints.videoSize.map(String.init) ?? "n/d")")
+            }
             let ranked = StreamSelector.rank(episodeStreams, preferences: preferences)
-            let playable = ranked.filter { $0.info.support.isPlayable }
+            // Torrent sources are marked unsupported by the playback analyzer without a local streaming server.
+            // For season downloads TorBox resolves torrents, so do not discard them when debrid is configured.
+            let playable = ranked.filter { item in
+                if item.info.support.isPlayable { return true }
+                if env.debrid.isConfigured, case .torrent = item.stream.source { return true }
+                return false
+            }
+            await env.diagnostics.log(.info, "season-download",
+                "Analisi sorgenti: ricevute=\(episodeStreams.count), candidateUtilizzabili=\(playable.count), debridConfigurato=\(env.debrid.isConfigured), lingua=\(storage.seasonDownloadLanguage), qualitàMax=\(preferences.qualityCap.maxHeight)")
             guard !playable.isEmpty else {
+                await env.diagnostics.log(.warning, "season-download", "Nessuna sorgente utilizzabile per \(video.name): verificare risposta addon, filtri lingua/qualità e configurazione TorBox.")
                 skipped += 1
                 continue
             }
