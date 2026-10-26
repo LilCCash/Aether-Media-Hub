@@ -490,6 +490,7 @@ struct DetailView: View {
                 }
             }
             if !episodeQueued { skipped += 1 }
+        }
 
         if Task.isCancelled {
             seasonDownloadMessage = "Download stagione annullato. I file già completati sono stati conservati."
