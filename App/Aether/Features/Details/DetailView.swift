@@ -174,7 +174,11 @@ struct DetailView: View {
     /// True while TMDB is asked for the IMDb code of a similar title: more taps meanwhile would start more lookups.
     @State private var lookingUpSimilar = false
     @State private var isDownloadingSeason = false
+    @State private var isCancellingSeasonDownload = false
+    @State private var seasonDownloadTask: Task<Void, Never>?
+    @State private var seasonBatchDownloadIDs = Set<UUID>()
     @State private var seasonDownloadMessage: String?
+    @State private var episodeDetailsRequest: EpisodeDetailsRequest?
 
     init(route: MetaRoute) {
         self.route = route
@@ -223,6 +227,9 @@ struct DetailView: View {
         .onDisappear { CinematicMood.shared.color = CinematicMood.shared.homeColor }
         .sheet(item: $picker) { request in
             StreamPickerSheet(request: request)
+        }
+        .sheet(item: $episodeDetailsRequest) { request in
+            EpisodeDetailsSheet(meta: model.meta, video: request.video)
         }
         .navigationDestination(item: $openedSimilar) { DetailView(route: $0) }
         .navigationDestination(item: $openedPerson) { PersonFilmographyView(route: $0) }
@@ -344,8 +351,14 @@ struct DetailView: View {
         }
 
         isDownloadingSeason = true
+        isCancellingSeasonDownload = false
         seasonDownloadMessage = "Cerco sorgenti per \(episodes.count) episodi…"
-        defer { isDownloadingSeason = false }
+        defer {
+            isDownloadingSeason = false
+            isCancellingSeasonDownload = false
+            seasonDownloadTask = nil
+            seasonBatchDownloadIDs.removeAll()
+        }
 
         let storage = settings.value.storage
         var preferences = env.streamPreferences()
@@ -394,19 +407,19 @@ struct DetailView: View {
             }
 
             if targetLanguage == nil && languageSetting != "any" {
-                targetLanguage = playable.first?.info.languages.first.map(normalizeSeasonLanguage)
+                targetLanguage = playable.compactMap { seasonLanguageEvidence(for: $0) }.first
             }
             var languageMatches = playable
             if languageSetting != "any", let targetLanguage {
                 let knownMatches = playable.filter { item in
-                    let languages = item.info.languages.map(normalizeSeasonLanguage)
-                    return languages.contains(targetLanguage) || languages.contains("multi")
+                    let language = seasonLanguageEvidence(for: item)
+                    return language == targetLanguage || language == "multi"
                 }
                 if !knownMatches.isEmpty {
                     languageMatches = knownMatches
                 } else {
-                    // An unlabelled source is a last resort; never substitute a source explicitly tagged in another language.
-                    languageMatches = playable.filter { $0.info.languages.isEmpty }
+                    // Last resort: sources with no language clues at all; do not silently pick one explicitly tagged in another language.
+                    languageMatches = playable.filter { seasonLanguageEvidence(for: $0) == nil }
                 }
                 if languageMatches.isEmpty {
                     skipped += 1
@@ -452,19 +465,27 @@ struct DetailView: View {
                         continue
                     }
                     let resolution = try await env.debrid.resolveWithTorBox(request, onProgress: nil)
+                    if Task.isCancelled { break }
                     let resolvedStream = resolution.playableStream(from: stream)
-                    if await env.downloads.enqueue(meta: model.meta, video: video, stream: resolvedStream,
-                                                   allowLocalNetwork: allowLocal, ephemeralURL: resolution.url) == nil {
+                    let enqueueError = await env.downloads.enqueue(meta: model.meta, video: video, stream: resolvedStream,
+                                                                    allowLocalNetwork: allowLocal, ephemeralURL: resolution.url)
+                    if enqueueError == nil {
                         queued += 1
+                        trackSeasonDownload(videoID: video.id)
                     } else {
                         skipped += 1
                     }
-                } else if await env.downloads.enqueue(meta: model.meta, video: video, stream: stream,
-                                                      allowLocalNetwork: allowLocal) == nil {
-                    queued += 1
                 } else {
-                    skipped += 1
+                    let enqueueError = await env.downloads.enqueue(meta: model.meta, video: video, stream: stream,
+                                                                    allowLocalNetwork: allowLocal)
+                    if enqueueError == nil {
+                        queued += 1
+                        trackSeasonDownload(videoID: video.id)
+                    } else {
+                        skipped += 1
+                    }
                 }
+                if Task.isCancelled { break }
             } catch {
                 skipped += 1
             }
@@ -475,6 +496,44 @@ struct DetailView: View {
         if skipped > 0 { summary += ", \(skipped) non disponibili o non compatibili" }
         summary += "."
         seasonDownloadMessage = summary
+    }
+
+    private func trackSeasonDownload(videoID: String) {
+        guard let item = env.downloads.item(metaID: model.meta.id, videoID: videoID) else { return }
+        seasonBatchDownloadIDs.insert(item.id)
+        // If cancellation raced with an enqueue, remove the just-created item too.
+        if Task.isCancelled { env.downloads.remove(item.id) }
+    }
+
+    private func cancelSeasonDownload() {
+        guard isDownloadingSeason, !isCancellingSeasonDownload else { return }
+        isCancellingSeasonDownload = true
+        seasonDownloadMessage = "Annullamento del download della stagione…"
+        seasonDownloadTask?.cancel()
+        for id in seasonBatchDownloadIDs { env.downloads.remove(id) }
+        seasonBatchDownloadIDs.removeAll()
+    }
+
+    /// Language tags in release names are often more reliable than missing or generic addon language metadata.
+    /// Only strong, token-bounded labels are accepted; bare "IT" is recognized when explicitly bracketed.
+    private func seasonLanguageEvidence(for item: RankedStream) -> String? {
+        let title = item.stream.searchableText.uppercased()
+        if title.contains("🇮🇹") { return "it" }
+        if title.contains("🇬🇧") || title.contains("🇺🇸") { return "en" }
+        let markers: [(String, String)] = [
+            (#"(?<![A-Z0-9])(?:ITA|ITALIAN|ITALIANO)(?![A-Z0-9])"#, "it"),
+            (#"(?<![A-Z0-9])(?:ENG|ENGLISH)(?![A-Z0-9])"#, "en"),
+            (#"(?<![A-Z0-9])(?:FRA|FRE|FRENCH|FRANCAIS)(?![A-Z0-9])"#, "fr"),
+            (#"(?<![A-Z0-9])(?:SPA|ESP|SPANISH|CASTELLANO)(?![A-Z0-9])"#, "es"),
+            (#"(?<![A-Z0-9])(?:DEU|GER|GERMAN)(?![A-Z0-9])"#, "de"),
+            (#"(?<![A-Z0-9])(?:POR|PTBR|PORTUGUESE)(?![A-Z0-9])"#, "pt"),
+            (#"(?<![A-Z0-9])(?:MULTI|MULTILANGUAGE|DUAL[ ._-]?AUDIO|MULTI[ ._-]?AUDIO)(?![A-Z0-9])"#, "multi"),
+            (#"(?:\[\s*IT\s*\]|\(\s*IT\s*\)|\.IT\.)"#, "it")
+        ]
+        for (pattern, language) in markers where title.range(of: pattern, options: .regularExpression) != nil {
+            return language
+        }
+        return item.info.languages.first.map(normalizeSeasonLanguage)
     }
 
     private func normalizeSeasonLanguage(_ raw: String) -> String {
@@ -641,22 +700,32 @@ struct DetailView: View {
                     .accessibilityIdentifier("detail.seasonMenu")
                 }
                 if model.selectedSeason != nil, !model.visibleEpisodes.isEmpty {
-                    Button {
-                        Task { await downloadSelectedSeason() }
-                    } label: {
-                        if isDownloadingSeason {
-                            ProgressView().controlSize(.small).frame(width: 40, height: 34)
-                        } else {
+                    if isDownloadingSeason {
+                        Button(action: cancelSeasonDownload) {
+                            Label(isCancellingSeasonDownload ? "Annullamento…" : "Annulla",
+                                  systemImage: isCancellingSeasonDownload ? "hourglass" : "xmark.circle")
+                                .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
+                                .padding(.horizontal, 10).padding(.vertical, 7)
+                                .aetherGlassCapsule(interactive: !isCancellingSeasonDownload)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isCancellingSeasonDownload)
+                        .accessibilityIdentifier("detail.cancelSeasonDownload")
+                    } else {
+                        Button {
+                            seasonBatchDownloadIDs.removeAll()
+                            isCancellingSeasonDownload = false
+                            seasonDownloadTask = Task { await downloadSelectedSeason() }
+                        } label: {
                             Label("Scarica", systemImage: "arrow.down.circle")
                                 .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                                 .padding(.horizontal, 10).padding(.vertical, 7)
                                 .aetherGlassCapsule(interactive: true)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Scarica \(seasonTitle(model.selectedSeason).lowercased())")
+                        .accessibilityIdentifier("detail.downloadSeason")
                     }
-                    .buttonStyle(.plain)
-                    .disabled(isDownloadingSeason)
-                    .accessibilityLabel("Scarica \(seasonTitle(model.selectedSeason).lowercased())")
-                    .accessibilityIdentifier("detail.downloadSeason")
                 }
             }
             .padding(.horizontal, Theme.pageMargin)
@@ -698,6 +767,8 @@ struct DetailView: View {
                             await env.libraryStore.markWatched(!watched, meta: model.meta, video: video)
                             await model.refreshLibraryState(env: env)
                         }
+                    } showDetails: {
+                        episodeDetailsRequest = EpisodeDetailsRequest(video: video)
                     }
                     .accessibilityIdentifier("episode.\(video.id)")
                 }
@@ -744,6 +815,7 @@ struct EpisodeRow: View {
     let isFuture: Bool
     let play: () -> Void
     let toggleWatched: () -> Void
+    let showDetails: () -> Void
 
     var body: some View {
         Button(action: play) {
@@ -781,11 +853,71 @@ struct EpisodeRow: View {
         .buttonStyle(.plain)
         .disabled(isFuture)
         .contextMenu {
+            Button(action: showDetails) {
+                Label("Trama completa e voti", systemImage: "text.alignleft")
+            }
             Button(action: toggleWatched) {
                 Label(isWatched ? "Segna come non visto" : "Segna come visto", systemImage: isWatched ? "eye.slash" : "checkmark.circle")
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityHint("Scegli la sorgente e riproduci")
+    }
+}
+
+private struct EpisodeDetailsRequest: Identifiable {
+    let video: Video
+    var id: String { video.id }
+}
+
+private struct EpisodeDetailsSheet: View {
+    let meta: MetaItem
+    let video: Video
+    @EnvironmentObject private var env: AppEnvironment
+    @Environment(\.openURL) private var openURL
+    @State private var details: EpisodeRichDetails?
+    @State private var isLoading = true
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(video.episodeLabel.map { "\($0) · \(details?.title ?? video.title)" } ?? (details?.title ?? video.title))
+                        .font(.aetherTitle(24))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let rating = details?.tmdbRating, rating > 0 {
+                        Label(String(format: "TMDB %.1f/10", rating), systemImage: "star.fill")
+                            .font(.headline).foregroundStyle(.yellow)
+                    }
+                    if let imdbID = details?.imdbID, let url = URL(string: "https://www.imdb.com/title/\(imdbID)/") {
+                        Button { openURL(url) } label: {
+                            Label("Apri la puntata su IMDb", systemImage: "arrow.up.right.square")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    Text("Trama completa").font(.headline)
+                    Text(details?.overview?.isEmpty == false ? details!.overview! : (video.overview?.isEmpty == false ? video.overview! : "La trama completa non è disponibile."))
+                        .font(.body).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if details?.tmdbRating == nil && details?.imdbID == nil {
+                        Text(isLoading ? "Recupero dettagli da TMDB…" : "TMDB non ha restituito altri dettagli. Controlla che la chiave TMDB sia configurata in Impostazioni > Servizi.")
+                            .font(.footnote).foregroundStyle(Color.aetherSecondary)
+                    }
+                    Text("I voti mostrati qui provengono da TMDB. L'ID IMDb viene aggiunto quando disponibile; il punteggio IMDb richiede una fonte/API IMDb dedicata.")
+                        .font(.caption2).foregroundStyle(Color.aetherSecondary)
+                }
+                .padding(20)
+            }
+            .navigationTitle("Dettagli episodio")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Fine") { } } }
+        }
+        .task(id: video.id) {
+            let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
+            details = await env.metadata.episodeDetails(for: meta, video: video, language: language)
+            isLoading = false
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
