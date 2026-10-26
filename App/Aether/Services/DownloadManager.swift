@@ -2,6 +2,13 @@ import SwiftUI
 import UIKit
 import AetherCore
 
+struct SeasonDownloadFallback: Sendable {
+    let url: URL
+    let headers: [String: String]
+    let container: String?
+    let totalBytes: Int64
+}
+
 /// Background file downloads (URLSession background configuration) with queue, pause/resume, progress,
 /// free-space guard and offline playback paths. Only plain http(s) files are accepted (see `DownloadPlanner`).
 @MainActor
@@ -19,6 +26,7 @@ final class DownloadManager: NSObject, ObservableObject {
     private var tasks: [UUID: URLSessionDownloadTask] = [:]
     /// TorBox CDN URLs contain short-lived credentials; keep them in memory only, never in DownloadStore.
     private var ephemeralURLs: [UUID: URL] = [:]
+    private var seasonFallbacks: [UUID: [SeasonDownloadFallback]] = [:]
     private var resumeData: [UUID: Data] = [:]
     private var transientHTTPRetries: [UUID: Int] = [:]
     private var lastPublished: [UUID: Date] = [:]
@@ -176,10 +184,15 @@ final class DownloadManager: NSObject, ObservableObject {
         }
     }
 
+    func setSeasonFallbacks(for id: UUID, candidates: [SeasonDownloadFallback]) {
+        seasonFallbacks[id] = candidates
+    }
+
     func remove(_ id: UUID) {
         tasks[id]?.cancel()
         tasks.removeValue(forKey: id)
         ephemeralURLs.removeValue(forKey: id)
+        seasonFallbacks.removeValue(forKey: id)
         resumeData.removeValue(forKey: id)
         Task {
             if let removed = await store.remove(id: id), let name = removed.localFileName {
@@ -295,6 +308,7 @@ final class DownloadManager: NSObject, ObservableObject {
     fileprivate func finished(id: UUID, fileName: String, bytes: Int64) async {
         tasks.removeValue(forKey: id)
         ephemeralURLs.removeValue(forKey: id)
+        seasonFallbacks.removeValue(forKey: id)
         transientHTTPRetries.removeValue(forKey: id)
         diagnostics.logDetached(.info, "downloader", "Download completato \(id.uuidString): \(bytes) byte")
         await store.update(id: id) {
@@ -318,7 +332,9 @@ final class DownloadManager: NSObject, ObservableObject {
         }
         let attempts = transientHTTPRetries[id, default: 0]
         guard attempts < 2, let item = await store.item(id: id) else {
-            await fail(id, message: "Il server ha risposto con errore HTTP \(status) dopo \(attempts) tentativi.")
+            let message = "Il server ha risposto con errore HTTP \(status) dopo \(attempts) tentativi."
+            if await retryNextSeasonFallback(id: id, reason: message) { return }
+            await fail(id, message: message)
             return
         }
         transientHTTPRetries[id] = attempts + 1
@@ -337,10 +353,33 @@ final class DownloadManager: NSObject, ObservableObject {
         items = await store.all()
     }
 
-    fileprivate func failedTransfer(id: UUID, message: String) async {
-        await fail(id, message: message)
+    private func retryNextSeasonFallback(id: UUID, reason: String) async -> Bool {
+        guard var candidates = seasonFallbacks[id], !candidates.isEmpty,
+              let current = await store.item(id: id) else { return false }
+        let next = candidates.removeFirst()
+        seasonFallbacks[id] = candidates.isEmpty ? nil : candidates
+        tasks.removeValue(forKey: id)
+        resumeData.removeValue(forKey: id)
+        transientHTTPRetries.removeValue(forKey: id)
+        ephemeralURLs.removeValue(forKey: id)
+        await store.update(id: id) {
+            $0.sourceURL = DownloadManager.sourceURLString(next.url, container: next.container)
+            $0.headers = next.headers
+            $0.totalBytes = next.totalBytes
+            $0.bytesWritten = 0
+            $0.state = .queued
+            $0.errorMessage = "Sorgente precedente non disponibile; provo un'altra sorgente."
+        }
+        diagnostics.logDetached(.warning, "downloader", "Fallback sorgente per \(current.title): \(Redactor.redact(next.url.host ?? "host sconosciuto")); causa=\(reason)")
+        items = await store.all()
+        scheduleQueue()
+        return true
     }
-}
+
+    fileprivate func failedTransfer(id: UUID, message: String) async {
+        if await retryNextSeasonFallback(id: id, reason: message) { return }
+        await fail(id, message: message)
+    }}
 
 extension DownloadManager: URLSessionDownloadDelegate, URLSessionTaskDelegate {
     nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
