@@ -406,25 +406,24 @@ struct DetailView: View {
                 continue
             }
 
-            if targetLanguage == nil && languageSetting != "any" {
-                targetLanguage = playable.compactMap { seasonLanguageEvidence(for: $0, preferred: preferences.preferredLanguage) }.first
+            // Never infer the requested language from whichever source happens to appear first.
+            // A season download is allowed only when the source carries explicit language evidence
+            // matching the configured preference; unknown-language files are deliberately rejected.
+            let requiredLanguage = targetLanguage ?? (languageSetting == "any" ? nil : preferences.preferredLanguage.map(normalizeSeasonLanguage))
+            let languageMatches: [RankedStream]
+            if let requiredLanguage {
+                languageMatches = playable.filter { item in
+                    seasonLanguageEvidence(for: item, preferred: requiredLanguage) == requiredLanguage
+                }
+            } else {
+                // Even in "any" mode, require explicit language metadata or an ITA/IT title marker.
+                languageMatches = playable.filter { item in
+                    hasExplicitItalianDownloadEvidence(for: item)
+                }
             }
-            var languageMatches = playable
-            if languageSetting != "any", let targetLanguage {
-                let knownMatches = playable.filter { item in
-                    let language = seasonLanguageEvidence(for: item, preferred: targetLanguage ?? preferences.preferredLanguage)
-                    return language == targetLanguage || language == "multi"
-                }
-                if !knownMatches.isEmpty {
-                    languageMatches = knownMatches
-                } else {
-                    // Last resort: sources with no language clues at all; do not silently pick one explicitly tagged in another language.
-                    languageMatches = playable.filter { seasonLanguageEvidence(for: $0, preferred: targetLanguage ?? preferences.preferredLanguage) == nil }
-                }
-                if languageMatches.isEmpty {
-                    skipped += 1
-                    continue
-                }
+            guard !languageMatches.isEmpty else {
+                skipped += 1
+                continue
             }
 
             let maxHeight = preferences.qualityCap.maxHeight
@@ -523,15 +522,21 @@ struct DetailView: View {
         seasonBatchDownloadIDs.removeAll()
     }
 
-    /// Language tags in release names are often more reliable than missing or generic addon language metadata.
-    /// Only strong, token-bounded labels are accepted; bare "IT" is recognized when explicitly bracketed.
+    /// Only explicit language evidence can authorize a season download.
+    /// Prefer the stream's language metadata; otherwise accept a language marker in its title.
     private func seasonLanguageEvidence(for item: RankedStream, preferred: String?) -> String? {
-        // The filename/release title is checked first: addon metadata is frequently absent or generic,
-        // while names such as "Show.S01E01.ITA.ENG..." explicitly describe the audio release.
-        if let language = ReleaseLanguageDetector.language(in: item.stream.searchableText, preferred: preferred) {
-            return normalizeSeasonLanguage(language)
+        if let match = item.info.languages.map(normalizeSeasonLanguage).first(where: { $0 == preferred || $0 == "multi" }) {
+            return match == "multi" ? preferred : match
         }
-        return item.info.languages.first.map(normalizeSeasonLanguage)
+        let title = item.stream.name ?? ""
+        return ReleaseLanguageDetector.language(in: title, preferred: preferred).map(normalizeSeasonLanguage)
+    }
+
+    /// The "any" setting still must not queue an unlabelled file: require Italian metadata
+    /// or an explicit ITA / [IT] marker in the release title.
+    private func hasExplicitItalianDownloadEvidence(for item: RankedStream) -> Bool {
+        if item.info.languages.contains(where: { normalizeSeasonLanguage($0) == "it" }) { return true }
+        return ReleaseLanguageDetector.languages(in: item.stream.name ?? "").contains("it")
     }
 
     private func normalizeSeasonLanguage(_ raw: String) -> String {
