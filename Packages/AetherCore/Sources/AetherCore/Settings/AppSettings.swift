@@ -622,12 +622,14 @@ public struct StorageSettings: Codable, Equatable, Sendable {
     /// "preferred" follows playback language, "any" disables language filtering, otherwise an ISO language code.
     public var seasonDownloadLanguage: String = "preferred"
     public var seasonDownloadSizePolicy: SeasonDownloadSizePolicy = .preferSmaller
+    /// Addon UUIDs excluded only from automatic season-download source discovery.
+    public var seasonDownloadDisabledAddonIDs: [String] = []
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case imageCacheLimitMB, cacheMetadata, downloadOverCellular, maxConcurrentDownloads, deleteDownloadsAfterWatching
-        case seasonDownloadQuality, seasonDownloadLanguage, seasonDownloadSizePolicy
+        case seasonDownloadQuality, seasonDownloadLanguage, seasonDownloadSizePolicy, seasonDownloadDisabledAddonIDs
     }
 
     public init(from decoder: Decoder) throws {
@@ -640,6 +642,7 @@ public struct StorageSettings: Codable, Equatable, Sendable {
         seasonDownloadQuality = c.value(.seasonDownloadQuality, default: .auto)
         seasonDownloadLanguage = c.value(.seasonDownloadLanguage, default: "preferred")
         seasonDownloadSizePolicy = c.value(.seasonDownloadSizePolicy, default: .preferSmaller)
+        seasonDownloadDisabledAddonIDs = Array(Set(c.value([String].self, forKey: .seasonDownloadDisabledAddonIDs, default: []))).sorted()
     }
 }
 
