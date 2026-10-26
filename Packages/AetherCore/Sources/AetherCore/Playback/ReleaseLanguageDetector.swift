@@ -39,18 +39,18 @@ public enum ReleaseLanguageDetector {
         // Accept them only in explicit brackets/parentheses, or in the release-tag tail next to
         // technical markers such as 1080p, WEB-DL, BluRay, x264 or DLMux.
         let shortMarkers: [(String, String)] = [
-            (#"(?:\\[IT\\]|\\(IT\\))"#, "it"),
-            (#"(?:\\[EN\\]|\\(EN\\))"#, "en"),
-            (#"(?:\\[ES\\]|\\(ES\\))"#, "es"),
-            (#"(?:\\[FR\\]|\\(FR\\))"#, "fr"),
-            (#"(?:\\[DE\\]|\\(DE\\))"#, "de"),
-            (#"(?:\\[PT\\]|\\(PT\\))"#, "pt"),
-            (#"(?:^| )IT(?= (?:\\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\\.?26[45]|HEVC|AV1)(?: |$))"#, "it"),
-            (#"(?:^| )EN(?= (?:\\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\\.?26[45]|HEVC|AV1)(?: |$))"#, "en"),
-            (#"(?:^| )ES(?= (?:\\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\\.?26[45]|HEVC|AV1)(?: |$))"#, "es"),
-            (#"(?:^| )FR(?= (?:\\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\\.?26[45]|HEVC|AV1)(?: |$))"#, "fr"),
-            (#"(?:^| )DE(?= (?:\\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\\.?26[45]|HEVC|AV1)(?: |$))"#, "de"),
-            (#"(?:^| )PT(?= (?:\\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\\.?26[45]|HEVC|AV1)(?: |$))"#, "pt")
+            (#"(?:\[IT\]|\(IT\))"#, "it"),
+            (#"(?:\[EN\]|\(EN\))"#, "en"),
+            (#"(?:\[ES\]|\(ES\))"#, "es"),
+            (#"(?:\[FR\]|\(FR\))"#, "fr"),
+            (#"(?:\[DE\]|\(DE\))"#, "de"),
+            (#"(?:\[PT\]|\(PT\))"#, "pt"),
+            (#"(?:^| )IT(?= (?:\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\.?26[45]|HEVC|AV1)(?: |$))"#, "it"),
+            (#"(?:^| )EN(?= (?:\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\.?26[45]|HEVC|AV1)(?: |$))"#, "en"),
+            (#"(?:^| )ES(?= (?:\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\.?26[45]|HEVC|AV1)(?: |$))"#, "es"),
+            (#"(?:^| )FR(?= (?:\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\.?26[45]|HEVC|AV1)(?: |$))"#, "fr"),
+            (#"(?:^| )DE(?= (?:\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\.?26[45]|HEVC|AV1)(?: |$))"#, "de"),
+            (#"(?:^| )PT(?= (?:\d{3,4}P|WEB|BLURAY|BDRIP|DVDRIP|DLMUX|HDTV|X26[45]|H\.?26[45]|HEVC|AV1)(?: |$))"#, "pt")
         ]
         for (pattern, language) in shortMarkers where value.range(of: pattern, options: .regularExpression) != nil {
             if !found.contains(language) { found.append(language) }
