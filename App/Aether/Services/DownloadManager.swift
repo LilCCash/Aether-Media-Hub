@@ -357,7 +357,7 @@ extension DownloadManager: URLSessionDownloadDelegate, URLSessionTaskDelegate {
         let size = ((try? FileManager.default.attributesOfItem(atPath: location.path)[.size]) as? NSNumber)?.int64Value ?? 0
         let responseURL = response?.url
         let safeHost = responseURL?.host.map { Redactor.redact($0) } ?? "sconosciuto"
-        let previewData = (try? Data(contentsOf: location)) ?? Data()
+        let previewData = (try? FileHandle(forReadingFrom: location).read(upToCount: 320)) ?? Data()
         let preview = String(decoding: previewData.prefix(320), as: UTF8.self)
             .replacingOccurrences(of: "\\n", with: " ")
             .replacingOccurrences(of: "\\r", with: " ")
