@@ -16,6 +16,8 @@ final class DownloadManager: NSObject, ObservableObject {
     private let store: DownloadStore
     private var session: URLSession!
     private var tasks: [UUID: URLSessionDownloadTask] = [:]
+    /// TorBox CDN URLs contain short-lived credentials; keep them in memory only, never in DownloadStore.
+    private var ephemeralURLs: [UUID: URL] = [:]
     private var resumeData: [UUID: Data] = [:]
     private var lastPublished: [UUID: Date] = [:]
     nonisolated(unsafe) static var backgroundCompletionHandler: (() -> Void)?
@@ -74,7 +76,8 @@ final class DownloadManager: NSObject, ObservableObject {
 
     /// Queues a download after checking eligibility; returns an error message when refused.
     @discardableResult
-    func enqueue(meta: MetaItem, video: Video?, stream: AddonStream, allowLocalNetwork: Bool) async -> String? {
+    func enqueue(meta: MetaItem, video: Video?, stream: AddonStream, allowLocalNetwork: Bool,
+                 ephemeralURL: URL? = nil) async -> String? {
         let info = StreamAnalyzer.analyze(stream, capabilities: PlaybackEngineFactory.capabilities)
         switch DownloadPlanner.evaluate(stream: stream, info: info, allowLocalNetwork: allowLocalNetwork) {
         case .notAllowed(let reason):
@@ -91,9 +94,12 @@ final class DownloadManager: NSObject, ObservableObject {
             if let video = video { subtitle = [video.episodeLabel, video.title].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") }
             let item = DownloadItem(metaID: meta.id, videoID: video?.id, type: meta.type, title: meta.name,
                                     subtitle: subtitle, poster: meta.poster,
-                                    sourceURL: DownloadManager.sourceURLString(url, container: info.container),
+                                    sourceURL: ephemeralURL == nil
+                                        ? DownloadManager.sourceURLString(url, container: info.container)
+                                        : "aether-torbox-pending://\(UUID().uuidString)",
                                     headers: stream.behaviorHints.proxyRequestHeaders,
                                     totalBytes: stream.behaviorHints.videoSize ?? info.sizeBytes ?? 0)
+            if let ephemeralURL = ephemeralURL { ephemeralURLs[item.id] = ephemeralURL }
             await store.add(item)
             items = await store.all()
             scheduleQueue()
@@ -213,7 +219,15 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private func startTask(for item: DownloadItem) -> Bool {
         guard tasks[item.id] == nil else { return false }
-        guard let url = URL(string: item.sourceURL) else {
+        let url: URL
+        if let ephemeral = ephemeralURLs[item.id] {
+            url = ephemeral
+        } else if item.sourceURL.hasPrefix("aether-torbox-pending://") {
+            Task { await fail(item.id, message: "Il link temporaneo TorBox è scaduto. Avvia di nuovo il download dalla sorgente.") }
+            return false
+        } else if let storedURL = URL(string: item.sourceURL) {
+            url = storedURL
+        } else {
             Task { await fail(item.id, message: "URL non valido.") }
             return false
         }

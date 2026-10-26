@@ -380,7 +380,7 @@ final class StreamPickerModel: ObservableObject {
                 let resolution = try await env.debrid.resolveWithTorBox(request, onProgress: nil)
                 let resolvedStream = resolution.playableStream(from: item.stream)
                 if let refusal = await env.downloads.enqueue(meta: self.request.meta, video: self.request.video,
-                                                             stream: resolvedStream, allowLocalNetwork: allowLocal) {
+                                                             stream: resolvedStream, allowLocalNetwork: allowLocal, ephemeralURL: resolution.url) {
                     blockedMessage = refusal
                 } else {
                     infoMessage = "Download avviato tramite TorBox. Lo trovi in Libreria ▸ Download."
