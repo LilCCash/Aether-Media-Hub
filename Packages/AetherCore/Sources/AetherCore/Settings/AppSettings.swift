@@ -597,17 +597,37 @@ public struct CastingSettings: Codable, Equatable, Sendable {
     }
 }
 
+public enum SeasonDownloadSizePolicy: String, Codable, CaseIterable, Sendable {
+    /// Prefer the lightest file among the best quality available within the selected cap.
+    case preferSmaller
+    /// Prefer quality; file size is only a tie-breaker.
+    case any
+
+    public var title: String {
+        switch self {
+        case .preferSmaller: return "File più leggeri"
+        case .any: return "Qualsiasi peso (qualità prioritaria)"
+        }
+    }
+}
+
 public struct StorageSettings: Codable, Equatable, Sendable {
     public var imageCacheLimitMB: Int = 300
     public var cacheMetadata: Bool = true
     public var downloadOverCellular: Bool = false
     public var maxConcurrentDownloads: Int = 2
     public var deleteDownloadsAfterWatching: Bool = false
+    /// Quality cap used by the one-tap season downloader. Auto follows the best matching source.
+    public var seasonDownloadQuality: VideoQualityCap = .auto
+    /// "preferred" follows playback language, "any" disables language filtering, otherwise an ISO language code.
+    public var seasonDownloadLanguage: String = "preferred"
+    public var seasonDownloadSizePolicy: SeasonDownloadSizePolicy = .preferSmaller
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case imageCacheLimitMB, cacheMetadata, downloadOverCellular, maxConcurrentDownloads, deleteDownloadsAfterWatching
+        case seasonDownloadQuality, seasonDownloadLanguage, seasonDownloadSizePolicy
     }
 
     public init(from decoder: Decoder) throws {
@@ -617,6 +637,9 @@ public struct StorageSettings: Codable, Equatable, Sendable {
         downloadOverCellular = c.value(.downloadOverCellular, default: false)
         maxConcurrentDownloads = min(4, max(1, c.value(.maxConcurrentDownloads, default: 2)))
         deleteDownloadsAfterWatching = c.value(.deleteDownloadsAfterWatching, default: false)
+        seasonDownloadQuality = c.value(.seasonDownloadQuality, default: .auto)
+        seasonDownloadLanguage = c.value(.seasonDownloadLanguage, default: "preferred")
+        seasonDownloadSizePolicy = c.value(.seasonDownloadSizePolicy, default: .preferSmaller)
     }
 }
 

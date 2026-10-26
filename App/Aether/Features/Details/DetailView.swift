@@ -173,6 +173,8 @@ struct DetailView: View {
     @State private var similarProblem: String?
     /// True while TMDB is asked for the IMDb code of a similar title: more taps meanwhile would start more lookups.
     @State private var lookingUpSimilar = false
+    @State private var isDownloadingSeason = false
+    @State private var seasonDownloadMessage: String?
 
     init(route: MetaRoute) {
         self.route = route
@@ -323,6 +325,164 @@ struct DetailView: View {
 
     private func startPlayback(video: Video?) {
         picker = StreamPickerRequest(meta: model.meta, video: video, resumeAt: nil)
+    }
+
+    /// Queues the selected season using one consistent language/quality policy.
+    /// A missing source only skips that episode; it never aborts the rest of the season.
+    private func downloadSelectedSeason() async {
+        guard !isDownloadingSeason, let season = model.selectedSeason else { return }
+        let episodes = model.meta.videos(inSeason: season)
+            .filter { ($0.released ?? .distantPast) <= Date() }
+            .sorted { ($0.episode ?? Int.max) < ($1.episode ?? Int.max) }
+        guard !episodes.isEmpty else {
+            seasonDownloadMessage = "Non ci sono episodi già disponibili in questa stagione."
+            return
+        }
+        guard !model.meta.isLive else {
+            seasonDownloadMessage = "Il download di una stagione non è disponibile per i contenuti live."
+            return
+        }
+
+        isDownloadingSeason = true
+        seasonDownloadMessage = "Cerco sorgenti per \(episodes.count) episodi…"
+        defer { isDownloadingSeason = false }
+
+        let storage = settings.value.storage
+        var preferences = env.streamPreferences()
+        preferences.qualityCap = storage.seasonDownloadQuality
+        if storage.seasonDownloadSizePolicy == .preferSmaller && storage.seasonDownloadQuality == .auto {
+            preferences.qualityCap = .p1080
+        }
+        let languageSetting = storage.seasonDownloadLanguage
+        if languageSetting == "any" {
+            preferences.preferredLanguage = nil
+            preferences.preferLanguage = false
+        } else if languageSetting == "preferred" {
+            preferences.preferredLanguage = SettingsStore.resolvedLanguage(settings.value.playback.preferredAudioLanguage)
+            preferences.preferLanguage = preferences.preferredLanguage != nil
+        } else {
+            preferences.preferredLanguage = languageSetting
+            preferences.preferLanguage = true
+        }
+
+        var targetLanguage = preferences.preferredLanguage.map(normalizeSeasonLanguage)
+        var targetHeight: Int?
+        var queued = 0
+        var skipped = 0
+        var alreadyPresent = 0
+        let allowLocal = settings.value.privacy.allowLocalNetwork
+
+        for (index, video) in episodes.enumerated() {
+            if Task.isCancelled { break }
+            seasonDownloadMessage = "Cerco sorgenti · episodio \(index + 1) di \(episodes.count)…"
+            if let existing = env.downloads.item(metaID: model.meta.id, videoID: video.id), existing.state != .failed {
+                alreadyPresent += 1
+                continue
+            }
+
+            let result = await env.service.allStreams(type: model.meta.type, videoID: video.id)
+            if Task.isCancelled { break }
+            let ranked = StreamSelector.rank(result.streams, preferences: preferences)
+            let playable = ranked.filter { $0.info.support.isPlayable }
+            guard !playable.isEmpty else {
+                skipped += 1
+                continue
+            }
+
+            if targetLanguage == nil && languageSetting != "any" {
+                targetLanguage = playable.first?.info.languages.first.map(normalizeSeasonLanguage)
+            }
+            var languageMatches = playable
+            if languageSetting != "any", let targetLanguage {
+                let knownMatches = playable.filter { item in
+                    let languages = item.info.languages.map(normalizeSeasonLanguage)
+                    return languages.contains(targetLanguage) || languages.contains("multi")
+                }
+                if !knownMatches.isEmpty {
+                    languageMatches = knownMatches
+                } else {
+                    // An unlabelled source is a last resort; never substitute a source explicitly tagged in another language.
+                    languageMatches = playable.filter { $0.info.languages.isEmpty }
+                }
+                if languageMatches.isEmpty {
+                    skipped += 1
+                    continue
+                }
+            }
+
+            let maxHeight = preferences.qualityCap.maxHeight
+            let withinCap = languageMatches.filter { $0.info.quality.height == 0 || $0.info.quality.height <= maxHeight }
+            let candidates = withinCap.isEmpty ? languageMatches : withinCap
+            if targetHeight == nil {
+                targetHeight = candidates.first(where: { $0.info.quality.height > 0 })?.info.quality.height
+            }
+            let consistentQuality = candidates.filter { item in
+                guard let targetHeight, item.info.quality.height > 0 else { return true }
+                return item.info.quality.height <= targetHeight
+            }
+            let pool = consistentQuality.isEmpty ? candidates : consistentQuality
+            let bestHeight = pool.map { $0.info.quality.height }.filter { $0 > 0 }.max()
+            let sameQuality = bestHeight.map { height in pool.filter { $0.info.quality.height == height } } ?? pool
+            guard !sameQuality.isEmpty else {
+                skipped += 1
+                continue
+            }
+            let chosen: RankedStream
+            if storage.seasonDownloadSizePolicy == .preferSmaller {
+                chosen = sameQuality.sorted { lhs, rhs in
+                    let left = lhs.info.sizeBytes ?? Int64.max
+                    let right = rhs.info.sizeBytes ?? Int64.max
+                    if left != right { return left < right }
+                    return lhs.score > rhs.score
+                }.first ?? sameQuality[0]
+            } else {
+                chosen = sameQuality.sorted { $0.score > $1.score }.first ?? sameQuality[0]
+            }
+
+            do {
+                let stream = chosen.stream
+                if case .torrent = stream.source {
+                    guard env.debrid.isTorBoxConfigured,
+                          let request = DebridRequest(stream: stream, stremioID: video.id, mode: .startIfNeeded) else {
+                        skipped += 1
+                        continue
+                    }
+                    let resolution = try await env.debrid.resolveWithTorBox(request, onProgress: nil)
+                    let resolvedStream = resolution.playableStream(from: stream)
+                    if await env.downloads.enqueue(meta: model.meta, video: video, stream: resolvedStream,
+                                                   allowLocalNetwork: allowLocal, ephemeralURL: resolution.url) == nil {
+                        queued += 1
+                    } else {
+                        skipped += 1
+                    }
+                } else if await env.downloads.enqueue(meta: model.meta, video: video, stream: stream,
+                                                      allowLocalNetwork: allowLocal) == nil {
+                    queued += 1
+                } else {
+                    skipped += 1
+                }
+            } catch {
+                skipped += 1
+            }
+        }
+
+        var summary = "Download stagione: \(queued) episodi accodati"
+        if alreadyPresent > 0 { summary += ", \(alreadyPresent) già presenti" }
+        if skipped > 0 { summary += ", \(skipped) non disponibili o non compatibili" }
+        summary += "."
+        seasonDownloadMessage = summary
+    }
+
+    private func normalizeSeasonLanguage(_ raw: String) -> String {
+        switch raw.lowercased() {
+        case "ita", "italian": return "it"
+        case "eng", "english": return "en"
+        case "fra", "fre", "french": return "fr"
+        case "spa", "spanish": return "es"
+        case "deu", "ger", "german": return "de"
+        case "por", "portuguese": return "pt"
+        default: return raw.lowercased()
+        }
     }
 
     // MARK: Info
@@ -476,8 +636,34 @@ struct DetailView: View {
                     }
                     .accessibilityIdentifier("detail.seasonMenu")
                 }
+                if model.selectedSeason != nil, !model.visibleEpisodes.isEmpty {
+                    Button {
+                        Task { await downloadSelectedSeason() }
+                    } label: {
+                        if isDownloadingSeason {
+                            ProgressView().controlSize(.small).frame(width: 40, height: 34)
+                        } else {
+                            Label("Scarica", systemImage: "arrow.down.circle")
+                                .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
+                                .padding(.horizontal, 10).padding(.vertical, 7)
+                                .aetherGlassCapsule(interactive: true)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDownloadingSeason)
+                    .accessibilityLabel("Scarica \(seasonTitle(model.selectedSeason).lowercased())")
+                    .accessibilityIdentifier("detail.downloadSeason")
+                }
             }
             .padding(.horizontal, Theme.pageMargin)
+
+            if let message = seasonDownloadMessage {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(Color.aetherSecondary)
+                    .padding(.horizontal, Theme.pageMargin)
+                    .accessibilityIdentifier("detail.downloadSeasonStatus")
+            }
 
             if let season = model.selectedSeason, model.visibleEpisodes.count > 1 {
                 Button {

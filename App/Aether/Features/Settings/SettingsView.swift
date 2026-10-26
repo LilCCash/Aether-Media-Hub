@@ -497,6 +497,24 @@ struct StorageSettingsView: View {
                 Toggle("Elimina i download dopo la visione", isOn: settings.binding(\.storage.deleteDownloadsAfterWatching))
                 NavigationLink("Gestisci i download") { DownloadsView().navigationTitle("Download") }
             }
+            Section(header: Text("Scarica una stagione"), footer: Text("Aether cerca sorgenti per ogni episodio e prova a mantenere la stessa lingua e una qualità coerente. Se non trova una sorgente compatibile, salta solo quell'episodio e lo segnala. La dimensione è stimata: gli addon non sempre comunicano i GB reali.")) {
+                Picker("Qualità", selection: settings.binding(\.storage.seasonDownloadQuality)) {
+                    ForEach(VideoQualityCap.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                Picker("Lingua audio", selection: settings.binding(\.storage.seasonDownloadLanguage)) {
+                    Text("Come lingua preferita di Riproduzione").tag("preferred")
+                    Text("Italiano").tag("it")
+                    Text("Inglese").tag("en")
+                    Text("Francese").tag("fr")
+                    Text("Spagnolo").tag("es")
+                    Text("Tedesco").tag("de")
+                    Text("Portoghese").tag("pt")
+                    Text("Qualsiasi lingua").tag("any")
+                }
+                Picker("Gestione dello spazio", selection: settings.binding(\.storage.seasonDownloadSizePolicy)) {
+                    ForEach(SeasonDownloadSizePolicy.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+            }
         }
         .navigationTitle("Archiviazione")
         .task { await refresh() }
