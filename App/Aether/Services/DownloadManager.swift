@@ -321,7 +321,7 @@ final class DownloadManager: NSObject, ObservableObject {
         await store.update(id: id) {
             $0.state = .queued
             $0.bytesWritten = 0
-            $0.errorMessage = "Server temporaneamente non disponibile (HTTP \(status): nuovo tentativo \(attempts + 1)/2…"
+            $0.errorMessage = "Server temporaneamente non disponibile (HTTP \(status)); nuovo tentativo \(attempts + 1)/2…"
         }
         items = await store.all()
         let delay = UInt64(attempts + 1) * 2_000_000_000
