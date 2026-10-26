@@ -86,7 +86,7 @@ final class AppEnvironment: ObservableObject {
         addons = AddonStore(registry: registry)
         library = LibraryModel(store: libraryStore)
         router = AppRouter()
-        downloads = DownloadManager(paths: paths, snapshot: snapshot)
+        downloads = DownloadManager(paths: paths, snapshot: snapshot, diagnostics: diagnostics)
         let relayService = RelayService(settings: settings, diagnostics: diagnostics)
         relay = relayService
         localRemux = LocalRemuxService(settings: settings, diagnostics: diagnostics)
