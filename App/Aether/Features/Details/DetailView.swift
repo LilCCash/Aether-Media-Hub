@@ -491,6 +491,11 @@ struct DetailView: View {
             }
         }
 
+        if Task.isCancelled {
+            seasonDownloadMessage = "Download stagione annullato. I file già completati sono stati conservati."
+            return
+        }
+
         var summary = "Download stagione: \(queued) episodi accodati"
         if alreadyPresent > 0 { summary += ", \(alreadyPresent) già presenti" }
         if skipped > 0 { summary += ", \(skipped) non disponibili o non compatibili" }
