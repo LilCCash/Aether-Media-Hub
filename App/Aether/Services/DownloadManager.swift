@@ -361,7 +361,7 @@ extension DownloadManager: URLSessionDownloadDelegate, URLSessionTaskDelegate {
         let preview = String(decoding: previewData.prefix(320), as: UTF8.self)
             .replacingOccurrences(of: "\\n", with: " ")
             .replacingOccurrences(of: "\\r", with: " ")
-        Task {
+        Task { @MainActor in
             await self.diagnostics.log(.info, "downloader",
                 "Risposta HTTP \(status), host=\(safeHost), mime=\(mime.isEmpty ? "sconosciuto" : mime), bytes=\(size), anteprima=\(Redactor.redact(preview))")
         }
