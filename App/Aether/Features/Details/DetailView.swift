@@ -517,23 +517,8 @@ struct DetailView: View {
     /// Language tags in release names are often more reliable than missing or generic addon language metadata.
     /// Only strong, token-bounded labels are accepted; bare "IT" is recognized when explicitly bracketed.
     private func seasonLanguageEvidence(for item: RankedStream) -> String? {
-        let title = item.stream.searchableText.uppercased()
-        if title.contains("🇮🇹") { return "it" }
-        if title.contains("🇬🇧") || title.contains("🇺🇸") { return "en" }
-        let markers: [(String, String)] = [
-            (#"(?<![A-Z0-9])(?:ITA|ITALIAN|ITALIANO)(?![A-Z0-9])"#, "it"),
-            (#"(?<![A-Z0-9])(?:ENG|ENGLISH)(?![A-Z0-9])"#, "en"),
-            (#"(?<![A-Z0-9])(?:FRA|FRE|FRENCH|FRANCAIS)(?![A-Z0-9])"#, "fr"),
-            (#"(?<![A-Z0-9])(?:SPA|ESP|SPANISH|CASTELLANO)(?![A-Z0-9])"#, "es"),
-            (#"(?<![A-Z0-9])(?:DEU|GER|GERMAN)(?![A-Z0-9])"#, "de"),
-            (#"(?<![A-Z0-9])(?:POR|PTBR|PORTUGUESE)(?![A-Z0-9])"#, "pt"),
-            (#"(?<![A-Z0-9])(?:MULTI|MULTILANGUAGE|DUAL[ ._-]?AUDIO|MULTI[ ._-]?AUDIO)(?![A-Z0-9])"#, "multi"),
-            (#"(?:\[\s*IT\s*\]|\(\s*IT\s*\)|\.IT\.)"#, "it")
-        ]
-        for (pattern, language) in markers where title.range(of: pattern, options: .regularExpression) != nil {
-            return language
-        }
-        return item.info.languages.first.map(normalizeSeasonLanguage)
+        return ReleaseLanguageDetector.language(in: item.stream.searchableText)
+            ?? item.info.languages.first.map(normalizeSeasonLanguage)
     }
 
     private func normalizeSeasonLanguage(_ raw: String) -> String {
