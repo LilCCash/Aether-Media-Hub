@@ -7,24 +7,35 @@ struct DownloadsView: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var router: AppRouter
 
+    private var visibleItems: [DownloadItem] {
+        downloads.items.filter { item in
+            item.state != .failed &&
+            (filter.isEmpty || MetaDeduper.normalise(item.title).contains(MetaDeduper.normalise(filter)))
+        }
+    }
+
+    private var titleIDs: [String] {
+        Array(Set(visibleItems.map(\.metaID))).sorted { lhs, rhs in
+            let left = visibleItems.first(where: { $0.metaID == lhs })?.title ?? lhs
+            let right = visibleItems.first(where: { $0.metaID == rhs })?.title ?? rhs
+            return left.localizedCaseInsensitiveCompare(right) == .orderedAscending
+        }
+    }
+
     var body: some View {
-        let items = downloads.items.filter { filter.isEmpty || MetaDeduper.normalise($0.title).contains(MetaDeduper.normalise(filter)) }
         VStack(spacing: 0) {
             storageHeader
-            if items.isEmpty {
+            if visibleItems.isEmpty {
                 ScrollView {
                     EmptyStateView(systemImage: "arrow.down.circle", title: "Nessun download",
-                                   message: "Dalla scheda di un titolo puoi scaricare le sorgenti che sono file diretti (MP4/MOV su HTTPS). HLS, torrent e archivi non sono scaricabili.")
+                                   message: "I download in corso e i file completati appariranno qui, raggruppati per serie e stagione.")
                         .padding(.top, 40)
                 }
                 .accessibilityIdentifier("downloads.empty")
             } else {
                 List {
-                    ForEach(items) { item in
-                        DownloadRow(item: item)
-                            .swipeActions {
-                                Button(role: .destructive) { downloads.remove(item.id) } label: { Label("Elimina", systemImage: "trash") }
-                            }
+                    ForEach(titleIDs, id: \.self) { metaID in
+                        titleSection(metaID: metaID)
                     }
                 }
                 .listStyle(.plain)
@@ -32,6 +43,69 @@ struct DownloadsView: View {
                 .accessibilityIdentifier("downloads.list")
             }
         }
+    }
+
+    @ViewBuilder
+    private func titleSection(metaID: String) -> some View {
+        let titleItems = visibleItems.filter { $0.metaID == metaID }.sorted { $0.createdAt > $1.createdAt }
+        let title = titleItems.first?.title ?? metaID
+        let isSeries = titleItems.contains { $0.videoID != nil }
+        if isSeries {
+            DisclosureGroup {
+                let seasonGroups = Dictionary(grouping: titleItems, by: { seasonNumber(for: $0) })
+                ForEach(seasonGroups.keys.sorted(), id: \.self) { season in
+                    DisclosureGroup {
+                        let episodeItems = (seasonGroups[season] ?? []).sorted { $0.createdAt > $1.createdAt }
+                        ForEach(episodeItems) { item in
+                            DownloadRow(item: item)
+                                .swipeActions {
+                                    Button(role: .destructive) { downloads.remove(item.id) } label: {
+                                        Label("Elimina", systemImage: "trash")
+                                    }
+                                }
+                        }
+                    } label: {
+                        HStack {
+                            Text(season == 0 ? "Altri episodi" : "Stagione \(season)")
+                                .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
+                            Spacer()
+                            Text("\(seasonGroups[season]?.count ?? 0)")
+                                .font(.caption).foregroundStyle(Color.aetherSecondary)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    RemoteImage(urlString: titleItems.first?.poster, width: 100, placeholderSeed: title)
+                        .frame(width: 40, height: 58)
+                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(title).font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
+                        Text("\(titleItems.count) episodi · download e file completati")
+                            .font(.caption).foregroundStyle(Color.aetherSecondary)
+                    }
+                }
+                .padding(.vertical, 3)
+            }
+        } else {
+            ForEach(titleItems) { item in
+                DownloadRow(item: item)
+                    .swipeActions {
+                        Button(role: .destructive) { downloads.remove(item.id) } label: {
+                            Label("Elimina", systemImage: "trash")
+                        }
+                    }
+            }
+        }
+    }
+
+    /// Stremio episode IDs usually end in :season:episode.
+    /// Unknown IDs are grouped separately instead of inventing a season number.
+    private func seasonNumber(for item: DownloadItem) -> Int {
+        guard let id = item.videoID else { return 0 }
+        let parts = id.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count >= 3, let season = Int(parts[parts.count - 2]), season >= 0 else { return 0 }
+        return season
     }
 
     private var storageHeader: some View {
@@ -58,9 +132,10 @@ struct DownloadRow: View {
                 .frame(width: 44, height: 64)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.title).font(.system(.subheadline, design: AetherTypography.design).weight(.semibold)).lineLimit(1)
-                if let subtitle = item.subtitle, !subtitle.isEmpty {
-                    Text(subtitle).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(1)
+                Text(item.subtitle?.isEmpty == false ? item.subtitle! : item.title)
+                    .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold)).lineLimit(2)
+                if item.subtitle?.isEmpty == false && item.videoID == nil {
+                    Text(item.title).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(1)
                 }
                 statusLine
                 if item.state == .downloading || item.state == .paused {
@@ -71,7 +146,7 @@ struct DownloadRow: View {
             actionButton
         }
         .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
