@@ -1,0 +1,122 @@
+name: Aether Mobile · Build and upload to VibeView
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch from which to build the smartphone APK"
+        required: true
+        type: string
+        default: "aether-for-android"
+      note:
+        description: "Optional note shown in VibeView build history"
+        required: false
+        type: string
+        default: "Manual smartphone Android build"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aether-mobile-vibeview-${{ inputs.branch }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-upload:
+    name: Build smartphone APK and upload to VibeView
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build smartphone debug APK
+        run: ./android-mobile/gradlew -p android-mobile :app:assembleDebug --console=plain
+
+      - name: Validate smartphone APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android-mobile/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK" || { echo "::error::Smartphone APK not found: $APK"; exit 1; }
+          SIZE=$(stat -c%s "$APK")
+          if [ "$SIZE" -gt 524288000 ]; then
+            echo "::error::APK exceeds VibeView's 500 MB upload limit."
+            exit 1
+          fi
+          BT=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          "$BT/aapt2" dump badging "$APK" > /tmp/aether-mobile-badging.txt
+          grep -q "package: name='app.aether.mobile'" /tmp/aether-mobile-badging.txt || {
+            echo "::error::APK package is not app.aether.mobile."; exit 1;
+          }
+          grep -q "launchable-activity" /tmp/aether-mobile-badging.txt || {
+            echo "::error::APK has no launchable smartphone activity."; exit 1;
+          }
+          if grep -q "leanback-launchable-activity" /tmp/aether-mobile-badging.txt; then
+            echo "::error::This appears to be an Android TV APK, not the smartphone app."
+            exit 1
+          fi
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+          echo "APK_SIZE=$SIZE" >> "$GITHUB_ENV"
+          sed -n '1,12p' /tmp/aether-mobile-badging.txt
+
+      - name: Upload APK to VibeView
+        id: upload
+        env:
+          VIBEVIEW_API_TOKEN: ${{ secrets.VIBEVIEW_API_TOKEN }}
+          BUILD_NOTE: ${{ inputs.note }}
+          SOURCE_BRANCH: ${{ inputs.branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${VIBEVIEW_API_TOKEN:-}" ]; then
+            echo "::error::Missing VIBEVIEW_API_TOKEN. Add it under repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          NOTE="${BUILD_NOTE:-Manual smartphone Android build}"
+          RESULT=$(npx -y vibeview upload-app "$APK_PATH" \
+            --token "$VIBEVIEW_API_TOKEN" \
+            --name "Aether Mobile" \
+            --note "$NOTE (branch: $SOURCE_BRANCH)" \
+            --output json)
+          echo "$RESULT" | jq .
+          APP_ID=$(echo "$RESULT" | jq -r '.app_id // empty')
+          BUILD_ID=$(echo "$RESULT" | jq -r '.build_id // empty')
+          APP_URL=$(echo "$RESULT" | jq -r '.url // empty')
+          {
+            echo "## Aether Mobile · VibeView upload"
+            echo ""
+            echo "- Source branch: `$SOURCE_BRANCH`"
+            echo "- APK: `$APK_PATH`"
+            echo "- Size: $APK_SIZE bytes"
+            echo "- App ID: ${APP_ID:-not returned}"
+            echo "- Build ID: ${BUILD_ID:-not returned}"
+            if [ -n "$APP_URL" ]; then echo "- VibeView app: $APP_URL"; fi
+            echo ""
+            echo "Upload completed successfully."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save APK as a GitHub Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aether-Mobile-VibeView-APK
+          path: android-mobile/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
