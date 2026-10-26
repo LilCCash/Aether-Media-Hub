@@ -30,6 +30,7 @@ final class ReleaseLanguageDetectorTests: XCTestCase {
 
     func testDoesNotMatchLanguageInsideOrdinaryWords() {
         XCTAssertTrue(ReleaseLanguageDetector.languages(in: "The.Italian.Job.2003.1080p").isEmpty)
+        XCTAssertTrue(ReleaseLanguageDetector.languages(in: "The.IT.Crowd.S01E01.1080p").isEmpty)
         XCTAssertTrue(ReleaseLanguageDetector.languages(in: "Show.ENGAGEMENT.S01E01").isEmpty)
     }
 }
