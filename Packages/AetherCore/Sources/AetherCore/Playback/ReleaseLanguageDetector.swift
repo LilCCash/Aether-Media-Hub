@@ -64,8 +64,8 @@ public enum ReleaseLanguageDetector {
     public static func language(in text: String, preferred: String? = nil) -> String? {
         let found = languages(in: text)
         if let preferred = preferred?.lowercased(),
-           let match = found.first(where: { $0.lowercased() == preferred || ($0 == "multi") }) {
-            return match == "multi" ? preferred : match
+           found.contains(where: { $0.lowercased() == preferred || $0 == "multi" }) {
+            return preferred
         }
         return found.first
     }
