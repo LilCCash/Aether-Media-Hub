@@ -380,9 +380,13 @@ struct DetailView: View {
                 continue
             }
 
-            let result = await env.service.allStreams(type: model.meta.type, videoID: video.id)
+            // Match the regular picker: when the meta response embeds episode streams, those are authoritative.
+            var episodeStreams = video.streams
+            if episodeStreams.isEmpty {
+                episodeStreams = await env.service.allStreams(type: model.meta.type, videoID: video.id).streams
+            }
             if Task.isCancelled { break }
-            let ranked = StreamSelector.rank(result.streams, preferences: preferences)
+            let ranked = StreamSelector.rank(episodeStreams, preferences: preferences)
             let playable = ranked.filter { $0.info.support.isPlayable }
             guard !playable.isEmpty else {
                 skipped += 1
