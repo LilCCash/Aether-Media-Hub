@@ -1,6 +1,7 @@
 name: Build IPA
 
 # Composes Aether.ipa on a GitHub macOS runner; this workflow is also used to validate the main-secondary build.
+# Re-run validation after fixing the duplicate language-detector test declaration.
 #
 #   unsigned  (default, no credentials needed; validates current UI, custom accent color, catalog settings, metadata integrations, and playback paths)
 #       Builds a Release archive for real iPhones (arm64) with code signing disabled and packs it as
