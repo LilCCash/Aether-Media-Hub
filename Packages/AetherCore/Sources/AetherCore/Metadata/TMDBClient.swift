@@ -92,6 +92,10 @@ public struct TMDBClient: Sendable {
         return try await get("/tv/\(tvID)/season/\(number)", query: [("language", language)])
     }
 
+    func episodeExternalIDs(tvID: Int, season: Int, episode: Int) async throws -> TMDBExternalIDs {
+        return try await get("/tv/\(tvID)/season/\(season)/episode/\(episode)/external_ids", query: [])
+    }
+
     /// Settings screen: is the key accepted? One cheap authenticated request, `/configuration`.
     public func check() async -> MetadataCheckResult {
         do {
