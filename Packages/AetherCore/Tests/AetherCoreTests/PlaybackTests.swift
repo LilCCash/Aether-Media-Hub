@@ -158,6 +158,25 @@ final class StreamAnalyzerTests: XCTestCase {
     }
 }
 
+final class ReleaseLanguageDetectorTests: XCTestCase {
+    func testRecognizesItalianReleaseMarkers() {
+        XCTAssertEqual(ReleaseLanguageDetector.language(in: "Example.S01E01.1080p.ITA.WEB-DL"), "it")
+        XCTAssertEqual(ReleaseLanguageDetector.language(in: "Example S01E01 [IT] 1080p"), "it")
+        XCTAssertEqual(ReleaseLanguageDetector.language(in: "Example - Italian Audio"), "it")
+    }
+
+    func testRecognizesOtherLanguagesAndMultiAudio() {
+        XCTAssertEqual(ReleaseLanguageDetector.language(in: "Show.S01E01.ENG.1080p"), "en")
+        XCTAssertEqual(ReleaseLanguageDetector.language(in: "Show.S01E01.FRA.WEB-DL"), "fr")
+        XCTAssertEqual(ReleaseLanguageDetector.language(in: "Show.S01E01.DUAL-AUDIO"), "multi")
+    }
+
+    func testDoesNotTreatOrdinaryEnglishWordsAsLanguageTags() {
+        XCTAssertNil(ReleaseLanguageDetector.language(in: "It was a good episode"))
+        XCTAssertNil(ReleaseLanguageDetector.language(in: "Show.S01E01.1080p.WEB-DL"))
+    }
+}
+
 final class StreamSelectorTests: XCTestCase {
     private func make(_ name: String, _ url: String, details: String = "", addon: String? = nil, binge: String? = nil) -> AddonStream {
         return AddonStream(source: .url(url), name: name, details: details,
