@@ -393,12 +393,14 @@ struct DetailView: View {
                 continue
             }
 
-            // Match the regular picker: when the meta response embeds episode streams, those are authoritative.
+            // Always query the configured addons, even when metadata embeds streams: embedded
+            // lists can be partial and may omit the matching-language release from another addon.
             var episodeStreams = video.streams
-            if episodeStreams.isEmpty {
-                episodeStreams = await env.service.allStreams(type: model.meta.type, videoID: video.id).streams
-            }
+            let fetchedStreams = await env.service.allStreams(type: model.meta.type, videoID: video.id).streams
             if Task.isCancelled { break }
+            for stream in fetchedStreams where !episodeStreams.contains(stream) {
+                episodeStreams.append(stream)
+            }
             let ranked = StreamSelector.rank(episodeStreams, preferences: preferences)
             let playable = ranked.filter { $0.info.support.isPlayable }
             guard !playable.isEmpty else {
