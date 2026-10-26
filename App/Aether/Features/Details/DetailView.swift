@@ -407,19 +407,19 @@ struct DetailView: View {
             }
 
             if targetLanguage == nil && languageSetting != "any" {
-                targetLanguage = playable.compactMap { seasonLanguageEvidence(for: $0) }.first
+                targetLanguage = playable.compactMap { seasonLanguageEvidence(for: $0, preferred: preferences.preferredLanguage) }.first
             }
             var languageMatches = playable
             if languageSetting != "any", let targetLanguage {
                 let knownMatches = playable.filter { item in
-                    let language = seasonLanguageEvidence(for: item)
+                    let language = seasonLanguageEvidence(for: item, preferred: targetLanguage ?? preferences.preferredLanguage)
                     return language == targetLanguage || language == "multi"
                 }
                 if !knownMatches.isEmpty {
                     languageMatches = knownMatches
                 } else {
                     // Last resort: sources with no language clues at all; do not silently pick one explicitly tagged in another language.
-                    languageMatches = playable.filter { seasonLanguageEvidence(for: $0) == nil }
+                    languageMatches = playable.filter { seasonLanguageEvidence(for: $0, preferred: targetLanguage ?? preferences.preferredLanguage) == nil }
                 }
                 if languageMatches.isEmpty {
                     skipped += 1
@@ -525,9 +525,13 @@ struct DetailView: View {
 
     /// Language tags in release names are often more reliable than missing or generic addon language metadata.
     /// Only strong, token-bounded labels are accepted; bare "IT" is recognized when explicitly bracketed.
-    private func seasonLanguageEvidence(for item: RankedStream) -> String? {
-        return ReleaseLanguageDetector.language(in: item.stream.searchableText)
-            ?? item.info.languages.first.map(normalizeSeasonLanguage)
+    private func seasonLanguageEvidence(for item: RankedStream, preferred: String?) -> String? {
+        // The filename/release title is checked first: addon metadata is frequently absent or generic,
+        // while names such as "Show.S01E01.ITA.ENG..." explicitly describe the audio release.
+        if let language = ReleaseLanguageDetector.language(in: item.stream.searchableText, preferred: preferred) {
+            return normalizeSeasonLanguage(language)
+        }
+        return item.info.languages.first.map(normalizeSeasonLanguage)
     }
 
     private func normalizeSeasonLanguage(_ raw: String) -> String {
