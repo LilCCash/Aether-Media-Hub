@@ -9,7 +9,6 @@ struct DownloadsView: View {
 
     private var visibleItems: [DownloadItem] {
         downloads.items.filter { item in
-            item.state != .failed &&
             (filter.isEmpty || MetaDeduper.normalise(item.title).contains(MetaDeduper.normalise(filter)))
         }
     }
