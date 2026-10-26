@@ -465,7 +465,7 @@ struct DetailView: View {
             // URL moves to the next source for this same episode; only a successfully resolved
             // and enqueued candidate ends the search.
             var episodeQueued = false
-            for candidate in orderedCandidates {
+            for (candidateIndex, candidate) in orderedCandidates.enumerated() {
                 if Task.isCancelled { break }
                 do {
                     let stream = candidate.stream
@@ -488,6 +488,23 @@ struct DetailView: View {
                     if enqueueError == nil {
                         queued += 1
                         trackSeasonDownload(videoID: video.id)
+                        // Keep direct HTTP(S) alternatives ready so a later HTTP/provider failure can
+                        // switch sources without restarting the whole season search.
+                        let fallbacks = orderedCandidates.dropFirst(candidateIndex + 1).compactMap { alternate -> SeasonDownloadFallback? in
+                            guard case .url(let rawURL) = alternate.stream.source,
+                                  let url = URL(string: rawURL),
+                                  ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { return nil }
+                            return SeasonDownloadFallback(
+                                url: url,
+                                headers: alternate.stream.behaviorHints.proxyRequestHeaders,
+                                container: alternate.info.container,
+                                totalBytes: alternate.info.sizeBytes ?? alternate.stream.behaviorHints.videoSize ?? 0
+                            )
+                        }
+                        if !fallbacks.isEmpty,
+                           let item = env.downloads.item(metaID: model.meta.id, videoID: video.id) {
+                            env.downloads.setSeasonFallbacks(for: item.id, candidates: fallbacks)
+                        }
                         episodeQueued = true
                         break
                     }
