@@ -395,8 +395,16 @@ struct DetailView: View {
 
             // Always query the configured addons, even when metadata embeds streams: embedded
             // lists can be partial and may omit the matching-language release from another addon.
-            var episodeStreams = video.streams
+            let disabledAddonIDs = Set(storage.seasonDownloadDisabledAddonIDs)
+            var episodeStreams = video.streams.filter { stream in
+                guard let addonID = stream.addonID else { return true }
+                return !disabledAddonIDs.contains(addonID)
+            }
             let fetchedStreams = await env.service.allStreams(type: model.meta.type, videoID: video.id).streams
+                .filter { stream in
+                    guard let addonID = stream.addonID else { return true }
+                    return !disabledAddonIDs.contains(addonID)
+                }
             if Task.isCancelled { break }
             for stream in fetchedStreams where !episodeStreams.contains(stream) {
                 episodeStreams.append(stream)
