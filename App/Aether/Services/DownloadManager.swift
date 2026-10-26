@@ -19,6 +19,7 @@ final class DownloadManager: NSObject, ObservableObject {
     /// TorBox CDN URLs contain short-lived credentials; keep them in memory only, never in DownloadStore.
     private var ephemeralURLs: [UUID: URL] = [:]
     private var resumeData: [UUID: Data] = [:]
+    private var transientHTTPRetries: [UUID: Int] = [:]
     private var lastPublished: [UUID: Date] = [:]
     nonisolated(unsafe) static var backgroundCompletionHandler: (() -> Void)?
 
@@ -263,6 +264,7 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private func fail(_ id: UUID, message: String) async {
         tasks.removeValue(forKey: id)
+        transientHTTPRetries.removeValue(forKey: id)
         await store.update(id: id) { $0.state = .failed; $0.errorMessage = message }
         items = await store.all()
         scheduleQueue()
@@ -289,6 +291,7 @@ final class DownloadManager: NSObject, ObservableObject {
     fileprivate func finished(id: UUID, fileName: String, bytes: Int64) async {
         tasks.removeValue(forKey: id)
         ephemeralURLs.removeValue(forKey: id)
+        transientHTTPRetries.removeValue(forKey: id)
         await store.update(id: id) {
             $0.state = .completed
             $0.localFileName = fileName
@@ -299,6 +302,34 @@ final class DownloadManager: NSObject, ObservableObject {
         }
         items = await store.all()
         scheduleQueue()
+    }
+
+    /// CDN/provider 5xx responses are often transient. Retry twice before surfacing the error,
+    /// keeping ephemeral provider URLs in memory and never persisting their credentials.
+    fileprivate func retryTransientHTTPFailure(id: UUID, status: Int) async {
+        guard (500..<600).contains(status) else {
+            await fail(id, message: "Il server ha risposto con errore HTTP \(status).")
+            return
+        }
+        let attempts = transientHTTPRetries[id, default: 0]
+        guard attempts < 2, let item = await store.item(id: id) else {
+            await fail(id, message: "Il server ha risposto con errore HTTP \(status) dopo \(attempts) tentativi.")
+            return
+        }
+        transientHTTPRetries[id] = attempts + 1
+        tasks.removeValue(forKey: id)
+        await store.update(id: id) {
+            $0.state = .queued
+            $0.bytesWritten = 0
+            $0.errorMessage = "Server temporaneamente non disponibile (HTTP \(status): nuovo tentativo \(attempts + 1)/2…"
+        }
+        items = await store.all()
+        let delay = UInt64(attempts + 1) * 2_000_000_000
+        try? await Task.sleep(nanoseconds: delay)
+        guard !Task.isCancelled,
+              let current = await store.item(id: id), current.state == .queued else { return }
+        _ = startTask(for: item)
+        items = await store.all()
     }
 
     fileprivate func failedTransfer(id: UUID, message: String) async {
@@ -321,7 +352,9 @@ extension DownloadManager: URLSessionDownloadDelegate, URLSessionTaskDelegate {
         let size = (try? FileManager.default.attributesOfItem(atPath: location.path)[.size] as? Int64) ?? 0
 
         guard (200..<300).contains(status) else {
-            Task { @MainActor in await self.failedTransfer(id: id, message: "Il server ha risposto con errore HTTP \(status).") }
+            Task { @MainActor in
+                await self.retryTransientHTTPFailure(id: id, status: status)
+            }
             return
         }
         if mime.contains("text/html") || mime.contains("json") || size < 50_000 {
