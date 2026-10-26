@@ -422,69 +422,74 @@ struct DetailView: View {
             }
             let languageMatches = matchingLanguageStreams.isEmpty ? playable : matchingLanguageStreams
 
+            // Apply the selected quality cap strictly: do not silently fall back to a release above it.
             let maxHeight = preferences.qualityCap.maxHeight
             let withinCap = languageMatches.filter { $0.info.quality.height == 0 || $0.info.quality.height <= maxHeight }
-            let candidates = withinCap.isEmpty ? languageMatches : withinCap
-            if targetHeight == nil {
-                targetHeight = candidates.first(where: { $0.info.quality.height > 0 })?.info.quality.height
-            }
-            let consistentQuality = candidates.filter { item in
-                guard let targetHeight, item.info.quality.height > 0 else { return true }
-                return item.info.quality.height <= targetHeight
-            }
-            let pool = consistentQuality.isEmpty ? candidates : consistentQuality
-            let bestHeight = pool.map { $0.info.quality.height }.filter { $0 > 0 }.max()
-            let sameQuality = bestHeight.map { height in pool.filter { $0.info.quality.height == height } } ?? pool
-            guard !sameQuality.isEmpty else {
+            guard !withinCap.isEmpty else {
                 skipped += 1
                 continue
             }
-            let chosen: RankedStream
+            if targetHeight == nil {
+                targetHeight = withinCap.first(where: { $0.info.quality.height > 0 })?.info.quality.height
+            }
+            let consistentQuality = withinCap.filter { item in
+                guard let targetHeight, item.info.quality.height > 0 else { return true }
+                return item.info.quality.height <= targetHeight
+            }
+            let pool = consistentQuality.isEmpty ? withinCap : consistentQuality
+            let orderedCandidates: [RankedStream]
             if storage.seasonDownloadSizePolicy == .preferSmaller {
-                chosen = sameQuality.sorted { lhs, rhs in
+                orderedCandidates = pool.sorted { lhs, rhs in
                     let left = lhs.info.sizeBytes ?? Int64.max
                     let right = rhs.info.sizeBytes ?? Int64.max
                     if left != right { return left < right }
                     return lhs.score > rhs.score
-                }.first ?? sameQuality[0]
+                }
             } else {
-                chosen = sameQuality.sorted { $0.score > $1.score }.first ?? sameQuality[0]
+                orderedCandidates = pool.sorted { $0.score > $1.score }
+            }
+            guard !orderedCandidates.isEmpty else {
+                skipped += 1
+                continue
             }
 
-            do {
-                let stream = chosen.stream
-                if case .torrent = stream.source {
-                    guard env.debrid.isTorBoxConfigured,
-                          let request = DebridRequest(stream: stream, stremioID: video.id, mode: .startIfNeeded) else {
-                        skipped += 1
-                        continue
-                    }
-                    let resolution = try await env.debrid.resolveWithTorBox(request, onProgress: nil)
-                    if Task.isCancelled { break }
-                    let resolvedStream = resolution.playableStream(from: stream)
-                    let enqueueError = await env.downloads.enqueue(meta: model.meta, video: video, stream: resolvedStream,
-                                                                    allowLocalNetwork: allowLocal, ephemeralURL: resolution.url)
-                    if enqueueError == nil {
-                        queued += 1
-                        trackSeasonDownload(videoID: video.id)
-                    } else {
-                        skipped += 1
-                    }
-                } else {
-                    let enqueueError = await env.downloads.enqueue(meta: model.meta, video: video, stream: stream,
-                                                                    allowLocalNetwork: allowLocal)
-                    if enqueueError == nil {
-                        queued += 1
-                        trackSeasonDownload(videoID: video.id)
-                    } else {
-                        skipped += 1
-                    }
-                }
+            // Validate candidates sequentially. A failed provider/API resolution or an ineligible
+            // URL moves to the next source for this same episode; only a successfully resolved
+            // and enqueued candidate ends the search.
+            var episodeQueued = false
+            for candidate in orderedCandidates {
                 if Task.isCancelled { break }
-            } catch {
-                skipped += 1
+                do {
+                    let stream = candidate.stream
+                    let enqueueError: String?
+                    if case .torrent = stream.source {
+                        guard env.debrid.isConfigured,
+                              let request = DebridRequest(stream: stream, stremioID: video.id, mode: .startIfNeeded) else {
+                            continue
+                        }
+                        // Respect the provider selected in Settings > Services > Torrent provider.
+                        let resolution = try await env.debrid.resolve(request, onProgress: nil)
+                        if Task.isCancelled { break }
+                        let resolvedStream = resolution.playableStream(from: stream)
+                        enqueueError = await env.downloads.enqueue(meta: model.meta, video: video, stream: resolvedStream,
+                                                                    allowLocalNetwork: allowLocal, ephemeralURL: resolution.url)
+                    } else {
+                        enqueueError = await env.downloads.enqueue(meta: model.meta, video: video, stream: stream,
+                                                                    allowLocalNetwork: allowLocal)
+                    }
+                    if enqueueError == nil {
+                        queued += 1
+                        trackSeasonDownload(videoID: video.id)
+                        episodeQueued = true
+                        break
+                    }
+                    // Unsupported source / provider resolution refusal: test the next ranked source.
+                } catch {
+                    // A source-specific failure is not an episode failure; try the next candidate.
+                    continue
+                }
             }
-        }
+            if !episodeQueued { skipped += 1 }
 
         if Task.isCancelled {
             seasonDownloadMessage = "Download stagione annullato. I file già completati sono stati conservati."
