@@ -13,6 +13,7 @@ final class DownloadManager: NSObject, ObservableObject {
     /// Immutable copy readable from the (nonisolated) URLSession delegate callbacks.
     nonisolated let downloadsDirectory: URL
     private let snapshot: SettingsSnapshot
+    private let diagnostics: DiagnosticLog
     private let store: DownloadStore
     private var session: URLSession!
     private var tasks: [UUID: URLSessionDownloadTask] = [:]
@@ -23,10 +24,11 @@ final class DownloadManager: NSObject, ObservableObject {
     private var lastPublished: [UUID: Date] = [:]
     nonisolated(unsafe) static var backgroundCompletionHandler: (() -> Void)?
 
-    init(paths: AppPaths, snapshot: SettingsSnapshot) {
+    init(paths: AppPaths, snapshot: SettingsSnapshot, diagnostics: DiagnosticLog) {
         self.paths = paths
         self.downloadsDirectory = paths.downloadsDirectory
         self.snapshot = snapshot
+        self.diagnostics = diagnostics
         self.store = DownloadStore(store: JSONFileStore<DownloadStoreState>(url: paths.downloadsFile))
         super.init()
         let configuration = URLSessionConfiguration.background(withIdentifier: "app.aether.downloads")
@@ -101,6 +103,7 @@ final class DownloadManager: NSObject, ObservableObject {
                                     headers: stream.behaviorHints.proxyRequestHeaders,
                                     totalBytes: stream.behaviorHints.videoSize ?? info.sizeBytes ?? 0)
             if let ephemeralURL = ephemeralURL { ephemeralURLs[item.id] = ephemeralURL }
+            diagnostics.logDetached(.info, "downloader", "Download accodato: \(meta.name), byte previsti=\(item.totalBytes)")
             await store.add(item)
             items = await store.all()
             scheduleQueue()
@@ -265,6 +268,7 @@ final class DownloadManager: NSObject, ObservableObject {
     private func fail(_ id: UUID, message: String) async {
         tasks.removeValue(forKey: id)
         transientHTTPRetries.removeValue(forKey: id)
+        diagnostics.logDetached(.error, "downloader", "Download \(id.uuidString): \(message)")
         await store.update(id: id) { $0.state = .failed; $0.errorMessage = message }
         items = await store.all()
         scheduleQueue()
@@ -292,6 +296,7 @@ final class DownloadManager: NSObject, ObservableObject {
         tasks.removeValue(forKey: id)
         ephemeralURLs.removeValue(forKey: id)
         transientHTTPRetries.removeValue(forKey: id)
+        diagnostics.logDetached(.info, "downloader", "Download completato \(id.uuidString): \(bytes) byte")
         await store.update(id: id) {
             $0.state = .completed
             $0.localFileName = fileName
@@ -349,7 +354,10 @@ extension DownloadManager: URLSessionDownloadDelegate, URLSessionTaskDelegate {
         let response = downloadTask.response as? HTTPURLResponse
         let status = response?.statusCode ?? 0
         let mime = (response?.value(forHTTPHeaderField: "Content-Type") ?? "").lowercased()
-        let size = (try? FileManager.default.attributesOfItem(atPath: location.path)[.size] as? Int64) ?? 0
+        let size = ((try? FileManager.default.attributesOfItem(atPath: location.path)[.size]) as? NSNumber)?.int64Value ?? 0
+        let responseURL = response?.url
+        let safeHost = responseURL?.host.map { Redactor.redact($0) } ?? "sconosciuto"
+        Task { await self.diagnostics.log(.info, "downloader", "Risposta HTTP \(status), host=\(safeHost), mime=\(mime.isEmpty ? "sconosciuto" : mime), bytes=\(size)") }
 
         guard (200..<300).contains(status) else {
             Task { @MainActor in
@@ -357,8 +365,9 @@ extension DownloadManager: URLSessionDownloadDelegate, URLSessionTaskDelegate {
             }
             return
         }
-        if mime.contains("text/html") || mime.contains("json") || size < 50_000 {
-            Task { @MainActor in await self.failedTransfer(id: id, message: "La sorgente non ha restituito un file video (tipo «\(mime.isEmpty ? "sconosciuto" : mime)»).") }
+        if mime.contains("text/html") || mime.contains("json") || mime.contains("text/plain") || size < 50_000 {
+            let reason = "Risposta non video: HTTP \(status), tipo «\(mime.isEmpty ? "sconosciuto" : mime)», \(size) byte. Possibile errore del provider/CDN o link non diretto."
+            Task { @MainActor in await self.failedTransfer(id: id, message: reason) }
             return
         }
         // The temporary file disappears when this method returns: move it synchronously.
