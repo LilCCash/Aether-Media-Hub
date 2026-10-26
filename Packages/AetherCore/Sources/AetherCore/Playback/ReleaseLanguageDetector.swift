@@ -7,9 +7,9 @@ public enum ReleaseLanguageDetector {
         let value = text.uppercased()
         if value.contains("🇮🇹") { return "it" }
         if value.contains("🇬🇧") || value.contains("🇺🇸") { return "en" }
+        if value.contains("[IT]") || value.contains("(IT)") || value.contains(".IT.") { return "it" }
         let markers: [(String, String)] = [
             (#"(?<![A-Z0-9])(?:ITA|ITALIAN|ITALIANO)(?![A-Z0-9])"#, "it"),
-            (#"(?:\\[\\s*IT\\s*\\]|\\(\\s*IT\\s*\\)|\\.IT\\.)"#, "it"),
             (#"(?<![A-Z0-9])(?:ENG|ENGLISH)(?![A-Z0-9])"#, "en"),
             (#"(?<![A-Z0-9])(?:FRA|FRE|FRENCH|FRANCAIS)(?![A-Z0-9])"#, "fr"),
             (#"(?<![A-Z0-9])(?:SPA|ESP|SPANISH|CASTELLANO)(?![A-Z0-9])"#, "es"),
