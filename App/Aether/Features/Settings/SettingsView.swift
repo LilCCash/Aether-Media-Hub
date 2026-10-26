@@ -499,9 +499,9 @@ struct StorageSettingsView: View {
             }
             Section(header: Text("Diagnostica downloader"),
                     footer: Text("Il log resta sul dispositivo. Gli URL e le credenziali vengono oscurati prima di essere registrati. Attiva la registrazione prima di riprodurre l'errore, poi esporta il file e allegalo alla segnalazione.")) {
-                Toggle("Abilita log del downloader", isOn: settings.binding(\\.privacy.keepDiagnosticLog))
+                Toggle("Abilita log del downloader", isOn: settings.binding(\.privacy.keepDiagnosticLog))
                     .accessibilityIdentifier("storage.downloaderLogs")
-                Toggle("Log dettagliati", isOn: settings.binding(\\.advanced.verboseLogging))
+                Toggle("Log dettagliati", isOn: settings.binding(\.advanced.verboseLogging))
                     .disabled(!settings.value.privacy.keepDiagnosticLog)
                 NavigationLink("Visualizza e salva log") {
                     DownloadLogView(diagnostics: env.diagnostics)
@@ -777,7 +777,7 @@ private struct DownloadLogView: View {
         List {
             Section {
                 HStack {
-                    Text("\\(entries.count) eventi registrati")
+                    Text("\(entries.count) eventi registrati")
                         .foregroundStyle(Color.aetherSecondary)
                     Spacer()
                     Button("Aggiorna") { Task { await refresh() } }
@@ -830,13 +830,13 @@ private struct DownloadLogView: View {
 
     private func export() async {
         let text = await diagnostics.exportText(header: ["Aether downloader diagnostics"])
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aether-downloader-log-\\(Int(Date().timeIntervalSince1970)).txt")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aether-downloader-log-\(Int(Date().timeIntervalSince1970)).txt")
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)
             exportURL = url
             statusMessage = "Log pronto da condividere."
         } catch {
-            statusMessage = "Impossibile esportare il log: \\(error.localizedDescription)"
+            statusMessage = "Impossibile esportare il log: \(error.localizedDescription)"
         }
     }
 }
