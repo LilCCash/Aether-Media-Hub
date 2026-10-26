@@ -470,4 +470,13 @@ final class PlaybackErrorMapperTests: XCTestCase {
         XCTAssertTrue(unknown.message.contains("boom"))
         XCTAssertFalse(PlaybackFailure(kind: .formatUnsupported, detail: "").message.isEmpty)
     }
+    func testDetectsMultipleLanguagesInReleaseTitles() {
+        XCTAssertTrue(ReleaseLanguageDetector.languages(in: "How.I.Met.Your.Mother.1x01.Pilot.ITA.ENG.1080p.DLMux.x264-Vikolovich.mkv").contains("it"))
+        XCTAssertTrue(ReleaseLanguageDetector.languages(in: "How.I.Met.Your.Mother.1x01.Pilot.ITA.ENG.1080p.DLMux.x264-Fratposa.mkv").contains("it"))
+        XCTAssertTrue(ReleaseLanguageDetector.languages(in: "How.I.Met.Your. Mother.01x01.Una.lunga.storia.ITA.DLMUX.x264-mkeagle3.mkv").contains("it"))
+        XCTAssertTrue(ReleaseLanguageDetector.languages(in: "How.I.Met.Your.Mother.1x01.Pilot.ITA.ENG.1080p.DLMux.x264-Vikolovich.mkv").contains("en"))
+        XCTAssertEqual(ReleaseLanguageDetector.language(in: "How.I.Met.Your.Mother.1x01.Pilot.ITA.ENG.1080p.DLMux.x264-Vikolovich.mkv", preferred: "it"), "it")
+        XCTAssertEqual(ReleaseLanguageDetector.language(in: "How.I.Met.Your.Mother.1x01.Pilot.ITA.ENG.1080p.DLMux.x264-Vikolovich.mkv", preferred: "en"), "en")
+    }
+
 }
