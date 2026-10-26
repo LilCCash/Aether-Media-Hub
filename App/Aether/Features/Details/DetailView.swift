@@ -510,7 +510,11 @@ struct DetailView: View {
         isCancellingSeasonDownload = true
         seasonDownloadMessage = "Annullamento del download della stagione…"
         seasonDownloadTask?.cancel()
-        for id in seasonBatchDownloadIDs { env.downloads.remove(id) }
+        for id in seasonBatchDownloadIDs {
+            if let item = env.downloads.items.first(where: { $0.id == id }), item.state != .completed {
+                env.downloads.remove(id)
+            }
+        }
         seasonBatchDownloadIDs.removeAll()
     }
 
@@ -860,6 +864,7 @@ private struct EpisodeDetailsSheet: View {
     let video: Video
     @EnvironmentObject private var env: AppEnvironment
     @Environment(\.openURL) private var openURL
+    @Environment(\.dismiss) private var dismiss
     @State private var details: EpisodeRichDetails?
     @State private var isLoading = true
 
@@ -895,7 +900,7 @@ private struct EpisodeDetailsSheet: View {
             }
             .navigationTitle("Dettagli episodio")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Fine") { } } }
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Fine") { dismiss() } } }
         }
         .task(id: video.id) {
             let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
