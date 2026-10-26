@@ -642,7 +642,7 @@ public struct StorageSettings: Codable, Equatable, Sendable {
         seasonDownloadQuality = c.value(.seasonDownloadQuality, default: .auto)
         seasonDownloadLanguage = c.value(.seasonDownloadLanguage, default: "preferred")
         seasonDownloadSizePolicy = c.value(.seasonDownloadSizePolicy, default: .preferSmaller)
-        seasonDownloadDisabledAddonIDs = Array(Set(c.value([String].self, forKey: .seasonDownloadDisabledAddonIDs, default: []))).sorted()
+        seasonDownloadDisabledAddonIDs = Array(Set(c.lenient([String].self, forKey: .seasonDownloadDisabledAddonIDs) ?? [])).sorted()
     }
 }
 
