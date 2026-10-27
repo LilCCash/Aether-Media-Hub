@@ -1,0 +1,100 @@
+name: Aether IOS Build Unsigned ipa
+# Manual build launcher on main; builds the selected source branch.
+on:
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: Branch to build
+        required: true
+        default: aether-for-android
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: aether-ios-ipa
+  cancel-in-progress: false
+jobs:
+  build-ipa:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_branch }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate and configure iOS project
+        working-directory: android-mobile
+        run: bash tool/prepare_ios.sh
+      - name: Resolve Flutter dependencies
+        working-directory: android-mobile
+        run: flutter pub get
+      - name: Static analysis
+        working-directory: android-mobile
+        run: flutter analyze --no-pub --no-fatal-infos
+      - name: Unit and widget tests
+        working-directory: android-mobile
+        run: flutter test --no-pub
+      - name: Install CocoaPods
+        working-directory: android-mobile/ios
+        run: pod install
+      - name: Validate bundle and iOS target
+        working-directory: android-mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' ios/Runner/Info.plist | grep -Fx 'Aether'
+          grep -q 'PRODUCT_BUNDLE_IDENTIFIER = app.aether.mobile;' ios/Runner.xcodeproj/project.pbxproj
+          grep -q 'IPHONEOS_DEPLOYMENT_TARGET = 15.0;' ios/Runner.xcodeproj/project.pbxproj
+      - name: Build unsigned IPA (final build stage)
+        working-directory: android-mobile
+        run: flutter build ipa --release --no-codesign --no-pub
+      - name: Package unsigned IPA from Xcode archive
+        working-directory: android-mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
+          test -d "$APP" || { echo "::error::Xcode archive does not contain Runner.app"; exit 1; }
+          mkdir -p build/ios/ipa/Payload
+          ditto "$APP" build/ios/ipa/Payload/Runner.app
+          (cd build/ios/ipa && /usr/bin/zip -qr Aether.ipa Payload)
+          test -s build/ios/ipa/Aether.ipa
+      - name: Validate IPA
+        id: validate
+        working-directory: android-mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          IPA="$(find build/ios/ipa -maxdepth 1 -type f -name '*.ipa' -print -quit)"
+          test -n "$IPA" && test -s "$IPA" || { echo "::error::Flutter did not produce an IPA"; exit 1; }
+          SIZE="$(stat -f%z "$IPA")"
+          test "$SIZE" -le 524288000 || { echo "::error::IPA exceeds 500 MB"; exit 1; }
+          unzip -l "$IPA" | grep -q 'Payload/Runner.app/Info.plist'
+          mkdir -p build/ios/ipa/validation
+          unzip -p "$IPA" Payload/Runner.app/Info.plist > build/ios/ipa/validation/Info.plist
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' build/ios/ipa/validation/Info.plist | grep -Fx 'app.aether.mobile'
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' build/ios/ipa/validation/Info.plist | grep -Fx 'Aether'
+          echo "IPA_PATH=android-mobile/$IPA" >> "$GITHUB_ENV"
+          echo "IPA_SIZE=$SIZE" >> "$GITHUB_ENV"
+      - name: Upload unsigned IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aether-iOS-Unsigned-IPA
+          path: ${{ env.IPA_PATH }}
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build summary
+        shell: bash
+        run: |
+          {
+            echo "## Aether iOS"
+            echo ""
+            echo "- Branch: ${{ inputs.source_branch }}"
+            echo "- Bundle ID: app.aether.mobile"
+            echo "- Minimum iOS: 15.0"
+            echo "- IPA size: $IPA_SIZE bytes"
+            echo "- Signing: unsigned; Apple Developer certificate and provisioning profile are required for installation/distribution."
+          } >> "$GITHUB_STEP_SUMMARY"
