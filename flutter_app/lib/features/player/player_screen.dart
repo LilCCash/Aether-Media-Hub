@@ -21,6 +21,10 @@ import '../../design/liquid.dart';
 import '../../design/tokens.dart';
 import '../../design/widgets.dart';
 import '../../core/casting/upnp.dart';
+
+import 'package:pip_kit/pip_kit.dart';
+
+import 'avplayer_engine.dart';
 import 'cast_sheet.dart';
 import 'google_cast_section.dart';
 import 'media_kit_engine.dart';
@@ -47,8 +51,9 @@ class PlayerScreen extends ConsumerStatefulWidget {
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen>
     with WidgetsBindingObserver, HidesDock<PlayerScreen> {
-  late final PlaybackEngine _engine = widget.engine ?? MediaKitEngine();
-  late final PlayerSession _session;
+  late PlaybackEngine _engine;
+  late PlayerSession _session;
+  bool _fellBack = false;
   Timer? _hideTimer;
   Timer? _nextTimer;
   bool _controls = true;
@@ -76,18 +81,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _keepAwake(true);
-    final services = ref.read(servicesProvider);
-    _session = PlayerSession(
-      engine: _engine,
-      args: widget.args,
-      library: services.library,
-      settings: ref.read(settingsProvider),
-      subtitleLoader: services.subtitleLoader,
-      preflight: checkSource,
-    );
-    _session.addListener(_onSession);
+    _engine = widget.engine ?? _pickEngine();
+    _makeSession();
     _session.start();
     _loadSegments();
+    _armPip();
     if (Platform.isAndroid) {
       _pipChannel
           .invokeMethod<void>('setAuto', {
@@ -208,6 +206,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _downloadCleaned = true;
       ref.read(servicesProvider).downloads.removeIfDone(_session.args.videoId);
     }
+    if (_engine is AvPlayerEngine && _session.error != null && !_fellBack) {
+      _fallBackToMpv();
+      return;
+    }
     if (_session.nextRequested && _nextTimer == null) _startNextCountdown();
     setState(() {});
   }
@@ -233,6 +235,63 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     context.pushReplacement('/player', extra: next);
+  }
+
+  /// On iPhone an MP4, MOV or HLS file goes to the system player (the only one that can show Picture in Picture), like in the iOS
+  /// app; everything else, and every other platform, stays on libmpv.
+  PlaybackEngine _pickEngine() =>
+      Platform.isIOS &&
+          ref.read(settingsProvider).nativePlayer &&
+          AvPlayerEngine.canOpen(widget.args.source)
+      ? AvPlayerEngine()
+      : MediaKitEngine();
+
+  void _makeSession() {
+    final services = ref.read(servicesProvider);
+    _session = PlayerSession(
+      engine: _engine,
+      args: widget.args,
+      library: services.library,
+      settings: ref.read(settingsProvider),
+      subtitleLoader: services.subtitleLoader,
+      preflight: checkSource,
+    );
+    _session.addListener(_onSession);
+  }
+
+  /// The system player could not open the file: libmpv takes over, once, from the same place.
+  void _fallBackToMpv() {
+    _fellBack = true;
+    final at = _session.position;
+    _session.removeListener(_onSession);
+    _session.dispose();
+    _engine.dispose();
+    _engine = MediaKitEngine();
+    _makeSession();
+    _session.start();
+    if (at > Duration.zero) _session.seekTo(at);
+    unawaited(PipController.instance.disarm());
+    if (mounted) setState(() {});
+  }
+
+  PipContent get _pipContent => PipContent.video(
+    (context) => _engine.buildVideo(context, fit: BoxFit.contain),
+  );
+
+  /// iPhone: Picture in Picture opens by itself when the viewer leaves the app (when the setting is on), for system-player files.
+  Future<void> _armPip() async {
+    if (!Platform.isIOS || _engine is! AvPlayerEngine) return;
+    try {
+      if (await PipController.instance.isSupported() &&
+          ref.read(settingsProvider).autoPip) {
+        await PipController.instance.arm(
+          _pipContent,
+          options: const PipOptions(autoEnter: true),
+        );
+      }
+    } on Object {
+      // no Picture in Picture on this device (the simulator)
+    }
   }
 
   @override
@@ -266,6 +325,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _session.removeListener(_onSession);
     _session.dispose();
     _engine.dispose();
+    if (Platform.isIOS) unawaited(PipController.instance.disarm());
     _keepAwake(false);
     _brightnessCall((b) => b.resetApplicationScreenBrightness());
     AppOrientation.restore();
@@ -310,6 +370,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _enterPip() async {
+    if (Platform.isIOS) {
+      final ok =
+          _engine is AvPlayerEngine &&
+          await PipController.instance.isSupported() &&
+          await PipController.instance.enter(
+            content: _pipContent,
+            options: const PipOptions(),
+          );
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _engine is AvPlayerEngine
+                  ? 'Il Picture in Picture non è disponibile su questo dispositivo.'
+                  : 'Su iPhone il Picture in Picture funziona con i file MP4, MOV e HLS (player di sistema): questo file passa da libmpv, che non lo supporta.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
     try {
       await _pipChannel.invokeMethod<void>('enter', {'width': 16, 'height': 9});
     } on PlatformException {
@@ -468,7 +549,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final settings = ref.watch(settingsProvider);
     ref.listen(settingsProvider, (_, next) => _session.applyStyleOptions(next));
     final look = AetherLook.of(context);
-    final canPip = Platform.isAndroid;
+    final canPip = Platform.isAndroid || Platform.isIOS;
     // While the first picture is being prepared the logo/title is on screen: the controls wait.
     final starting =
         s.buffering && s.position == Duration.zero && s.error == null;
@@ -747,6 +828,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                     ],
                                   ),
                                 ),
+                                if (Platform.isIOS)
+                                  GlassSurface(
+                                    radius: 22,
+                                    child: const SizedBox(
+                                      width: 44,
+                                      height: 44,
+                                      child: UiKitView(
+                                        viewType: 'aether/airplay',
+                                      ),
+                                    ),
+                                  ),
                                 if (_canCast)
                                   GlassButton(
                                     icon: Icons.cast_rounded,

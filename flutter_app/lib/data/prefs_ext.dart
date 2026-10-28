@@ -64,6 +64,9 @@ extension PrefsExt on AppSettings {
   int get resumeRewindSec => _i('resumeRewindSec', 0, 0, 30);
   int get nextCountdownSec => _i('nextCountdownSec', 8, 3, 30);
 
+  /// iPhone: MP4, MOV and HLS play on the system player (Picture in Picture); off keeps everything on libmpv.
+  bool get nativePlayer => _b('nativePlayer', true);
+
   /// How dense the tab bar's glass is: 0 clear, 1 tinted. Low by default, so the page shows through it.
   double get dockOpacity => _d('dockOpacity', 0.12, 0, 1);
   double get watchedThreshold => _d('watchedThreshold', 0.9, 0.5, 0.99);

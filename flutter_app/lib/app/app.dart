@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:pip_kit/pip_kit.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -117,12 +120,17 @@ class AetherApp extends ConsumerWidget {
           animations: s.animations,
           liquid: s.liquidGlass,
           compact: s.compact,
-          child: DockOverlay(
-            router: ref.read(routerProvider),
-            child: child ?? const SizedBox(),
+          child: _pipHost(
+            DockOverlay(
+              router: ref.read(routerProvider),
+              child: child ?? const SizedBox(),
+            ),
           ),
         ),
       ),
     );
   }
 }
+
+/// iPhone: the host Picture in Picture needs above the app (Android uses its own window).
+Widget _pipHost(Widget child) => Platform.isIOS ? PipHost(child: child) : child;

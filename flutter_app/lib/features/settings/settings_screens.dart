@@ -375,6 +375,8 @@ const _languages = {
   'jpn': 'Giapponese',
 };
 
+bool _nativePlayer(AppSettings s) => s.nativePlayer;
+
 class _PlaybackPage extends ConsumerWidget {
   const _PlaybackPage();
 
@@ -469,6 +471,12 @@ class _PlaybackPage extends ConsumerWidget {
                 1.5: '1,5×',
               },
               onChanged: (v) => n.update((x) => x.copyWith(playbackSpeed: v)),
+            ),
+            const PrefSwitch(
+              'nativePlayer',
+              'Player di sistema per MP4 e HLS (iPhone)',
+              _nativePlayer,
+              subtitle: 'Serve al Picture in Picture. MKV, AVI e gli altri formati restano su libmpv.',
             ),
             SwitchRow(
               title: 'Pulsante «Salta intro»',

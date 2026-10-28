@@ -57,6 +57,8 @@ dependencies:
   flutter_cache_manager: ^3.4.6
   liquid_glass_renderer: ^1.0.0-dev.2
   flutter_chrome_cast: ^2.0.0
+  pip_kit: ^1.0.2
+  video_player: ^2.14.1
 
 dev_dependencies:
   flutter_test:

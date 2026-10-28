@@ -89,5 +89,9 @@
 		<string>_googlecast._tcp</string>
 		<string>_CC1AD845._googlecast._tcp</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 </dict>
 </plist>
