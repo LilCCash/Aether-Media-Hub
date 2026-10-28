@@ -50,6 +50,7 @@ dependencies:
   intl: ^0.20.3
   wakelock_plus: ^1.8.2
   screen_brightness: ^2.1.11
+  xml: ^7.1.0
 
 dev_dependencies:
   flutter_test:

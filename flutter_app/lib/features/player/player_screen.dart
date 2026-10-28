@@ -13,6 +13,8 @@ import '../../app/providers.dart';
 import '../../core/segments/skip_segments.dart';
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
+import '../../core/casting/upnp.dart';
+import 'cast_sheet.dart';
 import 'media_kit_engine.dart';
 import 'playback_engine.dart';
 import 'player_panels.dart';
@@ -137,6 +139,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } on Object {
       // not available on this platform / in tests
     }
+  }
+
+  /// Only http(s) links can be handed to a television; a downloaded file or an engine-only source cannot.
+  bool get _canCast {
+    final src = widget.args.source;
+    return UpnpDiscovery.supported &&
+        !src.isLocalFile &&
+        (Uri.tryParse(src.uri)?.hasScheme ?? false) &&
+        Uri.parse(src.uri).scheme.startsWith('http');
+  }
+
+  Future<void> _openCast() async {
+    final src = widget.args.source;
+    _hideTimer?.cancel();
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => CastSheet(
+        url: Uri.parse(src.uri),
+        title: widget.args.title,
+        artwork: widget.args.poster,
+        hasHeaders: src.headers.isNotEmpty,
+        onCasting: () => _engine.pause(),
+      ),
+    );
+    _scheduleHide();
   }
 
   void _onSession() {
@@ -503,6 +532,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                   ],
                                 ),
                               ),
+                              if (_canCast)
+                                GlassButton(
+                                  icon: Icons.cast_rounded,
+                                  tooltip: 'Trasmetti sulla TV',
+                                  onPressed: _openCast,
+                                ),
                               if (canPip)
                                 GlassButton(
                                   icon: Icons.picture_in_picture_alt_rounded,
