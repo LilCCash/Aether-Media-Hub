@@ -25,3 +25,5 @@
 - Esisteva in precedenza un ramo con lo stesso nome `aether-flutter-comp` con una versione Flutter diversa (ultimo commit `fe43bfc`, 27/10/2026, **non più presente** su GitHub al momento del push); il suo contenuto **non è stato riutilizzato né modificato**.
 
 **Lavoro residuo suggerito, in ordine:** provare su 1 iPhone e 1 Android → adapter AVPlayer (PiP/AirPlay/HDR) → QR per gli addon → Google Cast → ponte/remux → rifinitura del Theater Mode.
+
+**Aggiornamento (grafica, download, player):** Liquid Glass reale usa `liquid_glass_renderer` e richiede Impeller + Flutter GPU (abilitati nei manifest); senza, c'è il ripiego con sfocatura. Tema chiaro non implementato (solo scuro). Spazio libero del dispositivo non mostrato. Nulla di questo è stato provato su un dispositivo reale: solo test automatici (126) e analisi statica.

@@ -9,7 +9,7 @@ Una voce è spuntata solo quando il codice c'è **e** `flutter analyze`/`flutter
 - ✅ A3 Cataloghi: nomi personalizzati, ordine, nascondi; Home e Scopri
 - ✅ A4 Filtri tipo/genere/decennio in Cerca e Libreria; ricerca locale in libreria
 - ✅ A5 Ricerca: ordinamento (rilevanza/altro), «cerca anche nella libreria», cronologia on/off
-- ⬜ A6 Scopri: tipi configurabili e catalogo predefinito per tipo
+- ✅ A6 Scopri: tipi configurabili e catalogo predefinito per tipo
 - ✅ A7 Aggiornamento dei cataloghi ogni N minuti e cache on/off (Metadati e cataloghi)
 - ✅ A8 Nascondi cataloghi per adulti; rete locale consentita
 
@@ -36,7 +36,7 @@ Una voce è spuntata solo quando il codice c'è **e** `flutter analyze`/`flutter
 ## D. Scheda titolo
 - ✅ D1 Hero, trama, generi, cast con foto, filmografia della persona, stagioni/episodi, visto/progressi
 - ✅ D2 Watchlist, preferiti, segna visto
-- ⬜ D3 Trama espandibile e trailer su YouTube ci sono (✅); manca il link IMDb dell'episodio
+- ✅ D3 Trama espandibile, trailer YouTube e link IMDb dell'episodio
 - ✅ D4 Indicatore «Esce il …» per episodi futuri
 - ✅ D5 **Scarica l'intera stagione** (lingua, qualità rigorosa, peso, addon esclusi, prova la sorgente successiva, annulla, riepilogo). ⬜ non portato: il cambio automatico di sorgente se un download già avviato fallisce più tardi
 - ✅ D6 Download di un singolo titolo/episodio (link diretti, pausa/ripresa)
@@ -70,11 +70,11 @@ Una voce è spuntata solo quando il codice c'è **e** `flutter analyze`/`flutter
 - ✅ G9 Moduli della scheda del titolo (G/C6) e dei voti (C7)
 - ✅ G10 Servizi: chiavi TorBox, Real-Debrid, TMDB, TVDB, MDBList, fanart.tv
 - ✅ G11 Dati: backup su file (crea/ripristina, includi chiavi/addon), elimina tutti i dati locali, cancella cronologia/ricerche
-- ✅ G12 Archiviazione: svuota cache immagini e cataloghi. ⬜ limite in MB della cache immagini e spazio libero
+- ✅ G12 Archiviazione: svuota cache immagini e cataloghi. ✅ limite in MB della cache immagini. 🚫 spazio libero del dispositivo (non esposto senza plugin nativo)
 - ✅ G13 Diagnostica: log on/off, esporta log
 - ✅ G14 Due easter egg nella pagina Informazioni (logo dell'app e logo di Theater Mode), come su iOS
 
 ## H. Theater Mode
 - ✅ H1 Rail, hero, righe, palette, sfondi, dimensioni, locandine verticali, fori pellicola, introduzione e suono, pagina «Altro»
 - ✅ H2 Angoli/bordo/alone, stile titoli di riga. ⬜ effetto proiettore
-- ⬜ H3 Foglio sorgenti a due colonne in Theater
+- ✅ H3 Foglio sorgenti a due colonne in Theater

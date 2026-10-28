@@ -520,13 +520,6 @@ class PlayerAdvancedPage extends ConsumerWidget {
   static double _sleep(AppSettings s) => s.sleepTimerMin.toDouble();
   static String _fa(AppSettings s) => s.fallbackAudio;
   static String _fs(AppSettings s) => s.fallbackSubtitle;
-  static String _sc(AppSettings s) => s.subColor;
-  static bool _sbold(AppSettings s) => s.subBold;
-  static bool _sout(AppSettings s) => s.subOutline;
-  static String _soc(AppSettings s) => s.subOutlineColor;
-  static String _sbc(AppSettings s) => s.subBgColor;
-  static double _sbo(AppSettings s) => s.subBgOpacity;
-  static double _sbm(AppSettings s) => s.subBottom;
   static bool _hw(AppSettings s) => s.hwDecoding;
   static bool _db(AppSettings s) => s.deband;
   static double _ib(AppSettings s) => s.imgBrightness.toDouble();
@@ -540,7 +533,6 @@ class PlayerAdvancedPage extends ConsumerWidget {
   static String _int(double v) => '${v.round()}';
   static String _x(double v) => '${v.toStringAsFixed(2)}×';
   static String _pct(double v) => '${(v * 100).round()}%';
-  static String _pctPoints(double v) => '${v.round()}%';
   static String _sleepFmt(double v) => v == 0 ? 'spento' : '${v.round()} min';
 }
 
