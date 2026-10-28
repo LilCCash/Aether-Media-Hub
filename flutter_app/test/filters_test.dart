@@ -4,26 +4,56 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const items = [
-    MetaItem(id: 'a', type: 'movie', name: 'A', releaseInfo: '1999', genres: ['Azione', 'Drama']),
-    MetaItem(id: 'b', type: 'series', name: 'B', releaseInfo: '2019–2021', genres: ['drama']),
+    MetaItem(
+      id: 'a',
+      type: 'movie',
+      name: 'A',
+      releaseInfo: '1999',
+      genres: ['Azione', 'Drama'],
+    ),
+    MetaItem(
+      id: 'b',
+      type: 'series',
+      name: 'B',
+      releaseInfo: '2019–2021',
+      genres: ['drama'],
+    ),
     MetaItem(id: 'c', type: 'movie', name: 'C', genres: ['Commedia']),
   ];
 
-  test('year is read from a plain year, a range or free text; none when absent', () {
-    expect(ResultFilters.yearOf(items[0]), 1999);
-    expect(ResultFilters.yearOf(items[1]), 2019);
-    expect(ResultFilters.yearOf(items[2]), isNull);
-  });
+  test(
+    'year is read from a plain year, a range or free text; none when absent',
+    () {
+      expect(ResultFilters.yearOf(items[0]), 1999);
+      expect(ResultFilters.yearOf(items[1]), 2019);
+      expect(ResultFilters.yearOf(items[2]), isNull);
+    },
+  );
 
   test('type, genre (case-insensitive) and decade combine', () {
-    expect(const ResultFilters(type: 'movie').apply(items).map((m) => m.id), ['a', 'c']);
-    expect(const ResultFilters(genre: 'DRAMA').apply(items).map((m) => m.id), ['a', 'b']);
-    expect(const ResultFilters(decade: 2010).apply(items).map((m) => m.id), ['b']);
+    expect(const ResultFilters(type: 'movie').apply(items).map((m) => m.id), [
+      'a',
+      'c',
+    ]);
+    expect(const ResultFilters(genre: 'DRAMA').apply(items).map((m) => m.id), [
+      'a',
+      'b',
+    ]);
+    expect(const ResultFilters(decade: 2010).apply(items).map((m) => m.id), [
+      'b',
+    ]);
     expect(
-      const ResultFilters(type: 'series', genre: 'drama', decade: 2010).apply(items).length,
+      const ResultFilters(
+        type: 'series',
+        genre: 'drama',
+        decade: 2010,
+      ).apply(items).length,
       1,
     );
-    expect(const ResultFilters(decade: 1990, genre: 'Commedia').apply(items), isEmpty);
+    expect(
+      const ResultFilters(decade: 1990, genre: 'Commedia').apply(items),
+      isEmpty,
+    );
     expect(ResultFilters.none.active, isFalse);
   });
 

@@ -10,6 +10,7 @@ import 'package:aether_flutter/data/stores.dart';
 import 'package:aether_flutter/design/tokens.dart';
 import 'package:aether_flutter/design/widgets.dart';
 import 'package:aether_flutter/features/player/player_screen.dart';
+import 'package:aether_flutter/features/theater/theater_sound.dart';
 import 'package:aether_flutter/features/player/playback_engine.dart';
 import 'package:aether_flutter/features/player/player_session.dart';
 import 'package:flutter/material.dart';
@@ -54,7 +55,10 @@ Future<void> frames(WidgetTester t, [int n = 8]) async {
 
 void main() {
   late Directory dir;
-  setUpAll(() => PosterImage.disableNetwork = true);
+  setUpAll(() {
+    PosterImage.disableNetwork = true;
+    TheaterSound.override = (_) async {};
+  });
   setUp(() => dir = Directory.systemTemp.createTempSync('aether_ui'));
   tearDown(() => dir.deleteSync(recursive: true));
 
@@ -292,7 +296,7 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 100)),
       );
       await frames(tester, 12);
-      expect(find.text('THEATER MODE'), findsOneWidget);
+      expect(find.text('THEATER MODE'), findsWidgets);
       expect(find.text('I più visti'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.tap(find.byTooltip('Esci da Theater Mode'));

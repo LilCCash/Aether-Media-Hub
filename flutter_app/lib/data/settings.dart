@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../core/streams/badge_pack.dart';
 import '../core/util/lenient.dart';
 import '../design/palettes.dart';
+import '../features/theater/theater_prefs.dart';
 import 'stores.dart';
 
 const Object _keep = Object();
@@ -42,6 +43,7 @@ class AppSettings {
     this.palette = 'aether',
     this.titleFont = 'standard',
     this.greetingName,
+    this.theater = const TheaterPrefs(),
   });
 
   final String language;
@@ -76,6 +78,7 @@ class AppSettings {
   final String palette;
   final String titleFont;
   final String? greetingName;
+  final TheaterPrefs theater;
 
   AppSettings copyWith({
     String? language,
@@ -110,6 +113,7 @@ class AppSettings {
     String? palette,
     String? titleFont,
     Object? greetingName = _keep,
+    TheaterPrefs? theater,
   }) => AppSettings(
     language: language ?? this.language,
     audioLanguage: audioLanguage ?? this.audioLanguage,
@@ -149,6 +153,7 @@ class AppSettings {
     greetingName: identical(greetingName, _keep)
         ? this.greetingName
         : greetingName as String?,
+    theater: theater ?? this.theater,
   );
 
   Map<String, Object?> toJson() => {
@@ -184,6 +189,7 @@ class AppSettings {
     'palette': palette,
     'titleFont': titleFont,
     'greetingName': greetingName,
+    'theater': theater.toJson(),
   };
 
   factory AppSettings.fromJson(Object? raw) {
@@ -257,6 +263,7 @@ class AppSettings {
       palette: AetherPalette.byName(asString(m['palette'])).name,
       titleFont: TitleFont.byName(asString(m['titleFont'])).name,
       greetingName: _name(m['greetingName']),
+      theater: TheaterPrefs.fromJson(m['theater']),
     );
   }
 }

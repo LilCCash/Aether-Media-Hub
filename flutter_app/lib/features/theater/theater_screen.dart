@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../app/orientation.dart';
+
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
@@ -13,6 +18,9 @@ import '../discover/discover_screen.dart';
 import '../home/home_screen.dart';
 import '../library/library_screen.dart';
 import '../search/search_screen.dart';
+import 'theater_more.dart';
+import 'theater_prefs.dart';
+import 'theater_sound.dart';
 
 /// Theater Mode: the same catalogs and the same pages as the rest of the app, dressed as a landscape cinema. A rail on the left,
 /// the title in focus over the whole screen, rows of 16:9 cards, and an entrance with a curtain that opens (skipped with reduced
@@ -34,31 +42,44 @@ class _TheaterScreenState extends ConsumerState<TheaterScreen> {
     (Icons.explore_rounded, 'Scopri'),
     (Icons.search_rounded, 'Cerca'),
     (Icons.video_library_rounded, 'Libreria'),
+    (Icons.tune_rounded, 'Altro'),
   ];
 
   @override
   void initState() {
     super.initState();
-    SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _curtain = false);
-    });
+    AppOrientation.setBase(
+      AppOrientation.landscape,
+      ui: SystemUiMode.immersiveSticky,
+    );
+    final prefs = ref.read(settingsProvider).theater;
+    final reduce = ref.read(settingsProvider).reduceEffects;
+    if (prefs.intro && !reduce) {
+      // The entrance: the curtain stays closed while the sound climbs, then it opens.
+      if (prefs.sound) TheaterSound.playIntro();
+      _introTimer = Timer(const Duration(milliseconds: 2600), () {
+        if (mounted) setState(() => _curtain = false);
+      });
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _curtain = false);
+      });
+    }
   }
+
+  Timer? _introTimer;
 
   @override
   void dispose() {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+    _introTimer?.cancel();
+    AppOrientation.setBase(AppOrientation.portrait);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final look = AetherLook.of(context);
+    final prefs = ref.watch(settingsProvider).theater;
     final fast =
         look.reduceEffects ||
         (MediaQuery.maybeOf(context)?.disableAnimations ?? false);
@@ -80,20 +101,32 @@ class _TheaterScreenState extends ConsumerState<TheaterScreen> {
                       horizontal: 6,
                     ),
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        for (var i = 0; i < _items.length; i++)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: GlassButton(
-                              icon: _items[i].$1,
-                              tooltip: _items[i].$2,
-                              size: 48,
-                              selected: _tab == i,
-                              onPressed: () => setState(() => _tab = i),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                for (var i = 0; i < _items.length; i++)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 4,
+                                    ),
+                                    child: GlassButton(
+                                      icon: _items[i].$1,
+                                      label: prefs.railLabels
+                                          ? _items[i].$2
+                                          : null,
+                                      tooltip: _items[i].$2,
+                                      size: 48,
+                                      selected: _tab == i,
+                                      onPressed: () => setState(() => _tab = i),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
-                        const SizedBox(height: 16),
+                        ),
+                        const SizedBox(height: 8),
                         GlassButton(
                           icon: Icons.close_rounded,
                           tooltip: 'Esci da Theater Mode',
@@ -116,6 +149,7 @@ class _TheaterScreenState extends ConsumerState<TheaterScreen> {
                     const DiscoverScreen(),
                     const SearchScreen(),
                     const LibraryScreen(),
+                    const TheaterMore(),
                   ],
                 ),
               ),
@@ -127,9 +161,21 @@ class _TheaterScreenState extends ConsumerState<TheaterScreen> {
               opacity: _curtain ? 1 : 0,
               duration: fast ? Duration.zero : AetherTokens.slow * 2,
               curve: Curves.easeInOutCubic,
-              child: const ColoredBox(
+              child: ColoredBox(
                 color: Colors.black,
-                child: SizedBox.expand(),
+                child: SizedBox.expand(
+                  child: Center(
+                    child: Text(
+                      'THEATER MODE',
+                      style: TextStyle(
+                        fontSize: 18,
+                        letterSpacing: 10,
+                        fontWeight: FontWeight.w800,
+                        color: prefs.accent.color,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -147,6 +193,8 @@ class _TheaterHome extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
+    final prefs = s.theater;
+    final accent = prefs.accent.color;
     final addons = ref.watch(addonsProvider);
     final rows = visibleCatalogs(
       addons,
@@ -171,11 +219,21 @@ class _TheaterHome extends ConsumerWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (shown != null)
+        if (shown != null && prefs.background != 0)
           PosterImage(
             url: shown.background ?? shown.poster,
             title: shown.name,
             radius: 0,
+          ),
+        if (prefs.background == 2)
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(-0.6, -1.1),
+                radius: 1.3,
+                colors: [accent.withValues(alpha: 0.35), Colors.transparent],
+              ),
+            ),
           ),
         const DecoratedBox(
           decoration: BoxDecoration(
@@ -223,7 +281,7 @@ class _TheaterHome extends ConsumerWidget {
                                       fontSize: 10,
                                       letterSpacing: 4,
                                       fontWeight: FontWeight.w800,
-                                      color: AetherLook.of(context).accent,
+                                      color: accent,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
@@ -273,6 +331,7 @@ class _TheaterHome extends ConsumerWidget {
                                   catalog.name,
                               focus: focus,
                               onFocus: onFocus,
+                              prefs: prefs,
                             ),
                         ],
                       ),
@@ -292,7 +351,9 @@ class _TheaterRow extends ConsumerWidget {
     required this.title,
     required this.focus,
     required this.onFocus,
+    required this.prefs,
   });
+  final TheaterPrefs prefs;
   final String addonId;
   final String catalogKey;
   final String title;
@@ -308,6 +369,7 @@ class _TheaterRow extends ConsumerWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (prefs.sprockets) const _Sprockets(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
                   child: Text(
@@ -316,7 +378,11 @@ class _TheaterRow extends ConsumerWidget {
                   ),
                 ),
                 SizedBox(
-                  height: 112,
+                  height:
+                      prefs.rowHeight +
+                      (prefs.titles ? 22 : 0) +
+                      (prefs.details ? 16 : 0) +
+                      6,
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     scrollDirection: Axis.horizontal,
@@ -325,6 +391,7 @@ class _TheaterRow extends ConsumerWidget {
                     itemBuilder: (context, i) {
                       final m = items[i];
                       final selected = focus?.id == m.id;
+                      final accent = prefs.accent.color;
                       return Semantics(
                         button: true,
                         label: m.name,
@@ -332,22 +399,75 @@ class _TheaterRow extends ConsumerWidget {
                           // First tap puts the title in focus (the big picture and the Guarda button); a second tap opens it.
                           onTap: () =>
                               selected ? openTitle(context, m) : onFocus(m),
-                          child: AnimatedContainer(
-                            duration: AetherTokens.medium,
-                            width: 190,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: selected
-                                    ? AetherLook.of(context).accent
-                                    : Colors.transparent,
-                                width: 2,
-                              ),
-                            ),
-                            child: PosterImage(
-                              url: m.background ?? m.poster,
-                              title: m.name,
-                              radius: 14,
+                          child: SizedBox(
+                            width: prefs.cardWidth,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                AnimatedContainer(
+                                  duration: AetherTokens.medium,
+                                  height: prefs.rowHeight,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: selected
+                                          ? accent
+                                          : Colors.transparent,
+                                      width: 2,
+                                    ),
+                                    boxShadow: selected
+                                        ? [
+                                            BoxShadow(
+                                              color: accent.withValues(
+                                                alpha: 0.45,
+                                              ),
+                                              blurRadius: 16,
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  child: PosterImage(
+                                    url: prefs.portraitCards
+                                        ? (m.poster ?? m.background)
+                                        : (m.background ?? m.poster),
+                                    title: m.name,
+                                    radius: 14,
+                                  ),
+                                ),
+                                if (prefs.titles)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 4,
+                                      left: 2,
+                                    ),
+                                    child: Text(
+                                      m.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                if (prefs.details)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 2),
+                                    child: Text(
+                                      [
+                                        if (m.releaseInfo != null)
+                                          m.releaseInfo!,
+                                        ...m.genres.take(1),
+                                      ].join(' · '),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(fontSize: 10.5),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ),
@@ -360,4 +480,30 @@ class _TheaterRow extends ConsumerWidget {
       orElse: () => const SizedBox.shrink(),
     );
   }
+}
+
+/// The holes along the edge of a film strip, drawn above a row.
+class _Sprockets extends StatelessWidget {
+  const _Sprockets();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+    child: LayoutBuilder(
+      builder: (context, c) => Row(
+        children: [
+          for (var i = 0; i < (c.maxWidth / 16).floor().clamp(0, 80); i++)
+            Container(
+              width: 8,
+              height: 5,
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(1.5),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
 }

@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../app/orientation.dart';
 import '../../app/providers.dart';
 import '../../core/segments/skip_segments.dart';
 import '../../design/glass.dart';
@@ -186,8 +187,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _engine.dispose();
     _keepAwake(false);
     _brightnessCall((b) => b.resetApplicationScreenBrightness());
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+    AppOrientation.restore();
     super.dispose();
   }
 
