@@ -616,6 +616,27 @@ class _EpisodeTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
+                      if (RegExp(r'^tt\d+').hasMatch(meta.id) &&
+                          video.season != null)
+                        GestureDetector(
+                          onTap: () => launchUrl(
+                            Uri.parse(
+                              'https://www.imdb.com/title/${meta.id.split(':').first}/episodes/?season=${video.season}',
+                            ),
+                            mode: LaunchMode.externalApplication,
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.only(top: 3),
+                            child: Text(
+                              'Apri la puntata su IMDb ↗',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AetherTokens.textTertiary,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

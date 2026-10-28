@@ -82,6 +82,27 @@ extension PrefsExt on AppSettings {
   int get imgGamma => _i('imgGamma', 0, -50, 50);
   int get bufferSec => _i('bufferSec', 0, 0, 120);
 
+  // ── Discover ──
+  List<String> get discoverHidden => asStringList(ext['discoverHidden']);
+
+  /// The catalog opened first for a type ("addonId/catalogKey"), or null.
+  String? discoverDefaultFor(String type) {
+    for (final e in asStringList(ext['discoverDefaults'])) {
+      final i = e.indexOf('=');
+      if (i > 0 && e.substring(0, i) == type) return e.substring(i + 1);
+    }
+    return null;
+  }
+
+  AppSettings withDiscoverDefault(String type, String? key) {
+    final list = [
+      for (final e in asStringList(ext['discoverDefaults']))
+        if (!e.startsWith('$type=')) e,
+      if (key != null) '$type=$key',
+    ];
+    return withExt('discoverDefaults', list);
+  }
+
   // ── Search / catalogs ──
   String get searchSort =>
       _s('searchSort', 'relevance', {'relevance', 'year', 'name'});

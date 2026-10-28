@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/addons/addon_client.dart';
 import '../core/util/app_log.dart';
+import '../design/image_cache.dart';
 import '../core/addons/addon_repository.dart';
 import '../core/addons/network_policy.dart';
 import '../core/debrid/debrid_provider.dart';
@@ -138,6 +139,7 @@ class AppServices {
     await downloads.load();
     WatchProgress.threshold = settings.watchedThreshold;
     AppLog.instance.enabled = settings.keepLog;
+    AetherImageCache.configure(settings.imageCacheMB);
     client.cacheEnabled = settings.cacheMetadata;
     client.minCacheSeconds = settings.catalogRefreshMin * 60;
     downloads.maxConcurrent = settings.maxDownloads;

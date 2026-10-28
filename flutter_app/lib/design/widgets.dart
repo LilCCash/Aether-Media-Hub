@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../core/model/meta.dart';
 import 'glass.dart';
+import 'image_cache.dart';
 import 'tokens.dart';
 
 /// A poster (or 16:9 card) with a graceful placeholder: initials on a gradient when there is no picture or it fails.
@@ -78,6 +79,7 @@ class PosterImage extends StatelessWidget {
       child: url == null || url!.isEmpty || disableNetwork
           ? placeholder()
           : CachedNetworkImage(
+              cacheManager: AetherImageCache.manager,
               imageUrl: cacheWidth > 600 ? sharper(url!) : url!,
               fit: fit,
               alignment: alignment,

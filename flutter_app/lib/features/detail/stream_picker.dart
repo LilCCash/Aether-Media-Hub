@@ -25,12 +25,84 @@ Future<void> showStreamPicker(
   required MetaItem meta,
   Video? video,
 }) {
+  final wide = MediaQuery.sizeOf(context).width >= 700;
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     useSafeArea: true,
-    builder: (_) => StreamPickerSheet(meta: meta, video: video),
+    // Landscape (Theater Mode): the title on the left, the sources on the right.
+    constraints: wide
+        ? BoxConstraints.tightFor(width: MediaQuery.sizeOf(context).width)
+        : null,
+    builder: (_) => wide
+        ? Row(
+            children: [
+              Expanded(
+                flex: 4,
+                child: _TitleSide(meta: meta, video: video),
+              ),
+              Expanded(
+                flex: 6,
+                child: StreamPickerSheet(meta: meta, video: video),
+              ),
+            ],
+          )
+        : StreamPickerSheet(meta: meta, video: video),
+  );
+}
+
+class _TitleSide extends StatelessWidget {
+  const _TitleSide({required this.meta, this.video});
+  final MetaItem meta;
+  final Video? video;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(24, 24, 12, 24),
+    child: GlassSurface(
+      radius: 28,
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            height: 165,
+            child: PosterImage(
+              url: meta.poster ?? meta.background,
+              title: meta.name,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    meta.name,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  if (video != null)
+                    Text(
+                      '${video!.label}${video!.title.isEmpty ? '' : ' · ${video!.title}'}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    video?.overview ?? meta.description ?? '',
+                    maxLines: 9,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 }
 

@@ -5,6 +5,7 @@ import '../../app/providers.dart';
 import '../../app/router.dart';
 import '../../core/addons/addon_repository.dart';
 import '../../core/catalog/result_filters.dart';
+import '../../data/prefs_ext.dart';
 import '../../core/model/manifest.dart';
 import '../../core/model/meta.dart';
 import '../../design/glass.dart';
@@ -83,8 +84,13 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         .where((e) => _type == null || e.$2.type == _type)
         .toList();
     if (ofType.isEmpty) return null;
+    final wanted =
+        _catalogKey ??
+        ref
+            .read(settingsProvider)
+            .discoverDefaultFor(_type ?? ofType.first.$2.type);
     return ofType.firstWhere(
-      (e) => '${e.$1.id}/${e.$2.key}' == _catalogKey,
+      (e) => '${e.$1.id}/${e.$2.key}' == wanted,
       orElse: () => ofType.first,
     );
   }
@@ -140,7 +146,13 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   Widget build(BuildContext context) {
     ref.watch(addonsProvider);
     final all = _catalogs();
-    final types = {for (final e in all) e.$2.type}.toList();
+    final hidden = ref.watch(settingsProvider).discoverHidden;
+    final types = {for (final e in all) e.$2.type}
+        .where((t) => !hidden.contains(t))
+        .toList();
+    if (types.isNotEmpty && (_type == null || !types.contains(_type))) {
+      _type = types.first;
+    }
     final sel = _selected(all);
     if (sel != null && _items.isEmpty && !_loading && !_end && _error == null) {
       WidgetsBinding.instance.addPostFrameCallback(

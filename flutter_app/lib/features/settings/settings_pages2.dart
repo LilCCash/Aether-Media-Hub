@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+
+import '../../design/image_cache.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
 import '../player/subtitle_style.dart';
+import '../home/home_screen.dart' show visibleCatalogs, typeName;
 import 'settings_extra.dart';
 import 'settings_widgets.dart';
 
@@ -122,6 +125,7 @@ class MetadataPage extends ConsumerWidget {
     return SettingsPageFrame(
       title: 'Cataloghi e ricerca',
       children: [
+        const _DiscoverGroup(),
         SettingsGroup(
           title: 'Cataloghi e cache',
           children: [
@@ -253,12 +257,22 @@ class DownloadsSettingsPage extends ConsumerWidget {
         SettingsGroup(
           title: 'Archiviazione',
           children: [
+            const PrefSlider(
+              'imageCacheMB',
+              'Limite della cache delle immagini',
+              _img,
+              min: 50,
+              max: 1000,
+              divisions: 19,
+              integer: true,
+              format: _mb,
+            ),
             ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               leading: const Icon(Icons.image_not_supported_outlined),
               title: const Text('Svuota la cache delle immagini'),
               onTap: () async {
-                await DefaultCacheManager().emptyCache();
+                await AetherImageCache.manager.emptyCache();
                 PaintingBinding.instance.imageCache.clear();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -275,6 +289,8 @@ class DownloadsSettingsPage extends ConsumerWidget {
     );
   }
 
+  static double _img(AppSettings s) => s.imageCacheMB.toDouble();
+  static String _mb(double v) => '${v.round()} MB (dal prossimo avvio)';
   static double _max(AppSettings s) => s.maxDownloads.toDouble();
   static String _int(double v) => '${v.round()}';
   static bool _cell(AppSettings s) => s.downloadOverCellular;
@@ -945,3 +961,54 @@ final kStylePresets = <StylePreset>[
     ),
   ),
 ];
+
+/// Settings ▸ Scopri: which types appear, and which catalog opens first for each.
+class _DiscoverGroup extends ConsumerWidget {
+  const _DiscoverGroup();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(settingsProvider);
+    final n = ref.read(settingsProvider.notifier);
+    final cats = visibleCatalogs(
+      ref.watch(addonsProvider),
+      s.hiddenHomeCatalogs,
+      s.catalogOrder,
+      hideAdult: s.hideAdultCatalogs,
+    );
+    final types = {for (final e in cats) e.$2.type}.toList();
+    if (types.isEmpty) return const SizedBox.shrink();
+    return SettingsGroup(
+      title: 'Scopri',
+      icon: Icons.explore_rounded,
+      footer: 'Scegli i tipi che compaiono in Scopri e il catalogo che si apre per primo.',
+      children: [
+        for (final t in types) ...[
+          SwitchRow(
+            title: typeName(t),
+            value: !s.discoverHidden.contains(t),
+            onChanged: (v) => n.update((x) {
+              final h = {...x.discoverHidden};
+              v ? h.remove(t) : h.add(t);
+              return x.withExt('discoverHidden', h.toList());
+            }),
+          ),
+          if (!s.discoverHidden.contains(t))
+            ChoiceRow<String>(
+              title: '   Catalogo iniziale',
+              value: s.discoverDefaultFor(t) ?? '',
+              options: {
+                '': 'Il primo disponibile',
+                for (final e in cats.where((e) => e.$2.type == t))
+                  '${e.$1.id}/${e.$2.key}':
+                      s.catalogTitles['${e.$1.id}/${e.$2.key}'] ?? e.$2.name,
+              },
+              onChanged: (k) => n.update(
+                (x) => x.withDiscoverDefault(t, k.isEmpty ? null : k),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
