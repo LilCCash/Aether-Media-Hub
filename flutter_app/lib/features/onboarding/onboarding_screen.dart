@@ -27,7 +27,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   AddonPreview? _preview;
 
   Future<void> _finish() async {
-    await ref.read(settingsProvider.notifier).update((s) => s.copyWith(onboardingDone: true));
+    await ref
+        .read(settingsProvider.notifier)
+        .update((s) => s.copyWith(onboardingDone: true));
     if (mounted) context.go('/home');
   }
 
@@ -52,7 +54,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _next();
   }
 
-  void _next() => _page.nextPage(duration: AetherTokens.medium, curve: AetherTokens.ease);
+  void _next() =>
+      _page.nextPage(duration: AetherTokens.medium, curve: AetherTokens.ease);
 
   @override
   void dispose() {
@@ -66,34 +69,129 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return Scaffold(
       body: AetherBackdrop(
         child: SafeArea(
-          child: Column(children: [
-            Align(alignment: Alignment.centerRight, child: Padding(padding: const EdgeInsets.all(8), child: TextButton(onPressed: _finish, child: const Text('Salta')))),
-            Expanded(
-              child: PageView(controller: _page, physics: const NeverScrollableScrollPhysics(), onPageChanged: (i) => setState(() => _index = i), children: [
-                _Step(icon: Icons.blur_on_rounded, title: 'Benvenuto in Aether', body: 'Un media hub per i tuoi addon Stremio. Aether non fornisce nessun contenuto: sei tu a scegliere e installare gli addon, e a risponderne.', action: GlassButton(label: 'Inizia', prominent: true, onPressed: _next)),
-                _Step(
-                  icon: Icons.extension_rounded,
-                  title: 'Il tuo primo addon',
-                  body: 'Incolla il link di un addon. Come punto di partenza ti proponiamo Cinemeta, il catalogo ufficiale di Stremio (solo cataloghi e schede, nessun video).',
-                  action: Column(children: [
-                    GlassSurface(radius: 18, padding: const EdgeInsets.symmetric(horizontal: 14), child: TextField(controller: _url, keyboardType: TextInputType.url, autocorrect: false, decoration: const InputDecoration(border: InputBorder.none, hintText: 'https://…/manifest.json'))),
-                    const SizedBox(height: 12),
-                    if (_busy) const CircularProgressIndicator(),
-                    if (_error != null) Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AetherTokens.warning)),
-                    if (_preview != null) ...[
-                      Text('${_preview!.manifest.name} ${_preview!.manifest.version}', style: Theme.of(context).textTheme.titleMedium),
-                      for (final w in _preview!.warnings) Text('• $w', style: const TextStyle(fontSize: 12, color: AetherTokens.warning)),
-                      const SizedBox(height: 10),
-                      GlassButton(label: 'Installa', icon: Icons.download_done_rounded, prominent: true, onPressed: _install),
-                    ] else if (!_busy)
-                      GlassButton(label: 'Controlla l’addon', icon: Icons.search_rounded, prominent: true, onPressed: _check),
-                  ]),
+          child: Column(
+            children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: TextButton(
+                    onPressed: _finish,
+                    child: const Text('Salta'),
+                  ),
                 ),
-                _Step(icon: Icons.check_circle_rounded, title: 'Tutto pronto', body: 'Altri addon, le chiavi TorBox e TMDB e l’aspetto si trovano in Altro ▸ Impostazioni. Il player di prova (anche senza internet) è in Altro ▸ Diagnostica.', action: GlassButton(label: 'Apri Aether', prominent: true, onPressed: _finish)),
-              ]),
-            ),
-            Padding(padding: const EdgeInsets.only(bottom: 18), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [for (var i = 0; i < 3; i++) AnimatedContainer(duration: AetherTokens.medium, margin: const EdgeInsets.all(3), width: i == _index ? 20 : 6, height: 6, decoration: BoxDecoration(color: Colors.white.withValues(alpha: i == _index ? 0.9 : 0.3), borderRadius: BorderRadius.circular(3)))])),
-          ]),
+              ),
+              Expanded(
+                child: PageView(
+                  controller: _page,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (i) => setState(() => _index = i),
+                  children: [
+                    _Step(
+                      icon: Icons.blur_on_rounded,
+                      title: 'Benvenuto in Aether',
+                      body: 'Un media hub per i tuoi addon Stremio. Aether non fornisce nessun contenuto: sei tu a scegliere e installare gli addon, e a risponderne.',
+                      action: GlassButton(
+                        label: 'Inizia',
+                        prominent: true,
+                        onPressed: _next,
+                      ),
+                    ),
+                    _Step(
+                      icon: Icons.extension_rounded,
+                      title: 'Il tuo primo addon',
+                      body: 'Incolla il link di un addon. Come punto di partenza ti proponiamo Cinemeta, il catalogo ufficiale di Stremio (solo cataloghi e schede, nessun video).',
+                      action: Column(
+                        children: [
+                          GlassSurface(
+                            radius: 18,
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            child: TextField(
+                              controller: _url,
+                              keyboardType: TextInputType.url,
+                              autocorrect: false,
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                hintText: 'https://…/manifest.json',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (_busy) const CircularProgressIndicator(),
+                          if (_error != null)
+                            Text(
+                              _error!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AetherTokens.warning,
+                              ),
+                            ),
+                          if (_preview != null) ...[
+                            Text(
+                              '${_preview!.manifest.name} ${_preview!.manifest.version}',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            for (final w in _preview!.warnings)
+                              Text(
+                                '• $w',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AetherTokens.warning,
+                                ),
+                              ),
+                            const SizedBox(height: 10),
+                            GlassButton(
+                              label: 'Installa',
+                              icon: Icons.download_done_rounded,
+                              prominent: true,
+                              onPressed: _install,
+                            ),
+                          ] else if (!_busy)
+                            GlassButton(
+                              label: 'Controlla l’addon',
+                              icon: Icons.search_rounded,
+                              prominent: true,
+                              onPressed: _check,
+                            ),
+                        ],
+                      ),
+                    ),
+                    _Step(
+                      icon: Icons.check_circle_rounded,
+                      title: 'Tutto pronto',
+                      body: 'Altri addon, le chiavi TorBox e TMDB e l’aspetto si trovano in Altro ▸ Impostazioni. Il player di prova (anche senza internet) è in Altro ▸ Diagnostica.',
+                      action: GlassButton(
+                        label: 'Apri Aether',
+                        prominent: true,
+                        onPressed: _finish,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 18),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (var i = 0; i < 3; i++)
+                      AnimatedContainer(
+                        duration: AetherTokens.medium,
+                        margin: const EdgeInsets.all(3),
+                        width: i == _index ? 20 : 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(
+                            alpha: i == _index ? 0.9 : 0.3,
+                          ),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -101,7 +199,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 }
 
 class _Step extends StatelessWidget {
-  const _Step({required this.icon, required this.title, required this.body, required this.action});
+  const _Step({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.action,
+  });
   final IconData icon;
   final String title;
   final String body;
@@ -109,20 +212,36 @@ class _Step extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(28),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              GlassSurface(radius: 36, padding: const EdgeInsets.all(22), child: Icon(icon, size: 52, color: AetherLook.of(context).accent)),
-              const SizedBox(height: 26),
-              Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.displaySmall),
-              const SizedBox(height: 12),
-              Text(body, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: AetherTokens.textSecondary)),
-              const SizedBox(height: 28),
-              action,
-            ]),
-          ),
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(28),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GlassSurface(
+              radius: 36,
+              padding: const EdgeInsets.all(22),
+              child: Icon(icon, size: 52, color: AetherLook.of(context).accent),
+            ),
+            const SizedBox(height: 26),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.displaySmall,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge
+                  ?.copyWith(color: AetherTokens.textSecondary),
+            ),
+            const SizedBox(height: 28),
+            action,
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }

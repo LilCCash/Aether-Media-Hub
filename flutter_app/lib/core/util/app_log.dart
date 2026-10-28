@@ -12,16 +12,25 @@ class AppLog {
   void add(String area, String message) {
     final now = DateTime.now().toIso8601String().substring(11, 19);
     _lines.add('$now [$area] ${redact(message)}');
-    if (_lines.length > capacity) _lines.removeRange(0, _lines.length - capacity);
+    if (_lines.length > capacity)
+      _lines.removeRange(0, _lines.length - capacity);
   }
 
   void clear() => _lines.clear();
 
-  static final RegExp _query = RegExp(r'([?&](?:api_key|apikey|token|key|apiKey|access_token)=)[^&\s]+', caseSensitive: false);
-  static final RegExp _bearer = RegExp(r'(Bearer\s+)[A-Za-z0-9._\-]+', caseSensitive: false);
+  static final RegExp _query = RegExp(
+    r'([?&](?:api_key|apikey|token|key|apiKey|access_token)=)[^&\s]+',
+    caseSensitive: false,
+  );
+  static final RegExp _bearer = RegExp(
+    r'(Bearer\s+)[A-Za-z0-9._\-]+',
+    caseSensitive: false,
+  );
   static final RegExp _userinfo = RegExp(r'(https?://)[^/\s:@]+:[^/\s@]+@');
   // Addon addresses may embed the user's configuration in the path: keep only the host.
-  static final RegExp _addonPath = RegExp(r'(https?://[^/\s]+)/[^\s]*manifest\.json');
+  static final RegExp _addonPath = RegExp(
+    r'(https?://[^/\s]+)/[^\s]*manifest\.json',
+  );
 
   static String redact(String input) {
     var s = input.replaceAllMapped(_query, (m) => '${m[1]}***');

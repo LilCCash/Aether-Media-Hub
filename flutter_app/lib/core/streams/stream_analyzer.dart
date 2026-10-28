@@ -6,22 +6,22 @@ enum HdrFormat { dolbyVision, hdr10Plus, hdr10, hlg }
 
 extension on VideoQuality {
   String get label => switch (this) {
-        VideoQuality.unknown => '',
-        VideoQuality.p480 => '480p',
-        VideoQuality.p720 => '720p',
-        VideoQuality.p1080 => '1080p',
-        VideoQuality.p1440 => '1440p',
-        VideoQuality.p2160 => '4K',
-      };
+    VideoQuality.unknown => '',
+    VideoQuality.p480 => '480p',
+    VideoQuality.p720 => '720p',
+    VideoQuality.p1080 => '1080p',
+    VideoQuality.p1440 => '1440p',
+    VideoQuality.p2160 => '4K',
+  };
 }
 
 extension HdrLabel on HdrFormat {
   String get label => switch (this) {
-        HdrFormat.dolbyVision => 'Dolby Vision',
-        HdrFormat.hdr10Plus => 'HDR10+',
-        HdrFormat.hdr10 => 'HDR10',
-        HdrFormat.hlg => 'HLG',
-      };
+    HdrFormat.dolbyVision => 'Dolby Vision',
+    HdrFormat.hdr10Plus => 'HDR10+',
+    HdrFormat.hdr10 => 'HDR10',
+    HdrFormat.hlg => 'HLG',
+  };
 }
 
 extension QualityLabel on VideoQuality {
@@ -55,7 +55,9 @@ class StreamInfo {
     final size = sizeBytes;
     if (size == null || size <= 0) return null;
     final gb = size / 1073741824;
-    return gb >= 1 ? '${gb.toStringAsFixed(1)} GB' : '${(size / 1048576).round()} MB';
+    return gb >= 1
+        ? '${gb.toStringAsFixed(1)} GB'
+        : '${(size / 1048576).round()} MB';
   }
 }
 
@@ -77,7 +79,10 @@ class StreamAnalyzer {
     );
   }
 
-  static bool _has(String text, String pattern) => RegExp('(?<![a-z0-9])(?:$pattern)(?![a-z0-9])', caseSensitive: false).hasMatch(text);
+  static bool _has(String text, String pattern) => RegExp(
+    '(?<![a-z0-9])(?:$pattern)(?![a-z0-9])',
+    caseSensitive: false,
+  ).hasMatch(text);
 
   static VideoQuality _quality(String t) {
     if (_has(t, r'2160p?|4k|uhd')) return VideoQuality.p2160;
@@ -99,9 +104,14 @@ class StreamAnalyzer {
 
   static List<HdrFormat> _hdr(String t) {
     final result = <HdrFormat>[];
-    if (_has(t, r'dolby[ .\-]?vision|dovi|dv')) result.add(HdrFormat.dolbyVision);
+    if (_has(t, r'dolby[ .\-]?vision|dovi|dv'))
+      result.add(HdrFormat.dolbyVision);
     if (_has(t, r'hdr10\+|hdr10plus')) result.add(HdrFormat.hdr10Plus);
-    if (RegExp(r'hdr10(?!\+|plus)|(?<![a-z0-9])hdr(?![a-z0-9])', caseSensitive: false).hasMatch(t)) result.add(HdrFormat.hdr10);
+    if (RegExp(
+      r'hdr10(?!\+|plus)|(?<![a-z0-9])hdr(?![a-z0-9])',
+      caseSensitive: false,
+    ).hasMatch(t))
+      result.add(HdrFormat.hdr10);
     if (_has(t, r'hlg')) result.add(HdrFormat.hlg);
     return result;
   }
@@ -111,7 +121,8 @@ class StreamAnalyzer {
     if (_has(t, r'truehd')) return 'TrueHD';
     if (_has(t, r'dts[\-. ]?hd(?:[\-. ]?ma)?|dts[\-. ]?x')) return 'DTS-HD';
     if (_has(t, r'dts')) return 'DTS';
-    if (_has(t, r'e[\-. ]?ac[\-. ]?3|dd\+|ddp(?:5[. ]1)?')) return 'Dolby Digital+';
+    if (_has(t, r'e[\-. ]?ac[\-. ]?3|dd\+|ddp(?:5[. ]1)?'))
+      return 'Dolby Digital+';
     if (_has(t, r'ac[\-. ]?3|dd5[. ]1|dolby digital')) return 'Dolby Digital';
     if (_has(t, r'aac')) return 'AAC';
     if (_has(t, r'opus')) return 'Opus';
@@ -119,18 +130,42 @@ class StreamAnalyzer {
   }
 
   static final Map<String, RegExp> _langs = {
-    'Italiano': RegExp(r'(?<![a-z0-9])(ita|italian[oa]?|🇮🇹)(?![a-z0-9])', caseSensitive: false),
-    'Inglese': RegExp(r'(?<![a-z0-9])(eng|english|🇬🇧|🇺🇸)(?![a-z0-9])', caseSensitive: false),
-    'Francese': RegExp(r'(?<![a-z0-9])(fre|fra|french|vff|🇫🇷)(?![a-z0-9])', caseSensitive: false),
-    'Spagnolo': RegExp(r'(?<![a-z0-9])(spa|spanish|esp|🇪🇸)(?![a-z0-9])', caseSensitive: false),
-    'Tedesco': RegExp(r'(?<![a-z0-9])(ger|deu|german|🇩🇪)(?![a-z0-9])', caseSensitive: false),
-    'Multi': RegExp(r'(?<![a-z0-9])(multi|multilang)(?![a-z0-9])', caseSensitive: false),
+    'Italiano': RegExp(
+      r'(?<![a-z0-9])(ita|italian[oa]?|🇮🇹)(?![a-z0-9])',
+      caseSensitive: false,
+    ),
+    'Inglese': RegExp(
+      r'(?<![a-z0-9])(eng|english|🇬🇧|🇺🇸)(?![a-z0-9])',
+      caseSensitive: false,
+    ),
+    'Francese': RegExp(
+      r'(?<![a-z0-9])(fre|fra|french|vff|🇫🇷)(?![a-z0-9])',
+      caseSensitive: false,
+    ),
+    'Spagnolo': RegExp(
+      r'(?<![a-z0-9])(spa|spanish|esp|🇪🇸)(?![a-z0-9])',
+      caseSensitive: false,
+    ),
+    'Tedesco': RegExp(
+      r'(?<![a-z0-9])(ger|deu|german|🇩🇪)(?![a-z0-9])',
+      caseSensitive: false,
+    ),
+    'Multi': RegExp(
+      r'(?<![a-z0-9])(multi|multilang)(?![a-z0-9])',
+      caseSensitive: false,
+    ),
   };
 
-  static List<String> _languages(String text) => [for (final e in _langs.entries) if (e.value.hasMatch(text)) e.key];
+  static List<String> _languages(String text) => [
+    for (final e in _langs.entries)
+      if (e.value.hasMatch(text)) e.key,
+  ];
 
   static int? _size(String text) {
-    final m = RegExp(r'(\d+(?:[.,]\d+)?)\s*(GB|GiB|MB|MiB)', caseSensitive: false).firstMatch(text);
+    final m = RegExp(
+      r'(\d+(?:[.,]\d+)?)\s*(GB|GiB|MB|MiB)',
+      caseSensitive: false,
+    ).firstMatch(text);
     if (m == null) return null;
     final value = double.tryParse(m.group(1)!.replaceAll(',', '.'));
     if (value == null) return null;
@@ -139,9 +174,23 @@ class StreamAnalyzer {
   }
 
   static String? _format(AddonStream stream, String lower) {
-    final names = [stream.filename, stream.url].whereType<String>().join(' ').toLowerCase();
-    for (final ext in ['mkv', 'mp4', 'avi', 'webm', 'ts', 'm3u8', 'mov', 'wmv']) {
-      if (RegExp('\\.$ext(?:\\?|\$|\\s|/)').hasMatch(names) || RegExp('(?<![a-z0-9])$ext(?![a-z0-9])').hasMatch(lower)) return ext.toUpperCase();
+    final names = [
+      stream.filename,
+      stream.url,
+    ].whereType<String>().join(' ').toLowerCase();
+    for (final ext in [
+      'mkv',
+      'mp4',
+      'avi',
+      'webm',
+      'ts',
+      'm3u8',
+      'mov',
+      'wmv',
+    ]) {
+      if (RegExp('\\.$ext(?:\\?|\$|\\s|/)').hasMatch(names) ||
+          RegExp('(?<![a-z0-9])$ext(?![a-z0-9])').hasMatch(lower))
+        return ext.toUpperCase();
     }
     return null;
   }
@@ -179,7 +228,8 @@ class StreamRanker {
   StreamPlayability playability(AddonStream s) {
     if (s.isDirect) return StreamPlayability.direct;
     if (s.isTorrent) return StreamPlayability.needsDebrid;
-    if (s.externalUrl != null || s.ytId != null) return StreamPlayability.external;
+    if (s.externalUrl != null || s.ytId != null)
+      return StreamPlayability.external;
     return StreamPlayability.unsupported;
   }
 
@@ -190,12 +240,26 @@ class StreamRanker {
       final info = StreamAnalyzer.analyze(s);
       final play = playability(s);
       var score = info.quality.index * 100;
-      score += switch (info.release) { 'Remux' => 30, 'BluRay' => 25, 'WEB-DL' => 20, 'WEBRip' => 12, 'HDTV' => 5, 'CAM' => -300, _ => 0 };
+      score += switch (info.release) {
+        'Remux' => 30,
+        'BluRay' => 25,
+        'WEB-DL' => 20,
+        'WEBRip' => 12,
+        'HDTV' => 5,
+        'CAM' => -300,
+        _ => 0,
+      };
       if (info.hdr.isNotEmpty) score += 10;
-      if (preferredLanguage != null && (info.languages.contains(preferredLanguage) || info.languages.contains('Multi'))) score += 60;
+      if (preferredLanguage != null &&
+          (info.languages.contains(preferredLanguage) ||
+              info.languages.contains('Multi')))
+        score += 60;
       if (play == StreamPlayability.direct) score += 1000;
-      if (play == StreamPlayability.needsDebrid) score += debridConfigured ? 800 : -500;
-      if (play == StreamPlayability.external || play == StreamPlayability.unsupported) score -= 1000;
+      if (play == StreamPlayability.needsDebrid)
+        score += debridConfigured ? 800 : -500;
+      if (play == StreamPlayability.external ||
+          play == StreamPlayability.unsupported)
+        score -= 1000;
       ranked.add(RankedStream(s, info, play, score));
     }
     final indexed = [for (var i = 0; i < ranked.length; i++) (i, ranked[i])];

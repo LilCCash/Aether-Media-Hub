@@ -32,26 +32,29 @@ class WatchProgress {
   final int durationMs;
   final DateTime updatedAt;
 
-  double get fraction => durationMs <= 0 ? 0 : (positionMs / durationMs).clamp(0, 1).toDouble();
+  double get fraction =>
+      durationMs <= 0 ? 0 : (positionMs / durationMs).clamp(0, 1).toDouble();
 
   /// Watched when 92% (or the last 3 minutes) is behind.
-  bool get completed => durationMs > 0 && (fraction >= 0.92 || durationMs - positionMs < 180000 && fraction > 0.5);
+  bool get completed =>
+      durationMs > 0 &&
+      (fraction >= 0.92 || durationMs - positionMs < 180000 && fraction > 0.5);
 
   bool get resumable => !completed && positionMs >= 10000;
 
   Map<String, Object?> toJson() => {
-        'metaId': metaId,
-        'videoId': videoId,
-        'type': type,
-        'name': name,
-        if (poster != null) 'poster': poster,
-        if (season != null) 'season': season,
-        if (episode != null) 'episode': episode,
-        if (episodeTitle != null) 'episodeTitle': episodeTitle,
-        'positionMs': positionMs,
-        'durationMs': durationMs,
-        'updatedAt': updatedAt.toIso8601String(),
-      };
+    'metaId': metaId,
+    'videoId': videoId,
+    'type': type,
+    'name': name,
+    if (poster != null) 'poster': poster,
+    if (season != null) 'season': season,
+    if (episode != null) 'episode': episode,
+    if (episodeTitle != null) 'episodeTitle': episodeTitle,
+    'positionMs': positionMs,
+    'durationMs': durationMs,
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 
   static WatchProgress? fromJson(Object? raw) {
     final m = asMap(raw);
@@ -69,7 +72,8 @@ class WatchProgress {
       episodeTitle: asNonEmptyString(m['episodeTitle']),
       positionMs: asInt(m['positionMs']) ?? 0,
       durationMs: asInt(m['durationMs']) ?? 0,
-      updatedAt: asDate(m['updatedAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      updatedAt:
+          asDate(m['updatedAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
 }
@@ -103,7 +107,8 @@ class LibraryRepository {
         if (p != null) {
           _progress[p.videoId] = p;
           final seen = _lastSeen[p.metaId];
-          if (seen == null || p.updatedAt.isAfter(seen)) _lastSeen[p.metaId] = p.updatedAt;
+          if (seen == null || p.updatedAt.isAfter(seen))
+            _lastSeen[p.metaId] = p.updatedAt;
         }
       }
     } on FormatException {
@@ -112,13 +117,13 @@ class LibraryRepository {
   }
 
   Future<void> _save() => _store.write(
-        _key,
-        jsonEncode({
-          'favorites': _favorites.values.map((e) => e.toJson()).toList(),
-          'watchlist': _watchlist.values.map((e) => e.toJson()).toList(),
-          'progress': _progress.values.map((e) => e.toJson()).toList(),
-        }),
-      );
+    _key,
+    jsonEncode({
+      'favorites': _favorites.values.map((e) => e.toJson()).toList(),
+      'watchlist': _watchlist.values.map((e) => e.toJson()).toList(),
+      'progress': _progress.values.map((e) => e.toJson()).toList(),
+    }),
+  );
 
   List<MetaItem> get favorites => _favorites.values.toList().reversed.toList();
   List<MetaItem> get watchlist => _watchlist.values.toList().reversed.toList();
@@ -147,14 +152,31 @@ class LibraryRepository {
     await _save();
   }
 
-  Future<void> markWatched(String metaId, String videoId, {required String type, required String name, String? poster, int? season, int? episode, bool watched = true}) async {
+  Future<void> markWatched(
+    String metaId,
+    String videoId, {
+    required String type,
+    required String name,
+    String? poster,
+    int? season,
+    int? episode,
+    bool watched = true,
+  }) async {
     if (!watched) {
       _progress.remove(videoId);
     } else {
       final now = DateTime.now();
       _progress[videoId] = WatchProgress(
-        metaId: metaId, videoId: videoId, type: type, name: name, poster: poster, season: season, episode: episode,
-        positionMs: 1000, durationMs: 1000, updatedAt: now,
+        metaId: metaId,
+        videoId: videoId,
+        type: type,
+        name: name,
+        poster: poster,
+        season: season,
+        episode: episode,
+        positionMs: 1000,
+        durationMs: 1000,
+        updatedAt: now,
       );
       _lastSeen[metaId] = now;
     }
@@ -164,7 +186,9 @@ class LibraryRepository {
   bool isWatched(String videoId) => _progress[videoId]?.completed ?? false;
 
   /// History, most recent first.
-  List<WatchProgress> get history => _progress.values.toList()..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  List<WatchProgress> get history =>
+      _progress.values.toList()
+        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
   /// One entry per title: the video to resume, most recent first. Finished films are left out; for a series, a finished episode
   /// is left out too (the "next episode" logic proposes the following one).
@@ -190,10 +214,10 @@ class LibraryRepository {
   // Backup support ------------------------------------------------------------------------------------------------------
 
   Map<String, Object?> exportJson() => {
-        'favorites': _favorites.values.map((e) => e.toJson()).toList(),
-        'watchlist': _watchlist.values.map((e) => e.toJson()).toList(),
-        'progress': _progress.values.map((e) => e.toJson()).toList(),
-      };
+    'favorites': _favorites.values.map((e) => e.toJson()).toList(),
+    'watchlist': _watchlist.values.map((e) => e.toJson()).toList(),
+    'progress': _progress.values.map((e) => e.toJson()).toList(),
+  };
 
   Future<void> importJson(Object? raw) async {
     final m = asMap(raw) ?? const {};
@@ -209,7 +233,8 @@ class LibraryRepository {
       final p = WatchProgress.fromJson(item);
       if (p != null) {
         final existing = _progress[p.videoId];
-        if (existing == null || p.updatedAt.isAfter(existing.updatedAt)) _progress[p.videoId] = p;
+        if (existing == null || p.updatedAt.isAfter(existing.updatedAt))
+          _progress[p.videoId] = p;
       }
     }
     await _save();

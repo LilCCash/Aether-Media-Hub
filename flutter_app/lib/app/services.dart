@@ -46,19 +46,39 @@ class AppServices {
 
   static Future<AppServices> create() async {
     final prefs = await SharedPreferences.getInstance();
-    return build(store: PrefsStore(prefs), secrets: PlatformSecretStore(), downloadsDir: Directory('${(await getApplicationDocumentsDirectory()).path}/downloads'));
+    return build(
+      store: PrefsStore(prefs),
+      secrets: PlatformSecretStore(),
+      downloadsDir: Directory(
+        '${(await getApplicationDocumentsDirectory()).path}/downloads',
+      ),
+    );
   }
 
-  static Future<AppServices> build({required KeyValueStore store, required SecretStore secrets, required Directory downloadsDir, Dio? dio}) async {
+  static Future<AppServices> build({
+    required KeyValueStore store,
+    required SecretStore secrets,
+    required Directory downloadsDir,
+    Dio? dio,
+  }) async {
     final settingsRepo = SettingsRepository(store);
     final settings = await settingsRepo.load();
     final policy = NetworkPolicy(allowLocalNetwork: settings.allowLocalNetwork);
     final client = AddonClient(dio: dio, policy: policy);
-    final addons = AddonRepository(store: store, secrets: secrets, client: client);
+    final addons = AddonRepository(
+      store: store,
+      secrets: secrets,
+      client: client,
+    );
     await addons.load();
     final library = LibraryRepository(store);
     await library.load();
-    final downloads = DownloadManager(store: store, directory: downloadsDir, dio: dio, policy: policy);
+    final downloads = DownloadManager(
+      store: store,
+      directory: downloadsDir,
+      dio: dio,
+      policy: policy,
+    );
     await downloads.load();
     return AppServices(
       store: store,
@@ -67,8 +87,14 @@ class AppServices {
       addons: addons,
       library: library,
       settingsRepo: settingsRepo,
-      torbox: TorBoxClient(keyProvider: () => secrets.serviceKey(ServiceKey.torbox), dio: dio),
-      tmdb: TmdbClient(keyProvider: () => secrets.serviceKey(ServiceKey.tmdb), dio: dio),
+      torbox: TorBoxClient(
+        keyProvider: () => secrets.serviceKey(ServiceKey.torbox),
+        dio: dio,
+      ),
+      tmdb: TmdbClient(
+        keyProvider: () => secrets.serviceKey(ServiceKey.tmdb),
+        dio: dio,
+      ),
       subtitleLoader: SubtitleLoader(dio: dio, policy: policy),
       downloads: downloads,
       initialSettings: settings,

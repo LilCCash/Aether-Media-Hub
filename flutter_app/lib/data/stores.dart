@@ -15,7 +15,8 @@ class PrefsStore implements KeyValueStore {
   @override
   Future<String?> read(String key) async => _prefs.getString(key);
   @override
-  Future<void> write(String key, String value) async => _prefs.setString(key, value);
+  Future<void> write(String key, String value) async =>
+      _prefs.setString(key, value);
   @override
   Future<void> remove(String key) async => _prefs.remove(key);
 }
@@ -41,15 +42,18 @@ abstract class SecretStore {
 
 class PlatformSecretStore implements SecretStore {
   PlatformSecretStore()
-      : _storage = const FlutterSecureStorage(
-          iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
-        );
+    : _storage = const FlutterSecureStorage(
+        iOptions: IOSOptions(
+          accessibility: KeychainAccessibility.first_unlock_this_device,
+        ),
+      );
   final FlutterSecureStorage _storage;
 
   @override
   Future<String?> read(String key) => _storage.read(key: key);
   @override
-  Future<void> write(String key, String value) => _storage.write(key: key, value: value);
+  Future<void> write(String key, String value) =>
+      _storage.write(key: key, value: value);
   @override
   Future<void> remove(String key) => _storage.delete(key: key);
 }

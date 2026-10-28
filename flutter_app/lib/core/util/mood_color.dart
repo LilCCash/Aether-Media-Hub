@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-import 'dart:ui';
 
 import 'package:flutter/painting.dart';
 
@@ -16,6 +15,11 @@ Color moodColorFromRgba(Uint8List rgba) {
     n++;
   }
   if (n == 0) return const Color(0xFF7C8CFF);
-  final hsv = HSVColor.fromColor(Color.fromARGB(255, (r / n).round(), (g / n).round(), (b / n).round()));
-  return hsv.withSaturation((hsv.saturation * 1.15 + 0.1).clamp(0.35, 0.95)).withValue(hsv.value.clamp(0.45, 0.85)).toColor();
+  final hsv = HSVColor.fromColor(
+    Color.fromARGB(255, (r / n).round(), (g / n).round(), (b / n).round()),
+  );
+  return hsv
+      .withSaturation((hsv.saturation * 1.15 + 0.1).clamp(0.35, 0.95))
+      .withValue(hsv.value.clamp(0.45, 0.85))
+      .toColor();
 }

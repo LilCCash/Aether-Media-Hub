@@ -4,7 +4,15 @@ enum TrackKind { audio, subtitle }
 
 /// An audio or subtitle track the engine found in the media (or loaded from outside).
 class TrackInfo {
-  const TrackInfo({required this.id, required this.kind, this.title, this.language, this.isDefault = false, this.isForced = false, this.codec});
+  const TrackInfo({
+    required this.id,
+    required this.kind,
+    this.title,
+    this.language,
+    this.isDefault = false,
+    this.isForced = false,
+    this.codec,
+  });
   final String id;
   final TrackKind kind;
   final String? title;
@@ -16,7 +24,10 @@ class TrackInfo {
   String get label {
     final parts = <String>[
       if (language != null && language!.isNotEmpty) languageName(language!),
-      if (title != null && title!.isNotEmpty && title!.toLowerCase() != (language ?? '').toLowerCase()) title!,
+      if (title != null &&
+          title!.isNotEmpty &&
+          title!.toLowerCase() != (language ?? '').toLowerCase())
+        title!,
       if (codec != null && codec!.isNotEmpty) codec!.toUpperCase(),
       if (isForced) 'forzati',
     ];
@@ -24,9 +35,29 @@ class TrackInfo {
   }
 
   static const _names = {
-    'ita': 'Italiano', 'it': 'Italiano', 'eng': 'Inglese', 'en': 'Inglese', 'fra': 'Francese', 'fre': 'Francese', 'fr': 'Francese',
-    'spa': 'Spagnolo', 'es': 'Spagnolo', 'deu': 'Tedesco', 'ger': 'Tedesco', 'de': 'Tedesco', 'por': 'Portoghese', 'pt': 'Portoghese',
-    'jpn': 'Giapponese', 'ja': 'Giapponese', 'rus': 'Russo', 'ru': 'Russo', 'zho': 'Cinese', 'chi': 'Cinese', 'zh': 'Cinese', 'kor': 'Coreano', 'ko': 'Coreano',
+    'ita': 'Italiano',
+    'it': 'Italiano',
+    'eng': 'Inglese',
+    'en': 'Inglese',
+    'fra': 'Francese',
+    'fre': 'Francese',
+    'fr': 'Francese',
+    'spa': 'Spagnolo',
+    'es': 'Spagnolo',
+    'deu': 'Tedesco',
+    'ger': 'Tedesco',
+    'de': 'Tedesco',
+    'por': 'Portoghese',
+    'pt': 'Portoghese',
+    'jpn': 'Giapponese',
+    'ja': 'Giapponese',
+    'rus': 'Russo',
+    'ru': 'Russo',
+    'zho': 'Cinese',
+    'chi': 'Cinese',
+    'zh': 'Cinese',
+    'kor': 'Coreano',
+    'ko': 'Coreano',
   };
 
   static String languageName(String code) => _names[code.toLowerCase()] ?? code;
@@ -38,6 +69,7 @@ class TrackInfo {
       final l = x.toLowerCase();
       return _names[l] ?? l;
     }
+
     return norm(a) == norm(b);
   }
 }
@@ -49,7 +81,13 @@ class EngineTracks {
 }
 
 class PlaybackSource {
-  const PlaybackSource({required this.uri, this.headers = const {}, this.title = '', this.start = Duration.zero, this.isLocalFile = false});
+  const PlaybackSource({
+    required this.uri,
+    this.headers = const {},
+    this.title = '',
+    this.start = Duration.zero,
+    this.isLocalFile = false,
+  });
   final String uri;
   final Map<String, String> headers;
   final String title;

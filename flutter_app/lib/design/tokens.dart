@@ -41,16 +41,49 @@ class AetherTokens {
   static const double blurHigh = 28;
 
   static TextTheme textTheme(Color color) => TextTheme(
-        displaySmall: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: -0.8, height: 1.05, color: color),
-        headlineMedium: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, letterSpacing: -0.4, color: color),
-        titleLarge: TextStyle(fontSize: 21, fontWeight: FontWeight.w700, letterSpacing: -0.2, color: color),
-        titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: color),
-        bodyLarge: TextStyle(fontSize: 16, height: 1.35, color: color),
-        bodyMedium: TextStyle(fontSize: 14, height: 1.35, color: color),
-        bodySmall: TextStyle(fontSize: 12, height: 1.3, color: color.withValues(alpha: 0.7)),
-        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color),
-        labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.4, color: color.withValues(alpha: 0.7)),
-      );
+    displaySmall: TextStyle(
+      fontSize: 34,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.8,
+      height: 1.05,
+      color: color,
+    ),
+    headlineMedium: TextStyle(
+      fontSize: 26,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.4,
+      color: color,
+    ),
+    titleLarge: TextStyle(
+      fontSize: 21,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.2,
+      color: color,
+    ),
+    titleMedium: TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.w600,
+      color: color,
+    ),
+    bodyLarge: TextStyle(fontSize: 16, height: 1.35, color: color),
+    bodyMedium: TextStyle(fontSize: 14, height: 1.35, color: color),
+    bodySmall: TextStyle(
+      fontSize: 12,
+      height: 1.3,
+      color: color.withValues(alpha: 0.7),
+    ),
+    labelLarge: TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: color,
+    ),
+    labelSmall: TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.4,
+      color: color.withValues(alpha: 0.7),
+    ),
+  );
 }
 
 /// The live look chosen in Settings, read by the glass widgets.
@@ -79,12 +112,23 @@ class AetherLook extends InheritedWidget {
 
   @override
   bool updateShouldNotify(AetherLook old) =>
-      accent != old.accent || glassIntensity != old.glassIntensity || reduceEffects != old.reduceEffects || amoled != old.amoled || cinematic != old.cinematic;
+      accent != old.accent ||
+      glassIntensity != old.glassIntensity ||
+      reduceEffects != old.reduceEffects ||
+      amoled != old.amoled ||
+      cinematic != old.cinematic;
 }
 
 class _Fallback {
   const _Fallback();
-  AetherLook get look => const AetherLook(accent: Color(0xFF7C8CFF), glassIntensity: 1, reduceEffects: false, amoled: false, cinematic: true, child: SizedBox());
+  AetherLook get look => const AetherLook(
+    accent: Color(0xFF7C8CFF),
+    glassIntensity: 1,
+    reduceEffects: false,
+    amoled: false,
+    cinematic: true,
+    child: SizedBox(),
+  );
 }
 
 Color colorFromHex(String hex, {Color fallback = const Color(0xFF7C8CFF)}) {

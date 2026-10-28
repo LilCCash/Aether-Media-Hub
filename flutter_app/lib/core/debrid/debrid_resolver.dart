@@ -21,7 +21,12 @@ class ResolvedLink {
 /// With [allowDownload] false only content that is already in TorBox's cache is accepted (nothing new is started); with true
 /// and a torrent that is not cached, TorBox downloads it and this waits, reporting progress, until it is ready or cancelled.
 class DebridResolver {
-  DebridResolver(this.client, {this.pollInterval = const Duration(seconds: 3), this.maxCachedWait = const Duration(seconds: 90), this.maxDownloadWait = const Duration(hours: 2)});
+  DebridResolver(
+    this.client, {
+    this.pollInterval = const Duration(seconds: 3),
+    this.maxCachedWait = const Duration(seconds: 90),
+    this.maxDownloadWait = const Duration(hours: 2),
+  });
 
   final TorBoxClient client;
   final Duration pollInterval;
@@ -37,19 +42,36 @@ class DebridResolver {
     CancelToken? cancel,
   }) async {
     final hash = stream.infoHash;
-    if (hash == null) throw const DebridException(DebridFailure.unknown, 'Questa sorgente non è un torrent.');
-    void report(String m, [double? f]) => onStatus?.call(ResolveStatus(m, fraction: f));
+    if (hash == null)
+      throw const DebridException(
+        DebridFailure.unknown,
+        'Questa sorgente non è un torrent.',
+      );
+    void report(String m, [double? f]) =>
+        onStatus?.call(ResolveStatus(m, fraction: f));
     void checkCancel() {
-      if (cancel?.isCancelled ?? false) throw const DebridException(DebridFailure.cancelled, 'Operazione annullata.');
+      if (cancel?.isCancelled ?? false)
+        throw const DebridException(
+          DebridFailure.cancelled,
+          'Operazione annullata.',
+        );
     }
 
     report('Controllo TorBox…');
     var id = await client.findByHash(hash, cancel: cancel);
     checkCancel();
     if (id == null) {
-      report(allowDownload ? 'Aggiungo il torrent a TorBox…' : 'Preparo la sorgente su TorBox…');
+      report(
+        allowDownload
+            ? 'Aggiungo il torrent a TorBox…'
+            : 'Preparo la sorgente su TorBox…',
+      );
       try {
-        id = await client.addMagnet(stream.magnet, onlyIfCached: !allowDownload, cancel: cancel);
+        id = await client.addMagnet(
+          stream.magnet,
+          onlyIfCached: !allowDownload,
+          cancel: cancel,
+        );
       } on DebridException catch (e) {
         if (e.failure == DebridFailure.notCached && allowDownload) {
           // Some answers use 409 for an already-queued item: look it up before giving up.
@@ -67,17 +89,35 @@ class DebridResolver {
       final torrent = await client.torrent(id, cancel: cancel);
       if (torrent != null && torrent.ready) {
         final hint = TorBoxClient.episodeHint(season, episode);
-        final file = TorBoxClient.chooseFile(torrent.files, fileIdx: stream.fileIdx, episodeHint: hint);
-        if (file == null) throw const DebridException(DebridFailure.notReady, 'Nel torrent non c’è nessun file video.');
+        final file = TorBoxClient.chooseFile(
+          torrent.files,
+          fileIdx: stream.fileIdx,
+          episodeHint: hint,
+        );
+        if (file == null)
+          throw const DebridException(
+            DebridFailure.notReady,
+            'Nel torrent non c’è nessun file video.',
+          );
         report('Ottengo il link…');
         final link = await client.requestLink(id, file.id, cancel: cancel);
         return ResolvedLink(link, fileName: file.name);
       }
       if (DateTime.now().difference(started) > limit) {
-        throw DebridException(DebridFailure.notReady, allowDownload ? 'TorBox sta ancora scaricando: riprova più tardi.' : 'TorBox non ha preparato il contenuto in tempo.');
+        throw DebridException(
+          DebridFailure.notReady,
+          allowDownload
+              ? 'TorBox sta ancora scaricando: riprova più tardi.'
+              : 'TorBox non ha preparato il contenuto in tempo.',
+        );
       }
       final pct = torrent == null ? null : torrent.progress;
-      report(allowDownload ? 'Download su TorBox${pct == null ? '' : ' · ${(pct * 100).round()}%'}' : 'TorBox sta preparando il file…', pct);
+      report(
+        allowDownload
+            ? 'Download su TorBox${pct == null ? '' : ' · ${(pct * 100).round()}%'}'
+            : 'TorBox sta preparando il file…',
+        pct,
+      );
       await Future<void>.delayed(pollInterval);
     }
   }

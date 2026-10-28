@@ -1,0 +1,39 @@
+name: Flutter CI
+
+# Checks of the Flutter app (analysis, formatting, tests). Lives with the app in flutter_app/ on the aether-flutter-comp branch.
+on:
+  push:
+    branches: ['aether-flutter-comp']
+    paths: ['flutter_app/**', '.github/workflows/flutter-ci.yml']
+  pull_request:
+    paths: ['flutter_app/**']
+  workflow_dispatch:
+
+concurrency:
+  group: flutter-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Analyze, format, test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.8'
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get
+      - name: Formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Static analysis
+        run: flutter analyze --no-fatal-infos
+      - name: Unit and widget tests
+        run: flutter test --reporter expanded
+      - name: Dependency licences (listing)
+        run: flutter pub deps --style=compact | head -120

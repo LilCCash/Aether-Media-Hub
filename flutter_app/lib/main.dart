@@ -10,5 +10,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKitEngine.ensureInitialised();
   final services = await AppServices.create();
-  runApp(ProviderScope(overrides: [servicesProvider.overrideWithValue(services)], child: const AetherApp()));
+  runApp(
+    ProviderScope(
+      overrides: [servicesProvider.overrideWithValue(services)],
+      child: const AetherApp(),
+    ),
+  );
 }

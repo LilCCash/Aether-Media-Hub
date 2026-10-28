@@ -21,8 +21,18 @@ void main() {
 
   test('downloads a file, persists it and exposes the local path', () async {
     final store = MemoryStore();
-    final m = DownloadManager(store: store, directory: dir, dio: fakeDio((o) => (status: 200, body: 'HELLOWORLD')));
-    final item = await m.enqueue(metaId: 'tt1', videoId: 'tt1', type: 'movie', title: 'Film', url: 'https://cdn.example/a/film.mkv');
+    final m = DownloadManager(
+      store: store,
+      directory: dir,
+      dio: fakeDio((o) => (status: 200, body: 'HELLOWORLD')),
+    );
+    final item = await m.enqueue(
+      metaId: 'tt1',
+      videoId: 'tt1',
+      type: 'movie',
+      title: 'Film',
+      url: 'https://cdn.example/a/film.mkv',
+    );
     await settle(m, item.id, DownloadStatus.done);
     expect(File(m.pathOf(item)).readAsStringSync(), 'HELLOWORLD');
     expect(m.pathOf(item), endsWith('.mkv'));
@@ -34,29 +44,66 @@ void main() {
     expect(File(m.pathOf(item)).existsSync(), isFalse);
   });
 
-  test('a partial file resumes with a Range request when the server supports it', () async {
-    final seen = <String?>[];
-    final m = DownloadManager(store: MemoryStore(), directory: dir, dio: fakeDio((o) {
-      seen.add(o.headers['Range'] as String?);
-      return o.headers.containsKey('Range') ? (status: 206, body: 'WORLD') : (status: 200, body: 'HELLOWORLD');
-    }));
-    final item = await m.enqueue(metaId: 'a', videoId: 'a', type: 'movie', title: 'a', url: 'https://cdn.example/a.mp4');
-    await settle(m, item.id, DownloadStatus.done);
-    // Simulate an interrupted download: only the first half is on disk.
-    File(m.pathOf(item)).renameSync('${m.pathOf(item)}.part');
-    File('${m.pathOf(item)}.part').writeAsStringSync('HELLO');
-    item.status = DownloadStatus.paused;
-    await m.resume(item.id);
-    await settle(m, item.id, DownloadStatus.done);
-    expect(seen.last, 'bytes=5-');
-    expect(File(m.pathOf(item)).readAsStringSync(), 'HELLOWORLD');
-  });
+  test(
+    'a partial file resumes with a Range request when the server supports it',
+    () async {
+      final seen = <String?>[];
+      final m = DownloadManager(
+        store: MemoryStore(),
+        directory: dir,
+        dio: fakeDio((o) {
+          seen.add(o.headers['Range'] as String?);
+          return o.headers.containsKey('Range')
+              ? (status: 206, body: 'WORLD')
+              : (status: 200, body: 'HELLOWORLD');
+        }),
+      );
+      final item = await m.enqueue(
+        metaId: 'a',
+        videoId: 'a',
+        type: 'movie',
+        title: 'a',
+        url: 'https://cdn.example/a.mp4',
+      );
+      await settle(m, item.id, DownloadStatus.done);
+      // Simulate an interrupted download: only the first half is on disk.
+      File(m.pathOf(item)).renameSync('${m.pathOf(item)}.part');
+      File('${m.pathOf(item)}.part').writeAsStringSync('HELLO');
+      item.status = DownloadStatus.paused;
+      await m.resume(item.id);
+      await settle(m, item.id, DownloadStatus.done);
+      expect(seen.last, 'bytes=5-');
+      expect(File(m.pathOf(item)).readAsStringSync(), 'HELLOWORLD');
+    },
+  );
 
-  test('server errors fail with a message; local addresses are refused', () async {
-    final m = DownloadManager(store: MemoryStore(), directory: dir, dio: fakeDio((o) => (status: 404, body: '')));
-    final item = await m.enqueue(metaId: 'a', videoId: 'a', type: 'movie', title: 'a', url: 'https://cdn.example/a.mp4');
-    await settle(m, item.id, DownloadStatus.failed);
-    expect(item.error, contains('404'));
-    expect(() => m.enqueue(metaId: 'b', videoId: 'b', type: 'movie', title: 'b', url: 'http://127.0.0.1/a.mp4'), throwsFormatException);
-  });
+  test(
+    'server errors fail with a message; local addresses are refused',
+    () async {
+      final m = DownloadManager(
+        store: MemoryStore(),
+        directory: dir,
+        dio: fakeDio((o) => (status: 404, body: '')),
+      );
+      final item = await m.enqueue(
+        metaId: 'a',
+        videoId: 'a',
+        type: 'movie',
+        title: 'a',
+        url: 'https://cdn.example/a.mp4',
+      );
+      await settle(m, item.id, DownloadStatus.failed);
+      expect(item.error, contains('404'));
+      expect(
+        () => m.enqueue(
+          metaId: 'b',
+          videoId: 'b',
+          type: 'movie',
+          title: 'b',
+          url: 'http://127.0.0.1/a.mp4',
+        ),
+        throwsFormatException,
+      );
+    },
+  );
 }

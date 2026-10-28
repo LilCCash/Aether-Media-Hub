@@ -10,8 +10,18 @@ import 'playback_engine.dart';
 /// HEVC, multiple audio and subtitle tracks, ASS) on both iOS and Android with one code path. See docs/research/decisions/ADR-002.
 class MediaKitEngine implements PlaybackEngine {
   MediaKitEngine() {
-    _player = Player(configuration: const PlayerConfiguration(title: 'Aether', bufferSize: 64 * 1024 * 1024));
-    _video = VideoController(_player, configuration: const VideoControllerConfiguration(enableHardwareAcceleration: true));
+    _player = Player(
+      configuration: const PlayerConfiguration(
+        title: 'Aether',
+        bufferSize: 64 * 1024 * 1024,
+      ),
+    );
+    _video = VideoController(
+      _player,
+      configuration: const VideoControllerConfiguration(
+        enableHardwareAcceleration: true,
+      ),
+    );
   }
 
   late final Player _player;
@@ -37,18 +47,35 @@ class MediaKitEngine implements PlaybackEngine {
   @override
   Stream<String> get errorStream => _player.stream.error;
   @override
-  Stream<List<String>> get embeddedSubtitleTextStream => _player.stream.subtitle;
+  Stream<List<String>> get embeddedSubtitleTextStream =>
+      _player.stream.subtitle;
 
   EngineTracks _map(Tracks t) => EngineTracks(
-        audio: [
-          for (final a in t.audio)
-            if (a.id != 'auto' && a.id != 'no') TrackInfo(id: a.id, kind: TrackKind.audio, title: a.title, language: a.language, isDefault: a.isDefault ?? false, codec: a.codec),
-        ],
-        subtitles: [
-          for (final s in t.subtitle)
-            if (s.id != 'auto' && s.id != 'no') TrackInfo(id: s.id, kind: TrackKind.subtitle, title: s.title, language: s.language, isDefault: s.isDefault ?? false, codec: s.codec),
-        ],
-      );
+    audio: [
+      for (final a in t.audio)
+        if (a.id != 'auto' && a.id != 'no')
+          TrackInfo(
+            id: a.id,
+            kind: TrackKind.audio,
+            title: a.title,
+            language: a.language,
+            isDefault: a.isDefault ?? false,
+            codec: a.codec,
+          ),
+    ],
+    subtitles: [
+      for (final s in t.subtitle)
+        if (s.id != 'auto' && s.id != 'no')
+          TrackInfo(
+            id: s.id,
+            kind: TrackKind.subtitle,
+            title: s.title,
+            language: s.language,
+            isDefault: s.isDefault ?? false,
+            codec: s.codec,
+          ),
+    ],
+  );
 
   @override
   Stream<EngineTracks> get tracksStream => _player.stream.tracks.map(_map);
@@ -63,7 +90,14 @@ class MediaKitEngine implements PlaybackEngine {
   EngineTracks get tracks => _map(_player.state.tracks);
 
   @override
-  Future<void> open(PlaybackSource source) => _player.open(Media(source.uri, httpHeaders: source.headers.isEmpty ? null : source.headers, start: source.start == Duration.zero ? null : source.start), play: true);
+  Future<void> open(PlaybackSource source) => _player.open(
+    Media(
+      source.uri,
+      httpHeaders: source.headers.isEmpty ? null : source.headers,
+      start: source.start == Duration.zero ? null : source.start,
+    ),
+    play: true,
+  );
 
   @override
   Future<void> play() => _player.play();
@@ -74,7 +108,8 @@ class MediaKitEngine implements PlaybackEngine {
   @override
   Future<void> setRate(double rate) => _player.setRate(rate);
   @override
-  Future<void> setVolume(double volume01) => _player.setVolume((volume01.clamp(0.0, 1.0)) * 100);
+  Future<void> setVolume(double volume01) =>
+      _player.setVolume((volume01.clamp(0.0, 1.0)) * 100);
 
   @override
   Future<void> selectAudio(TrackInfo? track) async {
@@ -92,13 +127,20 @@ class MediaKitEngine implements PlaybackEngine {
 
   @override
   Widget buildVideo(BuildContext context, {required BoxFit fit}) => Video(
-        controller: _video,
-        fit: fit,
-        controls: NoVideoControls,
-        fill: Colors.black,
-        // Embedded subtitles are drawn by the engine's own view; the one external-file overlay is Aether's.
-        subtitleViewConfiguration: const SubtitleViewConfiguration(style: TextStyle(fontSize: 34, color: Colors.white, fontWeight: FontWeight.w600, shadows: [Shadow(blurRadius: 4, color: Colors.black)])),
-      );
+    controller: _video,
+    fit: fit,
+    controls: NoVideoControls,
+    fill: Colors.black,
+    // Embedded subtitles are drawn by the engine's own view; the one external-file overlay is Aether's.
+    subtitleViewConfiguration: const SubtitleViewConfiguration(
+      style: TextStyle(
+        fontSize: 34,
+        color: Colors.white,
+        fontWeight: FontWeight.w600,
+        shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+      ),
+    ),
+  );
 
   @override
   Future<void> dispose() => _player.dispose();

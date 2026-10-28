@@ -1,7 +1,12 @@
 import '../util/lenient.dart';
 
 class AddonSubtitle {
-  const AddonSubtitle({required this.id, required this.url, required this.lang, this.addonName});
+  const AddonSubtitle({
+    required this.id,
+    required this.url,
+    required this.lang,
+    this.addonName,
+  });
 
   final String id;
   final String url;
@@ -12,7 +17,12 @@ class AddonSubtitle {
     final map = asMap(raw);
     final url = asNonEmptyString(map?['url']);
     if (map == null || url == null) return null;
-    return AddonSubtitle(id: asNonEmptyString(map['id']) ?? url, url: url, lang: asNonEmptyString(map['lang']) ?? 'und', addonName: addonName);
+    return AddonSubtitle(
+      id: asNonEmptyString(map['id']) ?? url,
+      url: url,
+      lang: asNonEmptyString(map['lang']) ?? 'und',
+      addonName: addonName,
+    );
   }
 }
 
@@ -54,11 +64,14 @@ class AddonStream {
   final String? addonId;
   final String? addonName;
 
-  bool get isDirect => url != null && (url!.startsWith('http://') || url!.startsWith('https://'));
+  bool get isDirect =>
+      url != null &&
+      (url!.startsWith('http://') || url!.startsWith('https://'));
   bool get isTorrent => infoHash != null && infoHash!.isNotEmpty;
 
   /// Text the analyzer reads: addons put the interesting words in `name`, `title` or `description`.
-  String get searchText => [name, description, filename, _urlFileName].whereType<String>().join(' ');
+  String get searchText =>
+      [name, description, filename, _urlFileName].whereType<String>().join(' ');
 
   String? get _urlFileName {
     final raw = url;
@@ -81,7 +94,8 @@ class AddonStream {
     final hash = asNonEmptyString(map['infoHash']);
     final yt = asNonEmptyString(map['ytId']);
     final external = asNonEmptyString(map['externalUrl']);
-    if (url == null && hash == null && yt == null && external == null) return null;
+    if (url == null && hash == null && yt == null && external == null)
+      return null;
     final hints = asMap(map['behaviorHints']) ?? const {};
     final headers = <String, String>{};
     final request = asMap(asMap(hints['proxyHeaders'])?['request']);
@@ -105,7 +119,9 @@ class AddonStream {
       ytId: yt,
       externalUrl: external,
       name: asNonEmptyString(map['name']),
-      description: asNonEmptyString(map['description']) ?? asNonEmptyString(map['title']),
+      description:
+          asNonEmptyString(map['description']) ??
+          asNonEmptyString(map['title']),
       trackers: trackers,
       bingeGroup: asNonEmptyString(hints['bingeGroup']),
       filename: asNonEmptyString(hints['filename']),

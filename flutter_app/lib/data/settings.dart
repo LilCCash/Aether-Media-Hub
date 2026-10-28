@@ -79,58 +79,59 @@ class AppSettings {
     List<String>? catalogOrder,
     bool? showContinueWatching,
     String? preferredStreamLanguage,
-  }) =>
-      AppSettings(
-        language: language ?? this.language,
-        audioLanguage: audioLanguage ?? this.audioLanguage,
-        subtitleLanguage: subtitleLanguage ?? this.subtitleLanguage,
-        subtitlesEnabledByDefault: subtitlesEnabledByDefault ?? this.subtitlesEnabledByDefault,
-        subtitleScale: subtitleScale ?? this.subtitleScale,
-        subtitleOffsetMs: subtitleOffsetMs ?? this.subtitleOffsetMs,
-        removeHearingImpaired: removeHearingImpaired ?? this.removeHearingImpaired,
-        playbackSpeed: playbackSpeed ?? this.playbackSpeed,
-        autoplayNext: autoplayNext ?? this.autoplayNext,
-        resumePlayback: resumePlayback ?? this.resumePlayback,
-        allowLocalNetwork: allowLocalNetwork ?? this.allowLocalNetwork,
-        hideAdultCatalogs: hideAdultCatalogs ?? this.hideAdultCatalogs,
-        glassIntensity: glassIntensity ?? this.glassIntensity,
-        reduceEffects: reduceEffects ?? this.reduceEffects,
-        amoled: amoled ?? this.amoled,
-        accentHex: accentHex ?? this.accentHex,
-        cinematic: cinematic ?? this.cinematic,
-        onboardingDone: onboardingDone ?? this.onboardingDone,
-        hiddenHomeCatalogs: hiddenHomeCatalogs ?? this.hiddenHomeCatalogs,
-        catalogTitles: catalogTitles ?? this.catalogTitles,
-        catalogOrder: catalogOrder ?? this.catalogOrder,
-        showContinueWatching: showContinueWatching ?? this.showContinueWatching,
-        preferredStreamLanguage: preferredStreamLanguage ?? this.preferredStreamLanguage,
-      );
+  }) => AppSettings(
+    language: language ?? this.language,
+    audioLanguage: audioLanguage ?? this.audioLanguage,
+    subtitleLanguage: subtitleLanguage ?? this.subtitleLanguage,
+    subtitlesEnabledByDefault:
+        subtitlesEnabledByDefault ?? this.subtitlesEnabledByDefault,
+    subtitleScale: subtitleScale ?? this.subtitleScale,
+    subtitleOffsetMs: subtitleOffsetMs ?? this.subtitleOffsetMs,
+    removeHearingImpaired: removeHearingImpaired ?? this.removeHearingImpaired,
+    playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+    autoplayNext: autoplayNext ?? this.autoplayNext,
+    resumePlayback: resumePlayback ?? this.resumePlayback,
+    allowLocalNetwork: allowLocalNetwork ?? this.allowLocalNetwork,
+    hideAdultCatalogs: hideAdultCatalogs ?? this.hideAdultCatalogs,
+    glassIntensity: glassIntensity ?? this.glassIntensity,
+    reduceEffects: reduceEffects ?? this.reduceEffects,
+    amoled: amoled ?? this.amoled,
+    accentHex: accentHex ?? this.accentHex,
+    cinematic: cinematic ?? this.cinematic,
+    onboardingDone: onboardingDone ?? this.onboardingDone,
+    hiddenHomeCatalogs: hiddenHomeCatalogs ?? this.hiddenHomeCatalogs,
+    catalogTitles: catalogTitles ?? this.catalogTitles,
+    catalogOrder: catalogOrder ?? this.catalogOrder,
+    showContinueWatching: showContinueWatching ?? this.showContinueWatching,
+    preferredStreamLanguage:
+        preferredStreamLanguage ?? this.preferredStreamLanguage,
+  );
 
   Map<String, Object?> toJson() => {
-        'language': language,
-        'audioLanguage': audioLanguage,
-        'subtitleLanguage': subtitleLanguage,
-        'subtitlesEnabledByDefault': subtitlesEnabledByDefault,
-        'subtitleScale': subtitleScale,
-        'subtitleOffsetMs': subtitleOffsetMs,
-        'removeHearingImpaired': removeHearingImpaired,
-        'playbackSpeed': playbackSpeed,
-        'autoplayNext': autoplayNext,
-        'resumePlayback': resumePlayback,
-        'allowLocalNetwork': allowLocalNetwork,
-        'hideAdultCatalogs': hideAdultCatalogs,
-        'glassIntensity': glassIntensity,
-        'reduceEffects': reduceEffects,
-        'amoled': amoled,
-        'accentHex': accentHex,
-        'cinematic': cinematic,
-        'onboardingDone': onboardingDone,
-        'hiddenHomeCatalogs': hiddenHomeCatalogs,
-        'catalogTitles': catalogTitles,
-        'catalogOrder': catalogOrder,
-        'showContinueWatching': showContinueWatching,
-        'preferredStreamLanguage': preferredStreamLanguage,
-      };
+    'language': language,
+    'audioLanguage': audioLanguage,
+    'subtitleLanguage': subtitleLanguage,
+    'subtitlesEnabledByDefault': subtitlesEnabledByDefault,
+    'subtitleScale': subtitleScale,
+    'subtitleOffsetMs': subtitleOffsetMs,
+    'removeHearingImpaired': removeHearingImpaired,
+    'playbackSpeed': playbackSpeed,
+    'autoplayNext': autoplayNext,
+    'resumePlayback': resumePlayback,
+    'allowLocalNetwork': allowLocalNetwork,
+    'hideAdultCatalogs': hideAdultCatalogs,
+    'glassIntensity': glassIntensity,
+    'reduceEffects': reduceEffects,
+    'amoled': amoled,
+    'accentHex': accentHex,
+    'cinematic': cinematic,
+    'onboardingDone': onboardingDone,
+    'hiddenHomeCatalogs': hiddenHomeCatalogs,
+    'catalogTitles': catalogTitles,
+    'catalogOrder': catalogOrder,
+    'showContinueWatching': showContinueWatching,
+    'preferredStreamLanguage': preferredStreamLanguage,
+  };
 
   factory AppSettings.fromJson(Object? raw) {
     final m = asMap(raw) ?? const {};
@@ -149,27 +150,44 @@ class AppSettings {
     return AppSettings(
       language: asNonEmptyString(m['language']) ?? d.language,
       audioLanguage: asNonEmptyString(m['audioLanguage']) ?? d.audioLanguage,
-      subtitleLanguage: asNonEmptyString(m['subtitleLanguage']) ?? d.subtitleLanguage,
-      subtitlesEnabledByDefault: asBool(m['subtitlesEnabledByDefault'], fallback: d.subtitlesEnabledByDefault),
+      subtitleLanguage:
+          asNonEmptyString(m['subtitleLanguage']) ?? d.subtitleLanguage,
+      subtitlesEnabledByDefault: asBool(
+        m['subtitlesEnabledByDefault'],
+        fallback: d.subtitlesEnabledByDefault,
+      ),
       subtitleScale: clampD(m['subtitleScale'], d.subtitleScale, 0.6, 2.0),
-      subtitleOffsetMs: (asInt(m['subtitleOffsetMs']) ?? 0).clamp(-30000, 30000),
+      subtitleOffsetMs: (asInt(m['subtitleOffsetMs']) ?? 0).clamp(
+        -30000,
+        30000,
+      ),
       removeHearingImpaired: asBool(m['removeHearingImpaired']),
       playbackSpeed: clampD(m['playbackSpeed'], 1.0, 0.25, 3.0),
       autoplayNext: asBool(m['autoplayNext'], fallback: d.autoplayNext),
       resumePlayback: asBool(m['resumePlayback'], fallback: d.resumePlayback),
       allowLocalNetwork: asBool(m['allowLocalNetwork']),
-      hideAdultCatalogs: asBool(m['hideAdultCatalogs'], fallback: d.hideAdultCatalogs),
+      hideAdultCatalogs: asBool(
+        m['hideAdultCatalogs'],
+        fallback: d.hideAdultCatalogs,
+      ),
       glassIntensity: clampD(m['glassIntensity'], 1.0, 0.0, 1.0),
       reduceEffects: asBool(m['reduceEffects']),
       amoled: asBool(m['amoled']),
-      accentHex: (hex != null && RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(hex)) ? hex : d.accentHex,
+      accentHex: (hex != null && RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(hex))
+          ? hex
+          : d.accentHex,
       cinematic: asBool(m['cinematic'], fallback: d.cinematic),
       onboardingDone: asBool(m['onboardingDone']),
       hiddenHomeCatalogs: asStringList(m['hiddenHomeCatalogs']),
       catalogTitles: titles,
       catalogOrder: asStringList(m['catalogOrder']),
-      showContinueWatching: asBool(m['showContinueWatching'], fallback: d.showContinueWatching),
-      preferredStreamLanguage: asNonEmptyString(m['preferredStreamLanguage']) ?? d.preferredStreamLanguage,
+      showContinueWatching: asBool(
+        m['showContinueWatching'],
+        fallback: d.showContinueWatching,
+      ),
+      preferredStreamLanguage:
+          asNonEmptyString(m['preferredStreamLanguage']) ??
+          d.preferredStreamLanguage,
     );
   }
 }
@@ -189,5 +207,6 @@ class SettingsRepository {
     }
   }
 
-  Future<void> save(AppSettings settings) => _store.write(key, jsonEncode(settings.toJson()));
+  Future<void> save(AppSettings settings) =>
+      _store.write(key, jsonEncode(settings.toJson()));
 }

@@ -27,22 +27,32 @@ class InstalledAddon {
 
   String get displayName => nameOverride ?? manifest.name;
 
-  InstalledAddon copyWith({AddonManifest? manifest, bool? enabled, String? nameOverride, bool clearName = false, Set<String>? hiddenCatalogs}) =>
-      InstalledAddon(
-        id: id,
-        base: base,
-        manifest: manifest ?? this.manifest,
-        enabled: enabled ?? this.enabled,
-        nameOverride: clearName ? null : (nameOverride ?? this.nameOverride),
-        hiddenCatalogs: hiddenCatalogs ?? this.hiddenCatalogs,
-      );
+  InstalledAddon copyWith({
+    AddonManifest? manifest,
+    bool? enabled,
+    String? nameOverride,
+    bool clearName = false,
+    Set<String>? hiddenCatalogs,
+  }) => InstalledAddon(
+    id: id,
+    base: base,
+    manifest: manifest ?? this.manifest,
+    enabled: enabled ?? this.enabled,
+    nameOverride: clearName ? null : (nameOverride ?? this.nameOverride),
+    hiddenCatalogs: hiddenCatalogs ?? this.hiddenCatalogs,
+  );
 
   bool isCatalogVisible(ManifestCatalog c) => !hiddenCatalogs.contains(c.key);
 }
 
 /// What the user sees before confirming an installation.
 class AddonPreview {
-  const AddonPreview({required this.base, required this.manifest, required this.warnings, this.alreadyInstalled = false});
+  const AddonPreview({
+    required this.base,
+    required this.manifest,
+    required this.warnings,
+    this.alreadyInstalled = false,
+  });
   final Uri base;
   final AddonManifest manifest;
   final List<String> warnings;
@@ -52,10 +62,13 @@ class AddonPreview {
 /// Installed addons, in priority order. Addresses (which can embed the user's configuration) live in the [SecretStore];
 /// everything else in the [KeyValueStore].
 class AddonRepository {
-  AddonRepository({required KeyValueStore store, required SecretStore secrets, required AddonClient client})
-      : _store = store,
-        _secrets = secrets,
-        _client = client;
+  AddonRepository({
+    required KeyValueStore store,
+    required SecretStore secrets,
+    required AddonClient client,
+  }) : _store = store,
+       _secrets = secrets,
+       _client = client;
 
   static const _listKey = 'addons.v1';
   final KeyValueStore _store;
@@ -79,20 +92,30 @@ class AddonRepository {
         final base = Uri.tryParse(address);
         if (base == null) continue;
         try {
-          result.add(InstalledAddon(
-            id: id,
-            base: base,
-            manifest: AddonManifest.parse(map['manifest']),
-            enabled: map['enabled'] as bool? ?? true,
-            nameOverride: map['nameOverride'] as String?,
-            hiddenCatalogs: ((map['hiddenCatalogs'] as List?) ?? const []).cast<String>().toSet(),
-          ));
+          result.add(
+            InstalledAddon(
+              id: id,
+              base: base,
+              manifest: AddonManifest.parse(map['manifest']),
+              enabled: map['enabled'] as bool? ?? true,
+              nameOverride: map['nameOverride'] as String?,
+              hiddenCatalogs: ((map['hiddenCatalogs'] as List?) ?? const [])
+                  .cast<String>()
+                  .toSet(),
+            ),
+          );
         } on FormatException {
-          AppLog.instance.add('addon', 'Addon $id ignorato: manifest salvato non valido');
+          AppLog.instance.add(
+            'addon',
+            'Addon $id ignorato: manifest salvato non valido',
+          );
         }
       }
     } on Object catch (e) {
-      AppLog.instance.add('addon', 'Elenco addon illeggibile: ${e.runtimeType}');
+      AppLog.instance.add(
+        'addon',
+        'Elenco addon illeggibile: ${e.runtimeType}',
+      );
     }
     _addons = result;
   }
@@ -100,52 +123,87 @@ class AddonRepository {
   Future<void> _save() async {
     await _store.write(
       _listKey,
-      jsonEncode(_addons
-          .map((a) => {
+      jsonEncode(
+        _addons
+            .map(
+              (a) => {
                 'id': a.id,
                 'manifest': a.manifest.toJson(),
                 'enabled': a.enabled,
                 if (a.nameOverride != null) 'nameOverride': a.nameOverride,
                 'hiddenCatalogs': a.hiddenCatalogs.toList(),
-              })
-          .toList()),
+              },
+            )
+            .toList(),
+      ),
     );
   }
 
   /// Downloads and checks the manifest without installing anything.
   Future<AddonPreview> preview(String input, {CancelToken? cancel}) async {
     final base = AddonUrl.parseBase(input);
-    if (base == null) throw const AddonException('Non riconosco questo indirizzo: incolla il link del manifest dell’addon.');
+    if (base == null)
+      throw const AddonException(
+        'Non riconosco questo indirizzo: incolla il link del manifest dell’addon.',
+      );
     final manifest = await _client.fetchManifest(base, cancel: cancel);
     final warnings = <String>[];
-    if (base.scheme == 'http') warnings.add('L’indirizzo non è cifrato (http).');
-    if (manifest.behaviorHints.adult) warnings.add('L’addon dichiara contenuti per adulti.');
-    if (manifest.behaviorHints.p2p) warnings.add('L’addon usa il peer-to-peer (torrent): serve un servizio debrid per riprodurre.');
-    if (manifest.behaviorHints.configurationRequired) warnings.add('L’addon richiede una configurazione prima dell’uso.');
-    final existing = _addons.any((a) => a.manifest.id == manifest.id && a.base == base);
-    return AddonPreview(base: base, manifest: manifest, warnings: warnings, alreadyInstalled: existing);
+    if (base.scheme == 'http')
+      warnings.add('L’indirizzo non è cifrato (http).');
+    if (manifest.behaviorHints.adult)
+      warnings.add('L’addon dichiara contenuti per adulti.');
+    if (manifest.behaviorHints.p2p)
+      warnings.add(
+        'L’addon usa il peer-to-peer (torrent): serve un servizio debrid per riprodurre.',
+      );
+    if (manifest.behaviorHints.configurationRequired)
+      warnings.add('L’addon richiede una configurazione prima dell’uso.');
+    final existing = _addons.any(
+      (a) => a.manifest.id == manifest.id && a.base == base,
+    );
+    return AddonPreview(
+      base: base,
+      manifest: manifest,
+      warnings: warnings,
+      alreadyInstalled: existing,
+    );
   }
 
   Future<InstalledAddon> install(AddonPreview preview) async {
-    final duplicate = _addons.where((a) => a.manifest.id == preview.manifest.id && a.base == preview.base);
+    final duplicate = _addons.where(
+      (a) => a.manifest.id == preview.manifest.id && a.base == preview.base,
+    );
     if (duplicate.isNotEmpty) return duplicate.first;
     final id = '${DateTime.now().microsecondsSinceEpoch}-${_addons.length}';
     await _secrets.write('addon.$id.url', preview.base.toString());
-    final addon = InstalledAddon(id: id, base: preview.base, manifest: preview.manifest);
+    final addon = InstalledAddon(
+      id: id,
+      base: preview.base,
+      manifest: preview.manifest,
+    );
     _addons = [..._addons, addon];
     await _save();
     return addon;
   }
 
-  Future<void> setEnabled(String id, bool value) => _update(id, (a) => a.copyWith(enabled: value));
-  Future<void> rename(String id, String? name) =>
-      _update(id, (a) => (name == null || name.trim().isEmpty) ? a.copyWith(clearName: true) : a.copyWith(nameOverride: name.trim()));
+  Future<void> setEnabled(String id, bool value) =>
+      _update(id, (a) => a.copyWith(enabled: value));
+  Future<void> rename(String id, String? name) => _update(
+    id,
+    (a) => (name == null || name.trim().isEmpty)
+        ? a.copyWith(clearName: true)
+        : a.copyWith(nameOverride: name.trim()),
+  );
 
-  Future<void> setCatalogVisible(String id, ManifestCatalog catalog, bool visible) => _update(id, (a) {
-        final hidden = {...a.hiddenCatalogs};
-        visible ? hidden.remove(catalog.key) : hidden.add(catalog.key);
-        return a.copyWith(hiddenCatalogs: hidden);
-      });
+  Future<void> setCatalogVisible(
+    String id,
+    ManifestCatalog catalog,
+    bool visible,
+  ) => _update(id, (a) {
+    final hidden = {...a.hiddenCatalogs};
+    visible ? hidden.remove(catalog.key) : hidden.add(catalog.key);
+    return a.copyWith(hiddenCatalogs: hidden);
+  });
 
   Future<void> remove(String id) async {
     _addons = _addons.where((a) => a.id != id).toList();
@@ -172,7 +230,10 @@ class AddonRepository {
     await _update(id, (a) => a.copyWith(manifest: manifest));
   }
 
-  Future<void> _update(String id, InstalledAddon Function(InstalledAddon) change) async {
+  Future<void> _update(
+    String id,
+    InstalledAddon Function(InstalledAddon) change,
+  ) async {
     _addons = _addons.map((a) => a.id == id ? change(a) : a).toList();
     await _save();
   }
