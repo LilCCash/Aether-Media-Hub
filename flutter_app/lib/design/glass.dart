@@ -223,6 +223,7 @@ class AetherBackdrop extends StatelessWidget {
     final base = look.amoled ? Colors.black : AetherTokens.ink;
     final glow = (look.cinematic ? tint : null) ?? look.accent;
     final reduced = look.reduceEffects;
+    final second = look.secondary;
     final strength = look.amoled
         ? 0.10
         : (look.cinematic && tint != null ? 0.38 : 0.22);
@@ -241,6 +242,15 @@ class AetherBackdrop extends StatelessWidget {
                 ],
               ),
       ),
+      foregroundDecoration: (reduced || second == null || look.amoled)
+          ? null
+          : BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(-0.9, 1.0),
+                radius: 1.0,
+                colors: [second.withValues(alpha: 0.14), Colors.transparent],
+              ),
+            ),
       // Ink (list tiles, switches) paints on the nearest Material: give the page one above the coloured backdrop.
       child: child == null
           ? null

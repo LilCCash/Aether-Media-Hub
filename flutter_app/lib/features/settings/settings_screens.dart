@@ -8,6 +8,7 @@ import '../../app/router.dart';
 import '../../app/version.dart';
 import '../../core/debrid/torbox_client.dart';
 import '../../core/metadata/fanart_client.dart';
+import '../../design/palettes.dart';
 import '../../core/metadata/tmdb_client.dart';
 import '../../core/model/meta.dart';
 import '../../core/util/app_log.dart';
@@ -312,6 +313,55 @@ class _AppearancePage extends ConsumerWidget {
               subtitle: 'Sfondo nero assoluto, bagliori ridotti',
               value: s.amoled,
               onChanged: (v) => n.update((x) => x.copyWith(amoled: v)),
+            ),
+          ],
+        ),
+        SettingsGroup(
+          title: 'Palette',
+          footer: 'Una palette sostituisce il colore d’accento e aggiunge un secondo bagliore sullo sfondo. «Aether» usa il colore scelto sotto.',
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final p in AetherPalette.values)
+                    ChoiceChip(
+                      label: Text('${p.emoji} ${p.title}'),
+                      selected: s.palette == p.name,
+                      onSelected: (_) =>
+                          n.update((x) => x.copyWith(palette: p.name)),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        SettingsGroup(
+          title: 'Testo',
+          children: [
+            ChoiceRow<String>(
+              title: 'Carattere dei titoli',
+              value: s.titleFont,
+              options: {for (final f in TitleFont.values) f.name: f.title},
+              onChanged: (v) => n.update((x) => x.copyWith(titleFont: v)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: TextFormField(
+                initialValue: s.greetingName ?? '',
+                maxLength: 24,
+                decoration: const InputDecoration(
+                  labelText: 'Saluto nella Home (il tuo nome)',
+                  hintText: 'Vuoto = nessun saluto',
+                ),
+                onChanged: (v) => n.update(
+                  (x) => x.copyWith(
+                    greetingName: v.trim().isEmpty ? null : v.trim(),
+                  ),
+                ),
+              ),
             ),
           ],
         ),

@@ -40,8 +40,9 @@ class AetherTokens {
   static const double blurLow = 14;
   static const double blurHigh = 28;
 
-  static TextTheme textTheme(Color color) => TextTheme(
+  static TextTheme textTheme(Color color, {String? titleFamily}) => TextTheme(
     displaySmall: TextStyle(
+      fontFamily: titleFamily,
       fontSize: 34,
       fontWeight: FontWeight.w800,
       letterSpacing: -0.8,
@@ -49,12 +50,14 @@ class AetherTokens {
       color: color,
     ),
     headlineMedium: TextStyle(
+      fontFamily: titleFamily,
       fontSize: 26,
       fontWeight: FontWeight.w700,
       letterSpacing: -0.4,
       color: color,
     ),
     titleLarge: TextStyle(
+      fontFamily: titleFamily,
       fontSize: 21,
       fontWeight: FontWeight.w700,
       letterSpacing: -0.2,
@@ -95,6 +98,7 @@ class AetherLook extends InheritedWidget {
     required this.reduceEffects,
     required this.amoled,
     required this.cinematic,
+    this.secondary,
     required super.child,
   });
 
@@ -103,6 +107,9 @@ class AetherLook extends InheritedWidget {
   final bool reduceEffects;
   final bool amoled;
   final bool cinematic;
+
+  /// Second wash of the palette, shown as a faint glow in the lower corner.
+  final Color? secondary;
 
   static AetherLook of(BuildContext context) {
     final look = context.dependOnInheritedWidgetOfExactType<AetherLook>();
@@ -116,7 +123,8 @@ class AetherLook extends InheritedWidget {
       glassIntensity != old.glassIntensity ||
       reduceEffects != old.reduceEffects ||
       amoled != old.amoled ||
-      cinematic != old.cinematic;
+      cinematic != old.cinematic ||
+      secondary != old.secondary;
 }
 
 class _Fallback {

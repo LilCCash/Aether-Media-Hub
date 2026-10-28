@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../design/palettes.dart';
 import '../design/tokens.dart';
 import 'providers.dart';
 import 'router.dart';
@@ -13,7 +14,8 @@ class AetherApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
-    final accent = colorFromHex(s.accentHex);
+    final palette = AetherPalette.byName(s.palette);
+    final accent = palette.primary ?? colorFromHex(s.accentHex);
     final scaffold = s.amoled ? Colors.black : AetherTokens.ink;
     final scheme = ColorScheme.fromSeed(
       seedColor: accent,
@@ -24,7 +26,10 @@ class AetherApp extends ConsumerWidget {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: scaffold,
-      textTheme: AetherTokens.textTheme(AetherTokens.textPrimary),
+      textTheme: AetherTokens.textTheme(
+        AetherTokens.textPrimary,
+        titleFamily: TitleFont.byName(s.titleFont).family,
+      ),
       splashFactory: NoSplash.splashFactory,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -71,6 +76,7 @@ class AetherApp extends ConsumerWidget {
         reduceEffects: s.reduceEffects,
         amoled: s.amoled,
         cinematic: s.cinematic,
+        secondary: palette.secondary,
         child: child ?? const SizedBox(),
       ),
     );

@@ -109,6 +109,16 @@ class HomeScreen extends ConsumerWidget {
                     ? SizedBox(height: MediaQuery.paddingOf(context).top + 24)
                     : HeroCarousel(items: hero),
               ),
+              if (settings.greetingName != null)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    child: Text(
+                      '${greeting(DateTime.now())}, ${settings.greetingName}',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                  ),
+                ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -501,3 +511,12 @@ String _typeName(String type) => switch (type) {
   _ => type,
 };
 String typeName(String type) => _typeName(type);
+
+/// «Buongiorno», «Buon pomeriggio», «Buonasera» or «Buonanotte» by the hour.
+String greeting(DateTime now) {
+  final h = now.hour;
+  if (h >= 5 && h < 12) return 'Buongiorno';
+  if (h >= 12 && h < 18) return 'Buon pomeriggio';
+  if (h >= 18 && h < 23) return 'Buonasera';
+  return 'Buonanotte';
+}

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../core/streams/badge_pack.dart';
 import '../core/util/lenient.dart';
+import '../design/palettes.dart';
 import 'stores.dart';
 
 const Object _keep = Object();
@@ -38,6 +39,9 @@ class AppSettings {
     this.tvdbEpisodes = true,
     this.customBadges = const [],
     this.customBadgesUrl,
+    this.palette = 'aether',
+    this.titleFont = 'standard',
+    this.greetingName,
   });
 
   final String language;
@@ -69,6 +73,9 @@ class AppSettings {
   final bool tvdbEpisodes;
   final List<CustomBadgeRule> customBadges;
   final String? customBadgesUrl;
+  final String palette;
+  final String titleFont;
+  final String? greetingName;
 
   AppSettings copyWith({
     String? language,
@@ -100,6 +107,9 @@ class AppSettings {
     bool? tvdbEpisodes,
     List<CustomBadgeRule>? customBadges,
     Object? customBadgesUrl = _keep,
+    String? palette,
+    String? titleFont,
+    Object? greetingName = _keep,
   }) => AppSettings(
     language: language ?? this.language,
     audioLanguage: audioLanguage ?? this.audioLanguage,
@@ -134,6 +144,11 @@ class AppSettings {
     customBadgesUrl: identical(customBadgesUrl, _keep)
         ? this.customBadgesUrl
         : customBadgesUrl as String?,
+    palette: palette ?? this.palette,
+    titleFont: titleFont ?? this.titleFont,
+    greetingName: identical(greetingName, _keep)
+        ? this.greetingName
+        : greetingName as String?,
   );
 
   Map<String, Object?> toJson() => {
@@ -166,6 +181,9 @@ class AppSettings {
     'tvdbEpisodes': tvdbEpisodes,
     'customBadges': [for (final b in customBadges) b.toJson()],
     'customBadgesUrl': customBadgesUrl,
+    'palette': palette,
+    'titleFont': titleFont,
+    'greetingName': greetingName,
   };
 
   factory AppSettings.fromJson(Object? raw) {
@@ -236,8 +254,16 @@ class AppSettings {
           ?CustomBadgeRule.fromJson(b),
       ],
       customBadgesUrl: asNonEmptyString(m['customBadgesUrl']),
+      palette: AetherPalette.byName(asString(m['palette'])).name,
+      titleFont: TitleFont.byName(asString(m['titleFont'])).name,
+      greetingName: _name(m['greetingName']),
     );
   }
+}
+
+String? _name(Object? v) {
+  final t = asNonEmptyString(v);
+  return t == null ? null : (t.length > 24 ? t.substring(0, 24) : t);
 }
 
 class SettingsRepository {
