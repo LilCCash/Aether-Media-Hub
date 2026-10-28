@@ -16,6 +16,7 @@ import '../features/player/player_session.dart';
 import '../features/search/search_screen.dart';
 import '../features/settings/settings_screens.dart';
 import '../features/shell/shell.dart';
+import '../features/theater/theater_screen.dart';
 import 'providers.dart';
 
 /// Where a title page lives; the catalog item travels as `extra` so the page shows something at once.
@@ -84,6 +85,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/player',
         builder: (_, state) => PlayerScreen(args: state.extra as PlayerArgs),
       ),
+      GoRoute(path: '/theater', builder: (_, __) => const TheaterScreen()),
       GoRoute(
         path: '/offline-test',
         builder: (_, __) => const OfflineTestScreen(),

@@ -12,4 +12,4 @@
 | Download offline | implementato (link diretti) | implementato | Torrent: no |
 | Deep link `stremio://` | assente | assente | parser pronto |
 | Android TV / telecomando | — | non verificato | non obiettivo |
-| Theater Mode | **non portato** | — | vedi FEATURE_PARITY |
+| Theater Mode | versione snella | versione snella | vedi FEATURE_PARITY |

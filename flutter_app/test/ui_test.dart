@@ -242,6 +242,29 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Theater Mode opens in landscape layout with its rail, shows the catalogs and leaves with the close button',
+    (tester) async {
+      final s = await tester.runAsync(
+        () => services(settings: const AppSettings(onboardingDone: true)),
+      );
+      await boot(tester, s!);
+      tester.view.physicalSize = const Size(2400, 1080);
+      final router = GoRouter.of(tester.element(find.byType(Scaffold).first));
+      router.push('/theater');
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await frames(tester, 12);
+      expect(find.text('THEATER MODE'), findsOneWidget);
+      expect(find.text('I più visti'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byTooltip('Esci da Theater Mode'));
+      await frames(tester, 6);
+      expect(find.text('THEATER MODE'), findsNothing);
+    },
+  );
+
   group('player screen', () {
     PlayerArgs args() => const PlayerArgs(
       title: 'Film di prova',

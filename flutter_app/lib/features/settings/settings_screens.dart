@@ -42,6 +42,12 @@ class MoreScreen extends ConsumerWidget {
               title: 'Contenuti',
               children: [
                 NavRow(
+                  icon: Icons.theaters_rounded,
+                  title: 'Theater Mode',
+                  subtitle: 'L’app in orizzontale, in stile cinema',
+                  onTap: () => context.push('/theater'),
+                ),
+                NavRow(
                   icon: Icons.extension_rounded,
                   title: 'Addon',
                   subtitle: addons.isEmpty

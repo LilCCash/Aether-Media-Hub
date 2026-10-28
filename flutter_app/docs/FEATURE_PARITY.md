@@ -49,7 +49,7 @@ Stato **Flutter** (colonna finale): **FATTO** = implementato e coperto da test a
 | | Cinematic UI, AMOLED | ✅ | ⛔ | **FATTO\*** | |
 | Diagnostica | Registro con oscuramento dei segreti | ✅ | ⛔ | **FATTO** | `domain_test` |
 | | **Player di prova offline** | — | — | **FATTO\*** | Impostazioni ▸ Diagnostica; assets inclusi |
-| Theater Mode | Interfaccia cinema a schermo intero | ✅ | ➖ | **NO** | non portata: richiede progettazione dedicata; vedi LIMITATIONS |
+| Theater Mode | Interfaccia cinema a schermo intero in orizzontale | ✅ | ➖ | **PARZIALE** | versione snella: binario laterale, titolo in evidenza (primo tocco) con «Guarda», righe 16:9 dei cataloghi, sipario d'ingresso; Scopri/Cerca/Libreria sono le schermate normali in orizzontale. **Senza** musica d'introduzione, proiettore, palette e impostazioni dedicate dell'originale iOS |
 
 **Lettura onesta.** La parte «dati e rete» (addon, cataloghi, sorgenti, TorBox, TMDB, sottotitoli, libreria, download, backup) è implementata e testata in Dart con server finti.
 La parte «schermo e media» (player reale, PiP, HDR, orientamento, prestazioni) è **compilata** ma **non eseguita** su dispositivi: finché non lo è, non va considerata verificata.

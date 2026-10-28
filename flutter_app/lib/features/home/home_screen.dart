@@ -109,6 +109,20 @@ class HomeScreen extends ConsumerWidget {
                     ? SizedBox(height: MediaQuery.paddingOf(context).top + 24)
                     : HeroCarousel(items: hero),
               ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: GlassButton(
+                      icon: Icons.theaters_rounded,
+                      label: 'Theater Mode',
+                      size: 40,
+                      onPressed: () => context.push('/theater'),
+                    ),
+                  ),
+                ),
+              ),
               if (continueList.isNotEmpty)
                 SliverToBoxAdapter(child: _ContinueRow(items: continueList)),
               for (final (addon, catalog) in rows)
