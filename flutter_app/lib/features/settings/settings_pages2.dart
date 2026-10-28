@@ -166,14 +166,6 @@ class MetadataPage extends ConsumerWidget {
     );
   }
 
-  static bool _tmdb(AppSettings s) => s.tmdbEnabled;
-  static bool _cast(AppSettings s) => s.modCast;
-  static bool _trailers(AppSettings s) => s.modTrailers;
-  static bool _companies(AppSettings s) => s.modCompanies;
-  static bool _fin(AppSettings s) => s.modFinancials;
-  static bool _facts(AppSettings s) => s.modFacts;
-  static bool _coll(AppSettings s) => s.modCollection;
-  static bool _posterRatings(AppSettings s) => s.posterRatings;
   static double _refresh(AppSettings s) => s.catalogRefreshMin.toDouble();
   static String _minutes(double v) =>
       v == 0 ? 'ogni volta' : '${v.round()} min';

@@ -371,6 +371,9 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
           season: widget.video?.season,
           episode: widget.video?.episode,
           fileName: r.stream.filename,
+          headers: r.playability == StreamPlayability.direct
+              ? r.stream.proxyHeaders
+              : const {},
         );
         if (mounted) {
           showProblem(

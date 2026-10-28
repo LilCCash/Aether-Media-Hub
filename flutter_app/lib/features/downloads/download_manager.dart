@@ -12,6 +12,13 @@ import '../../data/stores.dart';
 
 enum DownloadStatus { queued, running, paused, failed, done }
 
+/// Another source of the same episode, tried when the current one fails.
+class DownloadFallback {
+  const DownloadFallback(this.url, {this.headers = const {}});
+  final String url;
+  final Map<String, String> headers;
+}
+
 class DownloadItem {
   DownloadItem({
     required this.id,
@@ -35,7 +42,7 @@ class DownloadItem {
   final String videoId;
   final String type;
   final String title;
-  final String url;
+  String url;
   final String? poster;
   final int? season;
   final int? episode;
@@ -44,6 +51,13 @@ class DownloadItem {
   int total;
   String? error;
   String fileName;
+
+  /// Request headers the source needs, other sources to try if this one fails, and the retry state. Kept in memory only: they
+  /// can carry tokens, so they are never written to the store (after a restart a resumed download uses the plain link).
+  Map<String, String> headers = const {};
+  List<DownloadFallback> fallbacks = [];
+  int retries = 0;
+  DateTime? notBefore;
 
   double? get fraction =>
       total > 0 ? (received / total).clamp(0, 1).toDouble() : null;
@@ -133,6 +147,8 @@ class DownloadManager extends ChangeNotifier {
           .where((i) => i.status == DownloadStatus.running)
           .length;
       if (running >= maxConcurrent) return;
+      final wait = item.notBefore;
+      if (wait != null && wait.isAfter(DateTime.now())) continue;
       if (networkAllowed != null && !await networkAllowed!()) {
         item.error = 'In attesa del Wi-Fi';
         notifyListeners();
@@ -204,6 +220,8 @@ class DownloadManager extends ChangeNotifier {
     int? season,
     int? episode,
     String? fileName,
+    Map<String, String> headers = const {},
+    List<DownloadFallback> fallbacks = const [],
   }) async {
     final problem = _policy.reject(Uri.parse(url));
     if (problem != null) throw FormatException(problem);
@@ -211,18 +229,21 @@ class DownloadManager extends ChangeNotifier {
     if (existing != null && existing.status != DownloadStatus.failed)
       return existing;
     if (existing != null) _items.remove(existing);
-    final item = DownloadItem(
-      id: '${DateTime.now().microsecondsSinceEpoch}',
-      metaId: metaId,
-      videoId: videoId,
-      type: type,
-      title: title,
-      url: url,
-      poster: poster,
-      season: season,
-      episode: episode,
-      fileName: fileName ?? '',
-    );
+    final item =
+        DownloadItem(
+            id: '${DateTime.now().microsecondsSinceEpoch}',
+            metaId: metaId,
+            videoId: videoId,
+            type: type,
+            title: title,
+            url: url,
+            poster: poster,
+            season: season,
+            episode: episode,
+            fileName: fileName ?? '',
+          )
+          ..headers = headers
+          ..fallbacks = [...fallbacks];
     _items.add(item);
     await _save();
     notifyListeners();
@@ -269,6 +290,46 @@ class DownloadManager extends ChangeNotifier {
     return sum;
   }
 
+  /// A 5xx is often transient (twice, with a pause); otherwise the next source of the same episode, if any; otherwise it fails.
+  Future<void> _recover(
+    DownloadItem item,
+    String message, {
+    int? status,
+  }) async {
+    final part = File(_partPath(item));
+    Future<void> reset() async {
+      item.received = 0;
+      item.total = 0;
+      if (await part.exists()) await part.delete();
+    }
+
+    if (status != null && status >= 500 && item.retries < 2) {
+      item.retries++;
+      await reset();
+      item.status = DownloadStatus.queued;
+      item.error =
+          'Server temporaneamente non disponibile (HTTP $status); nuovo tentativo ${item.retries}/2…';
+      item.notBefore = DateTime.now().add(Duration(seconds: 2 * item.retries));
+      Timer(Duration(seconds: 2 * item.retries), () => unawaited(_pump()));
+      return;
+    }
+    if (item.fallbacks.isNotEmpty) {
+      final next = item.fallbacks.removeAt(0);
+      await reset();
+      item
+        ..url = next.url
+        ..headers = next.headers
+        ..retries = 0
+        ..notBefore = null
+        ..status = DownloadStatus.queued
+        ..error =
+            'Sorgente precedente non disponibile; provo un\'altra sorgente.';
+      return;
+    }
+    item.status = DownloadStatus.failed;
+    item.error = message;
+  }
+
   Future<void> _run(DownloadItem item) async {
     if (_tokens.containsKey(item.id)) return;
     final token = CancelToken();
@@ -286,7 +347,7 @@ class DownloadManager extends ChangeNotifier {
         cancelToken: token,
         options: Options(
           responseType: ResponseType.stream,
-          headers: {if (offset > 0) 'Range': 'bytes=$offset-'},
+          headers: {...item.headers, if (offset > 0) 'Range': 'bytes=$offset-'},
           validateStatus: (_) => true,
           receiveTimeout: const Duration(seconds: 30),
         ),
@@ -300,8 +361,7 @@ class DownloadManager extends ChangeNotifier {
         item.total = offset;
         return;
       }
-      if (status != 200 && status != 206)
-        throw HttpException('Il server ha risposto $status.');
+      if (status != 200 && status != 206) throw _HttpFailure(status);
       if (status == 200) offset = 0; // no range support: start again
       final length =
           int.tryParse(
@@ -334,14 +394,22 @@ class DownloadManager extends ChangeNotifier {
       if (CancelToken.isCancel(e)) {
         item.status = DownloadStatus.paused;
       } else {
-        item.status = DownloadStatus.failed;
-        item.error = 'Connessione interrotta: riprova.';
         AppLog.instance.add('download', 'Errore di rete (${e.type.name})');
+        await _recover(item, 'Connessione interrotta: riprova.');
       }
+    } on _HttpFailure catch (e) {
+      AppLog.instance.add('download', 'HTTP ${e.status}');
+      await _recover(
+        item,
+        'Il server ha risposto con errore HTTP ${e.status}.',
+        status: e.status,
+      );
     } on Object catch (e) {
-      item.status = DownloadStatus.failed;
-      item.error = e is HttpException ? e.message : 'Download non riuscito.';
       AppLog.instance.add('download', 'Errore: ${e.runtimeType}');
+      await _recover(
+        item,
+        e is HttpException ? e.message : 'Download non riuscito.',
+      );
     } finally {
       await sink?.close();
       _tokens.remove(item.id);
@@ -350,4 +418,9 @@ class DownloadManager extends ChangeNotifier {
       unawaited(_pump());
     }
   }
+}
+
+class _HttpFailure implements Exception {
+  const _HttpFailure(this.status);
+  final int status;
 }

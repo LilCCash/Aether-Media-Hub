@@ -609,3 +609,69 @@ class FilterBar extends StatelessWidget {
     ),
   );
 }
+
+/// A dropdown: a glass chip showing the current choice and a caret; tapping opens a menu right under it.
+class DropChip<T> extends StatelessWidget {
+  const DropChip({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onSelected,
+    this.icon,
+  });
+
+  /// Shown before the value ("Genere").
+  final String label;
+  final T? value;
+  final Map<T, String> options;
+  final ValueChanged<T> onSelected;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final look = AetherLook.of(context);
+    final active = value != null && options.containsKey(value);
+    return PopupMenuButton<T>(
+      tooltip: label,
+      color: AetherTokens.inkRaised,
+      constraints: const BoxConstraints(maxHeight: 420, minWidth: 160),
+      offset: const Offset(0, 46),
+      onSelected: onSelected,
+      itemBuilder: (_) => [
+        for (final e in options.entries)
+          PopupMenuItem<T>(
+            value: e.key,
+            child: Row(
+              children: [
+                Expanded(child: Text(e.value)),
+                if (e.key == value)
+                  Icon(Icons.check_rounded, size: 18, color: look.accent),
+              ],
+            ),
+          ),
+      ],
+      child: GlassSurface(
+        radius: 22,
+        tint: active ? look.accent : null,
+        strong: active,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 16, color: AetherTokens.textSecondary),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              active ? options[value]! : label,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}

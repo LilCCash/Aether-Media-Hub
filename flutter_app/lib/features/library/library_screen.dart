@@ -10,6 +10,7 @@ import '../home/home_screen.dart' show typeName;
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
 import '../../design/widgets.dart';
+import '../downloads/downloads_view.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -22,7 +23,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   int _tab = 0;
   String _query = '';
   ResultFilters _filters = ResultFilters.none;
-  static const _tabs = ['Continua', 'Watchlist', 'Preferiti', 'Cronologia'];
+  static const _tabs = [
+    'Continua',
+    'Watchlist',
+    'Preferiti',
+    'Cronologia',
+    'Download',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -63,22 +70,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-              child: GlassSurface(
-                radius: 18,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: TextField(
-                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                  onChanged: (v) => setState(() => _query = v.trim()),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    hintText: 'Cerca nella libreria',
-                    icon: Icon(Icons.search_rounded),
+            if (_tab != 4)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: GlassSurface(
+                  radius: 18,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: TextField(
+                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                    onChanged: (v) => setState(() => _query = v.trim()),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Cerca nella libreria',
+                      icon: Icon(Icons.search_rounded),
+                    ),
                   ),
                 ),
               ),
-            ),
             if (_tab == 1 || _tab == 2)
               FilterBar(
                 filters: _filters,
@@ -112,6 +120,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   'Nessun preferito',
                   'Tocca il cuore nella scheda di un titolo.',
                 ),
+                4 => const DownloadsBody(),
                 _ => _progressList(
                   lib.history,
                   'Cronologia vuota',

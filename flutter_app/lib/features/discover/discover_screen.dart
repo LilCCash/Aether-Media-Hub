@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../app/router.dart';
 import '../../core/addons/addon_repository.dart';
+import '../../core/catalog/result_filters.dart';
 import '../../core/model/manifest.dart';
 import '../../core/model/meta.dart';
 import '../../design/glass.dart';
@@ -22,6 +23,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   String? _type;
   String? _catalogKey; // "addonId/type/id"
   String? _genre;
+  int? _year;
   final List<MetaItem> _items = [];
   final Set<String> _seen = {};
   bool _loading = false;
@@ -43,6 +45,25 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   void dispose() {
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// The loaded titles that match the year chosen (addons have no year filter, so it is applied here).
+  List<MetaItem> get _visible => _year == null
+      ? _items
+      : _items.where((m) => ResultFilters.yearOf(m) == _year).toList();
+
+  Widget _gap(Widget w) =>
+      Padding(padding: const EdgeInsets.only(right: 8), child: w);
+
+  /// With a year chosen, keep loading pages (a few at most) until enough titles of that year show up.
+  Future<void> _fillForYear() async {
+    for (
+      var i = 0;
+      i < 6 && _year != null && !_end && _visible.length < 18;
+      i++
+    ) {
+      await _loadMore();
+    }
   }
 
   List<(InstalledAddon, ManifestCatalog)> _catalogs() {
@@ -76,7 +97,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     _error = null;
     _loading = false;
     setState(() {});
-    _loadMore();
+    _loadMore().then((_) => _fillForYear());
   }
 
   Future<void> _loadMore() async {
@@ -150,7 +171,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                   ),
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: 56,
+                      height: 54,
                       child: ListView(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -158,14 +179,16 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                         ),
                         scrollDirection: Axis.horizontal,
                         children: [
-                          for (final t in types)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: GlassButton(
-                                label: typeName(t),
-                                selected: (_type ?? types.first) == t,
-                                size: 40,
-                                onPressed: () {
+                          if (types.length > 1)
+                            _gap(
+                              DropChip<String>(
+                                label: 'Tipo',
+                                icon: Icons.category_rounded,
+                                value: _type ?? types.first,
+                                options: {
+                                  for (final t in types) t: typeName(t),
+                                },
+                                onSelected: (t) {
                                   _type = t;
                                   _catalogKey = null;
                                   _genre = null;
@@ -173,87 +196,70 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                                 },
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 52,
-                      child: ListView(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 6,
-                        ),
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          for (final e in all.where(
-                            (e) => e.$2.type == (_type ?? types.first),
-                          ))
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: GlassButton(
-                                label:
-                                    ref
-                                        .read(settingsProvider)
-                                        .catalogTitles['${e.$1.id}/${e.$2.key}'] ??
-                                    e.$2.name,
-                                size: 36,
-                                selected:
-                                    sel != null &&
-                                    e.$1.id == sel.$1.id &&
-                                    e.$2.key == sel.$2.key,
-                                onPressed: () {
-                                  _catalogKey = '${e.$1.id}/${e.$2.key}';
-                                  _genre = null;
-                                  _reset();
-                                },
-                              ),
+                          _gap(
+                            DropChip<String>(
+                              label: 'Catalogo',
+                              icon: Icons.view_list_rounded,
+                              value: sel == null
+                                  ? null
+                                  : '${sel.$1.id}/${sel.$2.key}',
+                              options: {
+                                for (final e in all.where(
+                                  (e) => e.$2.type == (_type ?? types.first),
+                                ))
+                                  '${e.$1.id}/${e.$2.key}':
+                                      ref
+                                          .read(settingsProvider)
+                                          .catalogTitles['${e.$1.id}/${e.$2.key}'] ??
+                                      e.$2.name,
+                              },
+                              onSelected: (k) {
+                                _catalogKey = k;
+                                _genre = null;
+                                _reset();
+                              },
                             ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (genres.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 48,
-                        child: ListView(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 4,
                           ),
-                          scrollDirection: Axis.horizontal,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: GlassButton(
-                                label: 'Tutti i generi',
-                                size: 34,
-                                selected: _genre == null,
-                                onPressed: () {
-                                  _genre = null;
+                          if (genres.isNotEmpty)
+                            _gap(
+                              DropChip<String>(
+                                label: 'Genere',
+                                icon: Icons.theater_comedy_rounded,
+                                value: _genre ?? '',
+                                options: {
+                                  '': 'Tutti i generi',
+                                  for (final g in genres) g: g,
+                                },
+                                onSelected: (g) {
+                                  _genre = g.isEmpty ? null : g;
                                   _reset();
                                 },
                               ),
                             ),
-                            for (final g in genres)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: GlassButton(
-                                  label: g,
-                                  size: 34,
-                                  selected: _genre == g,
-                                  onPressed: () {
-                                    _genre = g;
-                                    _reset();
-                                  },
-                                ),
-                              ),
-                          ],
-                        ),
+                          _gap(
+                            DropChip<int>(
+                              label: 'Anno',
+                              icon: Icons.calendar_month_rounded,
+                              value: _year ?? 0,
+                              options: {
+                                0: 'Tutti gli anni',
+                                for (
+                                  var y = DateTime.now().year;
+                                  y >= 1950;
+                                  y--
+                                )
+                                  y: '$y',
+                              },
+                              onSelected: (y) {
+                                setState(() => _year = y == 0 ? null : y);
+                                _fillForYear();
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                  ),
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                     sliver: SliverGrid.builder(
@@ -264,11 +270,11 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                             crossAxisSpacing: 12,
                             mainAxisSpacing: 12,
                           ),
-                      itemCount: _items.length,
+                      itemCount: _visible.length,
                       itemBuilder: (context, i) => PosterCard(
-                        item: _items[i],
+                        item: _visible[i],
                         width: 130,
-                        onTap: () => openTitle(context, _items[i]),
+                        onTap: () => openTitle(context, _visible[i]),
                       ),
                     ),
                   ),
@@ -285,7 +291,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                     ),
                   if (!_loading &&
                       _error == null &&
-                      _items.isEmpty &&
+                      _visible.isEmpty &&
                       sel != null)
                     const SliverToBoxAdapter(
                       child: EmptyState(

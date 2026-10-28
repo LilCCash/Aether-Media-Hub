@@ -5,6 +5,7 @@ import '../../core/streams/stream_analyzer.dart';
 import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
 import '../play/play_planner.dart';
+import 'download_manager.dart';
 
 class SeasonDownloadSummary {
   const SeasonDownloadSummary({
@@ -185,7 +186,8 @@ class SeasonDownloader {
           .where((h) => h > 0)
           .fold<int?>(null, (a, h) => a == null || h > a ? h : a);
       var done = false;
-      for (final c in candidates) {
+      for (var ci = 0; ci < candidates.length; ci++) {
+        final c = candidates[ci];
         if (cancelled()) break;
         try {
           var url = c.stream.url;
@@ -211,6 +213,19 @@ class SeasonDownloader {
             season: v.season,
             episode: v.episode,
             fileName: fileName,
+            headers: c.playability == StreamPlayability.direct
+                ? c.stream.proxyHeaders
+                : const {},
+            // Direct http(s) alternatives wait in case this source fails later; a torrent cannot be a fallback.
+            fallbacks: [
+              for (final alt in candidates.skip(ci + 1))
+                if (alt.playability == StreamPlayability.direct &&
+                    (alt.stream.url ?? '').startsWith('http'))
+                  DownloadFallback(
+                    alt.stream.url!,
+                    headers: alt.stream.proxyHeaders,
+                  ),
+            ],
           );
           queued++;
           done = true;
