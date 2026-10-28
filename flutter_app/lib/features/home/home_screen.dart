@@ -260,8 +260,12 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel> {
   @override
   Widget build(BuildContext context) {
     final w = MediaQuery.sizeOf(context).width;
-    final height = (w * 0.36 * 1.5 + MediaQuery.paddingOf(context).top + 150)
-        .clamp(360.0, 470.0);
+    final height = widget.fullBleed
+        ? (MediaQuery.sizeOf(context).height * 0.74).clamp(420.0, 720.0)
+        : (w * 0.36 * 1.5 + MediaQuery.paddingOf(context).top + 150).clamp(
+            360.0,
+            470.0,
+          );
     return SizedBox(
       height: height,
       child: Stack(
@@ -270,7 +274,8 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel> {
             controller: _controller,
             itemCount: widget.items.length,
             onPageChanged: (i) => setState(() => _page = i),
-            itemBuilder: (context, i) => _HeroPage(item: widget.items[i]),
+            itemBuilder: (context, i) =>
+                _HeroPage(item: widget.items[i], fullBleed: widget.fullBleed),
           ),
           Positioned(
             bottom: 14,
@@ -302,13 +307,15 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel> {
 }
 
 class _HeroPage extends ConsumerWidget {
-  const _HeroPage({required this.item});
+  const _HeroPage({required this.item, required this.fullBleed});
   final MetaItem item;
+  final bool fullBleed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(servicesProvider).library;
     ref.watch(libraryVersionProvider);
+    if (fullBleed) return _fullBleed(context, ref, library);
     return GestureDetector(
       onTap: () => openTitle(context, item),
       child: Stack(
@@ -412,6 +419,86 @@ class _HeroPage extends ConsumerWidget {
                       tooltip: library.isInWatchlist(item.id)
                           ? 'Rimuovi dalla watchlist'
                           : 'Aggiungi alla watchlist',
+                      onPressed: () async {
+                        await library.toggleWatchlist(item);
+                        ref.read(libraryVersionProvider.notifier).bump();
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// «Schermo intero»: the artwork fills the whole area, with the title and the buttons over its foot.
+  Widget _fullBleed(BuildContext context, WidgetRef ref, dynamic library) {
+    return GestureDetector(
+      onTap: () => openTitle(context, item),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          PosterImage(
+            url: item.poster ?? item.background,
+            title: item.name,
+            radius: 0,
+            alignment: Alignment.topCenter,
+            cacheWidth: 1600,
+          ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x66000000),
+                  Colors.transparent,
+                  Color(0xE605060D),
+                ],
+                stops: [0, 0.4, 1],
+              ),
+            ),
+          ),
+          Positioned(
+            left: AetherTokens.pageMargin,
+            right: AetherTokens.pageMargin,
+            bottom: 38,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.displaySmall,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  [
+                    if (item.releaseInfo != null) item.releaseInfo!,
+                    ...item.genres.take(3),
+                  ].join(' · '),
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: AetherTokens.textSecondary),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    GlassButton(
+                      icon: Icons.play_arrow_rounded,
+                      label: 'Guarda',
+                      prominent: true,
+                      onPressed: () => openTitle(context, item),
+                    ),
+                    const SizedBox(width: 10),
+                    GlassButton(
+                      icon: library.isInWatchlist(item.id)
+                          ? Icons.check_rounded
+                          : Icons.add_rounded,
+                      tooltip: 'Watchlist',
                       onPressed: () async {
                         await library.toggleWatchlist(item);
                         ref.read(libraryVersionProvider.notifier).bump();

@@ -11,6 +11,47 @@ class CastMember {
   final int? tmdbId;
 }
 
+/// A video of the title on YouTube (trailer, teaser…).
+class TmdbVideo {
+  const TmdbVideo({
+    required this.key,
+    required this.name,
+    required this.type,
+    this.language,
+    this.official = false,
+  });
+  final String key;
+  final String name;
+  final String type;
+  final String? language;
+  final bool official;
+}
+
+/// A production company with its logo when TMDB has one.
+class CompanyCard {
+  const CompanyCard(this.name, this.logo);
+  final String name;
+  final String? logo;
+}
+
+/// A similar or recommended title: enough to draw its poster and to open it (through its IMDb code).
+class SimilarTitle {
+  const SimilarTitle({
+    required this.tmdbId,
+    required this.title,
+    required this.isMovie,
+    this.year,
+    this.poster,
+    this.rating,
+  });
+  final int tmdbId;
+  final String title;
+  final bool isMovie;
+  final String? year;
+  final String? poster;
+  final double? rating;
+}
+
 class RichDetails {
   const RichDetails({
     this.tmdbId,
@@ -42,6 +83,9 @@ class RichDetails {
     this.providers = const [],
     this.crew = const [],
     this.recommendations = const [],
+    this.videos = const [],
+    this.companyCards = const [],
+    this.similarTitles = const [],
   });
   final int? tmdbId;
   final List<CastMember> cast;
@@ -72,6 +116,9 @@ class RichDetails {
   final List<String> providers; // where to watch in the user's region
   final List<String> crew; // «Name · Job»
   final List<String> recommendations;
+  final List<TmdbVideo> videos;
+  final List<CompanyCard> companyCards;
+  final List<SimilarTitle> similarTitles;
 }
 
 class PersonCredit {
@@ -285,6 +332,57 @@ class TmdbClient {
         asNonEmptyString(r['release_date']) ??
         asNonEmptyString(r['first_air_date']);
     final runtimes = asList(r['episode_run_time']);
+    final videos = <TmdbVideo>[];
+    for (final v in asList(asMap(r['videos'])?['results'])) {
+      final m = asMap(v);
+      final k = asNonEmptyString(m?['key']);
+      if (m == null || k == null || asString(m['site']) != 'YouTube') continue;
+      final type = asString(m['type']) ?? '';
+      if (type != 'Trailer' && type != 'Teaser') continue;
+      videos.add(
+        TmdbVideo(
+          key: k,
+          name: asNonEmptyString(m['name']) ?? type,
+          type: type,
+          language: asNonEmptyString(m['iso_639_1']),
+          official: m['official'] == true,
+        ),
+      );
+    }
+    final similarTitles = <SimilarTitle>[];
+    final seenSimilar = <int>{};
+    for (final list in [
+      asMap(r['recommendations'])?['results'],
+      asMap(r['similar'])?['results'],
+    ]) {
+      for (final e in asList(list)) {
+        final m = asMap(e);
+        final id = asInt(m?['id']);
+        final title =
+            asNonEmptyString(m?['title']) ?? asNonEmptyString(m?['name']);
+        final poster = asNonEmptyString(m?['poster_path']);
+        if (m == null ||
+            id == null ||
+            title == null ||
+            poster == null ||
+            !seenSimilar.add(id)) {
+          continue;
+        }
+        final d =
+            asNonEmptyString(m['release_date']) ??
+            asNonEmptyString(m['first_air_date']);
+        similarTitles.add(
+          SimilarTitle(
+            tmdbId: id,
+            title: title,
+            isMovie: found.isMovie,
+            year: (d != null && d.length >= 4) ? d.substring(0, 4) : null,
+            poster: image(poster, size: 'w342'),
+            rating: asDouble(m['vote_average']),
+          ),
+        );
+      }
+    }
     return RichDetails(
       tmdbId: found.id,
       cast: cast,
@@ -301,6 +399,16 @@ class TmdbClient {
       collectionName: asNonEmptyString(
         asMap(r['belongs_to_collection'])?['name'],
       ),
+      videos: videos,
+      companyCards: [
+        for (final c in asList(r['production_companies']))
+          if (asNonEmptyString(asMap(c)?['name']) != null)
+            CompanyCard(
+              asNonEmptyString(asMap(c)?['name'])!,
+              image(asNonEmptyString(asMap(c)?['logo_path']), size: 'w300'),
+            ),
+      ],
+      similarTitles: similarTitles.take(20).toList(),
       status: asNonEmptyString(r['status']),
       originalTitle:
           asNonEmptyString(r['original_title']) ??

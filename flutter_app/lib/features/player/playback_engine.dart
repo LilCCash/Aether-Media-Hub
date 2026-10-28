@@ -121,6 +121,9 @@ abstract class PlaybackEngine {
 
   /// A raw option of the engine (libmpv property name and value); engines without it ignore the call.
   Future<void> setOption(String name, String value);
+
+  /// What the engine reports about the file that is playing (container, video format, decoder…), for the information panel.
+  Future<Map<String, String>> probe();
   Future<void> selectAudio(TrackInfo? track);
 
   /// Selects an embedded subtitle track, or switches the embedded subtitles off (null).

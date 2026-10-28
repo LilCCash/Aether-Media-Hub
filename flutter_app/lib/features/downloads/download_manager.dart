@@ -14,9 +14,14 @@ enum DownloadStatus { queued, running, paused, failed, done }
 
 /// Another source of the same episode, tried when the current one fails.
 class DownloadFallback {
-  const DownloadFallback(this.url, {this.headers = const {}});
+  const DownloadFallback(this.url, {this.headers = const {}, this.resolve});
   final String url;
   final Map<String, String> headers;
+
+  /// For a source that must be prepared first (a torrent through the debrid service): the link is asked for only when this
+  /// source is really needed, and null means it could not be had (the next source is tried).
+  final Future<({String url, Map<String, String> headers})?> Function()?
+  resolve;
 }
 
 class DownloadItem {
@@ -135,6 +140,9 @@ class DownloadManager extends ChangeNotifier {
 
   /// How many transfers run at once; the others wait as «in coda».
   int maxConcurrent = 2;
+
+  /// Seconds to wait before each retry of a 5xx / 429 answer.
+  List<int> retryWaits = const [3, 8, 20];
   bool allowCellular = false;
 
   /// Asked before a transfer starts; false keeps it queued (for example: only on Wi-Fi).
@@ -303,22 +311,38 @@ class DownloadManager extends ChangeNotifier {
       if (await part.exists()) await part.delete();
     }
 
-    if (status != null && status >= 500 && item.retries < 2) {
+    final waits = retryWaits;
+    if (status != null &&
+        (status >= 500 || status == 429) &&
+        item.retries < waits.length) {
+      final wait = waits[item.retries];
       item.retries++;
       await reset();
       item.status = DownloadStatus.queued;
       item.error =
-          'Server temporaneamente non disponibile (HTTP $status); nuovo tentativo ${item.retries}/2…';
-      item.notBefore = DateTime.now().add(Duration(seconds: 2 * item.retries));
-      Timer(Duration(seconds: 2 * item.retries), () => unawaited(_pump()));
+          'Server temporaneamente non disponibile (HTTP $status); nuovo tentativo ${item.retries}/${waits.length}…';
+      item.notBefore = DateTime.now().add(Duration(seconds: wait));
+      Timer(Duration(seconds: wait), () => unawaited(_pump()));
       return;
     }
-    if (item.fallbacks.isNotEmpty) {
+    while (item.fallbacks.isNotEmpty) {
       final next = item.fallbacks.removeAt(0);
+      var url = next.url;
+      var headers = next.headers;
+      if (next.resolve != null) {
+        try {
+          final r = await next.resolve!();
+          if (r == null) continue;
+          url = r.url;
+          headers = r.headers;
+        } on Object {
+          continue;
+        }
+      }
       await reset();
       item
-        ..url = next.url
-        ..headers = next.headers
+        ..url = url
+        ..headers = headers
         ..retries = 0
         ..notBefore = null
         ..status = DownloadStatus.queued

@@ -167,42 +167,35 @@ const _topicsMain = [
     'Aspetto',
     Icons.palette_rounded,
     Color(0xFFFF6FB5),
-    'Tema, colori, vetro, sfondo, transizioni',
+    'Tema, stile, Home, effetti',
   ),
   _Topic(
-    'home',
-    'Home',
-    Icons.home_rounded,
-    Color(0xFFFF8A5B),
-    'Sezioni, ordine, in evidenza',
-  ),
-  _Topic(
-    'discover',
-    'Scopri',
-    Icons.explore_rounded,
-    Color(0xFF4CD6A0),
-    'Tipi, catalogo predefinito, filtri',
+    'theater',
+    'Theater Mode',
+    Icons.theaters_rounded,
+    Color(0xFFFFC857),
+    'L’app in orizzontale, in stile cinema',
   ),
   _Topic(
     'player',
-    'Player',
+    'Riproduzione',
     Icons.play_circle_rounded,
     Color(0xFFFFA23B),
-    'Lingue, sottotitoli, gesti, immagine',
+    'Lingue, sottotitoli, controlli, sorgenti',
   ),
   _Topic(
-    'sources',
-    'Sorgenti',
-    Icons.view_list_rounded,
-    Color(0xFF7C8CFF),
-    'Ordine, righe, badge',
+    'content',
+    'Contenuti e scoperta',
+    Icons.grid_view_rounded,
+    Color(0xFF4CD6A0),
+    'Cataloghi, Scopri, ricerca, metadati',
   ),
   _Topic(
-    'catalogs',
-    'Cataloghi e metadati',
-    Icons.collections_bookmark_rounded,
-    Color(0xFF5CC8FF),
-    'Cataloghi, ricerca, TMDB',
+    'casting',
+    'Casting',
+    Icons.cast_connected_rounded,
+    Color(0xFF30C4C4),
+    'Rete locale e trasmissione',
   ),
   _Topic(
     'services',
@@ -214,25 +207,25 @@ const _topicsMain = [
 ];
 const _topicsData = [
   _Topic(
-    'downloads',
-    'Download',
-    Icons.download_rounded,
-    Color(0xFF30C48D),
-    'Rete, stagioni, limiti',
+    'storage',
+    'Archiviazione',
+    Icons.sd_storage_rounded,
+    Color(0xFFA2845E),
+    'Cache, download, stagioni',
   ),
   _Topic(
     'data',
-    'Archiviazione e dati',
-    Icons.sd_storage_rounded,
-    Color(0xFFA2845E),
-    'Cache, backup, cancellazione',
+    'Account e dati',
+    Icons.account_circle_rounded,
+    Color(0xFF5CA8FF),
+    'Backup, ripristino, cancellazione',
   ),
   _Topic(
-    'diagnostics',
-    'Diagnostica',
-    Icons.health_and_safety_rounded,
+    'advanced',
+    'Avanzate',
+    Icons.build_rounded,
     Color(0xFF8E8E93),
-    'Registro, player di prova',
+    'Diagnostica e registro',
   ),
 ];
 
@@ -249,7 +242,9 @@ class SettingsRootScreen extends StatelessWidget {
             color: t.color,
             title: t.title,
             subtitle: t.subtitle,
-            onTap: () => context.push('/settings/${t.id}'),
+            onTap: () => context.push(
+              t.id == 'theater' ? '/theater' : '/settings/${t.id}',
+            ),
           ),
       ],
     );
@@ -264,6 +259,7 @@ Widget _only(Set<String> titles, Widget child) =>
     GroupFilter(titles: titles, child: child);
 
 /// The groups of every topic, in the order they appear: some come from the page that builds them, listed here by their title.
+/// The topics and their order follow the iOS app's Settings.
 Widget _topicPage(String page) {
   switch (page) {
     case 'look':
@@ -279,25 +275,12 @@ Widget _topicPage(String page) {
             'Schede e locandine',
             'Movimento',
           }, const LookPage()),
-        ],
-      );
-    case 'home':
-      return MergedSettingsPage(
-        title: 'Home',
-        parts: [
           _only({'In evidenza', 'Sezioni della Home'}, const LookPage()),
-        ],
-      );
-    case 'discover':
-      return MergedSettingsPage(
-        title: 'Scopri',
-        parts: [
-          _only({'Scopri'}, const MetadataPage()),
         ],
       );
     case 'player':
       return MergedSettingsPage(
-        title: 'Player',
+        title: 'Riproduzione',
         parts: [
           _only({'Lingue'}, const _PlaybackPage()),
           _only({'Lingue di riserva'}, const PlayerAdvancedPage()),
@@ -310,39 +293,41 @@ Widget _topicPage(String page) {
             'Immagine (motore libmpv)',
             'In sottofondo',
           }, const PlayerAdvancedPage()),
-        ],
-      );
-    case 'sources':
-      return const MergedSettingsPage(
-        title: 'Sorgenti',
-        parts: [SourcesPage()],
-      );
-    case 'catalogs':
-      return MergedSettingsPage(
-        title: 'Cataloghi e metadati',
-        parts: [
-          _only({'Cataloghi e lingua', 'Rete'}, const _ContentPage()),
-          _only({'Cataloghi e cache', 'Metadati TMDB'}, const MetadataPage()),
+          const SourcesPage(),
           _only({'Badge personalizzati'}, const _ContentPage()),
         ],
       );
-    case 'downloads':
+    case 'content':
       return MergedSettingsPage(
-        title: 'Download',
+        title: 'Contenuti e scoperta',
+        parts: [
+          _only({'Scopri'}, const MetadataPage()),
+          _only({'Cataloghi e lingua'}, const _ContentPage()),
+          _only({'Cataloghi e cache'}, const MetadataPage()),
+        ],
+      );
+    case 'casting':
+      return MergedSettingsPage(
+        title: 'Casting',
+        parts: [
+          _only({'Rete'}, const _ContentPage()),
+        ],
+      );
+    case 'storage':
+      return MergedSettingsPage(
+        title: 'Archiviazione',
         parts: [
           _only({
+            'Archiviazione',
             'Download',
             'Download di una stagione',
           }, const DownloadsSettingsPage()),
         ],
       );
     case 'data':
-      return MergedSettingsPage(
-        title: 'Archiviazione e dati',
-        parts: [
-          _only({'Archiviazione'}, const DownloadsSettingsPage()),
-          const _DataPage(),
-        ],
+      return const MergedSettingsPage(
+        title: 'Account e dati',
+        parts: [_DataPage()],
       );
   }
   return const SizedBox.shrink();
@@ -358,20 +343,19 @@ class SettingsPageScreen extends ConsumerWidget {
       'root' => const SettingsRootScreen(),
       'services' => const ServicesPage(),
       'catalogs-edit' => const _CatalogsPage(),
-      'diagnostics' => const _DiagnosticsPage(),
+      'advanced' || 'diagnostics' => const _DiagnosticsPage(),
       'about' => const _AboutPage(),
       'look' ||
-      'home' ||
-      'discover' ||
       'player' ||
-      'sources' ||
-      'catalogs' ||
-      'downloads' ||
+      'content' ||
+      'casting' ||
+      'storage' ||
       'data' => _topicPage(page),
       // Older links
-      'appearance' => _topicPage('look'),
+      'appearance' || 'home' => _topicPage('look'),
       'playback' => _topicPage('player'),
-      'content' || 'metadata' => _topicPage('catalogs'),
+      'sources' || 'metadata' || 'catalogs' => _topicPage('content'),
+      'downloads' => _topicPage('storage'),
       _ => SettingsPageFrame(
         title: 'Impostazioni',
         children: [Text('Pagina sconosciuta: $page')],

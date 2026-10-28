@@ -18,14 +18,30 @@ import '../../design/widgets.dart';
 import '../play/play_flow.dart';
 import '../play/play_planner.dart';
 import '../player/playback_engine.dart';
+import '../shell/shell.dart';
 import '../player/player_session.dart';
 
 Future<void> showStreamPicker(
   BuildContext context, {
   required MetaItem meta,
   Video? video,
-}) {
+}) async {
   final wide = MediaQuery.sizeOf(context).width >= 700;
+  // The tab bar stays on every page, except while the sources are being chosen.
+  DockState.hide();
+  try {
+    await _openPicker(context, meta, video, wide);
+  } finally {
+    DockState.show();
+  }
+}
+
+Future<void> _openPicker(
+  BuildContext context,
+  MetaItem meta,
+  Video? video,
+  bool wide,
+) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,

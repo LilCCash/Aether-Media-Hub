@@ -92,7 +92,6 @@ void main() {
       all.map((e) => e.$1),
       containsAll([
         'Durata',
-        'Budget',
         'Dove guardarlo',
         'Parole chiave',
         'Classificazione',
@@ -104,7 +103,6 @@ void main() {
           .withExt('modFacts', false)
           .withExt('modProviders', false)
           .withExt('modKeywords', false)
-          .withExt('modFinancials', false)
           .withExt('modCertification', false),
     );
     expect(off, isEmpty);

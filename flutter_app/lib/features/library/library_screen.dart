@@ -48,23 +48,38 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 style: Theme.of(context).textTheme.displaySmall,
               ),
             ),
-            SizedBox(
-              height: 52,
-              child: ListView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                scrollDirection: Axis.horizontal,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+              child: Row(
                 children: [
                   for (var i = 0; i < _tabs.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: GlassButton(
-                        label: _tabs[i],
-                        size: 38,
-                        selected: _tab == i,
-                        onPressed: () => setState(() => _tab = i),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: GestureDetector(
+                          onTap: () => setState(() => _tab = i),
+                          child: GlassSurface(
+                            radius: 16,
+                            tint: _tab == i
+                                ? AetherLook.of(context).accent
+                                : null,
+                            strong: _tab == i,
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            child: Center(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  _tabs[i],
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                 ],

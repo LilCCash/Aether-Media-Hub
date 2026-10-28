@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -314,6 +316,129 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  void _setSleep(int? minutes) {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    if (minutes == null) return;
+    _sleepTimer = Timer(Duration(minutes: minutes), () {
+      if (!mounted) return;
+      _engine.pause();
+      _hint('Timer di spegnimento: in pausa');
+      setState(() => _controls = true);
+    });
+    _hint('Si ferma tra $minutes minuti');
+  }
+
+  Future<void> _importSubtitle() async {
+    final picked = await FilePicker.pickFiles(type: FileType.any);
+    if (picked.isEmpty || picked.first.path == null) return;
+    final f = picked.first;
+    final bytes = await File(f.path!).readAsBytes();
+    await _session.selectExternalSubtitle(
+      ExternalSubtitle(
+        id: 'file:${f.name}',
+        label: f.name,
+        text: utf8.decode(bytes, allowMalformed: true),
+        addon: 'File',
+      ),
+    );
+    _hint('Sottotitoli caricati: ${f.name}');
+  }
+
+  /// The «⋯» menu of the iOS player: speed, sleep timer, fill, change source, import subtitles, source information.
+  Widget _moreMenu(PlayerSession s) {
+    return GlassSurface(
+      radius: 22,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: PopupMenuButton<String>(
+          tooltip: 'Altre opzioni',
+          icon: const Icon(Icons.more_horiz_rounded),
+          color: AetherTokens.inkRaised,
+          onOpened: () {
+            _panelOpen = true;
+            _hideTimer?.cancel();
+          },
+          onCanceled: () {
+            _panelOpen = false;
+            _scheduleHide();
+          },
+          onSelected: (v) {
+            _panelOpen = false;
+            switch (v) {
+              case 'speed':
+                _openPanel((_) => SpeedPanel(session: s));
+              case 'sleep':
+                _openPanel(
+                  (_) => ChoicePanel<int>(
+                    title: 'Timer di spegnimento',
+                    options: const {
+                      0: 'Disattivato',
+                      15: '15 minuti',
+                      30: '30 minuti',
+                      45: '45 minuti',
+                      60: '60 minuti',
+                      90: '90 minuti',
+                    },
+                    onPick: (m) => _setSleep(m == 0 ? null : m),
+                  ),
+                );
+              case 'fill':
+                s.cycleAspect();
+              case 'sources':
+                _openPanel((_) => SourcesPanel(session: s));
+              case 'import':
+                _importSubtitle();
+              case 'info':
+                _openPanel((_) => InfoPanel(session: s, engine: _engine));
+            }
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              value: 'speed',
+              child: _MenuRow(
+                Icons.speed_rounded,
+                'Velocità (${s.speed == 1 ? 'Normale' : '${s.speed}×'})',
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'sleep',
+              child: _MenuRow(Icons.bedtime_outlined, 'Timer di spegnimento'),
+            ),
+            PopupMenuItem(
+              value: 'fill',
+              child: _MenuRow(
+                s.aspect == AspectMode.fit
+                    ? Icons.zoom_out_map_rounded
+                    : Icons.zoom_in_map_rounded,
+                s.aspect == AspectMode.fit
+                    ? 'Riempi lo schermo'
+                    : 'Adatta allo schermo',
+              ),
+            ),
+            if (s.args.alternatives.isNotEmpty)
+              const PopupMenuItem(
+                value: 'sources',
+                child: _MenuRow(Icons.swap_horiz_rounded, 'Cambia sorgente'),
+              ),
+            const PopupMenuItem(
+              value: 'import',
+              child: _MenuRow(Icons.note_add_outlined, 'Importa sottotitoli…'),
+            ),
+            const PopupMenuItem(
+              value: 'info',
+              child: _MenuRow(
+                Icons.info_outline_rounded,
+                'Informazioni sulla sorgente',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _openPanel(Widget Function(BuildContext) builder) async {
     _panelOpen = true;
     _hideTimer?.cancel();
@@ -583,7 +708,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             Row(
                               children: [
                                 GlassButton(
-                                  icon: Icons.arrow_back_ios_new_rounded,
+                                  icon: Icons.keyboard_arrow_down_rounded,
                                   tooltip: 'Chiudi il player',
                                   onPressed: _exit,
                                 ),
@@ -626,6 +751,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                     tooltip: 'Picture in Picture',
                                     onPressed: _enterPip,
                                   ),
+                                const SizedBox(width: 6),
+                                _moreMenu(s),
                               ],
                             ),
                             const Spacer(),
@@ -653,15 +780,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             const Spacer(),
                             Row(
                               children: [
-                                Text(
-                                  _fmt(Duration(milliseconds: pos.round())),
-                                  style: const TextStyle(
-                                    fontFeatures: [
-                                      FontFeature.tabularFigures(),
-                                    ],
-                                    fontSize: 12,
-                                  ),
-                                ),
                                 Expanded(
                                   child: Slider(
                                     value: pos,
@@ -679,79 +797,108 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                     },
                                   ),
                                 ),
-                                Text(
-                                  total <= 0
-                                      ? '--:--'
-                                      : '-${_fmt(Duration(milliseconds: (total - pos).round()))}',
-                                  style: const TextStyle(
-                                    fontFeatures: [
-                                      FontFeature.tabularFigures(),
-                                    ],
-                                    fontSize: 12,
+                              ],
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _fmt(Duration(milliseconds: pos.round())),
+                                    style: const TextStyle(
+                                      fontFeatures: [
+                                        FontFeature.tabularFigures(),
+                                      ],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  Text(
+                                    total <= 0
+                                        ? '--:--'
+                                        : '\u2212${_fmt(Duration(milliseconds: (total - pos).round()))}',
+                                    style: const TextStyle(
+                                      fontFeatures: [
+                                        FontFeature.tabularFigures(),
+                                      ],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                GlassButton(
+                                  icon: Icons.lock_outline_rounded,
+                                  tooltip: 'Blocca i controlli',
+                                  size: 40,
+                                  onPressed: () => s.setLocked(true),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    reverse: true,
+                                    child: Row(
+                                      children: [
+                                        GlassButton(
+                                          icon: Icons.subtitles_rounded,
+                                          label: 'Sottotitoli',
+                                          size: 40,
+                                          selected: s.subtitlesOn,
+                                          onPressed: () => _openPanel(
+                                            (_) => SubtitlePanel(session: s),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        GlassButton(
+                                          icon: Icons.audiotrack_rounded,
+                                          label: 'Audio',
+                                          size: 40,
+                                          onPressed: () => _openPanel(
+                                            (_) => AudioPanel(session: s),
+                                          ),
+                                        ),
+                                        if (s.args.alternatives.isNotEmpty) ...[
+                                          const SizedBox(width: 8),
+                                          GlassButton(
+                                            icon: Icons.swap_horiz_rounded,
+                                            label: 'Sorgenti',
+                                            size: 40,
+                                            onPressed: () => _openPanel(
+                                              (_) => SourcesPanel(session: s),
+                                            ),
+                                          ),
+                                        ],
+                                        const SizedBox(width: 8),
+                                        GlassButton(
+                                          icon: Icons.speed_rounded,
+                                          label: s.speed == 1
+                                              ? 'Velocità'
+                                              : '${s.speed}×',
+                                          size: 40,
+                                          onPressed: () => _openPanel(
+                                            (_) => SpeedPanel(session: s),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        GlassButton(
+                                          icon: Icons.aspect_ratio_rounded,
+                                          label: s.aspect == AspectMode.fit
+                                              ? 'Riempi'
+                                              : s.aspect.label,
+                                          size: 40,
+                                          onPressed: s.cycleAspect,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ],
-                            ),
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  GlassButton(
-                                    icon: Icons.lock_outline_rounded,
-                                    tooltip: 'Blocca i controlli',
-                                    size: 40,
-                                    onPressed: () => s.setLocked(true),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  GlassButton(
-                                    icon: Icons.subtitles_rounded,
-                                    label: 'Sottotitoli',
-                                    size: 40,
-                                    selected: s.subtitlesOn,
-                                    onPressed: () => _openPanel(
-                                      (_) => SubtitlePanel(session: s),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  GlassButton(
-                                    icon: Icons.audiotrack_rounded,
-                                    label: 'Audio',
-                                    size: 40,
-                                    onPressed: () => _openPanel(
-                                      (_) => AudioPanel(session: s),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  GlassButton(
-                                    icon: Icons.speed_rounded,
-                                    label: s.speed == 1
-                                        ? 'Velocità'
-                                        : '${s.speed}×',
-                                    size: 40,
-                                    onPressed: () => _openPanel(
-                                      (_) => SpeedPanel(session: s),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  GlassButton(
-                                    icon: Icons.aspect_ratio_rounded,
-                                    label: s.aspect.label,
-                                    size: 40,
-                                    onPressed: s.cycleAspect,
-                                  ),
-                                  if (s.args.alternatives.isNotEmpty) ...[
-                                    const SizedBox(width: 8),
-                                    GlassButton(
-                                      icon: Icons.swap_horiz_rounded,
-                                      label: 'Sorgenti',
-                                      size: 40,
-                                      onPressed: () => _openPanel(
-                                        (_) => SourcesPanel(session: s),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
                             ),
                           ],
                         ),
@@ -766,6 +913,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ),
     );
   }
+}
+
+class _MenuRow extends StatelessWidget {
+  const _MenuRow(this.icon, this.label);
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [Icon(icon, size: 20), const SizedBox(width: 12), Text(label)],
+  );
 }
 
 class _ErrorOverlay extends StatelessWidget {

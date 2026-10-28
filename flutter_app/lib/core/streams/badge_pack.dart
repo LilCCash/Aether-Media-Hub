@@ -33,7 +33,11 @@ class CustomBadgeRule {
 
   static RegExp? _regex(String pattern) => _regexCache.putIfAbsent(pattern, () {
     try {
-      return RegExp(pattern, caseSensitive: false);
+      // Dart has no inline flags: the common «(?i)» (case-insensitive) is already what is asked for below.
+      return RegExp(
+        pattern.replaceAll('(?i)', '').replaceAll('(?-i)', ''),
+        caseSensitive: false,
+      );
     } on FormatException {
       return null;
     }
@@ -193,10 +197,8 @@ class CustomBadgePack {
     List<CustomBadgeRule> rules,
   ) {
     if (rules.isEmpty) return const [];
-    final text = [
-      stream.name,
-      stream.description,
-    ].whereType<String>().join(' ');
+    // The same text the analyzer reads: name, description, file name and the last part of the link.
+    final text = stream.searchText;
     return rules.where((r) => r.matches(text)).toList();
   }
 }

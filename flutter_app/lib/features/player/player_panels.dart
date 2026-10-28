@@ -149,7 +149,7 @@ class SubtitlePanel extends StatelessWidget {
                 selected: s.embeddedSubtitle?.id == t.id,
                 onTap: () => s.selectEmbeddedSubtitle(t),
               ),
-            ..._addonGroups(s),
+            ..._addonGroups(context, s),
             if (s.loadingSubtitle)
               const Padding(
                 padding: EdgeInsets.all(16),
@@ -252,7 +252,7 @@ class SourcesPanel extends StatelessWidget {
 }
 
 /// Subtitles from addons, grouped by language and, inside each language, by addon (the language of the settings first).
-List<Widget> _addonGroups(PlayerSession s) {
+List<Widget> _addonGroups(BuildContext context, PlayerSession s) {
   final subs = s.args.externalSubtitles;
   if (subs.isEmpty) return const [];
   final byLang = <String, Map<String, List<ExternalSubtitle>>>{};
@@ -282,8 +282,12 @@ List<Widget> _addonGroups(PlayerSession s) {
     ),
     for (final lang in langs)
       Theme(
-        data: ThemeData(dividerColor: Colors.transparent),
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
+          iconColor: Colors.white,
+          collapsedIconColor: Colors.white,
+          textColor: Colors.white,
+          collapsedTextColor: Colors.white,
           initiallyExpanded:
               lang == preferred ||
               byLang[lang]!.values.any(
@@ -375,4 +379,204 @@ class _SyncRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A short list of choices in the side panel (the sleep timer…); picking one closes the panel.
+class ChoicePanel<T> extends StatelessWidget {
+  const ChoicePanel({
+    super.key,
+    required this.title,
+    required this.options,
+    required this.onPick,
+  });
+  final String title;
+  final Map<T, String> options;
+  final ValueChanged<T> onPick;
+
+  @override
+  Widget build(BuildContext context) => _PanelFrame(
+    title: title,
+    children: [
+      for (final e in options.entries)
+        _Choice(
+          label: e.value,
+          selected: false,
+          onTap: () {
+            onPick(e.key);
+            Navigator.of(context).pop();
+          },
+        ),
+    ],
+  );
+}
+
+/// «Informazioni sulla sorgente»: what is playing and what the engine found in the file.
+class InfoPanel extends StatelessWidget {
+  const InfoPanel({super.key, required this.session, required this.engine});
+  final PlayerSession session;
+  final PlaybackEngine engine;
+
+  static String _dur(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return h > 0 ? '$h:$m:$s' : '${d.inMinutes}:$s';
+  }
+
+  static String _range(String? gamma) => switch (gamma) {
+    'pq' => 'HDR10 / Dolby Vision (PQ)',
+    'hlg' => 'HLG',
+    null => 'Non rilevata',
+    _ => 'SDR',
+  };
+
+  Widget _section(String title) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+    child: Text(
+      title.toUpperCase(),
+      style: const TextStyle(
+        fontSize: 11,
+        letterSpacing: 0.6,
+        color: AetherTokens.textTertiary,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
+
+  Widget _row(String k, String? v) => v == null || v.isEmpty
+      ? const SizedBox.shrink()
+      : Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 118,
+                child: Text(
+                  k,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AetherTokens.textSecondary,
+                  ),
+                ),
+              ),
+              Expanded(child: Text(v, style: const TextStyle(fontSize: 13))),
+            ],
+          ),
+        );
+
+  @override
+  Widget build(BuildContext context) => _PanelFrame(
+    title: 'Informazioni sulla sorgente',
+    children: [
+      FutureBuilder<Map<String, String>>(
+        future: engine.probe(),
+        builder: (context, snap) {
+          final p = snap.data ?? const <String, String>{};
+          final w = p['video-params/w'];
+          final h = p['video-params/h'];
+          final fps = double.tryParse(p['container-fps'] ?? '');
+          final a = session.args;
+          final audio = session.tracks.audio;
+          final subs = session.tracks.subtitles;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _section('Riproduzione'),
+              _row('Motore', 'libmpv (media_kit)'),
+              _row('Risoluzione', w != null && h != null ? '$w×$h' : null),
+              _row(
+                'Durata',
+                session.duration > Duration.zero
+                    ? _dur(session.duration)
+                    : null,
+              ),
+              _row(
+                'Velocità',
+                session.speed == 1 ? 'Normale' : '${session.speed}×',
+              ),
+              _row('Schermo', session.aspect.label),
+              _section('Sorgente'),
+              _row('Titolo', a.title),
+              _row(
+                'Nome del file',
+                a.source.title.isEmpty ? null : a.source.title,
+              ),
+              _row(
+                'Origine',
+                a.source.isLocalFile
+                    ? 'File scaricato sul dispositivo'
+                    : 'Rete',
+              ),
+              _section('Formato rilevato dal motore'),
+              _row('Contenitore', p['file-format']?.toUpperCase()),
+              _row(
+                'Video',
+                [
+                  if (p['video-codec'] != null)
+                    p['video-codec']!.split(' ').first
+                  else
+                    p['video-format'],
+                  if (fps != null)
+                    '${fps.toStringAsFixed(fps.truncateToDouble() == fps ? 0 : 3)} fps',
+                ].whereType<String>().join(' · '),
+              ),
+              _row('Pixel', p['video-params/pixelformat']),
+              _row(
+                'Gamma dinamica',
+                snap.hasData ? _range(p['video-params/gamma']) : null,
+              ),
+              _row(
+                'Colore',
+                [
+                  p['video-params/primaries'],
+                  p['video-params/colormatrix'],
+                ].whereType<String>().join(' · '),
+              ),
+              _row(
+                'Decodifica',
+                p['hwdec-current'] == null
+                    ? null
+                    : (p['hwdec-current'] == 'no'
+                          ? 'Software'
+                          : 'Hardware (${p['hwdec-current']})'),
+              ),
+              _row(
+                'Audio attivo',
+                [
+                  p['audio-codec-name'],
+                  if (p['audio-params/channel-count'] != null)
+                    '${p['audio-params/channel-count']} canali',
+                ].whereType<String>().join(' · '),
+              ),
+              if (audio.isNotEmpty) _section('Tracce audio'),
+              for (final t in audio) _row(' ', t.label),
+              if (subs.isNotEmpty) _section('Sottotitoli nel file'),
+              for (final t in subs) _row(' ', t.label),
+              if (a.externalSubtitles.isNotEmpty)
+                _row(
+                  'Da addon',
+                  '${a.externalSubtitles.length} sottotitoli disponibili',
+                ),
+              if (!snap.hasData)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: LinearProgressIndicator(),
+                ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 14, 16, 8),
+                child: Text(
+                  '«Rilevato» viene dal decoder del motore in uso. Gli stream adattivi (HLS) cambiano qualità in base alla rete.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AetherTokens.textTertiary,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ],
+  );
 }

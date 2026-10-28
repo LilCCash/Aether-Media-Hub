@@ -131,7 +131,6 @@ void main() {
         }
       });
       await pumpApp(t, s, const DownloadsBody());
-      await t.tap(find.text('Completati'));
       await t.pump(const Duration(milliseconds: 200));
       expect(find.text('Show'), findsOneWidget); // one group for the series
       expect(find.text('Un film'), findsOneWidget);
@@ -141,10 +140,6 @@ void main() {
       expect(find.text('Stagione 1'), findsOneWidget);
       expect(find.text('Stagione 2'), findsOneWidget);
       expect(find.textContaining('2/2 episodi'), findsOneWidget);
-      // «In corso» has nothing left to show
-      await t.tap(find.text('In corso'));
-      await t.pump(const Duration(milliseconds: 200));
-      expect(find.text('Niente in corso'), findsOneWidget);
     },
   );
 

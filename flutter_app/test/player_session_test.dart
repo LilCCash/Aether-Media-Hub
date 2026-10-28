@@ -12,6 +12,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/fake_adapter.dart';
 
 class FakeEngine implements PlaybackEngine {
+  @override
+  Future<Map<String, String>> probe() async => {};
+
   final Map<String, String> options = {};
   @override
   Future<void> setOption(String name, String value) async =>

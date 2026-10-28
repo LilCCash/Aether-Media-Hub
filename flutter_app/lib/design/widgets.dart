@@ -4,6 +4,8 @@ import '../core/streams/badge_pack.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../app/transitions.dart';
+
 import '../core/model/meta.dart';
 import 'glass.dart';
 import 'image_cache.dart';
@@ -149,7 +151,10 @@ class PosterCard extends StatelessWidget {
       button: true,
       label: item.name,
       child: GestureDetector(
-        onTap: onTap,
+        onTap: () {
+          TitleOrigin.captureLocked(context);
+          onTap();
+        },
         child: SizedBox(
           width: width * look.posterScale,
           child: Column(

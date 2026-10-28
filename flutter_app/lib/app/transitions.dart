@@ -5,8 +5,20 @@ import 'package:go_router/go_router.dart';
 class TitleOrigin {
   TitleOrigin._();
   static Rect? rect;
+  static DateTime _lock = DateTime(2000);
+
+  /// A poster that was tapped records its own rectangle and keeps the page-level call from overwriting it a moment later.
+  static void captureLocked(BuildContext context) {
+    _capture(context);
+    _lock = DateTime.now().add(const Duration(milliseconds: 600));
+  }
 
   static void capture(BuildContext context) {
+    if (DateTime.now().isBefore(_lock)) return;
+    _capture(context);
+  }
+
+  static void _capture(BuildContext context) {
     final box = context.findRenderObject();
     if (box is RenderBox && box.hasSize && box.attached) {
       rect = box.localToGlobal(Offset.zero) & box.size;

@@ -115,6 +115,39 @@ class MediaKitEngine implements PlaybackEngine {
   }
 
   @override
+  Future<Map<String, String>> probe() async {
+    final p = _player.platform;
+    final out = <String, String>{};
+    if (p is! NativePlayer) return out;
+    for (final k in const [
+      'file-format',
+      'video-format',
+      'video-codec',
+      'hwdec-current',
+      'video-params/w',
+      'video-params/h',
+      'video-params/pixelformat',
+      'video-params/primaries',
+      'video-params/gamma',
+      'video-params/colormatrix',
+      'container-fps',
+      'video-bitrate',
+      'audio-codec-name',
+      'audio-params/channel-count',
+      'audio-params/samplerate',
+      'audio-bitrate',
+    ]) {
+      try {
+        final v = await p.getProperty(k);
+        if (v.isNotEmpty) out[k] = v;
+      } on Object {
+        // not available for this file
+      }
+    }
+    return out;
+  }
+
+  @override
   Future<void> setVolume(double volume01) =>
       _player.setVolume((volume01.clamp(0.0, 1.0)) * 100);
 

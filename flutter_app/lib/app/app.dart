@@ -8,6 +8,7 @@ import '../design/palettes.dart';
 import '../design/tokens.dart';
 import 'providers.dart';
 import 'router.dart';
+import '../features/shell/shell.dart';
 
 class AetherApp extends ConsumerWidget {
   const AetherApp({super.key});
@@ -116,7 +117,10 @@ class AetherApp extends ConsumerWidget {
           animations: s.animations,
           liquid: s.liquidGlass,
           compact: s.compact,
-          child: child ?? const SizedBox(),
+          child: DockOverlay(
+            router: ref.read(routerProvider),
+            child: child ?? const SizedBox(),
+          ),
         ),
       ),
     );

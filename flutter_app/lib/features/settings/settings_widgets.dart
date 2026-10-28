@@ -109,7 +109,7 @@ class SettingsPageFrame extends StatelessWidget {
           child: ListView(
             // No bounce: at the bottom of a long page the glass underneath used to shake.
             physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
             children: [
               Row(
                 children: [

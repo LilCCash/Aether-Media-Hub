@@ -14,10 +14,8 @@ String _mb(int b) => b >= 1073741824
     ? '${(b / 1073741824).toStringAsFixed(2)} GB'
     : '${(b / 1048576).toStringAsFixed(0)} MB';
 
-bool _active(DownloadItem d) => d.status != DownloadStatus.done;
-
 /// What is downloading and what is on the phone: films and, for series, a group per series with a group per season.
-/// Filters: «In corso» (queued, running, paused, failed), «Completati», «Tutti».
+/// Everything is listed at once, whatever its state.
 class DownloadsBody extends ConsumerStatefulWidget {
   const DownloadsBody({
     super.key,
@@ -30,8 +28,6 @@ class DownloadsBody extends ConsumerStatefulWidget {
 }
 
 class _DownloadsBodyState extends ConsumerState<DownloadsBody> {
-  int _filter = 0; // 0 active, 1 done, 2 all
-
   @override
   Widget build(BuildContext context) {
     final dl = ref.watch(servicesProvider).downloads;
@@ -39,11 +35,7 @@ class _DownloadsBodyState extends ConsumerState<DownloadsBody> {
       listenable: dl,
       builder: (context, _) {
         final all = dl.items;
-        final shown = all
-            .where(
-              (d) => _filter == 2 || (_filter == 0 ? _active(d) : !_active(d)),
-            )
-            .toList();
+        final shown = all;
         final running = all
             .where((d) => d.status == DownloadStatus.running)
             .length;
@@ -63,24 +55,6 @@ class _DownloadsBodyState extends ConsumerState<DownloadsBody> {
         return ListView(
           padding: widget.padding,
           children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final (i, label) in const [
-                  (0, 'In corso'),
-                  (1, 'Completati'),
-                  (2, 'Tutti'),
-                ])
-                  GlassButton(
-                    label: label,
-                    size: 38,
-                    selected: _filter == i,
-                    onPressed: () => setState(() => _filter = i),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
             if (running + queued > 0)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -130,10 +104,10 @@ class _DownloadsBodyState extends ConsumerState<DownloadsBody> {
             if (shown.isEmpty)
               EmptyState(
                 icon: Icons.download_for_offline_outlined,
-                title: _filter == 0 ? 'Niente in corso' : 'Nessun download',
+                title: 'Nessun download',
                 message: all.isEmpty
                     ? 'Dall’elenco delle sorgenti, dal menu ⋮ o dal pulsante «Scarica la stagione» nella scheda di una serie.'
-                    : 'Cambia filtro per vedere gli altri.',
+                    : '',
               ),
             for (final entry in series.entries)
               _SeriesGroup(items: entry.value, dl: dl),

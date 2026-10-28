@@ -218,7 +218,8 @@ class SeasonDownloader {
             headers: c.playability == StreamPlayability.direct
                 ? c.stream.proxyHeaders
                 : const {},
-            // Direct http(s) alternatives wait in case this source fails later; a torrent cannot be a fallback.
+            // The other sources of this episode wait in case this one fails later: direct links as they are, torrents asked
+            // of the debrid service only when they are needed.
             fallbacks: [
               for (final alt in candidates.skip(ci + 1))
                 if (alt.playability == StreamPlayability.direct &&
@@ -226,6 +227,23 @@ class SeasonDownloader {
                   DownloadFallback(
                     alt.stream.url!,
                     headers: alt.stream.proxyHeaders,
+                  )
+                else if (alt.playability == StreamPlayability.needsDebrid &&
+                    debrid != null)
+                  DownloadFallback(
+                    '',
+                    resolve: () async {
+                      final link = await debrid.resolve(
+                        alt.stream,
+                        allowDownload: true,
+                        season: v.season,
+                        episode: v.episode,
+                      );
+                      return (
+                        url: link.uri.toString(),
+                        headers: const <String, String>{},
+                      );
+                    },
                   ),
             ],
           );

@@ -127,28 +127,6 @@ class MetadataPage extends ConsumerWidget {
       children: [
         const _DiscoverGroup(),
         SettingsGroup(
-          title: 'Metadati TMDB',
-          footer: 'Servono la chiave TMDB (Servizi). Ogni voce si accende o si spegne da qui.',
-          children: const [
-            PrefSwitch('tmdbEnabled', 'Usa i dati di TMDB', _tmdb),
-            PrefSwitch('modCast', 'Cast con foto', _cast),
-            PrefSwitch('modCrew', 'Troupe (regia, scrittura, musiche)', _crew),
-            PrefSwitch('modTrailers', 'Trailer', _trailers),
-            PrefSwitch(
-              'modFacts',
-              'Dettagli (slogan, voto, durata, stato, date, lingue, paesi)',
-              _facts,
-            ),
-            PrefSwitch('modCertification', 'Classificazione per età', _cert),
-            PrefSwitch('modProviders', 'Dove guardarlo (piattaforme)', _prov),
-            PrefSwitch('modCompanies', 'Produzione e reti', _companies),
-            PrefSwitch('modFinancials', 'Incassi e budget', _fin),
-            PrefSwitch('modCollection', 'Saga / collezione', _coll),
-            PrefSwitch('modKeywords', 'Parole chiave', _kw),
-            PrefSwitch('modSimilar', 'Simili e consigliati', _similar),
-          ],
-        ),
-        SettingsGroup(
           title: 'Cataloghi e cache',
           children: [
             const PrefSlider(
@@ -192,18 +170,6 @@ class MetadataPage extends ConsumerWidget {
     );
   }
 
-  static bool _tmdb(AppSettings s) => s.tmdbEnabled;
-  static bool _cast(AppSettings s) => s.modCast;
-  static bool _crew(AppSettings s) => s.modCrew;
-  static bool _trailers(AppSettings s) => s.modTrailers;
-  static bool _facts(AppSettings s) => s.modFacts;
-  static bool _cert(AppSettings s) => s.modCertification;
-  static bool _prov(AppSettings s) => s.modProviders;
-  static bool _companies(AppSettings s) => s.modCompanies;
-  static bool _fin(AppSettings s) => s.modFinancials;
-  static bool _coll(AppSettings s) => s.modCollection;
-  static bool _kw(AppSettings s) => s.modKeywords;
-  static bool _similar(AppSettings s) => s.modSimilar;
   static double _refresh(AppSettings s) => s.catalogRefreshMin.toDouble();
   static String _minutes(double v) =>
       v == 0 ? 'ogni volta' : '${v.round()} min';

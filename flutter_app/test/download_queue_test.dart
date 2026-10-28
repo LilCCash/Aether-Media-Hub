@@ -71,19 +71,20 @@ void main() {
     },
   );
 
-  test('a 5xx is retried (twice at most) before giving up', () async {
+  test('a 5xx is retried (three times at most) before giving up', () async {
     var calls = 0;
     final m = make((o) {
       calls++;
       return (status: 503, body: 'busy');
     });
+    m.retryWaits = const [0, 0, 0];
     final item = await add(m, '3');
     await until(
       () => item.status == DownloadStatus.failed,
       'gave up',
       tries: 700,
     );
-    expect(calls, 3); // the first try and two retries
+    expect(calls, 4); // the first try and three retries
   }, timeout: const Timeout(Duration(seconds: 20)));
 
   test('only as many transfers run at once as the limit allows; the rest wait in the queue', () async {

@@ -28,6 +28,15 @@ class _LiquidDockState extends State<LiquidDock> {
   double _stretch =
       0; // 0..1: how fast the lens is moving, it squashes and stretches with it
   int _lastHaptic = -1;
+  bool _pressed = false;
+
+  /// A quick squash-and-stretch each time the lens jumps to another tab, then it settles back.
+  void _pulse() {
+    setState(() => _stretch = 0.9);
+    Future<void>.delayed(const Duration(milliseconds: 160), () {
+      if (mounted && _drag == null) setState(() => _stretch = 0);
+    });
+  }
 
   double _pos(double x, double itemW) =>
       ((x - 6) / itemW - 0.5).clamp(0.0, widget.items.length - 1.0);
@@ -71,100 +80,115 @@ class _LiquidDockState extends State<LiquidDock> {
             if (target != widget.index) widget.onSelect(target);
           },
           onHorizontalDragCancel: () => setState(() => _drag = null),
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapCancel: () => setState(() => _pressed = false),
           onTapUp: (d) {
             final target = _pos(d.localPosition.dx, itemW).round();
             HapticFeedback.selectionClick();
+            setState(() => _pressed = false);
+            if (target != widget.index) _pulse();
             widget.onSelect(target);
           },
-          child: LiquidSurface(
-            radius: 34,
-            strong: true,
-            child: SizedBox(
-              height: 68,
-              child: Stack(
-                children: [
-                  // The lens.
-                  AnimatedPositioned(
-                    duration: (dragging || !moving)
-                        ? Duration.zero
-                        : const Duration(milliseconds: 380),
-                    curve: Curves.easeOutBack,
-                    left: 6 + shown * itemW,
-                    width: itemW,
-                    top: 6,
-                    bottom: 6,
-                    child: AnimatedScale(
-                      scale: dragging ? 1.16 : 1,
-                      duration: const Duration(milliseconds: 180),
+          child: AnimatedScale(
+            scale: _pressed || dragging ? 1.03 : 1,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutBack,
+            child: LiquidSurface(
+              radius: 34,
+              strong: true,
+              child: SizedBox(
+                height: 68,
+                child: Stack(
+                  children: [
+                    // The lens.
+                    AnimatedPositioned(
+                      duration: (dragging || !moving)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 380),
                       curve: Curves.easeOutBack,
-                      child: Transform.scale(
-                        // Squash and stretch along the movement, like a drop of liquid being dragged.
-                        scaleX: 1 + 0.28 * _stretch,
-                        scaleY: 1 - 0.12 * _stretch,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(28),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.white.withValues(
-                                      alpha: dragging ? 0.16 : 0.26,
-                                    ),
-                                    look.accent.withValues(
-                                      alpha: dragging ? 0.42 : 0.78,
-                                    ),
-                                  ],
-                                ),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.55),
-                                  width: 1.1,
+                      left: 6 + shown * itemW,
+                      width: itemW,
+                      top: 6,
+                      bottom: 6,
+                      child: AnimatedScale(
+                        scale: dragging ? 1.16 : 1,
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutBack,
+                        child: TweenAnimationBuilder<double>(
+                          // Squash and stretch along the movement, like a drop of liquid being dragged.
+                          tween: Tween(end: _stretch),
+                          duration: const Duration(milliseconds: 140),
+                          curve: Curves.easeOut,
+                          builder: (context, st, child) => Transform.scale(
+                            scaleX: 1 + 0.3 * st,
+                            scaleY: 1 - 0.14 * st,
+                            child: child,
+                          ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(28),
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.white.withValues(
+                                        alpha: dragging ? 0.16 : 0.26,
+                                      ),
+                                      look.accent.withValues(
+                                        alpha: dragging ? 0.42 : 0.78,
+                                      ),
+                                    ],
+                                  ),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.55),
+                                    width: 1.1,
+                                  ),
                                 ),
                               ),
-                            ),
-                            // While it is held the lens becomes a second piece of glass that refracts the bar and the page.
-                            if (dragging && liquidAvailable(context))
-                              LiquidGlass.withOwnLayer(
-                                settings: LiquidGlassSettings.ios27Regular(
-                                  brightness: Brightness.dark,
-                                  tintAmount: 0.2,
+                              // While it is held the lens becomes a second piece of glass that refracts the bar and the page.
+                              if (dragging && liquidAvailable(context))
+                                LiquidGlass.withOwnLayer(
+                                  settings: LiquidGlassSettings.ios27Regular(
+                                    brightness: Brightness.dark,
+                                    tintAmount: 0.2,
+                                  ),
+                                  shape: LiquidRoundedSuperellipse(
+                                    borderRadius: 28,
+                                  ),
+                                  child: const SizedBox.expand(),
                                 ),
-                                shape: LiquidRoundedSuperellipse(
-                                  borderRadius: 28,
-                                ),
-                                child: const SizedBox.expand(),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Row(
-                      children: [
-                        for (var i = 0; i < n; i++)
-                          Expanded(
-                            child: Semantics(
-                              button: true,
-                              selected: widget.index == i,
-                              label: widget.items[i].$2,
-                              excludeSemantics: true,
-                              child: _Tab(
-                                icon: widget.items[i].$1,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < n; i++)
+                            Expanded(
+                              child: Semantics(
+                                button: true,
+                                selected: widget.index == i,
                                 label: widget.items[i].$2,
-                                near: (shown - i).abs().clamp(0.0, 1.0),
-                                accent: look.accent,
+                                excludeSemantics: true,
+                                child: _Tab(
+                                  icon: widget.items[i].$1,
+                                  label: widget.items[i].$2,
+                                  near: (shown - i).abs().clamp(0.0, 1.0),
+                                  accent: look.accent,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

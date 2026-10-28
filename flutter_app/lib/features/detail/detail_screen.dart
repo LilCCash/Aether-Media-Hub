@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/mood.dart';
 import '../../app/providers.dart';
+import '../../app/router.dart';
 import '../../core/metadata/tvdb_client.dart';
 import '../../core/model/meta.dart';
 import '../../design/glass.dart';
@@ -91,7 +92,9 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
         if (url != null) precacheImage(NetworkImage(url), context);
       },
     );
-    ref.watch(logoProvider((metaId: meta.id, isMovie: meta.type != 'series')));
+    final logo = ref
+        .watch(logoProvider((metaId: meta.id, isMovie: meta.type != 'series')))
+        .value;
     final ratings = ref.watch(ratingsProvider(meta.id)).value ?? const [];
     final tvdb = meta.isSeries
         ? (ref.watch(tvdbEpisodesProvider(meta.id)).value ?? const {})
@@ -122,10 +125,11 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          meta.name,
-                          style: Theme.of(context).textTheme.displaySmall,
-                        ),
+                        if (logo == null)
+                          Text(
+                            meta.name,
+                            style: Theme.of(context).textTheme.displaySmall,
+                          ),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -142,18 +146,6 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                             for (final g in meta.genres.take(4)) Pill(g),
                           ],
                         ),
-                        if (ratings.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 6,
-                            children: [
-                              for (final r in ratings)
-                                if (settings.ratingSources.contains(r.source))
-                                  Pill('${r.title} ${r.display}'),
-                            ],
-                          ),
-                        ],
                         const SizedBox(height: 18),
                         Row(
                           children: [
@@ -389,6 +381,17 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                     },
                   ),
                 ],
+                SliverToBoxAdapter(
+                  child: _RatingTiles(
+                    ratings: [
+                      for (final r in ratings)
+                        if (settings.ratingSources.contains(r.source))
+                          ('${r.display}', r.title),
+                      if (ratings.isEmpty && meta.imdbRating != null)
+                        (meta.imdbRating!, 'IMDb'),
+                    ],
+                  ),
+                ),
                 if (rich != null && rich.cast.isNotEmpty && settings.modCast)
                   SliverToBoxAdapter(child: _CastRow(cast: rich.cast))
                 else if (meta.cast.isNotEmpty)
@@ -402,9 +405,34 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                   SliverToBoxAdapter(
                     child: _NamesBlock(title: 'Regia', names: meta.directors),
                   ),
+                if (settings.modTrailers &&
+                    rich != null &&
+                    rich.videos.isNotEmpty)
+                  SliverToBoxAdapter(child: _TrailerList(videos: rich.videos)),
+                if (settings.modCompanies &&
+                    rich != null &&
+                    rich.companyCards.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _CompanyRow(companies: rich.companyCards),
+                  ),
+                if (settings.modFinancials &&
+                    rich != null &&
+                    ((rich.budget ?? 0) > 0 || (rich.revenue ?? 0) > 0))
+                  SliverToBoxAdapter(
+                    child: _MoneyCards(
+                      budget: rich.budget ?? 0,
+                      revenue: rich.revenue ?? 0,
+                    ),
+                  ),
                 if (rich != null && factRows(rich, settings).isNotEmpty)
                   SliverToBoxAdapter(
                     child: _Facts(rows: factRows(rich, settings)),
+                  ),
+                if (settings.modSimilar &&
+                    rich != null &&
+                    rich.similarTitles.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _SimilarRow(titles: rich.similarTitles),
                   ),
                 if (rich != null)
                   const SliverToBoxAdapter(
@@ -419,7 +447,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                       ),
                     ),
                   ),
-                const SliverToBoxAdapter(child: SizedBox(height: 60)),
+                const SliverToBoxAdapter(child: SizedBox(height: 120)),
               ],
             ),
             SafeArea(
@@ -485,14 +513,17 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
   }
 }
 
-class _Hero extends StatelessWidget {
+class _Hero extends ConsumerWidget {
   const _Hero({required this.meta, required this.tint});
   final MetaItem meta;
   final Color? tint;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final look = AetherLook.of(context);
+    final logo = ref
+        .watch(logoProvider((metaId: meta.id, isMovie: meta.type != 'series')))
+        .value;
     final height = (MediaQuery.sizeOf(context).height * 0.5).clamp(
       300.0,
       480.0,
@@ -500,28 +531,51 @@ class _Hero extends StatelessWidget {
     final backdrop = AetherTokens.ink;
     return SizedBox(
       height: height,
-      child: ShaderMask(
-        // Cinematic: the artwork itself dissolves into the page (a mask), so the film's colour flows into the background.
-        shaderCallback: (rect) => LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.white,
-            Colors.white,
-            look.cinematic
-                ? Colors.transparent
-                : backdrop.withValues(alpha: 0.2),
-          ],
-          stops: const [0, 0.55, 1],
-        ).createShader(rect),
-        blendMode: BlendMode.dstIn,
-        child: PosterImage(
-          url: meta.poster ?? meta.background,
-          title: meta.name,
-          radius: 0,
-          alignment: Alignment.topCenter,
-          cacheWidth: 1600,
-        ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ShaderMask(
+            // Cinematic: the artwork itself dissolves into the page (a mask), so the film's colour flows into the background.
+            shaderCallback: (rect) => LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.white,
+                Colors.white,
+                look.cinematic
+                    ? Colors.transparent
+                    : backdrop.withValues(alpha: 0.2),
+              ],
+              stops: const [0, 0.55, 1],
+            ).createShader(rect),
+            blendMode: BlendMode.dstIn,
+            child: PosterImage(
+              url: meta.poster ?? meta.background,
+              title: meta.name,
+              radius: 0,
+              alignment: Alignment.topCenter,
+              cacheWidth: 1600,
+            ),
+          ),
+          // The title's own logo (fanart.tv) sits at the foot of the artwork, in place of the plain title.
+          if (logo != null)
+            Positioned(
+              left: AetherTokens.pageMargin,
+              bottom: 10,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 270,
+                  maxHeight: 120,
+                ),
+                child: Image.network(
+                  logo,
+                  fit: BoxFit.contain,
+                  alignment: Alignment.bottomLeft,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -779,8 +833,6 @@ class _NamesBlock extends StatelessWidget {
 
 /// The TMDB facts shown on the title page, as label/value rows; each group follows its switch in Settings ▸ Cataloghi e metadati.
 List<(String, String)> factRows(RichDetails r, AppSettings s) {
-  String money(int v) =>
-      '\$${(v / 1000000).toStringAsFixed(v >= 100000000 ? 0 : 1)} M';
   String lang(String code) =>
       const {
         'it': 'Italiano',
@@ -831,18 +883,10 @@ List<(String, String)> factRows(RichDetails r, AppSettings s) {
     if (s.modCrew && r.crew.isNotEmpty) ('Troupe', r.crew.join('\n')),
     if (s.modCollection && r.collectionName != null)
       ('Saga', r.collectionName!),
-    if (s.modCompanies && r.companies.isNotEmpty)
-      ('Produzione', r.companies.take(4).join(', ')),
     if (s.modCompanies && r.networks.isNotEmpty)
       ('Rete', r.networks.join(', ')),
-    if (s.modFinancials && (r.budget ?? 0) > 0) ('Budget', money(r.budget!)),
-    if (s.modFinancials && (r.revenue ?? 0) > 0) ('Incassi', money(r.revenue!)),
     if (s.modKeywords && r.keywords.isNotEmpty)
       ('Parole chiave', r.keywords.join(', ')),
-    if (s.modSimilar && r.recommendations.isNotEmpty)
-      ('Consigliati', r.recommendations.take(8).join(', ')),
-    if (s.modSimilar && r.similar.isNotEmpty)
-      ('Simili', r.similar.take(8).join(', ')),
   ];
 }
 
@@ -852,34 +896,401 @@ class _Facts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-      child: GlassSurface(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            for (final r in rows)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(title: 'Dettagli'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: GlassSurface(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Column(
+              children: [
+                for (var i = 0; i < rows.length; i++) ...[
+                  if (i > 0) const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 112,
+                          child: Text(
+                            rows[i].$1,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            rows[i].$2,
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// «Voti»: one tile per rating source, the value large and the source under it.
+class _RatingTiles extends StatelessWidget {
+  const _RatingTiles({required this.ratings});
+  final List<(String, String)> ratings;
+
+  @override
+  Widget build(BuildContext context) {
+    if (ratings.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(title: 'Voti'),
+        SizedBox(
+          height: 78,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              for (final r in ratings)
+                Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: GlassSurface(
+                    radius: 14,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          r.$1,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          r.$2,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// «Trailer»: every trailer and teaser TMDB lists, opened on YouTube.
+class _TrailerList extends StatelessWidget {
+  const _TrailerList({required this.videos});
+  final List<TmdbVideo> videos;
+
+  static String _lang(String? c) =>
+      const {
+        'it': 'Italiano',
+        'en': 'Inglese',
+        'fr': 'Francese',
+        'es': 'Spagnolo',
+        'de': 'Tedesco',
+      }[c] ??
+      (c ?? '');
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(title: 'Trailer'),
+        for (final v in videos.take(8))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: GestureDetector(
+              onTap: () => launchUrl(
+                Uri.parse('https://www.youtube.com/watch?v=${v.key}'),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: GlassSurface(
+                radius: 14,
+                padding: const EdgeInsets.all(12),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(
-                      width: 90,
-                      child: Text(
-                        r.$1,
-                        style: Theme.of(context).textTheme.bodySmall,
+                    Container(
+                      width: 38,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: AetherLook.of(context).accent,
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
                       ),
                     ),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Text(r.$2, style: const TextStyle(fontSize: 13)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            v.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            [
+                              v.type,
+                              if (_lang(v.language).isNotEmpty)
+                                _lang(v.language),
+                              if (v.official) 'Ufficiale',
+                            ].join(' · '),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.north_east_rounded,
+                      size: 18,
+                      color: AetherTokens.textSecondary,
                     ),
                   ],
                 ),
               ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// «Produzione»: the companies' logos on light cards, the name under each.
+class _CompanyRow extends StatelessWidget {
+  const _CompanyRow({required this.companies});
+  final List<CompanyCard> companies;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(title: 'Produzione'),
+        SizedBox(
+          height: 118,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              for (final c in companies.take(12))
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: SizedBox(
+                    width: 124,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 82,
+                          width: 124,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF4F4F6),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: c.logo == null
+                              ? Center(
+                                  child: Text(
+                                    c.name,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 3,
+                                    style: const TextStyle(
+                                      color: Color(0xFF222226),
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                )
+                              : Image.network(
+                                  c.logo!,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => Center(
+                                    child: Text(
+                                      c.name,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Color(0xFF222226),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          c.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// «Budget» and «Incassi» side by side.
+class _MoneyCards extends StatelessWidget {
+  const _MoneyCards({required this.budget, required this.revenue});
+  final int budget;
+  final int revenue;
+
+  static String _fmt(int v) {
+    final s = v.toString();
+    final b = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) b.write('.');
+      b.write(s[i]);
+    }
+    return '$b \$';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget card(String label, int v) => Expanded(
+      child: GlassSurface(
+        radius: 14,
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 4),
+            Text(
+              v > 0 ? _fmt(v) : '—',
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+            ),
           ],
         ),
       ),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      child: Row(
+        children: [
+          card('Budget', budget),
+          const SizedBox(width: 10),
+          card('Incassi', revenue),
+        ],
+      ),
+    );
+  }
+}
+
+/// «Titoli simili»: the posters of similar and recommended titles; a tap opens that title.
+class _SimilarRow extends ConsumerWidget {
+  const _SimilarRow({required this.titles});
+  final List<SimilarTitle> titles;
+
+  Future<void> _open(
+    BuildContext context,
+    WidgetRef ref,
+    SimilarTitle t,
+  ) async {
+    final imdb = await ref
+        .read(servicesProvider)
+        .tmdb
+        .imdbIdOf(t.tmdbId, isMovie: t.isMovie);
+    if (imdb == null || !context.mounted) return;
+    openTitle(
+      context,
+      MetaItem(
+        id: imdb,
+        type: t.isMovie ? 'movie' : 'series',
+        name: t.title,
+        poster: t.poster,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(title: 'Titoli simili'),
+        SizedBox(
+          height: 262,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: titles.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, i) {
+              final t = titles[i];
+              return GestureDetector(
+                onTap: () => _open(context, ref, t),
+                child: SizedBox(
+                  width: 128,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        height: 192,
+                        child: PosterImage(
+                          url: t.poster,
+                          title: t.title,
+                          radius: 14,
+                          cacheWidth: 400,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        t.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      Text(
+                        [
+                          if (t.year != null) t.year!,
+                          if ((t.rating ?? 0) > 0)
+                            '★ ${t.rating!.toStringAsFixed(1)}',
+                        ].join('  '),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
