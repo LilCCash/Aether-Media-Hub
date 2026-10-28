@@ -1,3 +1,5 @@
+import '../core/streams/badge_pack.dart';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -348,6 +350,59 @@ class Pill extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: c.withValues(alpha: 0.95),
+        ),
+      ),
+    );
+  }
+}
+
+/// A badge imported from a link: its own picture when it has one (the name is the fallback), else a coloured pill.
+class ImportedBadge extends StatelessWidget {
+  const ImportedBadge({super.key, required this.rule});
+  final CustomBadgeRule rule;
+
+  static Color? _hex(String? hex) {
+    if (hex == null || !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(hex)) return null;
+    return Color(int.parse('FF${hex.substring(1)}', radix: 16));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pill = _pill();
+    final url = rule.imageUrl;
+    if (url == null) return pill;
+    return Semantics(
+      label: rule.label,
+      child: SizedBox(
+        height: 20,
+        child: Image.network(
+          url,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => pill,
+          loadingBuilder: (_, child, progress) =>
+              progress == null ? child : pill,
+        ),
+      ),
+    );
+  }
+
+  Widget _pill() {
+    final accent = _hex(rule.colorHex) ?? Colors.white;
+    final fill = _hex(rule.fillHex) ?? Colors.grey;
+    final border = _hex(rule.borderHex);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: fill.withValues(alpha: rule.fillAlpha),
+        borderRadius: BorderRadius.circular(AetherTokens.rPill),
+        border: border == null ? null : Border.all(color: border, width: 1),
+      ),
+      child: Text(
+        rule.label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: accent,
         ),
       ),
     );

@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:screen_brightness/screen_brightness.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../app/providers.dart';
+import '../../core/segments/skip_segments.dart';
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
 import 'media_kit_engine.dart';
@@ -43,6 +45,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Timer? _hintTimer;
   double _dragSeekStartMs = 0;
   double? _dragSeekMs;
+  EpisodeSkipSegments? _segments;
+  double _brightness = 0.5;
+  double _volume = 1.0;
+  int _verticalKind = 0; // 1 brightness, 2 volume
 
   @override
   void initState() {
@@ -64,11 +70,63 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     _session.addListener(_onSession);
     _session.start();
+    _loadSegments();
     _pipChannel.setMethodCallHandler((call) async {
       if (call.method == 'pipChanged' && mounted)
         setState(() => _inPip = call.arguments == true);
     });
     _scheduleHide();
+  }
+
+  /// IntroDB segments of this episode (needs an IMDb id and a series episode); nothing is shown when they are unknown.
+  Future<void> _loadSegments() async {
+    final a = widget.args;
+    final imdb = a.metaId.split(':').first;
+    if (!ref.read(settingsProvider).skipIntro ||
+        !a.isEpisode ||
+        !IntroDbClient.isValidImdb(imdb)) {
+      return;
+    }
+    final found = await ref
+        .read(servicesProvider)
+        .skipSegments
+        .segments(imdb, a.season!, a.episode!);
+    if (mounted && found != null) setState(() => _segments = found);
+  }
+
+  /// Brightness control may be missing (tests, some devices): a failure must never reach the player.
+  Future<void> _brightnessCall(
+    Future<void> Function(ScreenBrightness) call,
+  ) async {
+    try {
+      await call(ScreenBrightness());
+    } on Object {
+      // no brightness control here
+    }
+  }
+
+  Future<void> _verticalStart(double x, double width) async {
+    _verticalKind = x < width / 2 ? 1 : 2;
+    if (_verticalKind == 1) {
+      try {
+        _brightness = await ScreenBrightness().application;
+      } on Object {
+        _brightness = 0.5;
+      }
+    }
+  }
+
+  void _verticalUpdate(double dy, double height) {
+    final delta = -dy / (height * 0.7);
+    if (_verticalKind == 1) {
+      _brightness = (_brightness + delta).clamp(0.02, 1.0);
+      _brightnessCall((b) => b.setApplicationScreenBrightness(_brightness));
+      _hint('Luminosità ${(_brightness * 100).round()}%');
+    } else if (_verticalKind == 2) {
+      _volume = (_volume + delta).clamp(0.0, 1.0);
+      _engine.setVolume(_volume);
+      _hint('Volume ${(_volume * 100).round()}%');
+    }
   }
 
   /// Keeps the screen on while watching; a device without the feature must not break playback.
@@ -127,6 +185,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _session.dispose();
     _engine.dispose();
     _keepAwake(false);
+    _brightnessCall((b) => b.resetApplicationScreenBrightness());
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
     super.dispose();
@@ -203,6 +262,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final look = AetherLook.of(context);
     final canPip = Platform.isAndroid;
     final showControls = _controls && !_inPip && !s.locked;
+    final skip = _segments?.active(
+      s.position.inMilliseconds / 1000,
+      duration: s.duration.inMilliseconds / 1000,
+    );
     final total = s.duration.inMilliseconds.toDouble();
     final pos = (_dragSeekMs ?? s.position.inMilliseconds.toDouble())
         .clamp(0, total <= 0 ? 1 : total)
@@ -256,6 +319,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             _hint(left ? '−10 s' : '+10 s');
                           },
                     onDoubleTap: () {},
+                    onVerticalDragStart: s.locked
+                        ? null
+                        : (d) => _verticalStart(d.localPosition.dx, c.maxWidth),
+                    onVerticalDragUpdate: s.locked
+                        ? null
+                        : (d) => _verticalUpdate(d.delta.dy, c.maxHeight),
                     onHorizontalDragStart: s.locked
                         ? null
                         : (_) => _dragSeekStartMs = s.position.inMilliseconds
@@ -300,7 +369,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ),
               ),
             if (s.buffering && s.error == null && !_inPip)
-              const Center(child: CircularProgressIndicator()),
+              Center(
+                child: s.position == Duration.zero
+                    ? _StartingCard(args: s.args)
+                    : const CircularProgressIndicator(),
+              ),
+            if (skip != null && !_inPip && !s.locked)
+              Positioned(
+                right: 24,
+                bottom: showControls ? 110 : 40,
+                child: SafeArea(
+                  child: GlassButton(
+                    icon: Icons.fast_forward_rounded,
+                    label: skip.kind == SkipKind.intro
+                        ? 'Salta intro'
+                        : 'Salta riassunto',
+                    prominent: true,
+                    onPressed: () => s.seekTo(
+                      Duration(milliseconds: (skip.end * 1000).round()),
+                    ),
+                  ),
+                ),
+              ),
             if (s.error != null)
               _ErrorOverlay(
                 message: s.error!,
@@ -635,6 +725,49 @@ class _ErrorOverlay extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Shown while the first frame is prepared: the fanart.tv logo when there is one, else the title.
+class _StartingCard extends ConsumerWidget {
+  const _StartingCard({required this.args});
+  final PlayerArgs args;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final logo = ref
+        .watch(
+          logoProvider((metaId: args.metaId, isMovie: args.type != 'series')),
+        )
+        .value;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (logo != null)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320, maxHeight: 120),
+            child: Image.network(
+              logo,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Text(
+                args.title,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          )
+        else
+          Text(
+            args.title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+          ),
+        const SizedBox(height: 18),
+        const CircularProgressIndicator(),
+      ],
     );
   }
 }

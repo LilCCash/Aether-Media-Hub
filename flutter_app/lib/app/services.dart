@@ -7,8 +7,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/addons/addon_client.dart';
 import '../core/addons/addon_repository.dart';
 import '../core/addons/network_policy.dart';
+import '../core/debrid/debrid_provider.dart';
+import '../core/debrid/debrid_resolver.dart';
+import '../core/debrid/real_debrid_client.dart';
 import '../core/debrid/torbox_client.dart';
+import '../core/metadata/fanart_client.dart';
+import '../core/metadata/mdblist_client.dart';
+import '../core/metadata/tvdb_client.dart';
+import '../core/segments/skip_segments.dart';
 import '../core/metadata/tmdb_client.dart';
+import '../core/streams/badge_pack_loader.dart';
 import '../core/subtitles/subtitle_loader.dart';
 import '../data/library_repository.dart';
 import '../data/settings.dart';
@@ -27,6 +35,12 @@ class AppServices {
     required this.settingsRepo,
     required this.torbox,
     required this.tmdb,
+    required this.realDebrid,
+    required this.tvdb,
+    required this.mdblist,
+    required this.fanart,
+    required this.skipSegments,
+    required this.badgeLoader,
     required this.subtitleLoader,
     required this.downloads,
     required this.initialSettings,
@@ -40,9 +54,30 @@ class AppServices {
   final SettingsRepository settingsRepo;
   final TorBoxClient torbox;
   final TmdbClient tmdb;
+  final RealDebridClient realDebrid;
+  final TvdbClient tvdb;
+  final MdbListClient mdblist;
+  final FanartClient fanart;
+  final SkipSegmentsService skipSegments;
+  final BadgePackLoader badgeLoader;
   final SubtitleLoader subtitleLoader;
   final DownloadManager downloads;
   final AppSettings initialSettings;
+
+  /// The debrid service to use: the one chosen in the settings when its key is stored, else the other one if that has a key.
+  Future<DebridProvider?> activeDebrid(AppSettings settings) async {
+    Future<bool> has(ServiceKey k) async =>
+        ((await secrets.serviceKey(k)) ?? '').isNotEmpty;
+    final order = settings.debridProvider == 'realdebrid'
+        ? const [ServiceKey.realdebrid, ServiceKey.torbox]
+        : const [ServiceKey.torbox, ServiceKey.realdebrid];
+    for (final k in order) {
+      if (await has(k)) {
+        return k == ServiceKey.torbox ? DebridResolver(torbox) : realDebrid;
+      }
+    }
+    return null;
+  }
 
   static Future<AppServices> create() async {
     final prefs = await SharedPreferences.getInstance();
@@ -95,6 +130,25 @@ class AppServices {
         keyProvider: () => secrets.serviceKey(ServiceKey.tmdb),
         dio: dio,
       ),
+      realDebrid: RealDebridClient(
+        keyProvider: () => secrets.serviceKey(ServiceKey.realdebrid),
+        dio: dio,
+      ),
+      tvdb: TvdbClient(
+        keyProvider: () => secrets.serviceKey(ServiceKey.tvdb),
+        pinProvider: () => secrets.serviceKey(ServiceKey.tvdbPin),
+        dio: dio,
+      ),
+      mdblist: MdbListClient(
+        keyProvider: () => secrets.serviceKey(ServiceKey.mdblist),
+        dio: dio,
+      ),
+      fanart: FanartClient(
+        keyProvider: () => secrets.serviceKey(ServiceKey.fanart),
+        dio: dio,
+      ),
+      skipSegments: SkipSegmentsService(IntroDbClient(dio: dio)),
+      badgeLoader: BadgePackLoader(dio: dio, policy: policy),
       subtitleLoader: SubtitleLoader(dio: dio, policy: policy),
       downloads: downloads,
       initialSettings: settings,

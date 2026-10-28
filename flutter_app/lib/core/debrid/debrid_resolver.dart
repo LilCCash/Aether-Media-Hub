@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 
 import '../model/stream.dart';
+import 'debrid_provider.dart';
 import 'torbox_client.dart';
 
 class ResolveStatus {
@@ -20,7 +21,7 @@ class ResolvedLink {
 /// Turns a torrent stream into a playable link through TorBox. It never deletes or "repairs" anything in the user's account.
 /// With [allowDownload] false only content that is already in TorBox's cache is accepted (nothing new is started); with true
 /// and a torrent that is not cached, TorBox downloads it and this waits, reporting progress, until it is ready or cancelled.
-class DebridResolver {
+class DebridResolver implements DebridProvider {
   DebridResolver(
     this.client, {
     this.pollInterval = const Duration(seconds: 3),
@@ -33,6 +34,16 @@ class DebridResolver {
   final Duration maxCachedWait;
   final Duration maxDownloadWait;
 
+  @override
+  String get name => 'TorBox';
+
+  @override
+  Future<Map<String, bool>?> cached(
+    List<String> hashes, {
+    CancelToken? cancel,
+  }) => client.checkCached(hashes);
+
+  @override
   Future<ResolvedLink> resolve(
     AddonStream stream, {
     bool allowDownload = false,

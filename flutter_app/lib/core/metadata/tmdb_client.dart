@@ -247,6 +247,12 @@ class TmdbClient {
     return result;
   }
 
+  /// TheTVDB id of a series (TMDB external ids), used for fanart.tv logos of series.
+  Future<int?> tvdbIdOf(int tmdbId, {CancelToken? cancel}) async {
+    final r = await _get('tv/$tmdbId/external_ids', const {}, cancel: cancel);
+    return asInt(r?['tvdb_id']);
+  }
+
   /// The IMDb code of a TMDB title (to open it from the catalogs).
   Future<String?> imdbIdOf(
     int tmdbId, {

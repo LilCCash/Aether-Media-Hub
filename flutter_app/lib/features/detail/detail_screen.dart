@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/mood.dart';
 import '../../app/providers.dart';
+import '../../core/metadata/tvdb_client.dart';
 import '../../core/model/meta.dart';
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
@@ -46,6 +47,10 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
         .watch(moodColorProvider(meta.background ?? meta.poster))
         .value;
     final rich = ref.watch(tmdbDetailsProvider(meta.id)).value;
+    final ratings = ref.watch(ratingsProvider(meta.id)).value ?? const [];
+    final tvdb = meta.isSeries
+        ? (ref.watch(tvdbEpisodesProvider(meta.id)).value ?? const {})
+        : const <String, TvdbEpisode>{};
     final seasons = meta.seasons.where((s) => s != 0).toList()
       ..addAll(meta.seasons.contains(0) ? [0] : const []);
     final selectedSeason =
@@ -92,6 +97,17 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                             for (final g in meta.genres.take(4)) Pill(g),
                           ],
                         ),
+                        if (ratings.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              for (final r in ratings)
+                                Pill('${r.title} ${r.display}'),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 18),
                         Row(
                           children: [
@@ -247,7 +263,10 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                   SliverList.builder(
                     itemCount: meta.episodesOf(selectedSeason).length,
                     itemBuilder: (context, i) {
-                      final v = meta.episodesOf(selectedSeason)[i];
+                      final v = _translated(
+                        meta.episodesOf(selectedSeason)[i],
+                        tvdb,
+                      );
                       return _EpisodeTile(
                         meta: meta,
                         video: v,
@@ -305,6 +324,23 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// The episode with the title and overview TheTVDB translated, when it has them.
+  static Video _translated(Video v, Map<String, TvdbEpisode> tvdb) {
+    final t = (v.season == null || v.episode == null)
+        ? null
+        : tvdb['${v.season}:${v.episode}'];
+    if (t == null || (t.name == null && t.overview == null)) return v;
+    return Video(
+      id: v.id,
+      title: t.name ?? v.title,
+      season: v.season,
+      episode: v.episode,
+      released: v.released,
+      thumbnail: v.thumbnail ?? t.image,
+      overview: t.overview ?? v.overview,
     );
   }
 

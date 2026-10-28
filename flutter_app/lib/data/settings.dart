@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import '../core/streams/badge_pack.dart';
 import '../core/util/lenient.dart';
 import 'stores.dart';
+
+const Object _keep = Object();
 
 /// Everything the viewer can change. Decoding is lenient: a missing or damaged field falls back to its default.
 class AppSettings {
@@ -29,6 +32,12 @@ class AppSettings {
     this.catalogOrder = const [],
     this.showContinueWatching = true,
     this.preferredStreamLanguage = 'Italiano',
+    this.debridProvider = 'torbox',
+    this.skipIntro = true,
+    this.showRatings = true,
+    this.tvdbEpisodes = true,
+    this.customBadges = const [],
+    this.customBadgesUrl,
   });
 
   final String language;
@@ -54,6 +63,12 @@ class AppSettings {
   final List<String> catalogOrder;
   final bool showContinueWatching;
   final String preferredStreamLanguage;
+  final String debridProvider; // 'torbox' | 'realdebrid'
+  final bool skipIntro;
+  final bool showRatings;
+  final bool tvdbEpisodes;
+  final List<CustomBadgeRule> customBadges;
+  final String? customBadgesUrl;
 
   AppSettings copyWith({
     String? language,
@@ -79,6 +94,12 @@ class AppSettings {
     List<String>? catalogOrder,
     bool? showContinueWatching,
     String? preferredStreamLanguage,
+    String? debridProvider,
+    bool? skipIntro,
+    bool? showRatings,
+    bool? tvdbEpisodes,
+    List<CustomBadgeRule>? customBadges,
+    Object? customBadgesUrl = _keep,
   }) => AppSettings(
     language: language ?? this.language,
     audioLanguage: audioLanguage ?? this.audioLanguage,
@@ -105,6 +126,14 @@ class AppSettings {
     showContinueWatching: showContinueWatching ?? this.showContinueWatching,
     preferredStreamLanguage:
         preferredStreamLanguage ?? this.preferredStreamLanguage,
+    debridProvider: debridProvider ?? this.debridProvider,
+    skipIntro: skipIntro ?? this.skipIntro,
+    showRatings: showRatings ?? this.showRatings,
+    tvdbEpisodes: tvdbEpisodes ?? this.tvdbEpisodes,
+    customBadges: customBadges ?? this.customBadges,
+    customBadgesUrl: identical(customBadgesUrl, _keep)
+        ? this.customBadgesUrl
+        : customBadgesUrl as String?,
   );
 
   Map<String, Object?> toJson() => {
@@ -131,6 +160,12 @@ class AppSettings {
     'catalogOrder': catalogOrder,
     'showContinueWatching': showContinueWatching,
     'preferredStreamLanguage': preferredStreamLanguage,
+    'debridProvider': debridProvider,
+    'skipIntro': skipIntro,
+    'showRatings': showRatings,
+    'tvdbEpisodes': tvdbEpisodes,
+    'customBadges': [for (final b in customBadges) b.toJson()],
+    'customBadgesUrl': customBadgesUrl,
   };
 
   factory AppSettings.fromJson(Object? raw) {
@@ -188,6 +223,19 @@ class AppSettings {
       preferredStreamLanguage:
           asNonEmptyString(m['preferredStreamLanguage']) ??
           d.preferredStreamLanguage,
+      debridProvider: m['debridProvider'] == 'realdebrid'
+          ? 'realdebrid'
+          : 'torbox',
+      skipIntro: asBool(m['skipIntro'], fallback: d.skipIntro),
+      showRatings: asBool(m['showRatings'], fallback: d.showRatings),
+      tvdbEpisodes: asBool(m['tvdbEpisodes'], fallback: d.tvdbEpisodes),
+      customBadges: [
+        for (final b in asList(
+          m['customBadges'],
+        ).take(CustomBadgePack.maxRules))
+          ?CustomBadgeRule.fromJson(b),
+      ],
+      customBadgesUrl: asNonEmptyString(m['customBadgesUrl']),
     );
   }
 }

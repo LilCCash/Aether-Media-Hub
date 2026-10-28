@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../core/debrid/torbox_client.dart';
+import '../../core/streams/badge_pack.dart';
 import '../../core/model/meta.dart';
 import '../../core/streams/stream_analyzer.dart';
 import '../../data/stores.dart';
@@ -50,8 +51,9 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
   @override
   void initState() {
     super.initState();
-    ref.read(servicesProvider).secrets.serviceKey(ServiceKey.torbox).then((k) {
-      if (mounted) setState(() => _debrid = (k ?? '').isNotEmpty);
+    final services = ref.read(servicesProvider);
+    services.activeDebrid(ref.read(settingsProvider)).then((p) {
+      if (mounted) setState(() => _debrid = p != null);
     });
   }
 
@@ -65,11 +67,12 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
     if (hashes.isEmpty) return;
     _asked.addAll(hashes);
     try {
-      final result = await ref
-          .read(servicesProvider)
-          .torbox
-          .checkCached(hashes);
-      if (mounted) setState(() => _cached = {..._cached, ...result});
+      final services = ref.read(servicesProvider);
+      final provider = await services.activeDebrid(ref.read(settingsProvider));
+      final result = await provider?.cached(hashes);
+      if (result != null && mounted) {
+        setState(() => _cached = {..._cached, ...result});
+      }
     } on DebridException catch (e) {
       if (mounted) setState(() => _cacheProblem = e.message);
     }
@@ -217,6 +220,10 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
                           ? null
                           : _cached[r.stream.infoHash],
                       debridConfigured: _debrid,
+                      customBadges: CustomBadgePack.badgesFor(
+                        r.stream,
+                        settings.customBadges,
+                      ),
                       onTap: () async {
                         final navigator = Navigator.of(context);
                         final ctx = navigator.context;
@@ -346,7 +353,9 @@ class _StreamRow extends StatelessWidget {
     required this.debridConfigured,
     required this.onTap,
     this.onDownload,
+    this.customBadges = const [],
   });
+  final List<CustomBadgeRule> customBadges;
   final RankedStream ranked;
   final bool? cached;
   final bool debridConfigured;
@@ -374,6 +383,7 @@ class _StreamRow extends StatelessWidget {
       if (info.sizeLabel != null) Pill(info.sizeLabel!),
       if (info.format != null) Pill(info.format!),
       if (info.release != null) Pill(info.release!),
+      for (final b in customBadges) ImportedBadge(rule: b),
       if (ranked.playability == StreamPlayability.needsDebrid)
         Pill(
           cached == null

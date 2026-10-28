@@ -6,12 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/addons/addon_client.dart';
 import '../core/addons/addon_repository.dart';
 import '../core/addons/network_policy.dart';
+import '../core/metadata/fanart_client.dart';
+import '../core/metadata/mdblist_client.dart';
 import '../core/metadata/tmdb_client.dart';
+import '../core/metadata/tvdb_client.dart';
 import '../core/model/manifest.dart';
 import '../core/model/meta.dart';
 import '../core/model/stream.dart';
 import '../core/util/app_log.dart';
 import '../data/settings.dart';
+import '../data/stores.dart';
 import 'services.dart';
 
 final servicesProvider = Provider<AppServices>(
@@ -424,4 +428,81 @@ final tmdbDetailsProvider = FutureProvider.autoDispose
             ? 'it-IT'
             : (lang == 'en' ? 'en-US' : '$lang-${lang.toUpperCase()}'),
       );
+    });
+
+String _iso3(String iso1) =>
+    const {
+      'it': 'ita',
+      'en': 'eng',
+      'fr': 'fra',
+      'es': 'spa',
+      'de': 'deu',
+      'pt': 'por',
+      'ja': 'jpn',
+    }[iso1] ??
+    'eng';
+
+String? _imdbOf(String id) {
+  final base = id.split(':').first;
+  return RegExp(r'^tt[0-9]{6,10}$').hasMatch(base) ? base : null;
+}
+
+/// Ratings from several services (MDBList) for a title; empty when there is no key or no answer.
+final ratingsProvider = FutureProvider.autoDispose
+    .family<List<MdbRating>, String>((ref, metaId) async {
+      final services = ref.watch(servicesProvider);
+      final imdb = _imdbOf(metaId);
+      if (imdb == null || !ref.read(settingsProvider).showRatings) {
+        return const [];
+      }
+      if (((await services.secrets.serviceKey(ServiceKey.mdblist)) ?? '')
+          .isEmpty) {
+        return const [];
+      }
+      final found = await services.tmdb.findByImdb(imdb);
+      if (found == null) return const [];
+      return services.mdblist.ratings(found.id, isMovie: found.isMovie);
+    });
+
+/// Episode titles and overviews translated by TheTVDB, by "season:episode". Empty without a key.
+final tvdbEpisodesProvider = FutureProvider.autoDispose
+    .family<Map<String, TvdbEpisode>, String>((ref, metaId) async {
+      final services = ref.watch(servicesProvider);
+      final settings = ref.read(settingsProvider);
+      final imdb = _imdbOf(metaId);
+      if (imdb == null || !settings.tvdbEpisodes) return const {};
+      if (((await services.secrets.serviceKey(ServiceKey.tvdb)) ?? '')
+          .isEmpty) {
+        return const {};
+      }
+      final seriesId = await services.tvdb.seriesIdForImdb(imdb);
+      if (seriesId == null) return const {};
+      final episodes = await services.tvdb.episodes(
+        seriesId,
+        _iso3(settings.language),
+      );
+      return {for (final e in episodes) '${e.season}:${e.number}': e};
+    });
+
+/// The transparent fanart.tv logo of a title, or null (no key, unknown title, any failure).
+final logoProvider = FutureProvider.autoDispose
+    .family<String?, ({String metaId, bool isMovie})>((ref, key) async {
+      final services = ref.watch(servicesProvider);
+      final imdb = _imdbOf(key.metaId);
+      if (imdb == null) return null;
+      if (((await services.secrets.serviceKey(ServiceKey.fanart)) ?? '')
+          .isEmpty) {
+        return null;
+      }
+      final lang = ref.read(settingsProvider).language;
+      if (key.isMovie) {
+        return services.fanart.logoUrl(FanartKind.movie, imdb, lang);
+      }
+      final found = await services.tmdb.findByImdb(imdb);
+      final tvdb = found == null
+          ? null
+          : await services.tmdb.tvdbIdOf(found.id);
+      return tvdb == null
+          ? null
+          : services.fanart.logoUrl(FanartKind.tv, '$tvdb', lang);
     });

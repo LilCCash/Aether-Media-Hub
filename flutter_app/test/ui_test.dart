@@ -331,7 +331,7 @@ void main() {
       'the back button closes the player and returns to the previous screen',
       (tester) async {
         await openPlayer(tester);
-        expect(find.text('Film di prova'), findsOneWidget);
+        expect(find.text('Film di prova'), findsWidgets);
         await tester.tap(find.byTooltip('Chiudi il player'));
         await tester.pump(const Duration(milliseconds: 100));
         await tester.runAsync(

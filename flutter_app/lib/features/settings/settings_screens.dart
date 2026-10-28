@@ -7,6 +7,7 @@ import '../../app/providers.dart';
 import '../../app/router.dart';
 import '../../app/version.dart';
 import '../../core/debrid/torbox_client.dart';
+import '../../core/metadata/fanart_client.dart';
 import '../../core/metadata/tmdb_client.dart';
 import '../../core/model/meta.dart';
 import '../../core/util/app_log.dart';
@@ -251,6 +252,12 @@ class _PlaybackPage extends ConsumerWidget {
               onChanged: (v) => n.update((x) => x.copyWith(playbackSpeed: v)),
             ),
             SwitchRow(
+              title: 'Pulsante «Salta intro»',
+              subtitle: 'Dati volontari di IntroDB (nessuna chiave): possono essere di pochi secondi fuori per un’altra versione dell’episodio.',
+              value: s.skipIntro,
+              onChanged: (v) => n.update((x) => x.copyWith(skipIntro: v)),
+            ),
+            SwitchRow(
               title: 'Riprendi da dove eri',
               value: s.resumePlayback,
               onChanged: (v) => n.update((x) => x.copyWith(resumePlayback: v)),
@@ -441,6 +448,7 @@ class _ContentPage extends ConsumerWidget {
             ),
           ],
         ),
+        const _BadgesGroup(),
         SettingsGroup(
           title: 'Rete',
           footer: 'Attivalo solo per addon tuoi (un NAS, un Raspberry Pi). Gli indirizzi sul dispositivo stesso restano sempre bloccati.',
@@ -602,38 +610,122 @@ class _ServicesPage extends ConsumerWidget {
   const _ServicesPage();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => SettingsPageFrame(
-    title: 'Servizi',
-    children: [
-      const Padding(
-        padding: EdgeInsets.only(bottom: 16),
-        child: Text(
-          'Le chiavi sono tue: restano nel portachiavi sicuro del telefono, non vanno nei log né nei backup (a meno che tu non lo chieda), e puoi rimuoverle quando vuoi.',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(settingsProvider);
+    final n = ref.read(settingsProvider.notifier);
+    return SettingsPageFrame(
+      title: 'Servizi',
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: 16),
+          child: Text(
+            'Le chiavi sono tue: restano nel portachiavi sicuro del telefono, non vanno nei log né nei backup (a meno che tu non lo chieda), e puoi rimuoverle quando vuoi.',
+          ),
         ),
-      ),
-      _KeyCard(
-        title: 'TorBox',
-        description: 'Per riprodurre i torrent degli addon con la tua cache TorBox. Aether non cancella mai nulla dal tuo account e non avvia download senza chiederti conferma.',
-        service: ServiceKey.torbox,
-        verify: (ref) async {
-          try {
-            final plan = await ref.read(servicesProvider).torbox.check();
-            return 'Connesso a TorBox ($plan).';
-          } on DebridException catch (e) {
-            return e.message;
-          }
-        },
-      ),
-      _KeyCard(
-        title: 'TMDB',
-        description: 'Per cast con foto, filmografie, trailer e dettagli. Chiave v3 o token v4 dal tuo account TMDB.',
-        service: ServiceKey.tmdb,
-        verify: (ref) async =>
-            await ref.read(servicesProvider).tmdb.check() ??
-            'TMDB accetta la chiave.',
-      ),
-    ],
-  );
+        SettingsGroup(
+          title: 'Debrid',
+          footer: 'Se il servizio scelto non ha una chiave, Aether usa l’altro (se ce l’ha). Real-Debrid non permette di sapere in anticipo se un torrent è pronto: prima di aggiungerlo chiede conferma.',
+          children: [
+            ChoiceRow<String>(
+              title: 'Servizio preferito',
+              value: s.debridProvider,
+              options: const {'torbox': 'TorBox', 'realdebrid': 'Real-Debrid'},
+              onChanged: (v) => n.update((x) => x.copyWith(debridProvider: v)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _KeyCard(
+          title: 'TorBox',
+          description: 'Per riprodurre i torrent degli addon con la tua cache TorBox. Aether non cancella mai nulla dal tuo account e non avvia download senza chiederti conferma.',
+          service: ServiceKey.torbox,
+          verify: (ref) async {
+            try {
+              final plan = await ref.read(servicesProvider).torbox.check();
+              return 'Connesso a TorBox ($plan).';
+            } on DebridException catch (e) {
+              return e.message;
+            }
+          },
+        ),
+        _KeyCard(
+          title: 'Real-Debrid',
+          description: 'Token personale dal tuo account Real-Debrid (account Premium). Aether non cancella nulla e non aggiunge torrent senza chiederti conferma.',
+          service: ServiceKey.realdebrid,
+          verify: (ref) async {
+            try {
+              final plan = await ref.read(servicesProvider).realDebrid.check();
+              return 'Connesso a Real-Debrid ($plan).';
+            } on DebridException catch (e) {
+              return e.message;
+            }
+          },
+        ),
+        _KeyCard(
+          title: 'TMDB',
+          description: 'Per cast con foto, filmografie, trailer e dettagli. Chiave v3 o token v4 dal tuo account TMDB.',
+          service: ServiceKey.tmdb,
+          verify: (ref) async =>
+              await ref.read(servicesProvider).tmdb.check() ??
+              'TMDB accetta la chiave.',
+        ),
+        SettingsGroup(
+          title: 'Dettagli del titolo',
+          children: [
+            SwitchRow(
+              title: 'Voti da più servizi (MDBList)',
+              value: s.showRatings,
+              onChanged: (v) => n.update((x) => x.copyWith(showRatings: v)),
+            ),
+            SwitchRow(
+              title: 'Titoli degli episodi tradotti (TheTVDB)',
+              value: s.tvdbEpisodes,
+              onChanged: (v) => n.update((x) => x.copyWith(tvdbEpisodes: v)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _KeyCard(
+          title: 'MDBList',
+          description: 'Voti di IMDb, Rotten Tomatoes, Metacritic, Trakt e altri nella scheda del titolo. Chiave dal tuo account MDBList.',
+          service: ServiceKey.mdblist,
+          verify: (ref) async =>
+              await ref.read(servicesProvider).mdblist.check() ??
+              'MDBList accetta la chiave.',
+        ),
+        _KeyCard(
+          title: 'TheTVDB',
+          description: 'Titoli e trame degli episodi nella tua lingua. Chiave di progetto TheTVDB v4.',
+          service: ServiceKey.tvdb,
+          verify: (ref) async =>
+              await ref.read(servicesProvider).tvdb.check() ??
+              'TheTVDB accetta la chiave.',
+        ),
+        _KeyCard(
+          title: 'TheTVDB · PIN (facoltativo)',
+          description: 'Solo se la tua chiave TheTVDB è di un abbonato e richiede il PIN.',
+          service: ServiceKey.tvdbPin,
+          verify: (ref) async =>
+              await ref.read(servicesProvider).tvdb.check() ??
+              'TheTVDB accetta chiave e PIN.',
+        ),
+        _KeyCard(
+          title: 'fanart.tv',
+          description: 'Logo trasparente del titolo mostrato dal player mentre prepara la sorgente. Chiave personale dal tuo account fanart.tv.',
+          service: ServiceKey.fanart,
+          verify: (ref) async {
+            final url = await ref
+                .read(servicesProvider)
+                .fanart
+                .logoUrl(FanartKind.movie, 'tt0111161', 'en');
+            return url == null
+                ? 'fanart.tv non ha risposto con un logo: controlla la chiave.'
+                : 'fanart.tv accetta la chiave.';
+          },
+        ),
+      ],
+    );
+  }
 }
 
 class _KeyCard extends ConsumerStatefulWidget {
@@ -1128,6 +1220,108 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
             );
           },
         ),
+      ],
+    );
+  }
+}
+
+/// Import of a badge pack (Fusion/Nuvio format) from a link, shown on the sources.
+class _BadgesGroup extends ConsumerStatefulWidget {
+  const _BadgesGroup();
+
+  @override
+  ConsumerState<_BadgesGroup> createState() => _BadgesGroupState();
+}
+
+class _BadgesGroupState extends ConsumerState<_BadgesGroup> {
+  late final TextEditingController _c = TextEditingController(
+    text: ref.read(settingsProvider).customBadgesUrl ?? '',
+  );
+  String? _status;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  Future<void> _import() async {
+    setState(() {
+      _busy = true;
+      _status = null;
+    });
+    try {
+      final rules = await ref.read(servicesProvider).badgeLoader.load(_c.text);
+      await ref
+          .read(settingsProvider.notifier)
+          .update(
+            (x) => x.copyWith(
+              customBadges: rules,
+              customBadgesUrl: _c.text.trim(),
+            ),
+          );
+      if (mounted) setState(() => _status = '${rules.length} badge importati.');
+    } on FormatException catch (e) {
+      if (mounted) setState(() => _status = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = ref.watch(settingsProvider);
+    return SettingsGroup(
+      title: 'Badge personalizzati',
+      footer: 'Incolla l’indirizzo (https) di un file JSON di badge, per esempio nel formato «filters» di Nuvio/Fusion. Compaiono sulle sorgenti il cui nome contiene la parola o corrisponde al modello. Il file è trattato solo come dati.',
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: TextField(
+            controller: _c,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              hintText: 'https://…/badges.json',
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              FilledButton(
+                onPressed: _busy ? null : _import,
+                child: Text(_busy ? 'Scarico…' : 'Importa'),
+              ),
+              if (s.customBadges.isNotEmpty)
+                TextButton(
+                  onPressed: () async {
+                    _c.clear();
+                    await ref
+                        .read(settingsProvider.notifier)
+                        .update(
+                          (x) => x.copyWith(
+                            customBadges: const [],
+                            customBadgesUrl: null,
+                          ),
+                        );
+                    if (mounted) setState(() => _status = 'Badge rimossi.');
+                  },
+                  child: Text('Rimuovi (${s.customBadges.length})'),
+                ),
+            ],
+          ),
+        ),
+        if (_status != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(_status!),
+          ),
       ],
     );
   }

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// Tolerant readers for JSON coming from addons and services: a malformed field never throws, it reads as "absent".
 String? asString(Object? v) {
   if (v == null) return null;
@@ -55,3 +57,6 @@ DateTime? asDate(Object? v) {
   if (s == null) return null;
   return DateTime.tryParse(s);
 }
+
+/// Decodes a JSON text; throws [FormatException] when it is not JSON.
+Object? asMapOrList(String text) => jsonDecode(text);

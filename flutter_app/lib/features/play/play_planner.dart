@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../app/services.dart';
+import '../../core/debrid/debrid_provider.dart';
 import '../../core/debrid/debrid_resolver.dart';
 import '../../core/debrid/torbox_client.dart';
 import '../../core/model/meta.dart';
@@ -14,15 +15,18 @@ import '../player/player_session.dart';
 /// Turns "the viewer chose this source" into something the player can open: a direct link, or a TorBox link for a torrent.
 /// Also finds the next episode and the alternative sources. No widgets here, so all of it is testable.
 class PlayPlanner {
-  PlayPlanner(this.services, this.settings, {DebridResolver? resolver})
-    : resolver = resolver ?? DebridResolver(services.torbox);
+  PlayPlanner(this.services, this.settings, {DebridProvider? resolver})
+    : _override = resolver;
 
   final AppServices services;
   final AppSettings settings;
-  final DebridResolver resolver;
+  final DebridProvider? _override;
+
+  Future<DebridProvider?> get provider async =>
+      _override ?? await services.activeDebrid(settings);
 
   Future<bool> get debridConfigured async =>
-      ((await services.secrets.serviceKey(ServiceKey.torbox)) ?? '').isNotEmpty;
+      (await services.activeDebrid(settings)) != null;
 
   StreamRanker get ranker =>
       StreamRanker(preferredLanguage: settings.preferredStreamLanguage);
@@ -44,7 +48,14 @@ class PlayPlanner {
     if (stream.isDirect)
       return PlaybackSource(uri: stream.url!, headers: stream.proxyHeaders);
     if (stream.isTorrent) {
-      final link = await resolver.resolve(
+      final debrid = await provider;
+      if (debrid == null) {
+        throw const DebridException(
+          DebridFailure.notConfigured,
+          'Manca una chiave debrid (Impostazioni ▸ Servizi).',
+        );
+      }
+      final link = await debrid.resolve(
         stream,
         allowDownload: allowDownload,
         season: season,
