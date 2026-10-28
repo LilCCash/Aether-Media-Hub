@@ -9,7 +9,6 @@ import '../../core/model/stream.dart';
 import '../../core/streams/stream_analyzer.dart';
 import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
-import '../../data/stores.dart';
 import '../player/playback_engine.dart';
 import '../player/player_session.dart';
 

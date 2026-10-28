@@ -21,7 +21,10 @@ class TheaterSound {
     try {
       final wav = await Isolate.run(() => wave());
       final play = override;
-      if (play != null) return play(wav);
+      if (play != null) {
+        await play(wav);
+        return;
+      }
       final file = File(
         '${Directory.systemTemp.path}/aether_theater_intro.wav',
       );

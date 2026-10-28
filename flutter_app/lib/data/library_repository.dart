@@ -209,6 +209,13 @@ class LibraryRepository {
     await _save();
   }
 
+  /// Everything: favourites, watchlist and history.
+  Future<void> clearAll() async {
+    _favorites.clear();
+    _watchlist.clear();
+    await clearHistory();
+  }
+
   Future<void> clearHistory() async {
     _progress.clear();
     _lastSeen.clear();

@@ -9,7 +9,11 @@ class AppLog {
 
   List<String> get lines => List.unmodifiable(_lines);
 
+  /// Settings ▸ Diagnostica ▸ «Conserva il registro»: when off nothing is recorded.
+  bool enabled = true;
+
   void add(String area, String message) {
+    if (!enabled) return;
     final now = DateTime.now().toIso8601String().substring(11, 19);
     _lines.add('$now [$area] ${redact(message)}');
     if (_lines.length > capacity)

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -329,15 +330,21 @@ class DownloadsSettingsPage extends ConsumerWidget {
         SettingsGroup(
           title: 'Archiviazione',
           children: [
-            const PrefSlider(
-              'imageCacheMB',
-              'Limite della cache delle immagini',
-              _img,
-              min: 50,
-              max: 1000,
-              divisions: 19,
-              integer: true,
-              format: _mb,
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              leading: const Icon(Icons.image_not_supported_outlined),
+              title: const Text('Svuota la cache delle immagini'),
+              onTap: () async {
+                await DefaultCacheManager().emptyCache();
+                PaintingBinding.instance.imageCache.clear();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cache delle immagini svuotata.'),
+                    ),
+                  );
+                }
+              },
             ),
           ],
         ),
@@ -352,8 +359,6 @@ class DownloadsSettingsPage extends ConsumerWidget {
   static int _sq(AppSettings s) => s.seasonQuality;
   static String _sl(AppSettings s) => s.seasonLanguage;
   static String _sp(AppSettings s) => s.seasonSizePolicy;
-  static double _img(AppSettings s) => s.imageCacheMB.toDouble();
-  static String _mb(double v) => '${v.round()} MB';
 }
 
 /// Settings ▸ Player avanzato.

@@ -1,13 +1,19 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../app/providers.dart';
 import '../../app/router.dart';
 import '../../app/version.dart';
 import '../../core/debrid/torbox_client.dart';
 import '../../core/metadata/fanart_client.dart';
+import '../../data/prefs_ext.dart';
+import '../../data/settings.dart';
 import 'settings_pages2.dart';
 import '../../design/palettes.dart';
 import '../../core/metadata/tmdb_client.dart';
@@ -990,6 +996,31 @@ class _DataPageState extends ConsumerState<_DataPage> {
             ),
             ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              leading: const Icon(Icons.ios_share_rounded),
+              title: const Text('Crea un file di backup…'),
+              subtitle: const Text('Lo condividi o lo salvi dove vuoi'),
+              onTap: () async {
+                final text = await BackupService(services).export(
+                  settings: ref.read(settingsProvider),
+                  includeKeys: _keys,
+                  includeAddonAddresses: _addons,
+                );
+                final day = DateTime.now().toIso8601String().substring(0, 10);
+                final file = File(
+                  '${Directory.systemTemp.path}/aether-backup-$day.json',
+                );
+                await file.writeAsString(text, flush: true);
+                await SharePlus.instance.share(
+                  ShareParams(
+                    files: [XFile(file.path)],
+                    subject: 'Backup di Aether',
+                  ),
+                );
+                setState(() => _message = 'Backup creato.');
+              },
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               leading: const Icon(Icons.copy_rounded),
               title: const Text('Copia il backup negli appunti'),
               onTap: () async {
@@ -1010,6 +1041,37 @@ class _DataPageState extends ConsumerState<_DataPage> {
         SettingsGroup(
           title: 'Ripristina',
           children: [
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              leading: const Icon(Icons.file_open_rounded),
+              title: const Text('Ripristina da un file…'),
+              subtitle: const Text(
+                'Unisce libreria e cronologia; sostituisce le impostazioni.',
+              ),
+              onTap: () async {
+                try {
+                  final picked = await FilePicker.pickFiles(type: FileType.any);
+                  final path = picked.isEmpty ? null : picked.first.path;
+                  if (path == null) return;
+                  final text = await File(path).readAsString();
+                  final r = await BackupService(services).restore(
+                    text,
+                    applySettings: (s) =>
+                        ref.read(settingsProvider.notifier).update((_) => s),
+                  );
+                  ref.read(addonsProvider.notifier).reload();
+                  ref.read(libraryVersionProvider.notifier).bump();
+                  setState(
+                    () => _message =
+                        'Ripristinato: ${r.libraryItems} elementi di libreria, ${r.addons} addon, ${r.keys} chiavi.',
+                  );
+                } on FormatException catch (e) {
+                  setState(() => _message = e.message);
+                } on Object {
+                  setState(() => _message = 'Non riesco a leggere quel file.');
+                }
+              },
+            ),
             ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               leading: const Icon(Icons.paste_rounded),
@@ -1053,6 +1115,55 @@ class _DataPageState extends ConsumerState<_DataPage> {
                 await services.library.clearHistory();
                 ref.read(libraryVersionProvider.notifier).bump();
                 setState(() => _message = 'Cronologia cancellata.');
+              },
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              leading: const Icon(Icons.search_off_rounded),
+              title: const Text('Cancella le ricerche recenti'),
+              onTap: () async {
+                await services.store.remove('search.recent.v1');
+                setState(() => _message = 'Ricerche recenti cancellate.');
+              },
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              leading: const Icon(
+                Icons.delete_forever_rounded,
+                color: AetherTokens.danger,
+              ),
+              title: const Text('Elimina tutti i dati locali…'),
+              subtitle: const Text(
+                'Libreria, impostazioni, addon, download e chiavi',
+              ),
+              onTap: () async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (c) => AlertDialog(
+                    title: const Text('Eliminare tutto?'),
+                    content: const Text(
+                      'Libreria, cronologia, impostazioni, addon installati, download e chiavi di questo dispositivo verranno cancellati. Non si può annullare.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(c, false),
+                        child: const Text('Annulla'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(c, true),
+                        child: const Text('Elimina tutto'),
+                      ),
+                    ],
+                  ),
+                );
+                if (ok != true) return;
+                await services.wipe();
+                await ref
+                    .read(settingsProvider.notifier)
+                    .update((_) => const AppSettings());
+                ref.read(addonsProvider.notifier).reload();
+                ref.read(libraryVersionProvider.notifier).bump();
+                if (mounted) context.go('/onboarding');
               },
             ),
             ListTile(
@@ -1110,6 +1221,32 @@ class _DiagnosticsPageState extends ConsumerState<_DiagnosticsPage> {
               onTap: () =>
                   Clipboard.setData(ClipboardData(text: lines.join('\n'))),
             ),
+            SwitchRow(
+              title: 'Conserva il registro (solo su questo dispositivo)',
+              value: ref.watch(settingsProvider).keepLog,
+              onChanged: (v) {
+                AppLog.instance.enabled = v;
+                ref
+                    .read(settingsProvider.notifier)
+                    .update((x) => x.withExt('keepLog', v));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.ios_share_rounded),
+              title: const Text('Esporta il registro…'),
+              onTap: () async {
+                final f = File(
+                  '${Directory.systemTemp.path}/aether-registro.txt',
+                );
+                await f.writeAsString(lines.join('\n'), flush: true);
+                await SharePlus.instance.share(
+                  ShareParams(
+                    files: [XFile(f.path)],
+                    subject: 'Registro di Aether',
+                  ),
+                );
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.delete_sweep_rounded),
               title: const Text('Cancella il registro'),
@@ -1146,17 +1283,7 @@ class _AboutPage extends StatelessWidget {
   Widget build(BuildContext context) => SettingsPageFrame(
     title: 'Informazioni',
     children: [
-      Center(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(26),
-          child: Image.asset(
-            'assets/brand/icon.png',
-            width: 104,
-            height: 104,
-            semanticLabel: 'Logo di Aether',
-          ),
-        ),
-      ),
+      const Center(child: _TapLogo()),
       const SizedBox(height: 14),
       const Text(
         'Aether $appVersion',
@@ -1423,4 +1550,50 @@ class _BadgesGroupState extends ConsumerState<_BadgesGroup> {
       ],
     );
   }
+}
+
+/// The app icon in «Informazioni»: seven quick taps turn it around (a small thank-you, nothing hidden or unlocked).
+class _TapLogo extends StatefulWidget {
+  const _TapLogo();
+
+  @override
+  State<_TapLogo> createState() => _TapLogoState();
+}
+
+class _TapLogoState extends State<_TapLogo> {
+  int _taps = 0;
+  DateTime _last = DateTime.fromMillisecondsSinceEpoch(0);
+  double _turns = 0;
+
+  void _tap() {
+    final now = DateTime.now();
+    _taps = now.difference(_last) < const Duration(seconds: 2) ? _taps + 1 : 1;
+    _last = now;
+    if (_taps >= 7) {
+      _taps = 0;
+      setState(() => _turns += 1);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Grazie di usare Aether ✨')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: _tap,
+    child: AnimatedRotation(
+      turns: _turns,
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeInOutBack,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: Image.asset(
+          'assets/brand/icon.png',
+          width: 104,
+          height: 104,
+          semanticLabel: 'Logo di Aether',
+        ),
+      ),
+    ),
+  );
 }

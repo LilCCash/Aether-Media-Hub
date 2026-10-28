@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/catalog/result_filters.dart';
+import '../../core/model/meta.dart';
+import '../../data/prefs_ext.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -95,7 +97,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   onChanged: _onChanged,
                   onSubmitted: (v) {
                     setState(() => _query = v.trim());
-                    if (v.trim().length >= 2) _remember(v.trim());
+                    if (v.trim().length >= 2 &&
+                        ref.read(settingsProvider).saveSearchHistory) {
+                      _remember(v.trim());
+                    }
                   },
                   textInputAction: TextInputAction.search,
                   decoration: InputDecoration(
@@ -193,15 +198,39 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 : '${state.errors.length} addon non hanno risposto.',
           );
         }
-        final every = [for (final g in state.groups) ...g.items];
+        final cfg = ref.read(settingsProvider);
+        final lib = ref.read(servicesProvider).library;
+        final q = _query.toLowerCase();
+        // Titles of the library that match, shown first (the «Cerca anche nella libreria» setting).
+        final local = !cfg.searchLibrary
+            ? const <MetaItem>[]
+            : {
+                for (final m in [...lib.watchlist, ...lib.favorites])
+                  if (m.name.toLowerCase().contains(q)) m.id: m,
+              }.values.toList();
+        int byOrder(MetaItem a, MetaItem b) => switch (cfg.searchSort) {
+          'year' => (ResultFilters.yearOf(b) ?? 0).compareTo(
+            ResultFilters.yearOf(a) ?? 0,
+          ),
+          'name' => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          _ => 0,
+        };
+        final source = [
+          if (local.isNotEmpty)
+            SearchGroup('Libreria', 'Nella tua libreria', 'library', local),
+          ...state.groups,
+        ];
+        final every = [for (final g in source) ...g.items];
         final groups = [
-          for (final g in state.groups)
-            if (_filters.type == null || g.type == _filters.type)
+          for (final g in source)
+            if (_filters.type == null ||
+                g.type == _filters.type ||
+                g.type == 'library')
               SearchGroup(
                 g.addonName,
                 g.catalogName,
                 g.type,
-                _filters.copyWith(type: null).apply(g.items),
+                (_filters.copyWith(type: null).apply(g.items))..sort(byOrder),
               ),
         ].where((g) => g.items.isNotEmpty).toList();
         return ListView(
@@ -241,7 +270,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             for (final g in groups) ...[
               SectionHeader(
                 title: g.catalogName,
-                subtitle: '${g.addonName} · ${typeName(g.type)}',
+                subtitle: g.type == 'library'
+                    ? 'Libreria'
+                    : '${g.addonName} · ${typeName(g.type)}',
               ),
               SizedBox(
                 height: AetherLook.of(context).rowHeight(232),

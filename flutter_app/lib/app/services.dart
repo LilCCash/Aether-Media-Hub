@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/addons/addon_client.dart';
+import '../core/util/app_log.dart';
 import '../core/addons/addon_repository.dart';
 import '../core/addons/network_policy.dart';
 import '../core/debrid/debrid_provider.dart';
@@ -83,6 +84,22 @@ class AppServices {
     return null;
   }
 
+  /// «Elimina tutti i dati locali»: library, addons, downloads, search history, settings and every stored key.
+  Future<void> wipe() async {
+    await library.clearAll();
+    for (final a in [...addons.addons]) {
+      await addons.remove(a.id);
+    }
+    for (final d in [...downloads.items]) {
+      await downloads.remove(d.id);
+    }
+    await store.remove('search.recent.v1');
+    await store.remove(SettingsRepository.key);
+    for (final k in ServiceKey.values) {
+      await secrets.setServiceKey(k, null);
+    }
+  }
+
   static Future<AppServices> create() async {
     final prefs = await SharedPreferences.getInstance();
     return build(
@@ -120,6 +137,7 @@ class AppServices {
     );
     await downloads.load();
     WatchProgress.threshold = settings.watchedThreshold;
+    AppLog.instance.enabled = settings.keepLog;
     downloads.maxConcurrent = settings.maxDownloads;
     downloads.allowCellular = settings.downloadOverCellular;
     downloads.networkAllowed = () async {
