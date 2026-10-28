@@ -241,9 +241,11 @@ class RealDebridClient implements DebridProvider {
       episodeHint: TorBoxClient.episodeHint(season, episode),
     );
     if (file == null) {
-      throw const DebridException(
+      throw DebridException(
         DebridFailure.notReady,
-        'Nel torrent non c’è nessun file video.',
+        season != null && episode != null
+            ? 'L’episodio S${season.toString().padLeft(2, '0')}E${episode.toString().padLeft(2, '0')} non è nel torrent.'
+            : 'Nel torrent non c’è nessun file video.',
       );
     }
     // `links` follows the order of the SELECTED files.

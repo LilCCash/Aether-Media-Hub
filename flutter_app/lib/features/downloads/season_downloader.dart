@@ -129,11 +129,11 @@ class SeasonDownloader {
     required bool Function() cancelled,
   }) async {
     final now = DateTime.now();
-    final episodes = meta
+    final allEpisodes = meta
         .episodesOf(season)
         .where((v) => v.released == null || !v.released!.isAfter(now))
         .toList();
-    if (episodes.isEmpty) return const SeasonDownloadSummary(empty: true);
+    if (allEpisodes.isEmpty) return const SeasonDownloadSummary(empty: true);
     final debrid = await services.activeDebrid(settings);
     var cap = settings.seasonQuality;
     if (settings.seasonSizePolicy == 'preferSmaller' && cap == 0) cap = 1080;
@@ -148,10 +148,25 @@ class SeasonDownloader {
       settings,
       debridConfigured: debrid != null,
     );
-    var queued = 0, skipped = 0, present = 0;
+    // The real end of the season: TMDB says how many episodes aired; without it, a run of episodes with nothing to download
+    // after at least one that worked also means the season is over.
+    var episodes = allEpisodes;
+    final imdb = meta.id.split(':').first;
+    if (meta.isSeries && RegExp(r'^tt[0-9]+$').hasMatch(imdb)) {
+      final aired = await services.tmdb.airedEpisodes(imdb, season);
+      if (aired != null) {
+        episodes = [
+          for (final v in allEpisodes)
+            if ((v.episode ?? 0) <= aired) v,
+        ];
+      }
+    }
+    if (episodes.length > 80) episodes = episodes.take(80).toList();
+    var queued = 0, skipped = 0, present = 0, trailingSkips = 0;
     int? target;
     for (var i = 0; i < episodes.length; i++) {
       if (cancelled()) break;
+      if (queued > 0 && trailingSkips >= 2) break; // past the last real episode
       final v = episodes[i];
       onMessage('Cerco sorgenti · episodio ${i + 1} di ${episodes.length}…');
       final existing = services.downloads.byVideo(v.id);
@@ -187,6 +202,7 @@ class SeasonDownloader {
       );
       if (candidates.isEmpty) {
         skipped++;
+        trailingSkips++;
         continue;
       }
       target ??= candidates
@@ -270,7 +286,12 @@ class SeasonDownloader {
           continue; // this source failed: try the next one for the same episode
         }
       }
-      if (!done && !cancelled()) skipped++;
+      if (done) {
+        trailingSkips = 0;
+      } else if (!cancelled()) {
+        skipped++;
+        trailingSkips++;
+      }
     }
     return SeasonDownloadSummary(
       queued: queued,

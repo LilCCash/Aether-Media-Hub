@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/casting/upnp.dart';
 import '../../design/glass.dart';
 import '../../design/widgets.dart';
+import 'google_cast_section.dart';
 
 /// «Trasmetti sulla TV» (DLNA): finds the televisions on the Wi-Fi, gives the chosen one the link of the video and offers
 /// play/pause/stop and volume. The picture is not mirrored and nothing is converted: the television fetches the link itself.
@@ -146,10 +149,36 @@ class _CastSheetState extends State<CastSheet> {
               ),
             ],
             const SizedBox(height: 12),
+            if (Platform.isIOS) ...[
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: UiKitView(viewType: 'aether/airplay'),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'AirPlay: sceglie dove esce l’audio (e lo schermo, se il dispositivo lo consente). Con il motore libmpv AirPlay porta solo l’audio: per il video usa Google Cast.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+            ],
+            if (GoogleCastSection.supported) ...[
+              GoogleCastSection(
+                url: widget.url,
+                title: widget.title,
+                artwork: widget.artwork,
+                onCasting: widget.onCasting,
+              ),
+              const SizedBox(height: 14),
+            ],
             if (!UpnpDiscovery.supported)
-              const Text(
-                'Su iPhone la ricerca delle TV sulla rete richiede un permesso speciale di Apple che questa app non può avere: la trasmissione DLNA è disponibile su Android.',
-              )
+              const SizedBox.shrink()
             else if (active != null) ...[
               Text(
                 'Su ${active.friendlyName}',

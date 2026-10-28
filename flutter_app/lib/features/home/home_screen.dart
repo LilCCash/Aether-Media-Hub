@@ -259,6 +259,10 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    // The logos of the featured titles are looked up now, so they are there when a title opens.
+    for (final i in widget.items) {
+      ref.watch(logoProvider((metaId: i.id, isMovie: i.type != 'series')));
+    }
     final w = MediaQuery.sizeOf(context).width;
     final height = widget.fullBleed
         ? (w * 1.02 + MediaQuery.paddingOf(context).top).clamp(380.0, 560.0)
@@ -475,19 +479,14 @@ class _HeroPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (logo != null)
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: 300,
-                      maxHeight: 110,
-                    ),
-                    child: Image.network(
-                      logo,
-                      fit: BoxFit.contain,
-                      alignment: Alignment.bottomLeft,
-                      errorBuilder: (_, __, ___) => Text(
-                        item.name,
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
+                  LogoImage(
+                    url: logo,
+                    maxWidth: 300,
+                    maxHeight: 110,
+                    alignment: Alignment.bottomLeft,
+                    fallback: Text(
+                      item.name,
+                      style: Theme.of(context).textTheme.headlineMedium,
                     ),
                   )
                 else

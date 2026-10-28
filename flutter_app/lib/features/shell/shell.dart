@@ -88,7 +88,14 @@ class DockOverlay extends ConsumerWidget {
               DockState.hidden,
             ]),
             builder: (context, _) {
-              final path = router.routerDelegate.currentConfiguration.uri.path;
+              // `uri` ignores pages opened with push (settings, titles, the player): the last match is the one on screen.
+              final cfg = router.routerDelegate.currentConfiguration;
+              final path = cfg.matches.isEmpty
+                  ? cfg.uri.path
+                  : cfg.last.matchedLocation;
+              // Low on the screen, as the system tab bar sits: a little above the edge, not above the whole home indicator.
+              final inset = MediaQuery.viewPaddingOf(context).bottom;
+              final bottom = inset > 0 ? (inset * 0.3).clamp(6.0, 14.0) : 10.0;
               final tab = _tabs.indexWhere((t) => path.startsWith(t.$3));
               if (tab >= 0) DockState.index = tab;
               if (path == '/more') {
@@ -119,8 +126,9 @@ class DockOverlay extends ConsumerWidget {
                       type: MaterialType.transparency,
                       child: SafeArea(
                         top: false,
+                        bottom: false,
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                          padding: EdgeInsets.fromLTRB(12, 0, 12, bottom),
                           child: LiquidDock(
                             items: [for (final t in _tabs) (t.$1, t.$2)],
                             index: DockState.index,

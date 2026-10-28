@@ -106,9 +106,11 @@ class DebridResolver implements DebridProvider {
           episodeHint: hint,
         );
         if (file == null)
-          throw const DebridException(
+          throw DebridException(
             DebridFailure.notReady,
-            'Nel torrent non c’è nessun file video.',
+            hint != null
+                ? 'L’episodio ${hint.toUpperCase()} non è nel torrent.'
+                : 'Nel torrent non c’è nessun file video.',
           );
         report('Ottengo il link…');
         final link = await client.requestLink(id, file.id, cancel: cancel);

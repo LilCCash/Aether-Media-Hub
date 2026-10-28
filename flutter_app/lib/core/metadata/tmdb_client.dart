@@ -458,6 +458,73 @@ class TmdbClient {
     );
   }
 
+  /// The title's own logo from TMDB's artwork (the viewer's language, then English, then a language-free one; never a vector).
+  /// Used when fanart.tv has none: the iOS app gets its logos the same way.
+  Future<String?> logoUrl(
+    String imdbId, {
+    String language = 'it',
+    CancelToken? cancel,
+  }) async {
+    final found = await findByImdb(imdbId, cancel: cancel);
+    if (found == null) return null;
+    final wanted = language.length >= 2
+        ? language.substring(0, 2).toLowerCase()
+        : language;
+    final r = await _get(
+      '${found.isMovie ? 'movie' : 'tv'}/${found.id}/images',
+      {'include_image_language': '$wanted,en,null'},
+      cancel: cancel,
+    );
+    final logos = [
+      for (final e in asList(r?['logos']))
+        if (asMap(e) != null &&
+            asNonEmptyString(asMap(e)!['file_path']) != null &&
+            !asNonEmptyString(asMap(e)!['file_path'])!.endsWith('.svg'))
+          asMap(e)!,
+    ];
+    if (logos.isEmpty) return null;
+    int tier(Map<String, Object?> l) {
+      final lang = asString(l['iso_639_1']);
+      return lang == wanted ? 0 : (lang == 'en' ? 1 : (lang == null ? 2 : 3));
+    }
+
+    logos.sort((a, b) {
+      final t = tier(a).compareTo(tier(b));
+      return t != 0
+          ? t
+          : (asDouble(b['vote_average']) ?? 0).compareTo(
+              asDouble(a['vote_average']) ?? 0,
+            );
+    });
+    return image(asNonEmptyString(logos.first['file_path']), size: 'w500');
+  }
+
+  /// How many episodes of a season have aired, so a season download stops at the real last one.
+  Future<int?> airedEpisodes(
+    String imdbId,
+    int season, {
+    CancelToken? cancel,
+  }) async {
+    final found = await findByImdb(imdbId, cancel: cancel);
+    if (found == null || found.isMovie) return null;
+    final r = await _get(
+      'tv/${found.id}/season/$season',
+      const {},
+      cancel: cancel,
+    );
+    final eps = asList(r?['episodes']);
+    if (eps.isEmpty) return null;
+    final now = DateTime.now();
+    var last = 0;
+    for (final e in eps) {
+      final m = asMap(e);
+      final n = asInt(m?['episode_number']) ?? 0;
+      final d = DateTime.tryParse(asString(m?['air_date']) ?? '');
+      if (d == null || !d.isAfter(now)) last = n > last ? n : last;
+    }
+    return last == 0 ? null : last;
+  }
+
   Future<List<PersonCredit>> filmography(
     int personId, {
     String language = 'it-IT',

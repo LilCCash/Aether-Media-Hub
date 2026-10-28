@@ -460,7 +460,7 @@ class ImportedBadge extends StatelessWidget {
     return Semantics(
       label: rule.label,
       child: SizedBox(
-        height: 20,
+        height: 15, // the height of a base badge
         child: Image.network(
           url,
           fit: BoxFit.contain,
@@ -477,18 +477,25 @@ class ImportedBadge extends StatelessWidget {
     final fill = _hex(rule.fillHex) ?? Colors.grey;
     final border = _hex(rule.borderHex);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      // Exactly the size of the base badges (Pill).
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
       decoration: BoxDecoration(
         color: fill.withValues(alpha: rule.fillAlpha),
-        borderRadius: BorderRadius.circular(AetherTokens.rPill),
-        border: border == null ? null : Border.all(color: border, width: 1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: border ?? accent.withValues(alpha: 0.30),
+          width: 0.6,
+        ),
       ),
       child: Text(
         rule.label,
+        maxLines: 1,
         style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: accent,
+          fontSize: 9.5,
+          height: 1.25,
+          letterSpacing: 0.25,
+          fontWeight: FontWeight.w700,
+          color: accent.withValues(alpha: 0.95),
         ),
       ),
     );
@@ -688,4 +695,38 @@ class DropChip<T> extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A title logo from the image cache: after the first time it is on screen at once, with no fade and no flicker.
+class LogoImage extends StatelessWidget {
+  const LogoImage({
+    super.key,
+    required this.url,
+    this.maxWidth = 280,
+    this.maxHeight = 110,
+    this.alignment = Alignment.center,
+    this.fallback,
+  });
+  final String url;
+  final double maxWidth;
+  final double maxHeight;
+  final Alignment alignment;
+
+  /// Drawn when the picture cannot be had (the title in plain text, usually).
+  final Widget? fallback;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+    child: CachedNetworkImage(
+      imageUrl: url,
+      cacheManager: AetherImageCache.manager,
+      fit: BoxFit.contain,
+      alignment: alignment,
+      fadeInDuration: Duration.zero,
+      fadeOutDuration: Duration.zero,
+      placeholder: (_, __) => const SizedBox.shrink(),
+      errorWidget: (_, __, ___) => fallback ?? const SizedBox.shrink(),
+    ),
+  );
 }

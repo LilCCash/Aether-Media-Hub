@@ -136,6 +136,16 @@ class TorBoxClient {
           DebridFailure.notCached,
           'Il contenuto non è nella cache di TorBox.',
         );
+      // «Torrent not found in cache. Disable the add only if cached parameter…»: not cached, not an error to show as it is.
+      final detail = '${asString(body['detail']) ?? ''} ${code ?? ''}'
+          .toLowerCase();
+      if (detail.contains('not found in cache') ||
+          detail.contains('only if cached') ||
+          detail.contains('only_if_cached'))
+        throw const DebridException(
+          DebridFailure.notCached,
+          'Il contenuto non è nella cache di TorBox.',
+        );
       if (code == 'PLAN_RESTRICTED_FEATURE')
         throw const DebridException(
           DebridFailure.planRequired,
@@ -330,6 +340,31 @@ class TorBoxClient {
   }) {
     final videos = files.where((f) => f.isVideo).toList();
     if (videos.isEmpty) return null;
+    final se = episodeHint == null
+        ? null
+        : RegExp(
+            r'^S(\d+)E(\d+)$',
+            caseSensitive: false,
+          ).firstMatch(episodeHint);
+    if (se != null) {
+      // A series pack: the file that names this season and episode. Never «the biggest file» when it does not: that would
+      // play (or download) another episode, the same one for every missing episode.
+      final s = int.parse(se.group(1)!);
+      final e = int.parse(se.group(2)!);
+      final named = videos.where((f) => matchesEpisode(f.name, s, e)).toList()
+        ..sort((a, b) => b.size.compareTo(a.size));
+      if (named.isNotEmpty) return named.first;
+      if (fileIdx != null &&
+          fileIdx >= 0 &&
+          fileIdx < files.length &&
+          files[fileIdx].isVideo) {
+        final other = parseEpisode(files[fileIdx].name);
+        if (other == null || (other.$1 == s && other.$2 == e)) {
+          return files[fileIdx];
+        }
+      }
+      return videos.length == 1 ? videos.first : null;
+    }
     if (episodeHint != null) {
       final match =
           videos
@@ -347,6 +382,23 @@ class TorBoxClient {
       return files[fileIdx];
     videos.sort((a, b) => b.size.compareTo(a.size));
     return videos.first;
+  }
+
+  static final _sxe = RegExp(
+    r'(?<![0-9a-z])s0*(\d{1,2})[ ._-]?e0*(\d{1,3})(?![0-9])',
+    caseSensitive: false,
+  );
+  static final _nxn = RegExp(r'(?<![0-9])(\d{1,2})x0*(\d{1,3})(?![0-9])');
+
+  /// The season and episode a file name states («S01E02», «1x02»), or null.
+  static (int, int)? parseEpisode(String name) {
+    final m = _sxe.firstMatch(name) ?? _nxn.firstMatch(name);
+    return m == null ? null : (int.parse(m.group(1)!), int.parse(m.group(2)!));
+  }
+
+  static bool matchesEpisode(String name, int season, int episode) {
+    final p = parseEpisode(name);
+    return p != null && p.$1 == season && p.$2 == episode;
   }
 
   /// "S01E02"-style hints used by [chooseFile] for series packs.

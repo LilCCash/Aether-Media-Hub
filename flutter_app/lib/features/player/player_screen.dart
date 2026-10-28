@@ -19,8 +19,10 @@ import '../../core/segments/skip_segments.dart';
 import '../../design/glass.dart';
 import '../../design/liquid.dart';
 import '../../design/tokens.dart';
+import '../../design/widgets.dart';
 import '../../core/casting/upnp.dart';
 import 'cast_sheet.dart';
+import 'google_cast_section.dart';
 import 'media_kit_engine.dart';
 import 'playback_engine.dart';
 import 'player_panels.dart';
@@ -172,7 +174,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// Only http(s) links can be handed to a television; a downloaded file or an engine-only source cannot.
   bool get _canCast {
     final src = widget.args.source;
-    return UpnpDiscovery.supported &&
+    return (UpnpDiscovery.supported ||
+            GoogleCastSection.supported ||
+            Platform.isIOS) &&
         !src.isLocalFile &&
         (Uri.tryParse(src.uri)?.hasScheme ?? false) &&
         Uri.parse(src.uri).scheme.startsWith('http');
@@ -1018,18 +1022,13 @@ class _StartingCard extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (logo != null)
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 320, maxHeight: 120),
-            child: Image.network(
-              logo,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Text(
-                args.title,
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
+          LogoImage(
+            url: logo,
+            maxWidth: 320,
+            maxHeight: 120,
+            fallback: Text(
+              args.title,
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
             ),
           )
         else

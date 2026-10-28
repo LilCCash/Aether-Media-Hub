@@ -562,17 +562,11 @@ class _Hero extends ConsumerWidget {
             Positioned(
               left: AetherTokens.pageMargin,
               bottom: 10,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 270,
-                  maxHeight: 120,
-                ),
-                child: Image.network(
-                  logo,
-                  fit: BoxFit.contain,
-                  alignment: Alignment.bottomLeft,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
+              child: LogoImage(
+                url: logo,
+                maxWidth: 270,
+                maxHeight: 120,
+                alignment: Alignment.bottomLeft,
               ),
             ),
         ],

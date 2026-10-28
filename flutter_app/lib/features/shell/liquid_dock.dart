@@ -136,7 +136,7 @@ class _LiquidDockState extends State<LiquidDock> {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(28),
                                   color: Colors.white.withValues(
-                                    alpha: dragging ? 0.05 : 0.08,
+                                    alpha: dragging ? 0.03 : 0.05,
                                   ),
                                   border: Border.all(
                                     color: Colors.white.withValues(

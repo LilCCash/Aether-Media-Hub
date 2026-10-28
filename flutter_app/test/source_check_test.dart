@@ -1,3 +1,4 @@
+import 'package:aether_flutter/core/debrid/torbox_client.dart';
 import 'package:aether_flutter/core/streams/release_language.dart';
 import 'package:aether_flutter/features/player/playback_engine.dart';
 import 'package:aether_flutter/features/player/source_check.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/fake_adapter.dart';
 
 void main() {
+  episodeTests();
   test('subtitle-only tags do not make a release Italian', () {
     expect(ReleaseLanguage.languages('Film 2024 ENG SUB ITA 1080p WEB-DL'), [
       'Inglese',
@@ -62,4 +64,50 @@ void main() {
       isNull,
     );
   });
+}
+
+void episodeTests() {
+  test(
+    'a pack file is chosen by its season and episode, never «the biggest»',
+    () {
+      final files = [
+        for (final (i, n) in [
+          'Show.S01E01.ITA.mkv',
+          'Show.S01E02.ITA.mkv',
+          'Show.S01E03.ITA.mkv',
+        ].indexed)
+          TorBoxFile(id: i, name: n, size: 100 + i),
+      ];
+      expect(TorBoxClient.chooseFile(files, episodeHint: 'S01E02')!.id, 1);
+      expect(TorBoxClient.chooseFile(files, episodeHint: 'S01E09'), isNull);
+      expect(TorBoxClient.matchesEpisode('Show 1x02', 1, 2), isTrue);
+      expect(
+        wrongFile(
+          'Show.S01E05.ENG.mkv',
+          language: 'Italiano',
+          season: 1,
+          episode: 5,
+        ),
+        contains('altra lingua'),
+      );
+      expect(
+        wrongFile(
+          'Show.S01E06.ITA.mkv',
+          language: 'Italiano',
+          season: 1,
+          episode: 5,
+        ),
+        contains('altro episodio'),
+      );
+      expect(
+        wrongFile(
+          'Show.S01E05.ITA.ENG.mkv',
+          language: 'Italiano',
+          season: 1,
+          episode: 5,
+        ),
+        isNull,
+      );
+    },
+  );
 }

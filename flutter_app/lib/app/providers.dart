@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../design/image_cache.dart';
+
 import '../core/addons/addon_client.dart';
 import '../core/addons/addon_repository.dart';
 import '../core/addons/network_policy.dart';
@@ -493,8 +495,9 @@ final tvdbEpisodesProvider = FutureProvider.autoDispose
       return {for (final e in episodes) '${e.season}:${e.number}': e};
     });
 
-/// The transparent fanart.tv logo of a title, or null (no key, unknown title, any failure). Kept until the app closes, so the
-/// logo of a title is looked up once and is there the moment the player needs it.
+/// The transparent logo of a title: fanart.tv first (films by IMDb code, then by TMDB code; series by TheTVDB code), then TMDB's
+/// own artwork, as the iOS app does. A logo found once is remembered on the device and its picture is kept in the image cache,
+/// so the next time it is there at once; a title without one is not asked again until the app restarts.
 final logoProvider =
     FutureProvider.family<String?, ({String metaId, bool isMovie})>((
       ref,
@@ -503,19 +506,54 @@ final logoProvider =
       final services = ref.watch(servicesProvider);
       final imdb = _imdbOf(key.metaId);
       if (imdb == null) return null;
-      if (((await services.secrets.serviceKey(ServiceKey.fanart)) ?? '')
-          .isEmpty) {
-        return null;
+      final storeKey = 'logo.v1.${key.metaId}';
+      final saved = await services.store.read(storeKey);
+      if (saved != null && saved.isNotEmpty) {
+        unawaited(
+          AetherImageCache.manager
+              .downloadFile(saved)
+              .then((_) {}, onError: (_) {}),
+        );
+        return saved;
       }
       final lang = ref.read(settingsProvider).language;
-      if (key.isMovie) {
-        return services.fanart.logoUrl(FanartKind.movie, imdb, lang);
+      String? url;
+      try {
+        if (((await services.secrets.serviceKey(ServiceKey.fanart)) ?? '')
+            .isNotEmpty) {
+          if (key.isMovie) {
+            url = await services.fanart.logoUrl(FanartKind.movie, imdb, lang);
+            if (url == null) {
+              final found = await services.tmdb.findByImdb(imdb);
+              if (found != null) {
+                url = await services.fanart.logoUrl(
+                  FanartKind.movie,
+                  '${found.id}',
+                  lang,
+                );
+              }
+            }
+          } else {
+            final found = await services.tmdb.findByImdb(imdb);
+            final tvdb = found == null
+                ? null
+                : await services.tmdb.tvdbIdOf(found.id);
+            if (tvdb != null) {
+              url = await services.fanart.logoUrl(FanartKind.tv, '$tvdb', lang);
+            }
+          }
+        }
+        url ??= await services.tmdb.logoUrl(imdb, language: lang);
+      } on Object {
+        return null;
       }
-      final found = await services.tmdb.findByImdb(imdb);
-      final tvdb = found == null
-          ? null
-          : await services.tmdb.tvdbIdOf(found.id);
-      return tvdb == null
-          ? null
-          : services.fanart.logoUrl(FanartKind.tv, '$tvdb', lang);
+      if (url != null) {
+        await services.store.write(storeKey, url);
+        unawaited(
+          AetherImageCache.manager
+              .downloadFile(url)
+              .then((_) {}, onError: (_) {}),
+        );
+      }
+      return url;
     });

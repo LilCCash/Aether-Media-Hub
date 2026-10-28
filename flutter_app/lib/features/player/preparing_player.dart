@@ -2,6 +2,9 @@ import '../shell/shell.dart';
 
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
+
+import '../../design/widgets.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -123,16 +126,11 @@ class _PreparingPlayerState extends ConsumerState<PreparingPlayer>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (logo != null)
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 340,
-                        maxHeight: 130,
-                      ),
-                      child: Image.network(
-                        logo,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => _title(a.title),
-                      ),
+                    LogoImage(
+                      url: logo,
+                      maxWidth: 340,
+                      maxHeight: 130,
+                      fallback: _title(a.title),
                     )
                   else
                     _title(a.title),
