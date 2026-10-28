@@ -21,6 +21,7 @@ consultazione (**2026-10-28**), che cosa è stato **effettivamente letto**, le i
 | Protocollo addon Stremio | [sources/stremio-addon-protocol.md](sources/stremio-addon-protocol.md) | [ADR-001](decisions/ADR-001-flutter-architecture.md) |
 | TMDB e TheTVDB | [sources/tmdb-tvdb-metadata.md](sources/tmdb-tvdb-metadata.md) | ADR-001 |
 | TorBox | [sources/torbox-integration.md](sources/torbox-integration.md) | ADR-001 |
+| Real-Debrid, MDBList, fanart.tv, IntroDB, DLNA | [sources/optional-services.md](sources/optional-services.md) | ADR-001/003 |
 | Sottotitoli e accessibilità | [sources/subtitles-and-accessibility.md](sources/subtitles-and-accessibility.md) | ADR-002 |
 | Casting e remux | [sources/casting-and-remux.md](sources/casting-and-remux.md) | ADR-003 |
 | Sicurezza, privacy, licenze | [sources/security-privacy-licensing.md](sources/security-privacy-licensing.md) | — |

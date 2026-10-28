@@ -1,6 +1,6 @@
-# Test (2026-10-28)
+# Test (2026-10-29)
 
-Eseguiti in questo ambiente con Flutter 3.47.8 (`flutter test`): **71 test, tutti superati**; la CI (`.github/workflows/flutter-ci.yml`) esegue formattazione, analisi statica e gli stessi test su Ubuntu.
+Eseguiti in questo ambiente con Flutter 3.47.8 (`flutter test`): **105 test, tutti superati**; la CI (`.github/workflows/flutter-ci.yml`) esegue formattazione, analisi statica e gli stessi test su Ubuntu.
 Nessun test è stato eseguito su iPhone, iPad, telefono Android o emulatore: **non c'erano** nell'ambiente.
 
 | Area | File | Cosa prova |
@@ -13,8 +13,14 @@ Nessun test è stato eseguito su iPhone, iPad, telefono Android o emulatore: **n
 | Download | `download_test` | scarico, persistenza, ripresa con `Range`, errori, indirizzi locali rifiutati |
 | Pianificazione | `play_planner_test` | sorgenti dirette, prossimo episodio (cambio stagione, stessa release), sottotitoli unificati, file offline |
 | Backup | `backup_test` | niente segreti senza richiesta, ripristino completo, file non valido |
-| Interfaccia | `ui_test` | primo avvio → addon → Home, Home vuota, ogni scheda e ogni pagina impostazioni, impostazioni persistenti, scheda titolo e selettore sorgenti, Theater Mode (ingresso e uscita), **tasto indietro del player**, controlli del player, errore di riproduzione |
+| Interfaccia | `ui_test` | primo avvio → addon → Home, Home vuota, ogni scheda e ogni pagina impostazioni, impostazioni persistenti, scheda titolo e selettore sorgenti, Theater Mode (ingresso e uscita, barra scorrevole), link `stremio://` → anteprima addon senza installare, **tasto indietro del player**, controlli del player, errore di riproduzione |
 | Colore | `mood_color_test` | colore Cinematic |
+| Servizi opzionali | `services_test` | fanart.tv (scelta del logo, nessuna richiesta senza chiave), MDBList (scale dei voti, duplicati), TheTVDB (login, nuovo login su 401, episodi, chiave non ripetuta), IntroDB (secondi/millisecondi, finestra del pulsante, cache), Real-Debrid (conferma prima di aggiungere, selezione file, link https, token mai negli errori) — tutti con server finti |
+| Badge importati | `badge_pack_test` | formato «filters» Nuvio/Fusion e lista semplice, colori con alpha, immagini solo https, espressioni regolari rotte, caricatore (solo https e non locale) |
+| Filtri | `filters_test` | tipo/genere/decennio, anno da testo libero |
+| Aspetto | `look_test` | palette, caratteri, saluto, impostazioni (andata e ritorno e valori danneggiati) |
+| Theater | `theater_test` | preferenze, geometria delle card, validità e ampiezza del WAV generato |
+| DLNA | `upnp_test` | descrizione del dispositivo, indirizzi locali, SSDP, SOAP/DIDL, trasmissione e comandi, errori senza il link |
 
-**Non eseguiti / non eseguibili qui:** player su dispositivo (MP4, MKV con più tracce, sottotitoli incorporati, ripresa dopo interruzione, formato non supportato), HDR, PiP, rotazione, prestazioni, AirPlay/Cast, TorBox e TMDB reali, addon reali in rete, accessibilità con VoiceOver/TalkBack, avvio con rete assente (il player di prova è offline per costruzione, ma non è stato avviato in modalità aereo).
+**Non eseguiti / non eseguibili qui:** player su dispositivo (MP4, MKV con più tracce, sottotitoli incorporati, ripresa dopo interruzione, formato non supportato), HDR, PiP, rotazione, prestazioni, AirPlay/Cast, trasmissione DLNA a una TV reale, gesti di luminosità/volume, suono d'ingresso del Theater, TorBox, Real-Debrid, TMDB, TheTVDB, MDBList, fanart.tv e IntroDB reali, addon reali in rete, accessibilità con VoiceOver/TalkBack, avvio con rete assente (il player di prova è offline per costruzione, ma non è stato avviato in modalità aereo).
 Il «player di prova offline» è raggiungibile da Altro ▸ Diagnostica; usa `assets/test/aether_test.mp4` e `aether_multitrack.mkv` generati da `tool/make_test_media.sh` (immagine e tono generati da ffmpeg: nessun contenuto di terzi).
