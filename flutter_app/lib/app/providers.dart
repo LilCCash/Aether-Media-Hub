@@ -1,0 +1,284 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../core/addons/addon_client.dart';
+import '../core/addons/addon_repository.dart';
+import '../core/addons/network_policy.dart';
+import '../core/metadata/tmdb_client.dart';
+import '../core/model/manifest.dart';
+import '../core/model/meta.dart';
+import '../core/model/stream.dart';
+import '../core/util/app_log.dart';
+import '../data/settings.dart';
+import 'services.dart';
+
+final servicesProvider = Provider<AppServices>((ref) => throw UnimplementedError('servicesProvider must be overridden at start-up'));
+
+class SettingsNotifier extends Notifier<AppSettings> {
+  @override
+  AppSettings build() => ref.watch(servicesProvider).initialSettings;
+
+  Future<void> update(AppSettings Function(AppSettings) change) async {
+    state = change(state);
+    final s = ref.read(servicesProvider);
+    final policy = NetworkPolicy(allowLocalNetwork: state.allowLocalNetwork);
+    s.addonClient.policy = policy;
+    s.downloads.policy = policy;
+    await s.settingsRepo.save(state);
+  }
+}
+
+final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
+
+class AddonsNotifier extends Notifier<List<InstalledAddon>> {
+  AddonRepository get _repo => ref.read(servicesProvider).addons;
+
+  @override
+  List<InstalledAddon> build() => ref.read(servicesProvider).addons.addons;
+
+  void _sync() => state = _repo.addons;
+
+  /// Re-reads the repository (after a restore that installed addons).
+  void reload() => _sync();
+
+  Future<AddonPreview> preview(String input, {CancelToken? cancel}) => _repo.preview(input, cancel: cancel);
+  Future<void> install(AddonPreview p) async {
+    await _repo.install(p);
+    _sync();
+  }
+
+  Future<void> setEnabled(String id, bool v) async {
+    await _repo.setEnabled(id, v);
+    _sync();
+  }
+
+  Future<void> rename(String id, String? name) async {
+    await _repo.rename(id, name);
+    _sync();
+  }
+
+  Future<void> setCatalogVisible(String id, ManifestCatalog c, bool v) async {
+    await _repo.setCatalogVisible(id, c, v);
+    _sync();
+  }
+
+  Future<void> remove(String id) async {
+    await _repo.remove(id);
+    _sync();
+  }
+
+  Future<void> move(String id, int delta) async {
+    await _repo.move(id, delta);
+    _sync();
+  }
+
+  Future<void> refresh(String id) async {
+    await _repo.refresh(id);
+    _sync();
+  }
+}
+
+final addonsProvider = NotifierProvider<AddonsNotifier, List<InstalledAddon>>(AddonsNotifier.new);
+
+/// Bumped whenever the library changes (favorites, watchlist, progress), so screens that show it rebuild.
+class LibraryVersion extends Notifier<int> {
+  @override
+  int build() => 0;
+  void bump() => state++;
+}
+
+final libraryVersionProvider = NotifierProvider<LibraryVersion, int>(LibraryVersion.new);
+
+// Catalogs, meta, streams, search ------------------------------------------------------------------------------------------
+
+class CatalogQuery {
+  const CatalogQuery(this.addonId, this.catalogKey, {this.skip = 0, this.genre, this.search});
+  final String addonId;
+  final String catalogKey;
+  final int skip;
+  final String? genre;
+  final String? search;
+
+  @override
+  bool operator ==(Object other) => other is CatalogQuery && other.addonId == addonId && other.catalogKey == catalogKey && other.skip == skip && other.genre == genre && other.search == search;
+  @override
+  int get hashCode => Object.hash(addonId, catalogKey, skip, genre, search);
+}
+
+final catalogProvider = FutureProvider.autoDispose.family<List<MetaItem>, CatalogQuery>((ref, q) async {
+  final services = ref.watch(servicesProvider);
+  final addons = ref.watch(addonsProvider);
+  final addon = addons.where((a) => a.id == q.addonId).firstOrNull;
+  if (addon == null) return const [];
+  final catalog = addon.manifest.catalogs.where((c) => c.key == q.catalogKey).firstOrNull;
+  if (catalog == null) return const [];
+  final cancel = CancelToken();
+  ref.onDispose(() => cancel.cancel());
+  final extra = <String, String>{
+    if (q.genre != null) 'genre': q.genre!,
+    if (q.search != null) 'search': q.search!,
+    if (q.skip > 0) 'skip': '${q.skip}',
+  };
+  final page = await services.addonClient.catalog(addon.base, catalog, extra: extra, cancel: cancel);
+  return page.items;
+});
+
+class MetaKey {
+  const MetaKey(this.type, this.id);
+  final String type;
+  final String id;
+  @override
+  bool operator ==(Object other) => other is MetaKey && other.type == type && other.id == id;
+  @override
+  int get hashCode => Object.hash(type, id);
+}
+
+/// The full details of a title from the first addon that has them; null when none answers (the caller keeps the preview).
+final metaProvider = FutureProvider.autoDispose.family<MetaItem?, MetaKey>((ref, key) async {
+  final services = ref.watch(servicesProvider);
+  final addons = ref.watch(addonsProvider);
+  final providers = addons.where((a) => a.enabled && a.manifest.provides('meta', key.type, key.id)).toList();
+  final cancel = CancelToken();
+  ref.onDispose(() => cancel.cancel());
+  for (final addon in providers) {
+    try {
+      final meta = await services.addonClient.meta(addon.base, key.type, key.id, cancel: cancel);
+      if (meta != null) return meta;
+    } on AddonException catch (e) {
+      AppLog.instance.add('meta', '${addon.displayName}: ${e.message}');
+    }
+  }
+  return null;
+});
+
+class StreamsKey {
+  const StreamsKey(this.type, this.videoId);
+  final String type;
+  final String videoId;
+  @override
+  bool operator ==(Object other) => other is StreamsKey && other.type == type && other.videoId == videoId;
+  @override
+  int get hashCode => Object.hash(type, videoId);
+}
+
+class StreamsState {
+  const StreamsState({this.streams = const [], this.subtitles = const [], this.pending = const [], this.errors = const {}});
+  final List<AddonStream> streams;
+  final List<AddonSubtitle> subtitles;
+  final List<String> pending;
+  final Map<String, String> errors;
+  bool get loading => pending.isNotEmpty;
+}
+
+/// Asks every addon that can answer, in parallel, and yields a growing list as each one replies; one slow or broken addon never
+/// blocks the others.
+final streamsProvider = StreamProvider.autoDispose.family<StreamsState, StreamsKey>((ref, key) {
+  final services = ref.watch(servicesProvider);
+  final addons = ref.watch(addonsProvider);
+  final controller = StreamController<StreamsState>();
+  final cancel = CancelToken();
+  ref.onDispose(() {
+    cancel.cancel();
+    controller.close();
+  });
+  final streamAddons = addons.where((a) => a.enabled && a.manifest.provides('stream', key.type, key.videoId)).toList();
+  final subtitleAddons = addons.where((a) => a.enabled && a.manifest.provides('subtitles', key.type, key.videoId)).toList();
+  final results = <String, List<AddonStream>>{};
+  final subs = <AddonSubtitle>[];
+  final errors = <String, String>{};
+  final pending = <String>{...streamAddons.map((a) => a.displayName), ...subtitleAddons.map((a) => '${a.displayName} (sottotitoli)')};
+
+  void emit() {
+    if (controller.isClosed) return;
+    final ordered = <AddonStream>[for (final a in streamAddons) ...?results[a.id]];
+    controller.add(StreamsState(streams: ordered, subtitles: List.of(subs), pending: pending.toList(), errors: Map.of(errors)));
+  }
+
+  emit();
+  for (final addon in streamAddons) {
+    unawaited(services.addonClient.streams(addon.base, key.type, key.videoId, addonId: addon.id, addonName: addon.displayName, cancel: cancel).then((list) {
+      results[addon.id] = list;
+    }).catchError((Object e) {
+      errors[addon.displayName] = e is AddonException ? e.message : 'Errore sconosciuto';
+    }).whenComplete(() {
+      pending.remove(addon.displayName);
+      emit();
+    }));
+  }
+  for (final addon in subtitleAddons) {
+    final label = '${addon.displayName} (sottotitoli)';
+    unawaited(services.addonClient.subtitles(addon.base, key.type, key.videoId, addonName: addon.displayName, cancel: cancel).then((list) {
+      subs.addAll(list);
+    }).catchError((Object e) {
+      errors[label] = e is AddonException ? e.message : 'Errore sconosciuto';
+    }).whenComplete(() {
+      pending.remove(label);
+      emit();
+    }));
+  }
+  return controller.stream;
+});
+
+class SearchGroup {
+  const SearchGroup(this.addonName, this.catalogName, this.type, this.items);
+  final String addonName;
+  final String catalogName;
+  final String type;
+  final List<MetaItem> items;
+}
+
+class SearchState {
+  const SearchState({this.groups = const [], this.pending = 0, this.errors = const {}, this.total = 0});
+  final List<SearchGroup> groups;
+  final int pending;
+  final Map<String, String> errors;
+  final int total;
+  bool get loading => pending > 0;
+}
+
+final searchProvider = StreamProvider.autoDispose.family<SearchState, String>((ref, query) {
+  final services = ref.watch(servicesProvider);
+  final addons = ref.watch(addonsProvider);
+  final controller = StreamController<SearchState>();
+  final cancel = CancelToken();
+  ref.onDispose(() {
+    cancel.cancel();
+    controller.close();
+  });
+  final jobs = <(InstalledAddon, ManifestCatalog)>[
+    for (final a in addons.where((a) => a.enabled))
+      for (final c in a.manifest.catalogs.where((c) => c.isSearchable)) (a, c),
+  ];
+  final groups = <int, SearchGroup>{};
+  final errors = <String, String>{};
+  var pending = jobs.length;
+
+  void emit() {
+    if (controller.isClosed) return;
+    final ordered = (groups.keys.toList()..sort()).map((i) => groups[i]!).toList();
+    controller.add(SearchState(groups: ordered, pending: pending, errors: Map.of(errors), total: jobs.length));
+  }
+
+  emit();
+  for (var i = 0; i < jobs.length; i++) {
+    final (addon, catalog) = jobs[i];
+    unawaited(services.addonClient.catalog(addon.base, catalog, extra: {'search': query}, cancel: cancel).then((page) {
+      if (page.items.isNotEmpty) groups[i] = SearchGroup(addon.displayName, catalog.name, catalog.type, page.items);
+    }).catchError((Object e) {
+      errors['${addon.displayName} · ${catalog.name}'] = e is AddonException ? e.message : 'Errore sconosciuto';
+    }).whenComplete(() {
+      pending--;
+      emit();
+    }));
+  }
+  return controller.stream;
+});
+
+final tmdbDetailsProvider = FutureProvider.autoDispose.family<RichDetails?, String>((ref, imdbId) async {
+  final services = ref.watch(servicesProvider);
+  if (!imdbId.startsWith('tt')) return null;
+  final lang = ref.read(settingsProvider).language;
+  return services.tmdb.details(imdbId.split(':').first, language: lang == 'it' ? 'it-IT' : (lang == 'en' ? 'en-US' : '$lang-${lang.toUpperCase()}'));
+});

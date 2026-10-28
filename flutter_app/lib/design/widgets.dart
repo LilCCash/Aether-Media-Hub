@@ -7,6 +7,9 @@ import 'tokens.dart';
 
 /// A poster (or 16:9 card) with a graceful placeholder: initials on a gradient when there is no picture or it fails.
 class PosterImage extends StatelessWidget {
+  /// Widget tests switch pictures off (no platform cache is available there).
+  static bool disableNetwork = false;
+
   const PosterImage({super.key, required this.url, required this.title, this.radius = AetherTokens.rMedium, this.fit = BoxFit.cover});
   final String? url;
   final String title;
@@ -22,7 +25,7 @@ class PosterImage extends StatelessWidget {
         );
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
-      child: url == null || url!.isEmpty
+      child: url == null || url!.isEmpty || disableNetwork
           ? placeholder()
           : CachedNetworkImage(
               imageUrl: url!,
@@ -46,7 +49,6 @@ class PosterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final height = item.landscape ? width * 9 / 16 : width * 1.5;
     return Semantics(
       button: true,
       label: item.name,
@@ -55,8 +57,7 @@ class PosterCard extends StatelessWidget {
         child: SizedBox(
           width: width,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SizedBox(
-              height: height,
+            Expanded(
               child: Stack(fit: StackFit.expand, children: [
                 PosterImage(url: item.poster ?? item.background, title: item.name),
                 if (showRating && item.imdbRating != null)

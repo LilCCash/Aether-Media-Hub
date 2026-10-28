@@ -87,11 +87,11 @@ class GlassButton extends StatelessWidget {
     final look = AetherLook.of(context);
     final enabled = onPressed != null;
     final fg = prominent ? Colors.black : AetherTokens.textPrimary;
-    final child = Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+    final child = FittedBox(fit: BoxFit.scaleDown, child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
       if (icon != null) Icon(icon, size: 20, color: enabled ? fg : fg.withValues(alpha: 0.4)),
       if (icon != null && label != null) const SizedBox(width: 8),
-      if (label != null) Text(label!, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: enabled ? fg : fg.withValues(alpha: 0.4))),
-    ]);
+      if (label != null) Text(label!, maxLines: 1, softWrap: false, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: enabled ? fg : fg.withValues(alpha: 0.4))),
+    ]));
     final isRound = label == null;
     final body = prominent
         ? DecoratedBox(
@@ -111,7 +111,7 @@ class GlassButton extends StatelessWidget {
       excludeSemantics: true,
       child: Tooltip(
         message: tooltip ?? label ?? '',
-        child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: onPressed, child: ConstrainedBox(constraints: BoxConstraints(minWidth: 44, minHeight: size < 44 ? 44 : size), child: Center(child: body))),
+        child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: onPressed, child: ConstrainedBox(constraints: BoxConstraints(minWidth: 44, minHeight: size < 44 ? 44 : size), child: Align(widthFactor: 1, heightFactor: 1, child: body))),
       ),
     );
   }
@@ -138,7 +138,8 @@ class AetherBackdrop extends StatelessWidget {
             ? null
             : RadialGradient(center: const Alignment(0.7, -1.0), radius: 1.25, colors: [glow.withValues(alpha: strength), Colors.transparent]),
       ),
-      child: child,
+      // Ink (list tiles, switches) paints on the nearest Material: give the page one above the coloured backdrop.
+      child: child == null ? null : Material(type: MaterialType.transparency, child: child),
     );
   }
 }

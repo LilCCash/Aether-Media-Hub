@@ -1,0 +1,2 @@
+/// Shown in Settings ▸ Informazioni; keep in step with `pubspec.yaml`.
+const String appVersion = '1.0.0-comp.1';
