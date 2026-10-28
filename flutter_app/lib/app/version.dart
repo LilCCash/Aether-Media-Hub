@@ -1,2 +1,2 @@
 /// Shown in Settings ▸ Informazioni; keep in step with `pubspec.yaml`.
-const String appVersion = '1.2 beta';
+const String appVersion = '1.3 beta';

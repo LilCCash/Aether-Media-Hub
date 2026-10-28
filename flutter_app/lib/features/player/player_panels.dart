@@ -114,6 +114,18 @@ class SubtitlePanel extends StatelessWidget {
         return _PanelFrame(
           title: 'Sottotitoli',
           children: [
+            _SyncRow(session: s),
+            Theme(
+              data: Theme.of(context)
+                  .copyWith(dividerColor: Colors.transparent),
+              child: const ExpansionTile(
+                tilePadding: EdgeInsets.symmetric(horizontal: 16),
+                leading: Icon(Icons.format_color_text_rounded),
+                title: Text('Aspetto dei sottotitoli'),
+                children: [SubtitleStyleControls()],
+              ),
+            ),
+            const Divider(),
             _Choice(
               label: 'Disattivati',
               selected: !s.subtitlesOn,
@@ -154,18 +166,6 @@ class SubtitlePanel extends StatelessWidget {
                   ),
                 ),
               ),
-            if (s.subtitlesOn) ...[const Divider(), _SyncRow(session: s)],
-            const Divider(),
-            Theme(
-              data: Theme.of(context)
-                  .copyWith(dividerColor: Colors.transparent),
-              child: const ExpansionTile(
-                tilePadding: EdgeInsets.symmetric(horizontal: 16),
-                leading: Icon(Icons.format_color_text_rounded),
-                title: Text('Aspetto dei sottotitoli'),
-                children: [SubtitleStyleControls()],
-              ),
-            ),
           ],
         );
       },

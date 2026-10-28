@@ -347,7 +347,13 @@ class DownloadManager extends ChangeNotifier {
         cancelToken: token,
         options: Options(
           responseType: ResponseType.stream,
-          headers: {...item.headers, if (offset > 0) 'Range': 'bytes=$offset-'},
+          headers: {
+            // Many CDNs and debrid gateways answer 503/403 to the default Dart client.
+            if (!item.headers.keys.any((k) => k.toLowerCase() == 'user-agent'))
+              'User-Agent': 'Aether/1.0',
+            ...item.headers,
+            if (offset > 0) 'Range': 'bytes=$offset-',
+          },
           validateStatus: (_) => true,
           receiveTimeout: const Duration(seconds: 30),
         ),

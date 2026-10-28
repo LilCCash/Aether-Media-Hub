@@ -53,8 +53,12 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
       ? _items
       : _items.where((m) => ResultFilters.yearOf(m) == _year).toList();
 
-  Widget _gap(Widget w) =>
-      Padding(padding: const EdgeInsets.only(right: 8), child: w);
+  Widget _gap(Widget w) => Expanded(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: w,
+    ),
+  );
 
   /// With a year chosen, keep loading pages (a few at most) until enough titles of that year show up.
   Future<void> _fillForYear() async {
@@ -182,14 +186,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                     ),
                   ),
                   SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 54,
-                      child: ListView(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        scrollDirection: Axis.horizontal,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+                      child: Row(
                         children: [
                           if (types.length > 1)
                             _gap(

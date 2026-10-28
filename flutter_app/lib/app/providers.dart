@@ -493,9 +493,13 @@ final tvdbEpisodesProvider = FutureProvider.autoDispose
       return {for (final e in episodes) '${e.season}:${e.number}': e};
     });
 
-/// The transparent fanart.tv logo of a title, or null (no key, unknown title, any failure).
-final logoProvider = FutureProvider.autoDispose
-    .family<String?, ({String metaId, bool isMovie})>((ref, key) async {
+/// The transparent fanart.tv logo of a title, or null (no key, unknown title, any failure). Kept until the app closes, so the
+/// logo of a title is looked up once and is there the moment the player needs it.
+final logoProvider =
+    FutureProvider.family<String?, ({String metaId, bool isMovie})>((
+      ref,
+      key,
+    ) async {
       final services = ref.watch(servicesProvider);
       final imdb = _imdbOf(key.metaId);
       if (imdb == null) return null;

@@ -16,6 +16,63 @@ class _Embedded extends InheritedWidget {
   bool updateShouldNotify(_Embedded old) => false;
 }
 
+/// Lets a settings page show only some of the groups of another page (so one topic can gather groups that are built elsewhere).
+class GroupFilter extends InheritedWidget {
+  const GroupFilter({super.key, required this.titles, required super.child});
+  final Set<String> titles;
+  static Set<String>? of(BuildContext c) =>
+      c.dependOnInheritedWidgetOfExactType<GroupFilter>()?.titles;
+  @override
+  bool updateShouldNotify(GroupFilter old) => old.titles != titles;
+}
+
+/// Icon and colour of each settings group, by its title (the colour says what kind of setting it is).
+const kGroupStyles = <String, (IconData, Color)>{
+  'Modalità': (Icons.dark_mode_rounded, Color(0xFF7C8CFF)),
+  'Palette': (Icons.palette_rounded, Color(0xFFFF6FB5)),
+  'Testo': (Icons.text_fields_rounded, Color(0xFF5CC8FF)),
+  'Liquid Glass': (Icons.blur_on_rounded, Color(0xFF4FD1C5)),
+  'Colore d’accento': (Icons.colorize_rounded, Color(0xFFFF8A5B)),
+  'Anteprima': (Icons.visibility_rounded, Color(0xFFB48CFF)),
+  'Stili pronti': (Icons.auto_awesome_rounded, Color(0xFFFFC857)),
+  'Transizioni': (Icons.animation_rounded, Color(0xFFB48CFF)),
+  'Interfaccia': (Icons.dashboard_customize_rounded, Color(0xFF5CC8FF)),
+  'Colori': (Icons.color_lens_rounded, Color(0xFFFF6FB5)),
+  'Sfondo': (Icons.wallpaper_rounded, Color(0xFF4CD6A0)),
+  'Schede e locandine': (Icons.style_rounded, Color(0xFFFF8A5B)),
+  'Movimento': (Icons.motion_photos_on_rounded, Color(0xFF7C8CFF)),
+  'In evidenza': (Icons.star_rounded, Color(0xFFFFC857)),
+  'Sezioni della Home': (Icons.home_rounded, Color(0xFFFF8A5B)),
+  'Scopri': (Icons.explore_rounded, Color(0xFF4CD6A0)),
+  'Lingue': (Icons.translate_rounded, Color(0xFF5CC8FF)),
+  'Lingue di riserva': (Icons.language_rounded, Color(0xFF7C8CFF)),
+  'Sottotitoli': (Icons.subtitles_rounded, Color(0xFFFFC857)),
+  'Stile dei sottotitoli': (Icons.format_color_text_rounded, Color(0xFFFF6FB5)),
+  'Player': (Icons.play_circle_rounded, Color(0xFFFF8A5B)),
+  'Controlli e gesti': (Icons.touch_app_rounded, Color(0xFF4CD6A0)),
+  'Ripresa e fine episodio': (Icons.skip_next_rounded, Color(0xFF7C8CFF)),
+  'Immagine (motore libmpv)': (Icons.tune_rounded, Color(0xFFB48CFF)),
+  'In sottofondo': (Icons.picture_in_picture_alt_rounded, Color(0xFF5CC8FF)),
+  'Ordine e scelta': (Icons.low_priority_rounded, Color(0xFF7C8CFF)),
+  'Aspetto delle righe': (Icons.view_agenda_rounded, Color(0xFFFF6FB5)),
+  'Badge da mostrare': (Icons.sell_rounded, Color(0xFFFFC857)),
+  'Badge personalizzati': (Icons.new_label_rounded, Color(0xFFFF8A5B)),
+  'Cataloghi e lingua': (Icons.view_list_rounded, Color(0xFF4CD6A0)),
+  'Cataloghi e cache': (Icons.storage_rounded, Color(0xFF5CC8FF)),
+  'Metadati TMDB': (Icons.movie_filter_rounded, Color(0xFF4FD1C5)),
+  'Rete': (Icons.wifi_rounded, Color(0xFF5CC8FF)),
+  'Download': (Icons.download_rounded, Color(0xFF4CD6A0)),
+  'Download di una stagione': (Icons.video_library_rounded, Color(0xFF7C8CFF)),
+  'Archiviazione': (Icons.sd_storage_rounded, Color(0xFFB48CFF)),
+  'Esporta': (Icons.upload_rounded, Color(0xFF4CD6A0)),
+  'Ripristina': (Icons.settings_backup_restore_rounded, Color(0xFF5CC8FF)),
+  'Cancella': (Icons.delete_forever_rounded, Color(0xFFFF6B6B)),
+  'Registro': (Icons.receipt_long_rounded, Color(0xFF5CC8FF)),
+  'Attribuzioni': (Icons.favorite_rounded, Color(0xFFFF6FB5)),
+  'Servizio debrid preferito': (Icons.bolt_rounded, Color(0xFFFFC857)),
+  'IntroDB (nessuna chiave)': (Icons.fast_forward_rounded, Color(0xFF4FD1C5)),
+};
+
 /// Colours for the icons of the settings sections (the «Icone colorate» setting).
 const kSectionColors = [
   Color(0xFF7C8CFF),
@@ -115,6 +172,11 @@ class SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final only = GroupFilter.of(context);
+    if (title != null && only != null && !only.contains(title)) {
+      return const SizedBox.shrink();
+    }
+    final style = title == null ? null : kGroupStyles[title!];
     final body = Column(
       children: [
         for (var i = 0; i < children.length; i++) ...[
@@ -147,14 +209,20 @@ class SettingsGroup extends StatelessWidget {
           data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
           child: ExpansionTile(
             initiallyExpanded: open,
-            tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+            tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+            minTileHeight: 48,
             childrenPadding: EdgeInsets.zero,
             shape: const Border(),
             collapsedShape: const Border(),
-            leading: icon == null ? null : _ColoredIcon(icon!, title!),
+            leading: (icon ?? style?.$1) == null
+                ? null
+                : _ColoredIcon(icon ?? style!.$1, title!, color: style?.$2),
             title: Text(
               title!,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14.5,
+              ),
             ),
             children: [const Divider(height: 1), body],
           ),
@@ -166,22 +234,25 @@ class SettingsGroup extends StatelessWidget {
 
 /// An icon on a soft tinted tile; the tint follows the section unless «Icone colorate» is off.
 class _ColoredIcon extends ConsumerWidget {
-  const _ColoredIcon(this.icon, this.key_);
+  const _ColoredIcon(this.icon, this.key_, {this.color});
   final IconData icon;
   final String key_;
+  final Color? color;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colored = ref.watch(settingsProvider).coloredIcons;
-    final c = colored ? sectionColor(key_) : AetherTokens.textSecondary;
+    final c = colored
+        ? (color ?? sectionColor(key_))
+        : AetherTokens.textSecondary;
     return Container(
-      width: 34,
-      height: 34,
+      width: 30,
+      height: 30,
       decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(10),
+        color: c,
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: Icon(icon, size: 19, color: c),
+      child: Icon(icon, size: 17, color: Colors.white),
     );
   }
 }

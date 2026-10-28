@@ -81,15 +81,6 @@ class ServicesPage extends ConsumerWidget {
             final r = await ref.read(servicesProvider).tmdb.check();
             return (ok: r == null, message: r ?? 'TMDB accetta la chiave.');
           },
-          options: const [
-            PrefSwitch('tmdbEnabled', 'Usa i dati di TMDB', _tmdb),
-            PrefSwitch('modCast', 'Cast e troupe', _cast),
-            PrefSwitch('modTrailers', 'Trailer', _trailers),
-            PrefSwitch('modCompanies', 'Produzione', _companies),
-            PrefSwitch('modFinancials', 'Incassi e budget', _fin),
-            PrefSwitch('modFacts', 'Dettagli (slogan, voto)', _facts),
-            PrefSwitch('modCollection', 'Saga / collezione', _coll),
-          ],
         ),
         ServiceTile(
           title: 'MDBList',
@@ -191,13 +182,6 @@ class ServicesPage extends ConsumerWidget {
     'rogerebert': 'Roger Ebert',
     'myanimelist': 'MyAnimeList',
   };
-  static bool _tmdb(AppSettings s) => s.tmdbEnabled;
-  static bool _cast(AppSettings s) => s.modCast;
-  static bool _trailers(AppSettings s) => s.modTrailers;
-  static bool _companies(AppSettings s) => s.modCompanies;
-  static bool _fin(AppSettings s) => s.modFinancials;
-  static bool _facts(AppSettings s) => s.modFacts;
-  static bool _coll(AppSettings s) => s.modCollection;
   static bool _posterRatings(AppSettings s) => s.posterRatings;
 }
 

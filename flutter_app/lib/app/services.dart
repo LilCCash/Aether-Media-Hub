@@ -28,6 +28,7 @@ import '../data/prefs_ext.dart';
 import '../data/settings.dart';
 import '../data/stores.dart';
 import '../features/downloads/download_manager.dart';
+import '../features/downloads/season_downloader.dart';
 
 /// Everything that talks to storage or the network, created once at start-up. The UI reads it through providers; tests build
 /// their own with in-memory stores and fake HTTP.
@@ -68,6 +69,7 @@ class AppServices {
   final BadgePackLoader badgeLoader;
   final SubtitleLoader subtitleLoader;
   final DownloadManager downloads;
+  final SeasonJobs seasonJobs = SeasonJobs();
   final AppSettings initialSettings;
 
   /// The debrid service to use: the one chosen in the settings when its key is stored, else the other one if that has a key.

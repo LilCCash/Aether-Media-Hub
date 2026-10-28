@@ -46,6 +46,11 @@ extension PrefsExt on AppSettings {
   bool get modFacts => _b('modFacts', true);
   bool get modSimilar => _b('modSimilar', true);
   bool get modCollection => _b('modCollection', true);
+  bool get modCrew => _b('modCrew', true);
+  bool get modKeywords => _b('modKeywords', true);
+  bool get modProviders => _b('modProviders', true);
+  bool get modCertification => _b('modCertification', true);
+  bool get modRecommended => _b('modRecommended', true);
   bool get tmdbEnabled => _b('tmdbEnabled', true);
   List<String> get ratingSources => ext.containsKey('ratingSources')
       ? asStringList(ext['ratingSources'])

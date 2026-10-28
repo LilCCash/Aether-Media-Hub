@@ -638,7 +638,7 @@ class DropChip<T> extends StatelessWidget {
       tooltip: label,
       color: AetherTokens.inkRaised,
       constraints: const BoxConstraints(maxHeight: 420, minWidth: 160),
-      offset: const Offset(0, 46),
+      offset: const Offset(0, 36),
       onSelected: onSelected,
       itemBuilder: (_) => [
         for (final e in options.entries)
@@ -654,23 +654,30 @@ class DropChip<T> extends StatelessWidget {
           ),
       ],
       child: GlassSurface(
-        radius: 22,
+        radius: 16,
         tint: active ? look.accent : null,
         strong: active,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 16, color: AetherTokens.textSecondary),
-              const SizedBox(width: 6),
+              Icon(icon, size: 13, color: AetherTokens.textSecondary),
+              const SizedBox(width: 4),
             ],
-            Text(
-              active ? options[value]! : label,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            Flexible(
+              child: Text(
+                active ? options[value]! : label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
-            const SizedBox(width: 4),
-            const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+            const Icon(Icons.keyboard_arrow_down_rounded, size: 15),
           ],
         ),
       ),

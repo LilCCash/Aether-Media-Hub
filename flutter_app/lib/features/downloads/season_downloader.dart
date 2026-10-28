@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../app/services.dart';
 import '../../core/model/meta.dart';
 import '../../core/model/stream.dart';
@@ -242,5 +244,58 @@ class SeasonDownloader {
       alreadyPresent: present,
       cancelled: cancelled(),
     );
+  }
+}
+
+/// Season downloads that live in the app, not in the page that started them: leaving the title keeps the search going,
+/// and coming back shows the same progress instead of offering the button again.
+class SeasonJobs extends ChangeNotifier {
+  final Map<String, ({String message, bool busy, bool cancel})> _jobs = {};
+
+  static String keyOf(String metaId, int season) => '$metaId#$season';
+
+  bool busy(String metaId, int season) =>
+      _jobs[keyOf(metaId, season)]?.busy ?? false;
+  String? message(String metaId, int season) =>
+      _jobs[keyOf(metaId, season)]?.message;
+
+  void _set(String k, {String? message, bool? busy, bool? cancel}) {
+    final old = _jobs[k];
+    _jobs[k] = (
+      message: message ?? old?.message ?? '',
+      busy: busy ?? old?.busy ?? false,
+      cancel: cancel ?? old?.cancel ?? false,
+    );
+    notifyListeners();
+  }
+
+  void cancel(String metaId, int season) {
+    final k = keyOf(metaId, season);
+    if (_jobs[k]?.busy != true) return;
+    _set(k, cancel: true, message: 'Annullamento in corso…');
+  }
+
+  Future<void> start(
+    AppServices services,
+    AppSettings settings,
+    MetaItem meta,
+    int season,
+  ) async {
+    final k = keyOf(meta.id, season);
+    if (_jobs[k]?.busy == true) return;
+    _set(k, busy: true, cancel: false, message: 'Cerco le sorgenti…');
+    SeasonDownloadSummary summary;
+    try {
+      summary = await SeasonDownloader(services, settings).run(
+        meta,
+        season,
+        onMessage: (m) => _set(k, message: m),
+        cancelled: () => _jobs[k]?.cancel ?? false,
+      );
+    } on Object catch (e) {
+      _set(k, busy: false, message: 'Download della stagione interrotto: $e');
+      return;
+    }
+    _set(k, busy: false, cancel: false, message: summary.message);
   }
 }

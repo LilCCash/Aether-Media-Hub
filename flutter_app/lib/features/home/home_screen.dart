@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -258,9 +259,9 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    final height =
-        (MediaQuery.sizeOf(context).height * (widget.fullBleed ? 0.78 : 0.58))
-            .clamp(380.0, widget.fullBleed ? 760.0 : 560.0);
+    final w = MediaQuery.sizeOf(context).width;
+    final height = (w * 0.36 * 1.5 + MediaQuery.paddingOf(context).top + 150)
+        .clamp(360.0, 470.0);
     return SizedBox(
       height: height,
       child: Stack(
@@ -313,13 +314,17 @@ class _HeroPage extends ConsumerWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // The hero is a tall area: the portrait poster fits it with almost no crop (and from the top), the wide backdrop does not.
-          PosterImage(
-            url: item.poster ?? item.background,
-            title: item.name,
-            radius: 0,
-            alignment: Alignment.topCenter,
-            cacheWidth: 1600,
+          // The poster is shown whole at its own ratio on a blurred copy of itself.
+          ClipRect(
+            child: ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+              child: PosterImage(
+                url: item.poster ?? item.background,
+                title: item.name,
+                radius: 0,
+                cacheWidth: 400,
+              ),
+            ),
           ),
           const DecoratedBox(
             decoration: BoxDecoration(
@@ -327,43 +332,75 @@ class _HeroPage extends ConsumerWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Color(0x66000000),
-                  Colors.transparent,
-                  Color(0xE605060D),
+                  Color(0x99000000),
+                  Color(0x33000000),
+                  Color(0xF205060D),
                 ],
-                stops: [0, 0.4, 1],
+                stops: [0, 0.45, 1],
               ),
             ),
           ),
-          Positioned(
-            left: AetherTokens.pageMargin,
-            right: AetherTokens.pageMargin,
-            bottom: 38,
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              AetherTokens.pageMargin,
+              MediaQuery.paddingOf(context).top + 12,
+              AetherTokens.pageMargin,
+              30,
+            ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                Flexible(
+                  child: AspectRatio(
+                    aspectRatio: 2 / 3,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x99000000),
+                            blurRadius: 24,
+                            offset: Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: PosterImage(
+                        url: item.poster ?? item.background,
+                        title: item.name,
+                        radius: 16,
+                        cacheWidth: 600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Text(
                   item.name,
-                  maxLines: 2,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.displaySmall,
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 2),
                 Text(
                   [
                     if (item.releaseInfo != null) item.releaseInfo!,
                     ...item.genres.take(3),
                   ].join(' · '),
-                  style: Theme.of(context).textTheme.bodyMedium
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: AetherTokens.textSecondary),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     GlassButton(
                       icon: Icons.play_arrow_rounded,
                       label: 'Guarda',
                       prominent: true,
+                      size: 40,
                       onPressed: () => openTitle(context, item),
                     ),
                     const SizedBox(width: 10),
@@ -371,6 +408,7 @@ class _HeroPage extends ConsumerWidget {
                       icon: library.isInWatchlist(item.id)
                           ? Icons.check_rounded
                           : Icons.add_rounded,
+                      size: 40,
                       tooltip: library.isInWatchlist(item.id)
                           ? 'Rimuovi dalla watchlist'
                           : 'Aggiungi alla watchlist',

@@ -27,7 +27,7 @@ import '../../design/widgets.dart';
 import '../home/home_screen.dart';
 import 'settings_widgets.dart';
 
-/// "Altro": the doorway to addons, downloads and every setting, grouped by what they are for.
+/// "Altro": the doorway to addons, downloads and the settings.
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
 
@@ -48,24 +48,26 @@ class MoreScreen extends ConsumerWidget {
               ),
             ),
             SettingsGroup(
-              title: 'Contenuti',
               children: [
-                NavRow(
+                HubRow(
                   icon: Icons.theaters_rounded,
+                  color: const Color(0xFFFFC857),
                   title: 'Theater Mode',
                   subtitle: 'L’app in orizzontale, in stile cinema',
                   onTap: () => context.push('/theater'),
                 ),
-                NavRow(
+                HubRow(
                   icon: Icons.extension_rounded,
+                  color: const Color(0xFF7C8CFF),
                   title: 'Addon',
                   subtitle: addons.isEmpty
                       ? 'Nessuno installato'
                       : '${addons.where((a) => a.enabled).length} attivi su ${addons.length}',
                   onTap: () => context.push('/addons'),
                 ),
-                NavRow(
+                HubRow(
                   icon: Icons.download_for_offline_rounded,
+                  color: const Color(0xFF4CD6A0),
                   title: 'Download',
                   subtitle: 'File per guardare senza rete',
                   onTap: () => context.push('/downloads'),
@@ -73,52 +75,17 @@ class MoreScreen extends ConsumerWidget {
               ],
             ),
             SettingsGroup(
-              title: 'Impostazioni',
-              open: true,
               children: [
-                NavRow(
-                  icon: Icons.palette_rounded,
-                  title: 'Aspetto e personalizzazione',
-                  subtitle: 'Colori, vetro, sfondo, cornici, Home, transizioni',
-                  onTap: () => context.push('/settings/look'),
+                HubRow(
+                  icon: Icons.settings_rounded,
+                  color: const Color(0xFF8E8E93),
+                  title: 'Impostazioni',
+                  subtitle: 'Aspetto, Home, Player, Sorgenti, Servizi…',
+                  onTap: () => context.push('/settings/root'),
                 ),
-                NavRow(
-                  icon: Icons.play_circle_outline_rounded,
-                  title: 'Riproduzione e player',
-                  subtitle: 'Lingue, sottotitoli, gesti, immagine, ripresa',
-                  onTap: () => context.push('/settings/playback'),
-                ),
-                NavRow(
-                  icon: Icons.view_list_rounded,
-                  title: 'Contenuti e sorgenti',
-                  subtitle: 'Cataloghi, ricerca, ordine e badge delle sorgenti',
-                  onTap: () => context.push('/settings/content'),
-                ),
-                NavRow(
-                  icon: Icons.key_rounded,
-                  title: 'Servizi',
-                  subtitle: 'TorBox, Real-Debrid, TMDB, MDBList, TheTVDB…',
-                  onTap: () => context.push('/settings/services'),
-                ),
-                NavRow(
-                  icon: Icons.download_for_offline_rounded,
-                  title: 'Download e dati',
-                  subtitle: 'Stagioni, limiti, backup, cancellazione',
-                  onTap: () => context.push('/settings/downloads'),
-                ),
-              ],
-            ),
-            SettingsGroup(
-              title: 'Aiuto',
-              children: [
-                NavRow(
-                  icon: Icons.health_and_safety_outlined,
-                  title: 'Diagnostica',
-                  subtitle: 'Registro, player di prova senza rete',
-                  onTap: () => context.push('/settings/diagnostics'),
-                ),
-                NavRow(
-                  icon: Icons.info_outline_rounded,
+                HubRow(
+                  icon: Icons.info_rounded,
+                  color: const Color(0xFF5CC8FF),
                   title: 'Informazioni e licenze',
                   subtitle: 'Versione $appVersion',
                   onTap: () => context.push('/settings/about'),
@@ -132,6 +99,255 @@ class MoreScreen extends ConsumerWidget {
   }
 }
 
+/// A row in the style of iOS Settings: a small coloured tile with a white glyph, the title, a grey detail and a chevron.
+class HubRow extends ConsumerWidget {
+  const HubRow({
+    super.key,
+    required this.icon,
+    required this.color,
+    required this.title,
+    this.subtitle,
+    required this.onTap,
+  });
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colored = ref.watch(settingsProvider).coloredIcons;
+    final c = colored ? color : AetherTokens.textSecondary;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+      minTileHeight: 52,
+      leading: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [c, Color.lerp(c, Colors.black, 0.18)!],
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 17, color: Colors.white),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+      ),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle!, style: const TextStyle(fontSize: 12)),
+      trailing: const Icon(
+        Icons.chevron_right_rounded,
+        color: AetherTokens.textTertiary,
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+/// Settings, topic by topic: everything about one thing (the Home, the player, the sources…) is on one page.
+class _Topic {
+  const _Topic(this.id, this.title, this.icon, this.color, this.subtitle);
+  final String id;
+  final String title;
+  final IconData icon;
+  final Color color;
+  final String subtitle;
+}
+
+const _topicsMain = [
+  _Topic(
+    'look',
+    'Aspetto',
+    Icons.palette_rounded,
+    Color(0xFFFF6FB5),
+    'Tema, colori, vetro, sfondo, transizioni',
+  ),
+  _Topic(
+    'home',
+    'Home',
+    Icons.home_rounded,
+    Color(0xFFFF8A5B),
+    'Sezioni, ordine, in evidenza',
+  ),
+  _Topic(
+    'discover',
+    'Scopri',
+    Icons.explore_rounded,
+    Color(0xFF4CD6A0),
+    'Tipi, catalogo predefinito, filtri',
+  ),
+  _Topic(
+    'player',
+    'Player',
+    Icons.play_circle_rounded,
+    Color(0xFFFFA23B),
+    'Lingue, sottotitoli, gesti, immagine',
+  ),
+  _Topic(
+    'sources',
+    'Sorgenti',
+    Icons.view_list_rounded,
+    Color(0xFF7C8CFF),
+    'Ordine, righe, badge',
+  ),
+  _Topic(
+    'catalogs',
+    'Cataloghi e metadati',
+    Icons.collections_bookmark_rounded,
+    Color(0xFF5CC8FF),
+    'Cataloghi, ricerca, TMDB',
+  ),
+  _Topic(
+    'services',
+    'Servizi',
+    Icons.key_rounded,
+    Color(0xFFB48CFF),
+    'TorBox, Real-Debrid, TMDB, MDBList…',
+  ),
+];
+const _topicsData = [
+  _Topic(
+    'downloads',
+    'Download',
+    Icons.download_rounded,
+    Color(0xFF30C48D),
+    'Rete, stagioni, limiti',
+  ),
+  _Topic(
+    'data',
+    'Archiviazione e dati',
+    Icons.sd_storage_rounded,
+    Color(0xFFA2845E),
+    'Cache, backup, cancellazione',
+  ),
+  _Topic(
+    'diagnostics',
+    'Diagnostica',
+    Icons.health_and_safety_rounded,
+    Color(0xFF8E8E93),
+    'Registro, player di prova',
+  ),
+];
+
+class SettingsRootScreen extends StatelessWidget {
+  const SettingsRootScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget group(List<_Topic> topics) => SettingsGroup(
+      children: [
+        for (final t in topics)
+          HubRow(
+            icon: t.icon,
+            color: t.color,
+            title: t.title,
+            subtitle: t.subtitle,
+            onTap: () => context.push('/settings/${t.id}'),
+          ),
+      ],
+    );
+    return SettingsPageFrame(
+      title: 'Impostazioni',
+      children: [group(_topicsMain), group(_topicsData)],
+    );
+  }
+}
+
+Widget _only(Set<String> titles, Widget child) =>
+    GroupFilter(titles: titles, child: child);
+
+/// The groups of every topic, in the order they appear: some come from the page that builds them, listed here by their title.
+Widget _topicPage(String page) {
+  switch (page) {
+    case 'look':
+      return MergedSettingsPage(
+        title: 'Aspetto',
+        parts: [
+          _only({'Stili pronti', 'Transizioni'}, const LookPage()),
+          const _AppearancePage(),
+          _only({
+            'Interfaccia',
+            'Colori',
+            'Sfondo',
+            'Schede e locandine',
+            'Movimento',
+          }, const LookPage()),
+        ],
+      );
+    case 'home':
+      return MergedSettingsPage(
+        title: 'Home',
+        parts: [
+          _only({'In evidenza', 'Sezioni della Home'}, const LookPage()),
+        ],
+      );
+    case 'discover':
+      return MergedSettingsPage(
+        title: 'Scopri',
+        parts: [
+          _only({'Scopri'}, const MetadataPage()),
+        ],
+      );
+    case 'player':
+      return MergedSettingsPage(
+        title: 'Player',
+        parts: [
+          _only({'Lingue'}, const _PlaybackPage()),
+          _only({'Lingue di riserva'}, const PlayerAdvancedPage()),
+          _only({'Sottotitoli'}, const _PlaybackPage()),
+          _only({'Stile dei sottotitoli'}, const PlayerAdvancedPage()),
+          _only({'Player'}, const _PlaybackPage()),
+          _only({
+            'Controlli e gesti',
+            'Ripresa e fine episodio',
+            'Immagine (motore libmpv)',
+            'In sottofondo',
+          }, const PlayerAdvancedPage()),
+        ],
+      );
+    case 'sources':
+      return const MergedSettingsPage(
+        title: 'Sorgenti',
+        parts: [SourcesPage()],
+      );
+    case 'catalogs':
+      return MergedSettingsPage(
+        title: 'Cataloghi e metadati',
+        parts: [
+          _only({'Cataloghi e lingua', 'Rete'}, const _ContentPage()),
+          _only({'Cataloghi e cache', 'Metadati TMDB'}, const MetadataPage()),
+          _only({'Badge personalizzati'}, const _ContentPage()),
+        ],
+      );
+    case 'downloads':
+      return MergedSettingsPage(
+        title: 'Download',
+        parts: [
+          _only({
+            'Download',
+            'Download di una stagione',
+          }, const DownloadsSettingsPage()),
+        ],
+      );
+    case 'data':
+      return MergedSettingsPage(
+        title: 'Archiviazione e dati',
+        parts: [
+          _only({'Archiviazione'}, const DownloadsSettingsPage()),
+          const _DataPage(),
+        ],
+      );
+  }
+  return const SizedBox.shrink();
+}
+
 class SettingsPageScreen extends ConsumerWidget {
   const SettingsPageScreen({super.key, required this.page});
   final String page;
@@ -139,26 +355,23 @@ class SettingsPageScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return switch (page) {
-      'look' || 'appearance' => const MergedSettingsPage(
-        title: 'Aspetto e personalizzazione',
-        parts: [_AppearancePage(), LookPage()],
-      ),
-      'playback' || 'player' => const MergedSettingsPage(
-        title: 'Riproduzione e player',
-        parts: [_PlaybackPage(), PlayerAdvancedPage()],
-      ),
-      'content' || 'sources' || 'metadata' => const MergedSettingsPage(
-        title: 'Contenuti e sorgenti',
-        parts: [_ContentPage(), SourcesPage(), MetadataPage()],
-      ),
-      'catalogs' => const _CatalogsPage(),
+      'root' => const SettingsRootScreen(),
       'services' => const ServicesPage(),
-      'downloads' || 'data' => const MergedSettingsPage(
-        title: 'Download e dati',
-        parts: [DownloadsSettingsPage(), _DataPage()],
-      ),
+      'catalogs-edit' => const _CatalogsPage(),
       'diagnostics' => const _DiagnosticsPage(),
       'about' => const _AboutPage(),
+      'look' ||
+      'home' ||
+      'discover' ||
+      'player' ||
+      'sources' ||
+      'catalogs' ||
+      'downloads' ||
+      'data' => _topicPage(page),
+      // Older links
+      'appearance' => _topicPage('look'),
+      'playback' => _topicPage('player'),
+      'content' || 'metadata' => _topicPage('catalogs'),
       _ => SettingsPageFrame(
         title: 'Impostazioni',
         children: [Text('Pagina sconosciuta: $page')],
@@ -387,7 +600,6 @@ class _AppearancePage extends ConsumerWidget {
         ),
         SettingsGroup(
           title: 'Liquid Glass',
-          open: true,
           icon: Icons.blur_on_rounded,
           footer: 'Come il cursore di iOS: a sinistra il vetro è trasparente, a destra è più denso e colorato. Il vero Liquid Glass (rifrazione) richiede un telefono con GPU recente; altrimenti l’app usa il vetro sfocato. Riduci gli effetti se noti scatti.',
           children: [
@@ -495,12 +707,13 @@ class _ContentPage extends ConsumerWidget {
       title: 'Contenuti e cataloghi',
       children: [
         SettingsGroup(
+          title: 'Cataloghi e lingua',
           children: [
             NavRow(
               icon: Icons.view_list_rounded,
               title: 'Nomi, ordine e visibilità dei cataloghi',
               subtitle: 'Valgono in Home e Scopri',
-              onTap: () => context.push('/settings/catalogs'),
+              onTap: () => context.push('/settings/catalogs-edit'),
             ),
             ChoiceRow<String>(
               title: 'Lingua di trame e dettagli',
@@ -513,12 +726,6 @@ class _ContentPage extends ConsumerWidget {
                 'de': 'Tedesco',
               },
               onChanged: (v) => n.update((x) => x.copyWith(language: v)),
-            ),
-            SwitchRow(
-              title: 'Mostra «Continua a guardare»',
-              value: s.showContinueWatching,
-              onChanged: (v) =>
-                  n.update((x) => x.copyWith(showContinueWatching: v)),
             ),
             SwitchRow(
               title: 'Nascondi i cataloghi per adulti',
@@ -976,25 +1183,28 @@ class _DiagnosticsPageState extends ConsumerState<_DiagnosticsPage> {
               title: const Text('Cancella il registro'),
               onTap: () => setState(AppLog.instance.clear),
             ),
+            if (lines.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('Nessun evento registrato.'),
+              ),
+            for (final l in lines.reversed.take(60))
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 2,
+                ),
+                child: Text(
+                  l,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    color: AetherTokens.textSecondary,
+                  ),
+                ),
+              ),
           ],
         ),
-        if (lines.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(12),
-            child: Text('Nessun evento registrato.'),
-          ),
-        for (final l in lines.reversed.take(60))
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Text(
-              l,
-              style: const TextStyle(
-                fontSize: 11,
-                fontFamily: 'monospace',
-                color: AetherTokens.textSecondary,
-              ),
-            ),
-          ),
       ],
     );
   }

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -48,38 +50,38 @@ class SubtitleText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = TextStyle(
-      fontSize: base * scale,
-      fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
-      height: 1.25,
-      decoration: TextDecoration.none,
-    );
+    // The outline is drawn with solid shadows around the glyphs (a stroked foreground paint is not drawn reliably on every
+    // renderer, and the fill colour must always be the one the viewer chose).
+    final r = (1.6 * scale.clamp(0.8, 1.6)).toDouble();
+    final shadows = outline
+        ? [
+            for (var i = 0; i < 12; i++)
+              Shadow(
+                color: outlineColor,
+                offset: Offset(
+                  r * math.cos(i * math.pi / 6),
+                  r * math.sin(i * math.pi / 6),
+                ),
+              ),
+          ]
+        : const [Shadow(blurRadius: 4, color: Color(0xCC000000))];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Stack(
-        children: [
-          if (outline)
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: style.copyWith(
-                foreground: Paint()
-                  ..style = PaintingStyle.stroke
-                  ..strokeWidth = 4 * scale.clamp(0.8, 1.6)
-                  ..strokeJoin = StrokeJoin.round
-                  ..color = outlineColor,
-              ),
-            ),
-          Text(
-            text,
-            textAlign: TextAlign.center,
-            style: style.copyWith(color: color),
-          ),
-        ],
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: base * scale,
+          fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+          height: 1.25,
+          color: color,
+          decoration: TextDecoration.none,
+          shadows: shadows,
+        ),
       ),
     );
   }

@@ -366,15 +366,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 right: 40,
                 bottom: showControls ? 96 : 20 + settings.subBottom * 4,
                 child: IgnorePointer(
-                  child: SubtitleText(
-                    text: s.externalLine!,
-                    scale: settings.subtitleScale,
-                    color: colorFromHex(settings.subColor),
-                    bold: settings.subBold,
-                    outline: settings.subOutline,
-                    outlineColor: colorFromHex(settings.subOutlineColor),
-                    background: colorFromHex(settings.subBgColor)
-                        .withValues(alpha: settings.subBgOpacity),
+                  child: Center(
+                    child: SubtitleText(
+                      text: s.externalLine!,
+                      scale: settings.subtitleScale,
+                      color: colorFromHex(settings.subColor),
+                      bold: settings.subBold,
+                      outline: settings.subOutline,
+                      outlineColor: colorFromHex(settings.subOutlineColor),
+                      background: colorFromHex(settings.subBgColor)
+                          .withValues(alpha: settings.subBgOpacity),
+                    ),
                   ),
                 ),
               ),
@@ -547,195 +549,215 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   : AetherTokens.medium,
               child: IgnorePointer(
                 ignoring: !showControls,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xAA000000),
-                        Colors.transparent,
-                        Colors.transparent,
-                        Color(0xCC000000),
-                      ],
-                      stops: [0, 0.25, 0.65, 1],
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              GlassButton(
-                                icon: Icons.arrow_back_ios_new_rounded,
-                                tooltip: 'Chiudi il player',
-                                onPressed: _exit,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      s.args.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    if (s.args.isEpisode)
-                                      Text(
-                                        'S${s.args.season} · E${s.args.episode}${s.args.episodeTitle == null ? '' : ' · ${s.args.episodeTitle}'}',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              if (_canCast)
-                                GlassButton(
-                                  icon: Icons.cast_rounded,
-                                  tooltip: 'Trasmetti sulla TV',
-                                  onPressed: _openCast,
-                                ),
-                              if (canPip)
-                                GlassButton(
-                                  icon: Icons.picture_in_picture_alt_rounded,
-                                  tooltip: 'Picture in Picture',
-                                  onPressed: _enterPip,
-                                ),
-                            ],
-                          ),
-                          const Spacer(),
-                          _CenterControls(
-                            playing: s.playing,
-                            backSec: settings.skipBackSec,
-                            forwardSec: settings.skipForwardSec,
-                            onBack: () {
-                              s.seekBy(
-                                Duration(seconds: -settings.skipBackSec),
-                              );
-                              _scheduleHide();
-                            },
-                            onToggle: () {
-                              s.togglePlay();
-                              _scheduleHide();
-                            },
-                            onForward: () {
-                              s.seekBy(
-                                Duration(seconds: settings.skipForwardSec),
-                              );
-                              _scheduleHide();
-                            },
-                          ),
-                          const Spacer(),
-                          Row(
-                            children: [
-                              Text(
-                                _fmt(Duration(milliseconds: pos.round())),
-                                style: const TextStyle(
-                                  fontFeatures: [FontFeature.tabularFigures()],
-                                  fontSize: 12,
-                                ),
-                              ),
-                              Expanded(
-                                child: Slider(
-                                  value: pos,
-                                  max: total <= 0 ? 1 : total,
-                                  onChanged: total <= 0
-                                      ? null
-                                      : (v) => setState(() => _dragSeekMs = v),
-                                  onChangeEnd: (v) {
-                                    setState(() => _dragSeekMs = null);
-                                    s.seekTo(Duration(milliseconds: v.round()));
-                                    _scheduleHide();
-                                  },
-                                ),
-                              ),
-                              Text(
-                                total <= 0
-                                    ? '--:--'
-                                    : '-${_fmt(Duration(milliseconds: (total - pos).round()))}',
-                                style: const TextStyle(
-                                  fontFeatures: [FontFeature.tabularFigures()],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                GlassButton(
-                                  icon: Icons.lock_outline_rounded,
-                                  tooltip: 'Blocca i controlli',
-                                  size: 40,
-                                  onPressed: () => s.setLocked(true),
-                                ),
-                                const SizedBox(width: 8),
-                                GlassButton(
-                                  icon: Icons.subtitles_rounded,
-                                  label: 'Sottotitoli',
-                                  size: 40,
-                                  selected: s.subtitlesOn,
-                                  onPressed: () => _openPanel(
-                                    (_) => SubtitlePanel(session: s),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                GlassButton(
-                                  icon: Icons.audiotrack_rounded,
-                                  label: 'Audio',
-                                  size: 40,
-                                  onPressed: () =>
-                                      _openPanel((_) => AudioPanel(session: s)),
-                                ),
-                                const SizedBox(width: 8),
-                                GlassButton(
-                                  icon: Icons.speed_rounded,
-                                  label: s.speed == 1
-                                      ? 'Velocità'
-                                      : '${s.speed}×',
-                                  size: 40,
-                                  onPressed: () =>
-                                      _openPanel((_) => SpeedPanel(session: s)),
-                                ),
-                                const SizedBox(width: 8),
-                                GlassButton(
-                                  icon: Icons.aspect_ratio_rounded,
-                                  label: s.aspect.label,
-                                  size: 40,
-                                  onPressed: s.cycleAspect,
-                                ),
-                                if (s.args.alternatives.isNotEmpty) ...[
-                                  const SizedBox(width: 8),
-                                  GlassButton(
-                                    icon: Icons.swap_horiz_rounded,
-                                    label: 'Sorgenti',
-                                    size: 40,
-                                    onPressed: () => _openPanel(
-                                      (_) => SourcesPanel(session: s),
-                                    ),
-                                  ),
-                                ],
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // The shade must not take taps: a tap on the picture hides the controls.
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0xAA000000),
+                                Colors.transparent,
+                                Colors.transparent,
+                                Color(0xCC000000),
                               ],
+                              stops: [0, 0.25, 0.65, 1],
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                    SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                GlassButton(
+                                  icon: Icons.arrow_back_ios_new_rounded,
+                                  tooltip: 'Chiudi il player',
+                                  onPressed: _exit,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        s.args.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      if (s.args.isEpisode)
+                                        Text(
+                                          'S${s.args.season} · E${s.args.episode}${s.args.episodeTitle == null ? '' : ' · ${s.args.episodeTitle}'}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                if (_canCast)
+                                  GlassButton(
+                                    icon: Icons.cast_rounded,
+                                    tooltip: 'Trasmetti sulla TV',
+                                    onPressed: _openCast,
+                                  ),
+                                if (canPip)
+                                  GlassButton(
+                                    icon: Icons.picture_in_picture_alt_rounded,
+                                    tooltip: 'Picture in Picture',
+                                    onPressed: _enterPip,
+                                  ),
+                              ],
+                            ),
+                            const Spacer(),
+                            _CenterControls(
+                              playing: s.playing,
+                              backSec: settings.skipBackSec,
+                              forwardSec: settings.skipForwardSec,
+                              onBack: () {
+                                s.seekBy(
+                                  Duration(seconds: -settings.skipBackSec),
+                                );
+                                _scheduleHide();
+                              },
+                              onToggle: () {
+                                s.togglePlay();
+                                _scheduleHide();
+                              },
+                              onForward: () {
+                                s.seekBy(
+                                  Duration(seconds: settings.skipForwardSec),
+                                );
+                                _scheduleHide();
+                              },
+                            ),
+                            const Spacer(),
+                            Row(
+                              children: [
+                                Text(
+                                  _fmt(Duration(milliseconds: pos.round())),
+                                  style: const TextStyle(
+                                    fontFeatures: [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Slider(
+                                    value: pos,
+                                    max: total <= 0 ? 1 : total,
+                                    onChanged: total <= 0
+                                        ? null
+                                        : (v) =>
+                                              setState(() => _dragSeekMs = v),
+                                    onChangeEnd: (v) {
+                                      setState(() => _dragSeekMs = null);
+                                      s.seekTo(
+                                        Duration(milliseconds: v.round()),
+                                      );
+                                      _scheduleHide();
+                                    },
+                                  ),
+                                ),
+                                Text(
+                                  total <= 0
+                                      ? '--:--'
+                                      : '-${_fmt(Duration(milliseconds: (total - pos).round()))}',
+                                  style: const TextStyle(
+                                    fontFeatures: [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  GlassButton(
+                                    icon: Icons.lock_outline_rounded,
+                                    tooltip: 'Blocca i controlli',
+                                    size: 40,
+                                    onPressed: () => s.setLocked(true),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  GlassButton(
+                                    icon: Icons.subtitles_rounded,
+                                    label: 'Sottotitoli',
+                                    size: 40,
+                                    selected: s.subtitlesOn,
+                                    onPressed: () => _openPanel(
+                                      (_) => SubtitlePanel(session: s),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  GlassButton(
+                                    icon: Icons.audiotrack_rounded,
+                                    label: 'Audio',
+                                    size: 40,
+                                    onPressed: () => _openPanel(
+                                      (_) => AudioPanel(session: s),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  GlassButton(
+                                    icon: Icons.speed_rounded,
+                                    label: s.speed == 1
+                                        ? 'Velocità'
+                                        : '${s.speed}×',
+                                    size: 40,
+                                    onPressed: () => _openPanel(
+                                      (_) => SpeedPanel(session: s),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  GlassButton(
+                                    icon: Icons.aspect_ratio_rounded,
+                                    label: s.aspect.label,
+                                    size: 40,
+                                    onPressed: s.cycleAspect,
+                                  ),
+                                  if (s.args.alternatives.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    GlassButton(
+                                      icon: Icons.swap_horiz_rounded,
+                                      label: 'Sorgenti',
+                                      size: 40,
+                                      onPressed: () => _openPanel(
+                                        (_) => SourcesPanel(session: s),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

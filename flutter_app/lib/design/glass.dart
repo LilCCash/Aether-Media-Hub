@@ -60,8 +60,14 @@ class GlassSurface extends StatelessWidget {
     final k = look.glassIntensity.clamp(0.0, 1.0);
     final base = tint ?? Colors.white;
     // The slider is Clear ↔ Tinted: more of it means a denser wash and more frost, never a switch between glass and no glass.
-    final top = base.withValues(alpha: (strong ? 0.15 : 0.09) + 0.17 * k);
-    final bottom = base.withValues(alpha: (strong ? 0.05 : 0.025) + 0.08 * k);
+    // A chosen item (a tint with `strong`) must stand out at once: a dense accent fill and a bright edge.
+    final chosen = tint != null && strong;
+    final top = base.withValues(
+      alpha: chosen ? 0.62 : (strong ? 0.15 : 0.09) + 0.17 * k,
+    );
+    final bottom = base.withValues(
+      alpha: chosen ? 0.40 : (strong ? 0.05 : 0.025) + 0.08 * k,
+    );
     final flat = look.amoled ? const Color(0xFF111114) : AetherTokens.inkRaised;
     final edge = look.chrome == 'outline'
         ? 0.5
@@ -95,9 +101,12 @@ class GlassSurface extends StatelessWidget {
                 ],
               ),
         border: Border.all(
-          color: (look.chrome == 'glow' ? look.accent : Colors.white)
-              .withValues(alpha: edge),
-          width: look.chrome == 'outline' ? 1.3 : 0.8,
+          color: chosen
+              ? Colors.white.withValues(alpha: 0.55)
+              : (look.chrome == 'glow' ? look.accent : Colors.white).withValues(
+                  alpha: edge,
+                ),
+          width: chosen || look.chrome == 'outline' ? 1.3 : 0.8,
         ),
         boxShadow: shadows,
       ),

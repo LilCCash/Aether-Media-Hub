@@ -1,4 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import '../../data/settings.dart';
+import '../../core/metadata/tmdb_client.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -12,7 +18,6 @@ import '../../design/tokens.dart';
 import '../../design/widgets.dart';
 import '../../data/library_repository.dart';
 import '../../data/prefs_ext.dart';
-import '../downloads/season_downloader.dart';
 import 'stream_picker.dart';
 
 class DetailScreen extends ConsumerStatefulWidget {
@@ -33,9 +38,6 @@ class DetailScreen extends ConsumerStatefulWidget {
 class _DetailScreenState extends ConsumerState<DetailScreen> {
   int? _season;
   bool _expanded = false;
-  bool _seasonBusy = false;
-  bool _seasonCancel = false;
-  String? _seasonMessage;
 
   Future<void> _downloadSeason(MetaItem meta, int season) async {
     final services = ref.read(servicesProvider);
@@ -63,25 +65,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
       );
       if (ok != true) return;
     }
-    setState(() {
-      _seasonBusy = true;
-      _seasonCancel = false;
-      _seasonMessage = 'Cerco le sorgenti…';
-    });
-    final summary = await SeasonDownloader(services, settings).run(
-      meta,
-      season,
-      onMessage: (m) {
-        if (mounted) setState(() => _seasonMessage = m);
-      },
-      cancelled: () => _seasonCancel || !mounted,
-    );
-    if (mounted) {
-      setState(() {
-        _seasonBusy = false;
-        _seasonMessage = summary.message;
-      });
-    }
+    unawaited(services.seasonJobs.start(services, settings, meta, season));
   }
 
   @override
@@ -99,6 +83,15 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
         .watch(moodColorProvider(meta.background ?? meta.poster))
         .value;
     final rich = ref.watch(tmdbDetailsProvider(meta.id)).value;
+    // The logo is fetched and decoded as soon as the title opens, so choosing a source and the player find it ready.
+    ref.listen(
+      logoProvider((metaId: meta.id, isMovie: meta.type != 'series')),
+      (_, next) {
+        final url = next.value;
+        if (url != null) precacheImage(NetworkImage(url), context);
+      },
+    );
+    ref.watch(logoProvider((metaId: meta.id, isMovie: meta.type != 'series')));
     final ratings = ref.watch(ratingsProvider(meta.id)).value ?? const [];
     final tvdb = meta.isSeries
         ? (ref.watch(tvdbEpisodesProvider(meta.id)).value ?? const {})
@@ -321,38 +314,60 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Wrap(
-                            spacing: 8,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              GlassButton(
-                                icon: Icons.download_rounded,
-                                label:
-                                    'Scarica ${selectedSeason == 0 ? 'gli speciali' : 'la stagione $selectedSeason'}',
-                                size: 38,
-                                onPressed: _seasonBusy
-                                    ? null
-                                    : () =>
-                                          _downloadSeason(meta, selectedSeason),
-                              ),
-                              if (_seasonBusy)
-                                GlassButton(
-                                  icon: Icons.close_rounded,
-                                  label: 'Annulla',
-                                  size: 38,
-                                  onPressed: () =>
-                                      setState(() => _seasonCancel = true),
-                                ),
-                            ],
+                          ListenableBuilder(
+                            listenable: ref.read(servicesProvider).seasonJobs,
+                            builder: (context, _) {
+                              final jobs = ref
+                                  .read(servicesProvider)
+                                  .seasonJobs;
+                              final busy = jobs.busy(meta.id, selectedSeason);
+                              final msg = jobs.message(meta.id, selectedSeason);
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Wrap(
+                                    spacing: 8,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      GlassButton(
+                                        icon: Icons.download_rounded,
+                                        label:
+                                            'Scarica ${selectedSeason == 0 ? 'gli speciali' : 'la stagione $selectedSeason'}',
+                                        size: 38,
+                                        onPressed: busy
+                                            ? null
+                                            : () => _downloadSeason(
+                                                meta,
+                                                selectedSeason,
+                                              ),
+                                      ),
+                                      if (busy)
+                                        GlassButton(
+                                          icon: Icons.close_rounded,
+                                          label: 'Annulla',
+                                          size: 38,
+                                          onPressed: () => jobs.cancel(
+                                            meta.id,
+                                            selectedSeason,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  if (msg != null && msg.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Text(
+                                        msg,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
                           ),
-                          if (_seasonMessage != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(
-                                _seasonMessage!,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ),
                         ],
                       ),
                     ),
@@ -387,18 +402,9 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                   SliverToBoxAdapter(
                     child: _NamesBlock(title: 'Regia', names: meta.directors),
                   ),
-                if (rich != null &&
-                    ((settings.modCompanies && rich.companies.isNotEmpty) ||
-                        (settings.modFinancials && rich.budget != null) ||
-                        (settings.modCollection &&
-                            rich.collectionName != null)))
+                if (rich != null && factRows(rich, settings).isNotEmpty)
                   SliverToBoxAdapter(
-                    child: _Facts(
-                      rich: rich,
-                      companies: settings.modCompanies,
-                      financials: settings.modFinancials,
-                      collection: settings.modCollection,
-                    ),
+                    child: _Facts(rows: factRows(rich, settings)),
                   ),
                 if (rich != null)
                   const SliverToBoxAdapter(
@@ -771,32 +777,81 @@ class _NamesBlock extends StatelessWidget {
   );
 }
 
+/// The TMDB facts shown on the title page, as label/value rows; each group follows its switch in Settings ▸ Cataloghi e metadati.
+List<(String, String)> factRows(RichDetails r, AppSettings s) {
+  String money(int v) =>
+      '\$${(v / 1000000).toStringAsFixed(v >= 100000000 ? 0 : 1)} M';
+  String lang(String code) =>
+      const {
+        'it': 'Italiano',
+        'en': 'Inglese',
+        'fr': 'Francese',
+        'es': 'Spagnolo',
+        'de': 'Tedesco',
+        'ja': 'Giapponese',
+        'ko': 'Coreano',
+        'zh': 'Cinese',
+        'pt': 'Portoghese',
+        'ru': 'Russo',
+      }[code] ??
+      code;
+  return [
+    if (s.modFacts) ...[
+      if (r.originalTitle != null) ('Titolo originale', r.originalTitle!),
+      if (r.status != null) ('Stato', r.status!),
+      if (r.releaseDate != null) ('Uscita', r.releaseDate!),
+      if ((r.runtime ?? 0) > 0)
+        (
+          'Durata',
+          '${r.runtime! ~/ 60 > 0 ? '${r.runtime! ~/ 60} h ' : ''}${r.runtime! % 60} min',
+        ),
+      if (r.seasons != null)
+        (
+          'Stagioni',
+          '${r.seasons}${r.episodes == null ? '' : ' · ${r.episodes} episodi'}',
+        ),
+      if (r.originalLanguage != null)
+        ('Lingua originale', lang(r.originalLanguage!)),
+      if (r.spokenLanguages.isNotEmpty)
+        ('Lingue', r.spokenLanguages.join(', ')),
+      if (r.countries.isNotEmpty) ('Paesi', r.countries.join(', ')),
+      if (r.voteAverage != null && r.voteAverage! > 0)
+        (
+          'Voto TMDB',
+          '${r.voteAverage!.toStringAsFixed(1)}${r.voteCount == null ? '' : ' (${r.voteCount} voti)'}',
+        ),
+      if (r.homepage != null) ('Sito ufficiale', r.homepage!),
+    ],
+    if (s.modCertification && r.certification != null)
+      ('Classificazione', r.certification!),
+    if (s.modProviders && r.providers.isNotEmpty)
+      ('Dove guardarlo', r.providers.join(', ')),
+    if (s.modCrew && r.creators.isNotEmpty)
+      ('Ideata da', r.creators.join(', ')),
+    if (s.modCrew && r.crew.isNotEmpty) ('Troupe', r.crew.join('\n')),
+    if (s.modCollection && r.collectionName != null)
+      ('Saga', r.collectionName!),
+    if (s.modCompanies && r.companies.isNotEmpty)
+      ('Produzione', r.companies.take(4).join(', ')),
+    if (s.modCompanies && r.networks.isNotEmpty)
+      ('Rete', r.networks.join(', ')),
+    if (s.modFinancials && (r.budget ?? 0) > 0) ('Budget', money(r.budget!)),
+    if (s.modFinancials && (r.revenue ?? 0) > 0) ('Incassi', money(r.revenue!)),
+    if (s.modKeywords && r.keywords.isNotEmpty)
+      ('Parole chiave', r.keywords.join(', ')),
+    if (s.modSimilar && r.recommendations.isNotEmpty)
+      ('Consigliati', r.recommendations.take(8).join(', ')),
+    if (s.modSimilar && r.similar.isNotEmpty)
+      ('Simili', r.similar.take(8).join(', ')),
+  ];
+}
+
 class _Facts extends StatelessWidget {
-  const _Facts({
-    required this.rich,
-    this.companies = true,
-    this.financials = true,
-    this.collection = true,
-  });
-  final dynamic rich;
-  final bool companies;
-  final bool financials;
-  final bool collection;
+  const _Facts({required this.rows});
+  final List<(String, String)> rows;
 
   @override
   Widget build(BuildContext context) {
-    String money(int v) =>
-        '\$${(v / 1000000).toStringAsFixed(v >= 100000000 ? 0 : 1)} M';
-    final rows = <(String, String)>[
-      if (collection && rich.collectionName != null)
-        ('Saga', rich.collectionName as String),
-      if (companies && (rich.companies as List).isNotEmpty)
-        ('Produzione', (rich.companies as List).take(4).join(', ')),
-      if (financials && rich.budget != null && (rich.budget as int) > 0)
-        ('Budget', money(rich.budget as int)),
-      if (financials && rich.revenue != null && (rich.revenue as int) > 0)
-        ('Incassi', money(rich.revenue as int)),
-    ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
       child: GlassSurface(

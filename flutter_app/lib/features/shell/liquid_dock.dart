@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
 import '../../design/liquid.dart';
 import '../../design/tokens.dart';
@@ -24,6 +25,8 @@ class LiquidDock extends StatefulWidget {
 
 class _LiquidDockState extends State<LiquidDock> {
   double? _drag; // fractional tab position while a finger is sliding
+  double _stretch =
+      0; // 0..1: how fast the lens is moving, it squashes and stretches with it
   int _lastHaptic = -1;
 
   double _pos(double x, double itemW) =>
@@ -50,11 +53,20 @@ class _LiquidDockState extends State<LiquidDock> {
               _lastHaptic = p.round();
               HapticFeedback.selectionClick();
             }
-            setState(() => _drag = p);
+            setState(() {
+              _drag = p;
+              _stretch = (_stretch * 0.5 + (d.delta.dx.abs() / 14) * 0.5).clamp(
+                0.0,
+                1.0,
+              );
+            });
           },
           onHorizontalDragEnd: (_) {
             final target = (_drag ?? widget.index.toDouble()).round();
-            setState(() => _drag = null);
+            setState(() {
+              _drag = null;
+              _stretch = 0;
+            });
             _lastHaptic = -1;
             if (target != widget.index) widget.onSelect(target);
           },
@@ -82,28 +94,50 @@ class _LiquidDockState extends State<LiquidDock> {
                     top: 6,
                     bottom: 6,
                     child: AnimatedScale(
-                      scale: dragging ? 1.14 : 1,
-                      duration: const Duration(milliseconds: 160),
-                      curve: Curves.easeOut,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(28),
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.white.withValues(
-                                alpha: dragging ? 0.30 : 0.20,
+                      scale: dragging ? 1.16 : 1,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutBack,
+                      child: Transform.scale(
+                        // Squash and stretch along the movement, like a drop of liquid being dragged.
+                        scaleX: 1 + 0.28 * _stretch,
+                        scaleY: 1 - 0.12 * _stretch,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(28),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.white.withValues(
+                                      alpha: dragging ? 0.16 : 0.26,
+                                    ),
+                                    look.accent.withValues(
+                                      alpha: dragging ? 0.42 : 0.78,
+                                    ),
+                                  ],
+                                ),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.55),
+                                  width: 1.1,
+                                ),
                               ),
-                              look.accent.withValues(
-                                alpha: dragging ? 0.34 : 0.22,
+                            ),
+                            // While it is held the lens becomes a second piece of glass that refracts the bar and the page.
+                            if (dragging && liquidAvailable(context))
+                              LiquidGlass.withOwnLayer(
+                                settings: LiquidGlassSettings.ios27Regular(
+                                  brightness: Brightness.dark,
+                                  tintAmount: 0.2,
+                                ),
+                                shape: LiquidRoundedSuperellipse(
+                                  borderRadius: 28,
+                                ),
+                                child: const SizedBox.expand(),
                               ),
-                            ],
-                          ),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.30),
-                            width: 0.8,
-                          ),
+                          ],
                         ),
                       ),
                     ),

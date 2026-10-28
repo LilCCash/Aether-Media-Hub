@@ -45,22 +45,62 @@ class AetherPage<T> extends CustomTransitionPage<T> {
              case PageTransitionKind.zoom:
                final size = MediaQuery.sizeOf(context);
                final r = TitleOrigin.rect;
-               final align = r == null
-                   ? Alignment.center
-                   : Alignment(
-                       ((r.center.dx / size.width) * 2 - 1).clamp(-1.0, 1.0),
-                       ((r.center.dy / size.height) * 2 - 1).clamp(-1.0, 1.0),
-                     );
-               return FadeTransition(
-                 opacity: CurvedAnimation(
-                   parent: animation,
-                   curve: const Interval(0, 0.7),
-                 ),
-                 child: ScaleTransition(
-                   alignment: align,
-                   scale: Tween(begin: 0.55, end: 1.0).animate(curved),
-                   child: child,
-                 ),
+               if (r == null || r.isEmpty) {
+                 return FadeTransition(
+                   opacity: CurvedAnimation(
+                     parent: animation,
+                     curve: const Interval(0, 0.7),
+                   ),
+                   child: ScaleTransition(
+                     scale: Tween(begin: 0.8, end: 1.0).animate(curved),
+                     child: child,
+                   ),
+                 );
+               }
+               // The page grows out of the poster that was tapped: a window that opens from the poster's rectangle to the whole
+               // screen, with the page scaled to the window's width inside it.
+               final full = Offset.zero & size;
+               final grow = CurvedAnimation(
+                 parent: animation,
+                 curve: Curves.easeOutQuart,
+                 reverseCurve: Curves.easeInCubic,
+               );
+               return AnimatedBuilder(
+                 animation: grow,
+                 child: child,
+                 builder: (context, page) {
+                   final t = grow.value;
+                   final rect = Rect.lerp(r, full, t)!;
+                   final scale = rect.width / full.width;
+                   return Stack(
+                     children: [
+                       Positioned.fromRect(
+                         rect: rect,
+                         child: ClipRRect(
+                           borderRadius: BorderRadius.circular(16 * (1 - t)),
+                           child: Opacity(
+                             opacity: const Interval(
+                               0,
+                               0.45,
+                             ).transform(animation.value),
+                             child: OverflowBox(
+                               alignment: Alignment.topLeft,
+                               minWidth: full.width,
+                               maxWidth: full.width,
+                               minHeight: full.height,
+                               maxHeight: full.height,
+                               child: Transform.scale(
+                                 scale: scale,
+                                 alignment: Alignment.topLeft,
+                                 child: page,
+                               ),
+                             ),
+                           ),
+                         ),
+                       ),
+                     ],
+                   );
+                 },
                );
              case PageTransitionKind.fade:
                return FadeTransition(opacity: curved, child: child);

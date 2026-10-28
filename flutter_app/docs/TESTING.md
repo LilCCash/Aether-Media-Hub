@@ -1,6 +1,6 @@
 # Test (2026-10-29)
 
-Eseguiti in questo ambiente con Flutter 3.47.8 (`flutter test`): **126 test, tutti superati**; la CI (`.github/workflows/flutter-ci.yml`) esegue formattazione, analisi statica e gli stessi test su Ubuntu.
+Eseguiti in questo ambiente con Flutter 3.47.8 (`flutter test`): **130 test, tutti superati**; la CI (`.github/workflows/flutter-ci.yml`) esegue formattazione, analisi statica e gli stessi test su Ubuntu.
 Nessun test è stato eseguito su iPhone, iPad, telefono Android o emulatore: **non c'erano** nell'ambiente.
 
 | Area | File | Cosa prova |

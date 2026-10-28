@@ -24,6 +24,24 @@ class RichDetails {
     this.voteAverage,
     this.collectionName,
     this.similar = const [],
+    this.status,
+    this.originalTitle,
+    this.originalLanguage,
+    this.runtime,
+    this.releaseDate,
+    this.countries = const [],
+    this.spokenLanguages = const [],
+    this.voteCount,
+    this.homepage,
+    this.networks = const [],
+    this.seasons,
+    this.episodes,
+    this.creators = const [],
+    this.keywords = const [],
+    this.certification,
+    this.providers = const [],
+    this.crew = const [],
+    this.recommendations = const [],
   });
   final int? tmdbId;
   final List<CastMember> cast;
@@ -36,6 +54,24 @@ class RichDetails {
   final double? voteAverage;
   final String? collectionName;
   final List<String> similar;
+  final String? status;
+  final String? originalTitle;
+  final String? originalLanguage;
+  final int? runtime; // minutes
+  final String? releaseDate;
+  final List<String> countries;
+  final List<String> spokenLanguages;
+  final int? voteCount;
+  final String? homepage;
+  final List<String> networks;
+  final int? seasons;
+  final int? episodes;
+  final List<String> creators;
+  final List<String> keywords;
+  final String? certification;
+  final List<String> providers; // where to watch in the user's region
+  final List<String> crew; // «Name · Job»
+  final List<String> recommendations;
 }
 
 class PersonCredit {
@@ -59,6 +95,17 @@ class PersonCredit {
 
 /// TMDB v3 client. The user's own key (v3 `api_key`, or a v4 read token, which starts with "eyJ") comes from [keyProvider].
 /// Attribution required by TMDB: "This product uses the TMDB API but is not endorsed or certified by TMDB."
+const _jobIt = {
+  'Director': 'Regia',
+  'Writer': 'Scrittura',
+  'Screenplay': 'Sceneggiatura',
+  'Story': 'Soggetto',
+  'Novel': 'Romanzo',
+  'Original Music Composer': 'Musiche',
+  'Director of Photography': 'Fotografia',
+  'Producer': 'Produzione',
+};
+
 class TmdbClient {
   TmdbClient({required this.keyProvider, Dio? dio, Uri? baseUrl})
     : _dio = dio ?? Dio(),
@@ -155,7 +202,7 @@ class TmdbClient {
     if (found == null) return null;
     final r = await _get('${found.isMovie ? 'movie' : 'tv'}/${found.id}', {
       'language': language,
-      'append_to_response': 'credits,videos,similar',
+      'append_to_response': 'credits,videos,similar,recommendations,keywords,external_ids,release_dates,content_ratings,watch/providers',
     }, cancel: cancel);
     if (r == null) return null;
     final cast = <CastMember>[];
@@ -182,6 +229,62 @@ class TmdbClient {
         if (k != null) trailers.add(k);
       }
     }
+
+    List<String> names(Object? list, String key) =>
+        asList(list)
+            .map((e) => asNonEmptyString(asMap(e)?[key]))
+            .whereType<String>()
+            .toList();
+    final crew = <String>[];
+    for (final c in asList(asMap(r['credits'])?['crew'])) {
+      final m = asMap(c);
+      final job = asString(m?['job']);
+      final name = asNonEmptyString(m?['name']);
+      if (name == null) continue;
+      if (const {
+        'Director',
+        'Writer',
+        'Screenplay',
+        'Story',
+        'Novel',
+        'Original Music Composer',
+        'Director of Photography',
+        'Producer',
+      }.contains(job)) {
+        final label = '$name · ${_jobIt[job] ?? job}';
+        if (!crew.contains(label)) crew.add(label);
+      }
+    }
+    String? certification;
+    final region = 'IT';
+    for (final c in asList(asMap(r['release_dates'])?['results'])) {
+      final m = asMap(c);
+      if (asString(m?['iso_3166_1']) != region && certification != null) {
+        continue;
+      }
+      for (final d in asList(m?['release_dates'])) {
+        final cert = asNonEmptyString(asMap(d)?['certification']);
+        if (cert != null &&
+            (asString(m?['iso_3166_1']) == region || certification == null)) {
+          certification = cert;
+        }
+      }
+    }
+    for (final c in asList(asMap(r['content_ratings'])?['results'])) {
+      final m = asMap(c);
+      final cert = asNonEmptyString(m?['rating']);
+      if (cert != null &&
+          (asString(m?['iso_3166_1']) == region || certification == null)) {
+        certification = cert;
+      }
+    }
+    final providerRegion = asMap(
+      asMap(asMap(r['watch/providers'])?['results'])?[region],
+    );
+    final date =
+        asNonEmptyString(r['release_date']) ??
+        asNonEmptyString(r['first_air_date']);
+    final runtimes = asList(r['episode_run_time']);
     return RichDetails(
       tmdbId: found.id,
       cast: cast,
@@ -198,6 +301,43 @@ class TmdbClient {
       collectionName: asNonEmptyString(
         asMap(r['belongs_to_collection'])?['name'],
       ),
+      status: asNonEmptyString(r['status']),
+      originalTitle:
+          asNonEmptyString(r['original_title']) ??
+          asNonEmptyString(r['original_name']),
+      originalLanguage: asNonEmptyString(r['original_language']),
+      runtime:
+          asInt(r['runtime']) ??
+          (runtimes.isEmpty ? null : asInt(runtimes.first)),
+      releaseDate: date,
+      countries: names(r['production_countries'], 'name'),
+      spokenLanguages: names(r['spoken_languages'], 'name'),
+      voteCount: asInt(r['vote_count']),
+      homepage: asNonEmptyString(r['homepage']),
+      networks: names(r['networks'], 'name'),
+      seasons: asInt(r['number_of_seasons']),
+      episodes: asInt(r['number_of_episodes']),
+      creators: names(r['created_by'], 'name'),
+      keywords: names(
+        asMap(r['keywords'])?['keywords'] ?? asMap(r['keywords'])?['results'],
+        'name',
+      ).take(12).toList(),
+      certification: certification,
+      providers: {
+        ...names(providerRegion?['flatrate'], 'provider_name'),
+        ...names(providerRegion?['free'], 'provider_name'),
+        ...names(providerRegion?['ads'], 'provider_name'),
+      }.toList(),
+      crew: crew.take(10).toList(),
+      recommendations: asList(asMap(r['recommendations'])?['results'])
+          .map(
+            (e) =>
+                asNonEmptyString(asMap(e)?['title']) ??
+                asNonEmptyString(asMap(e)?['name']),
+          )
+          .whereType<String>()
+          .take(12)
+          .toList(),
       similar: asList(asMap(r['similar'])?['results'])
           .map(
             (e) =>
