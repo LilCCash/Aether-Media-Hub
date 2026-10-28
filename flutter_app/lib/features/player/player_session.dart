@@ -273,8 +273,31 @@ class PlayerSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The subtitle look (colour, outline, background, size, position) for the engine's own subtitles; the app's overlay for
+  /// external ones reads the same settings. Called again whenever the viewer changes them.
+  Future<void> applyStyleOptions(AppSettings s) async {
+    final o = <String, String>{
+      'sub-color': s.subColor,
+      'sub-bold': s.subBold ? 'yes' : 'no',
+      'sub-border-size': s.subOutline ? '3' : '0',
+      'sub-border-color': s.subOutlineColor,
+      'sub-back-color':
+          '#${(s.subBgOpacity * 255).round().toRadixString(16).padLeft(2, '0')}${s.subBgColor.substring(1)}',
+      'sub-pos': '${(100 - s.subBottom).round()}',
+      'sub-scale': s.subtitleScale.toStringAsFixed(2),
+    };
+    for (final e in o.entries) {
+      try {
+        await engine.setOption(e.key, e.value);
+      } on Object {
+        // an engine that does not know the option keeps its default
+      }
+    }
+  }
+
   /// Decoding, picture and subtitle options from the settings, handed to the engine before the video opens.
   Future<void> _applyEngineOptions() async {
+    await applyStyleOptions(settings);
     final o = <String, String>{
       'hwdec': settings.hwDecoding ? 'auto-safe' : 'no',
       'deband': settings.deband ? 'yes' : 'no',
@@ -284,13 +307,6 @@ class PlayerSession extends ChangeNotifier {
       'gamma': '${settings.imgGamma}',
       if (settings.bufferSec > 0)
         'demuxer-readahead-secs': '${settings.bufferSec}',
-      'sub-color': settings.subColor,
-      'sub-bold': settings.subBold ? 'yes' : 'no',
-      'sub-border-size': settings.subOutline ? '3' : '0',
-      'sub-border-color': settings.subOutlineColor,
-      'sub-back-color':
-          '#${(settings.subBgOpacity * 255).round().toRadixString(16).padLeft(2, '0')}${settings.subBgColor.substring(1)}',
-      'sub-pos': '${(100 - settings.subBottom).round()}',
     };
     for (final e in o.entries) {
       try {
@@ -474,6 +490,10 @@ class PlayerSession extends ChangeNotifier {
   /// Positive = the subtitles appear later.
   void setSubtitleOffset(int ms) {
     subtitleOffsetMs = ms.clamp(-30000, 30000);
+    // The app's own overlay reads the offset; the engine's subtitles (inside the file) take it as `sub-delay`, in seconds.
+    engine
+        .setOption('sub-delay', (subtitleOffsetMs / 1000).toStringAsFixed(2))
+        .catchError((Object _) {});
     notifyListeners();
   }
 

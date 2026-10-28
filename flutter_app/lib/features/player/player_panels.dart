@@ -4,6 +4,7 @@ import '../../design/glass.dart';
 import '../../design/tokens.dart';
 import 'playback_engine.dart';
 import 'player_session.dart';
+import 'subtitle_style.dart';
 
 /// A panel at the right edge (not full screen): in landscape the picture stays visible while choosing.
 Future<void> showSidePanel(
@@ -153,46 +154,18 @@ class SubtitlePanel extends StatelessWidget {
                   ),
                 ),
               ),
-            if (s.externalSubtitle != null) ...[
-              const Divider(),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    const Expanded(child: Text('Sincronia')),
-                    IconButton(
-                      tooltip: 'Anticipa di 0,25 s',
-                      icon: const Icon(Icons.remove_circle_outline_rounded),
-                      onPressed: () =>
-                          s.setSubtitleOffset(s.subtitleOffsetMs - 250),
-                    ),
-                    SizedBox(
-                      width: 74,
-                      child: Text(
-                        '${s.subtitleOffsetMs >= 0 ? '+' : ''}${(s.subtitleOffsetMs / 1000).toStringAsFixed(2)} s',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Posticipa di 0,25 s',
-                      icon: const Icon(Icons.add_circle_outline_rounded),
-                      onPressed: () =>
-                          s.setSubtitleOffset(s.subtitleOffsetMs + 250),
-                    ),
-                  ],
-                ),
+            if (s.subtitlesOn) ...[const Divider(), _SyncRow(session: s)],
+            const Divider(),
+            Theme(
+              data: Theme.of(context)
+                  .copyWith(dividerColor: Colors.transparent),
+              child: const ExpansionTile(
+                tilePadding: EdgeInsets.symmetric(horizontal: 16),
+                leading: Icon(Icons.format_color_text_rounded),
+                title: Text('Aspetto dei sottotitoli'),
+                children: [SubtitleStyleControls()],
               ),
-            ] else if (s.embeddedSubtitle != null)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'La sincronia si regola solo sui sottotitoli da addon.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AetherTokens.textTertiary,
-                  ),
-                ),
-              ),
+            ),
           ],
         );
       },
@@ -340,4 +313,66 @@ List<Widget> _addonGroups(PlayerSession s) {
         ),
       ),
   ];
+}
+
+/// Subtitle timing, forwards and backwards, for subtitles from addons and for the ones inside the file.
+class _SyncRow extends StatelessWidget {
+  const _SyncRow({required this.session});
+  final PlayerSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final ms = session.subtitleOffsetMs;
+    Widget step(String label, int d, String tip) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: ActionChip(
+        label: Text(label),
+        tooltip: tip,
+        visualDensity: VisualDensity.compact,
+        onPressed: () => session.setSubtitleOffset(ms + d),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: Text('Sincronia')),
+              Text(
+                '${ms >= 0 ? '+' : ''}${(ms / 1000).toStringAsFixed(2)} s',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              IconButton(
+                tooltip: 'Azzera la sincronia',
+                icon: const Icon(Icons.restart_alt_rounded),
+                onPressed: ms == 0 ? null : () => session.setSubtitleOffset(0),
+              ),
+            ],
+          ),
+          Text(
+            ms == 0
+                ? 'Compaiono troppo presto? Posticipali. Troppo tardi? Anticipali.'
+                : (ms > 0
+                      ? 'Compaiono più tardi di ${ms / 1000} s.'
+                      : 'Compaiono più presto di ${-ms / 1000} s.'),
+            style: const TextStyle(
+              fontSize: 11,
+              color: AetherTokens.textTertiary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            children: [
+              step('−0,5 s', -500, 'Anticipa di mezzo secondo'),
+              step('−0,1 s', -100, 'Anticipa di un decimo'),
+              step('+0,1 s', 100, 'Posticipa di un decimo'),
+              step('+0,5 s', 500, 'Posticipa di mezzo secondo'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

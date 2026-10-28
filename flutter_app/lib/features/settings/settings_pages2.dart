@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
+import '../player/subtitle_style.dart';
 import 'settings_extra.dart';
 import 'settings_widgets.dart';
 
@@ -165,18 +166,6 @@ class MetadataPage extends ConsumerWidget {
     );
   }
 
-  static const _rating = {
-    'imdb': 'IMDb',
-    'tmdb': 'TMDB',
-    'tomatoes': 'Rotten Tomatoes (critica)',
-    'tomatoesaudience': 'Rotten Tomatoes (pubblico)',
-    'metacritic': 'Metacritic',
-    'metacriticuser': 'Metacritic (utenti)',
-    'trakt': 'Trakt',
-    'letterboxd': 'Letterboxd',
-    'rogerebert': 'Roger Ebert',
-    'myanimelist': 'MyAnimeList',
-  };
   static bool _tmdb(AppSettings s) => s.tmdbEnabled;
   static bool _cast(AppSettings s) => s.modCast;
   static bool _trailers(AppSettings s) => s.modTrailers;
@@ -427,33 +416,11 @@ class PlayerAdvancedPage extends ConsumerWidget {
             ),
           ],
         ),
-        SettingsGroup(
+        const SettingsGroup(
           title: 'Stile dei sottotitoli',
-          children: [
-            const PrefColor('subColor', 'Colore del testo', _sc),
-            const PrefSwitch('subBold', 'Grassetto', _sbold),
-            const PrefSwitch('subOutline', 'Contorno', _sout),
-            const PrefColor('subOutlineColor', 'Colore del contorno', _soc),
-            const PrefColor('subBgColor', 'Colore dello sfondo', _sbc),
-            const PrefSlider(
-              'subBgOpacity',
-              'Opacità dello sfondo',
-              _sbo,
-              min: 0,
-              max: 1,
-              divisions: 10,
-              format: _pct,
-            ),
-            const PrefSlider(
-              'subBottom',
-              'Distanza dal bordo inferiore',
-              _sbm,
-              min: 0,
-              max: 40,
-              divisions: 20,
-              format: _pctPoints,
-            ),
-          ],
+          open: true,
+          icon: Icons.subtitles_rounded,
+          children: [SubtitleStyleControls()],
         ),
         SettingsGroup(
           title: 'Immagine (motore libmpv)',

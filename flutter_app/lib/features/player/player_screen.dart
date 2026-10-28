@@ -13,6 +13,7 @@ import '../../app/providers.dart';
 import '../../data/prefs_ext.dart';
 import '../../core/segments/skip_segments.dart';
 import '../../design/glass.dart';
+import '../../design/liquid.dart';
 import '../../design/tokens.dart';
 import '../../core/casting/upnp.dart';
 import 'cast_sheet.dart';
@@ -20,6 +21,7 @@ import 'media_kit_engine.dart';
 import 'playback_engine.dart';
 import 'player_panels.dart';
 import 'player_session.dart';
+import 'subtitle_style.dart';
 
 /// Picture in Picture exists only where the platform engine can really keep playing in a floating window: Android (the activity
 /// enters PiP; the video keeps decoding). On iOS libmpv cannot feed AVPictureInPictureController, so no button is shown there.
@@ -331,6 +333,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Widget build(BuildContext context) {
     final s = _session;
     final settings = ref.watch(settingsProvider);
+    ref.listen(settingsProvider, (_, next) => _session.applyStyleOptions(next));
     final look = AetherLook.of(context);
     final canPip = Platform.isAndroid;
     // While the first picture is being prepared the logo/title is on screen: the controls wait.
@@ -363,7 +366,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 right: 40,
                 bottom: showControls ? 96 : 20 + settings.subBottom * 4,
                 child: IgnorePointer(
-                  child: _SubtitleText(
+                  child: SubtitleText(
                     text: s.externalLine!,
                     scale: settings.subtitleScale,
                     color: colorFromHex(settings.subColor),
@@ -614,51 +617,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             ],
                           ),
                           const Spacer(),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              GlassButton(
-                                icon: settings.skipBackSec == 10
-                                    ? Icons.replay_10_rounded
-                                    : Icons.replay_rounded,
-                                tooltip:
-                                    'Indietro di ${settings.skipBackSec} secondi',
-                                size: 54,
-                                onPressed: () {
-                                  s.seekBy(
-                                    Duration(seconds: -settings.skipBackSec),
-                                  );
-                                  _scheduleHide();
-                                },
-                              ),
-                              const SizedBox(width: 28),
-                              GlassButton(
-                                icon: s.playing
-                                    ? Icons.pause_rounded
-                                    : Icons.play_arrow_rounded,
-                                tooltip: s.playing ? 'Pausa' : 'Riproduci',
-                                size: 72,
-                                prominent: true,
-                                onPressed: () {
-                                  s.togglePlay();
-                                  _scheduleHide();
-                                },
-                              ),
-                              const SizedBox(width: 28),
-                              GlassButton(
-                                icon: settings.skipForwardSec == 10
-                                    ? Icons.forward_10_rounded
-                                    : Icons.fast_forward_rounded,
-                                tooltip: 'Avanti di 10 secondi',
-                                size: 54,
-                                onPressed: () {
-                                  s.seekBy(
-                                    Duration(seconds: settings.skipForwardSec),
-                                  );
-                                  _scheduleHide();
-                                },
-                              ),
-                            ],
+                          _CenterControls(
+                            playing: s.playing,
+                            backSec: settings.skipBackSec,
+                            forwardSec: settings.skipForwardSec,
+                            onBack: () {
+                              s.seekBy(
+                                Duration(seconds: -settings.skipBackSec),
+                              );
+                              _scheduleHide();
+                            },
+                            onToggle: () {
+                              s.togglePlay();
+                              _scheduleHide();
+                            },
+                            onForward: () {
+                              s.seekBy(
+                                Duration(seconds: settings.skipForwardSec),
+                              );
+                              _scheduleHide();
+                            },
                           ),
                           const Spacer(),
                           Row(
@@ -883,60 +861,115 @@ class _StartingCard extends ConsumerWidget {
   }
 }
 
-/// An external subtitle line: a solid outline is painted under the fill, so it stays readable on any picture and whatever colour
-/// the viewer picked. (A text style with only shadows turned unreadable on bright scenes.)
-class _SubtitleText extends StatelessWidget {
-  const _SubtitleText({
-    required this.text,
-    required this.scale,
-    required this.color,
-    required this.bold,
-    required this.outline,
-    required this.outlineColor,
-    required this.background,
+/// The three central controls as one piece: a glass capsule with the skip buttons and a large play/pause disc between them.
+class _CenterControls extends StatelessWidget {
+  const _CenterControls({
+    required this.playing,
+    required this.backSec,
+    required this.forwardSec,
+    required this.onBack,
+    required this.onToggle,
+    required this.onForward,
   });
-  final String text;
-  final double scale;
-  final Color color;
-  final bool bold;
-  final bool outline;
-  final Color outlineColor;
-  final Color background;
+  final bool playing;
+  final int backSec;
+  final int forwardSec;
+  final VoidCallback onBack;
+  final VoidCallback onToggle;
+  final VoidCallback onForward;
+
+  Widget _skip(IconData icon, String tip, VoidCallback tap) => Semantics(
+    button: true,
+    label: tip,
+    excludeSemantics: true,
+    child: Tooltip(
+      message: tip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: tap,
+        child: SizedBox(
+          width: 64,
+          height: 64,
+          child: Icon(icon, size: 34, color: Colors.white),
+        ),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
-    final base = TextStyle(
-      fontSize: 22 * scale,
-      fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
-      height: 1.25,
-      decoration: TextDecoration.none,
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Stack(
-        children: [
-          if (outline)
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: base.copyWith(
-                foreground: Paint()
-                  ..style = PaintingStyle.stroke
-                  ..strokeWidth = 4 * scale.clamp(0.8, 1.6)
-                  ..strokeJoin = StrokeJoin.round
-                  ..color = outlineColor,
+    final accent = AetherLook.of(context).accent;
+    return Center(
+      child: LiquidSurface(
+        radius: 48,
+        strong: true,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _skip(
+              backSec == 10 ? Icons.replay_10_rounded : Icons.replay_rounded,
+              'Indietro di $backSec secondi',
+              onBack,
+            ),
+            const SizedBox(width: 10),
+            Semantics(
+              button: true,
+              label: playing ? 'Pausa' : 'Riproduci',
+              excludeSemantics: true,
+              child: Tooltip(
+                message: playing ? 'Pausa' : 'Riproduci',
+                child: GestureDetector(
+                  onTap: onToggle,
+                  child: Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white,
+                          Color.lerp(Colors.white, accent, 0.45)!,
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withValues(alpha: 0.45),
+                          blurRadius: 24,
+                        ),
+                      ],
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      transitionBuilder: (c, a) => ScaleTransition(
+                        scale: a,
+                        child: FadeTransition(opacity: a, child: c),
+                      ),
+                      child: Icon(
+                        playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        key: ValueKey(playing),
+                        size: 46,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
-          Text(
-            text,
-            textAlign: TextAlign.center,
-            style: base.copyWith(color: color),
-          ),
-        ],
+            const SizedBox(width: 10),
+            _skip(
+              forwardSec == 10
+                  ? Icons.forward_10_rounded
+                  : Icons.fast_forward_rounded,
+              'Avanti di $forwardSec secondi',
+              onForward,
+            ),
+          ],
+        ),
       ),
     );
   }
