@@ -7,7 +7,6 @@ import 'package:aether_flutter/core/metadata/mdblist_client.dart';
 import 'package:aether_flutter/core/metadata/tvdb_client.dart';
 import 'package:aether_flutter/core/model/stream.dart';
 import 'package:aether_flutter/core/segments/skip_segments.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fake_adapter.dart';
