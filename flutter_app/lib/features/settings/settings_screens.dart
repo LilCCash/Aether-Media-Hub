@@ -321,6 +321,7 @@ Widget _topicPage(String page) {
             'Archiviazione',
             'Download',
             'Download di una stagione',
+            'Addon usati per le stagioni',
           }, const DownloadsSettingsPage()),
         ],
       );
@@ -1207,41 +1208,136 @@ class _DiagnosticsPageState extends ConsumerState<_DiagnosticsPage> {
 class _AboutPage extends StatelessWidget {
   const _AboutPage();
 
+  static const _notThere = [
+    'Account e sincronizzazione cloud (le API di Stremio e Nuvio non sono documentate per terzi)',
+    'Plugin di scraper di Nuvio e qualsiasi esecuzione di codice scaricato',
+    'Motore torrent integrato (i torrent si risolvono solo con un servizio debrid configurato)',
+    'Trakt / Simkl',
+    'Widget e notifiche di nuovi episodi',
+    'Tema chiaro',
+  ];
+
+  static const _licenses = [
+    (
+      'media_kit, libmpv e FFmpeg',
+      'LGPL: motore di riproduzione per MKV, AVI, TS e altri formati.',
+      'Il motore usa media_kit (MIT) con libmpv (LGPL-2.1 o successiva) e FFmpeg (LGPL-2.1 o successiva), che includono libass, dav1d, FreeType, HarfBuzz, FriBidi, libplacebo e altre librerie con le rispettive licenze (LGPL, BSD, MIT, ISC, MPL). Le librerie sono quelle pubblicate dal pacchetto media_kit_libs; il codice sorgente completo è disponibile presso i rispettivi progetti.',
+    ),
+    (
+      'Flutter e pacchetti Dart',
+      'BSD-3-Clause e MIT: Flutter, Riverpod, go_router, Dio, file_picker e altri.',
+      'Aether è scritto con Flutter (BSD-3-Clause) e usa pacchetti open source con licenze permissive (MIT, BSD, Apache-2.0). L’elenco completo con i testi delle licenze è in «Licenze open source» qui sotto.',
+    ),
+    (
+      'liquid_glass_renderer',
+      'MIT: il vetro con rifrazione della barra in basso e dei pannelli.',
+      'Il Liquid Glass con rifrazione usa il pacchetto liquid_glass_renderer (MIT). Richiede Impeller e Flutter GPU; senza, Aether usa il vetro sfocato.',
+    ),
+    (
+      'TMDB e fanart.tv',
+      'Dati e immagini: servono le tue chiavi gratuite.',
+      'Questo prodotto usa le API di TMDB ma non è approvato né certificato da TMDB. I loghi dei titoli vengono da fanart.tv con la tua chiave. Le immagini e i dati appartengono ai rispettivi proprietari.',
+    ),
+    (
+      'Protocollo degli addon Stremio',
+      'Specifica consultata; nessun codice copiato.',
+      'Aether implementa il protocollo pubblico degli addon descritto in stremio-addon-sdk (MIT). Il codice di stremio-web (GPL-2.0), stremio-core e NuvioMobile (GPL-3.0) è stato studiato solo come riferimento di comportamento: nessun codice, grafica, nome o icona è stato copiato o tradotto.',
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) => SettingsPageFrame(
     title: 'Informazioni',
     children: [
+      const SizedBox(height: 4),
       const Center(child: AboutLogo()),
-      const SizedBox(height: 12),
-      const Center(child: TheaterLogo()),
+      const SizedBox(height: 10),
+      const Center(
+        child: Text(
+          'Aether',
+          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+        ),
+      ),
+      Center(
+        child: Text(
+          'Versione $appVersion',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
       const SizedBox(height: 14),
-      const Text(
-        'Aether $appVersion',
-        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-      ),
-      const SizedBox(height: 8),
-      const Text(
-        'Aether non fornisce nessun contenuto: gli addon li scegli e li installi tu, e ne rispondi. È un progetto indipendente, senza legami con Stremio, Nuvio, TMDB o TorBox.',
-      ),
+      const Center(child: TheaterLogo()),
       const SizedBox(height: 18),
       SettingsGroup(
-        title: 'Attribuzioni',
+        title: 'Cos’è',
+        icon: Icons.auto_awesome_rounded,
+        children: const [
+          _AboutText(
+            'Aether è un media center che parla il protocollo degli addon Stremio. È un’app indipendente: codice, nome, interfaccia e icona sono originali e non è affiliata a Stremio né a Nuvio.',
+          ),
+          _AboutText(
+            'Aether non fornisce contenuti: mostra e riproduce ciò che gli addon che installi restituiscono. Gli addon sono servizi di terze parti e la responsabilità di ciò che installi è tua.',
+          ),
+        ],
+      ),
+      SettingsGroup(
+        title: 'Privacy',
+        icon: Icons.privacy_tip_rounded,
+        children: const [
+          _AboutText(
+            'Nessun account, nessun analytics, nessun invio di dati a server di Aether. Cronologia, libreria e impostazioni restano sul dispositivo; gli indirizzi degli addon (che possono contenere chiavi) e le chiavi dei servizi sono nell’archivio sicuro del sistema. Per «Salta intro» Aether chiede a IntroDB i tempi dell’episodio (codice IMDb, stagione ed episodio); si può spegnere in Impostazioni ▸ Riproduzione.',
+          ),
+        ],
+      ),
+      SettingsGroup(
+        title: 'Cosa non c’è',
+        icon: Icons.remove_circle_outline_rounded,
         children: [
-          const ListTile(
-            title: Text('TMDB'),
-            subtitle: Text(
-              'Questo prodotto usa le API di TMDB ma non è approvato né certificato da TMDB.',
+          for (final line in _notThere)
+            ListTile(
+              dense: true,
+              leading: const Icon(
+                Icons.remove_circle_outline_rounded,
+                size: 18,
+                color: AetherTokens.textTertiary,
+              ),
+              title: Text(
+                line,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AetherTokens.textSecondary,
+                ),
+              ),
             ),
-          ),
-          const ListTile(
-            title: Text('Motore di riproduzione'),
-            subtitle: Text(
-              'media_kit (MIT) con libmpv / FFmpeg (LGPL): vedi le licenze qui sotto.',
+        ],
+      ),
+      SettingsGroup(
+        title: 'Componenti di terze parti',
+        icon: Icons.inventory_2_rounded,
+        children: [
+          for (final l in _licenses)
+            NavRow(
+              icon: Icons.description_outlined,
+              title: l.$1,
+              subtitle: l.$2,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SettingsPageFrame(
+                    title: l.$1,
+                    children: [
+                      Text(
+                        l.$2,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(l.$3),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
           NavRow(
-            icon: Icons.description_outlined,
-            title: 'Licenze open source',
+            icon: Icons.menu_book_rounded,
+            title: 'Licenze open source (elenco completo)',
             onTap: () => showLicensePage(
               context: context,
               applicationName: 'Aether',
@@ -1251,6 +1347,23 @@ class _AboutPage extends StatelessWidget {
         ],
       ),
     ],
+  );
+}
+
+class _AboutText extends StatelessWidget {
+  const _AboutText(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 13, color: AetherTokens.textSecondary),
+      ),
+    ),
   );
 }
 

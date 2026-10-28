@@ -59,7 +59,7 @@ int _height(VideoQuality q) => switch (q) {
 
 /// The sources of one episode that may be downloaded, best candidate first, following the season policy of the iOS app:
 /// 1. only what plays (a direct link, or a torrent when a debrid service is set up);
-/// 2. the pool in the wanted language if any source states it, else everything playable (an episode is not skipped for that);
+/// 2. only the sources in the wanted language (a «Multi» one only if none states it); with none, the episode is skipped;
 /// 3. the quality limit, strictly (an unknown quality passes);
 /// 4. not above the quality chosen for the first episode, so the season is consistent;
 /// 5. lighter files first (unknown size last), or best score first.
@@ -79,16 +79,20 @@ List<RankedStream> seasonCandidates(
       )
       .toList();
   if (playable.isEmpty) return const [];
-  final byLanguage = language == null
-      ? playable
-      : playable
-            .where(
-              (r) =>
-                  r.info.languages.contains(language) ||
-                  r.info.languages.contains('Multi'),
-            )
-            .toList();
-  final pool = byLanguage.isEmpty ? playable : byLanguage;
+  // A chosen language is kept strictly: sources that name it come first, «Multi» ones only when none does, and when there is
+  // nothing in that language the episode is left out rather than downloaded in the wrong one.
+  final List<RankedStream> pool;
+  if (language == null) {
+    pool = playable;
+  } else {
+    final exact = playable
+        .where((r) => r.info.languages.contains(language))
+        .toList();
+    pool = exact.isNotEmpty
+        ? exact
+        : playable.where((r) => r.info.languages.contains('Multi')).toList();
+  }
+  if (pool.isEmpty) return const [];
   final withinCap = pool.where((r) {
     final h = _height(r.info.quality);
     return capHeight <= 0 || h == 0 || h <= capHeight;

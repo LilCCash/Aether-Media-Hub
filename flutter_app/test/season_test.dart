@@ -44,7 +44,7 @@ void main() {
     expect(withDebrid.any((e) => e.stream.isTorrent), isTrue);
   });
 
-  test('without a source in the wanted language the episode is not skipped; best score when weight does not matter', () {
+  test('a wanted language is kept strictly; best score when weight does not matter', () {
     final c = seasonCandidates(
       all,
       debrid: false,
@@ -52,7 +52,16 @@ void main() {
       preferSmaller: false,
       language: 'Francese',
     );
-    expect(c.first.stream.name, 'Show.S01E01.2160p.ITA.WEB-DL');
+    expect(c, isEmpty); // nothing in French: the episode is left out
+    final it = seasonCandidates(
+      all,
+      debrid: false,
+      capHeight: 0,
+      preferSmaller: false,
+      language: 'Italiano',
+    );
+    expect(it.every((e) => e.info.languages.contains('Italiano')), isTrue);
+    expect(it.first.stream.name, 'Show.S01E01.2160p.ITA.WEB-DL');
     final consistent = seasonCandidates(
       all,
       debrid: false,

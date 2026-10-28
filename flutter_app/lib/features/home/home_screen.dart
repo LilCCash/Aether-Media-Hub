@@ -261,7 +261,7 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel> {
   Widget build(BuildContext context) {
     final w = MediaQuery.sizeOf(context).width;
     final height = widget.fullBleed
-        ? (MediaQuery.sizeOf(context).height * 0.74).clamp(420.0, 720.0)
+        ? (w * 1.02 + MediaQuery.paddingOf(context).top).clamp(380.0, 560.0)
         : (w * 0.36 * 1.5 + MediaQuery.paddingOf(context).top + 150).clamp(
             360.0,
             470.0,
@@ -434,18 +434,23 @@ class _HeroPage extends ConsumerWidget {
     );
   }
 
-  /// «Schermo intero»: the artwork fills the whole area, with the title and the buttons over its foot.
+  /// «Schermo intero»: the artwork fills the width of the screen and is not cut, with the title's own logo over its foot, the
+  /// year and rating, a short line of plot and the «Dettagli» button.
   Widget _fullBleed(BuildContext context, WidgetRef ref, dynamic library) {
+    final logo = ref
+        .watch(logoProvider((metaId: item.id, isMovie: item.type != 'series')))
+        .value;
+    final image = item.background ?? item.poster;
     return GestureDetector(
       onTap: () => openTitle(context, item),
       child: Stack(
         fit: StackFit.expand,
         children: [
           PosterImage(
-            url: item.poster ?? item.background,
+            url: image,
             title: item.name,
             radius: 0,
-            alignment: Alignment.topCenter,
+            alignment: Alignment.center,
             cacheWidth: 1600,
           ),
           const DecoratedBox(
@@ -454,57 +459,73 @@ class _HeroPage extends ConsumerWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Color(0x66000000),
+                  Color(0x55000000),
                   Colors.transparent,
-                  Color(0xE605060D),
+                  Color(0xF005060D),
                 ],
-                stops: [0, 0.4, 1],
+                stops: [0, 0.35, 1],
               ),
             ),
           ),
           Positioned(
             left: AetherTokens.pageMargin,
             right: AetherTokens.pageMargin,
-            bottom: 38,
+            bottom: 34,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  item.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.displaySmall,
-                ),
-                const SizedBox(height: 6),
+                if (logo != null)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 300,
+                      maxHeight: 110,
+                    ),
+                    child: Image.network(
+                      logo,
+                      fit: BoxFit.contain,
+                      alignment: Alignment.bottomLeft,
+                      errorBuilder: (_, __, ___) => Text(
+                        item.name,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    item.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                const SizedBox(height: 8),
                 Text(
                   [
+                    typeName(item.type),
                     if (item.releaseInfo != null) item.releaseInfo!,
-                    ...item.genres.take(3),
-                  ].join(' · '),
-                  style: Theme.of(context).textTheme.bodyMedium
-                      ?.copyWith(color: AetherTokens.textSecondary),
+                    if (item.imdbRating != null) '★ ${item.imdbRating}',
+                  ].join('  ·  '),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AetherTokens.textSecondary,
+                  ),
                 ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    GlassButton(
-                      icon: Icons.play_arrow_rounded,
-                      label: 'Guarda',
-                      prominent: true,
-                      onPressed: () => openTitle(context, item),
-                    ),
-                    const SizedBox(width: 10),
-                    GlassButton(
-                      icon: library.isInWatchlist(item.id)
-                          ? Icons.check_rounded
-                          : Icons.add_rounded,
-                      tooltip: 'Watchlist',
-                      onPressed: () async {
-                        await library.toggleWatchlist(item);
-                        ref.read(libraryVersionProvider.notifier).bump();
-                      },
-                    ),
-                  ],
+                if ((item.description ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    item.description!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13.5, height: 1.3),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                GlassButton(
+                  icon: Icons.play_arrow_rounded,
+                  label: 'Dettagli',
+                  prominent: true,
+                  size: 40,
+                  onPressed: () => openTitle(context, item),
                 ),
               ],
             ),

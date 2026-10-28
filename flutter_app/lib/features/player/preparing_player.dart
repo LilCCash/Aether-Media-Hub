@@ -1,3 +1,5 @@
+import '../shell/shell.dart';
+
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,7 +26,8 @@ class PreparingPlayer extends ConsumerStatefulWidget {
   ConsumerState<PreparingPlayer> createState() => _PreparingPlayerState();
 }
 
-class _PreparingPlayerState extends ConsumerState<PreparingPlayer> {
+class _PreparingPlayerState extends ConsumerState<PreparingPlayer>
+    with HidesDock<PreparingPlayer> {
   PlayerArgs? _ready;
   String _message = 'Contatto il servizio…';
   double? _fraction;

@@ -1,3 +1,5 @@
+import '../shell/shell.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -20,7 +22,8 @@ class OfflineTestScreen extends StatefulWidget {
   State<OfflineTestScreen> createState() => _OfflineTestScreenState();
 }
 
-class _OfflineTestScreenState extends State<OfflineTestScreen> {
+class _OfflineTestScreenState extends State<OfflineTestScreen>
+    with HidesDock<OfflineTestScreen> {
   bool _busy = false;
   String? _error;
 

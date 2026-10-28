@@ -1,3 +1,5 @@
+import '../shell/shell.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -32,7 +34,8 @@ class TheaterScreen extends ConsumerStatefulWidget {
   ConsumerState<TheaterScreen> createState() => _TheaterScreenState();
 }
 
-class _TheaterScreenState extends ConsumerState<TheaterScreen> {
+class _TheaterScreenState extends ConsumerState<TheaterScreen>
+    with HidesDock<TheaterScreen> {
   int _tab = 0;
   MetaItem? _focus;
   bool _curtain = true;

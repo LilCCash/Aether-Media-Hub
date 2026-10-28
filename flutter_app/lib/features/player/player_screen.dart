@@ -1,3 +1,5 @@
+import '../shell/shell.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -42,7 +44,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, HidesDock<PlayerScreen> {
   late final PlaybackEngine _engine = widget.engine ?? MediaKitEngine();
   late final PlayerSession _session;
   Timer? _hideTimer;

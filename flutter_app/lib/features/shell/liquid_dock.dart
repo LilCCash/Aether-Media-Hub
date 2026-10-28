@@ -131,33 +131,27 @@ class _LiquidDockState extends State<LiquidDock> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
+                              // Clear glass, no colour: a thin bright edge and a very faint lift, the page shows through.
                               DecoratedBox(
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(28),
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Colors.white.withValues(
-                                        alpha: dragging ? 0.16 : 0.26,
-                                      ),
-                                      look.accent.withValues(
-                                        alpha: dragging ? 0.42 : 0.78,
-                                      ),
-                                    ],
+                                  color: Colors.white.withValues(
+                                    alpha: dragging ? 0.05 : 0.08,
                                   ),
                                   border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.55),
-                                    width: 1.1,
+                                    color: Colors.white.withValues(
+                                      alpha: dragging ? 0.5 : 0.3,
+                                    ),
+                                    width: 1,
                                   ),
                                 ),
                               ),
                               // While it is held the lens becomes a second piece of glass that refracts the bar and the page.
-                              if (dragging && liquidAvailable(context))
+                              if (liquidAvailable(context))
                                 LiquidGlass.withOwnLayer(
                                   settings: LiquidGlassSettings.ios27Regular(
                                     brightness: Brightness.dark,
-                                    tintAmount: 0.2,
+                                    tintAmount: 0.0,
                                   ),
                                   shape: LiquidRoundedSuperellipse(
                                     borderRadius: 28,
@@ -227,7 +221,11 @@ class _Tab extends StatelessWidget {
           child: Icon(
             icon,
             size: 25,
-            color: Color.lerp(AetherTokens.textSecondary, Colors.white, on),
+            color: Color.lerp(
+              AetherTokens.textSecondary,
+              Color.lerp(accent, Colors.white, 0.2),
+              on,
+            ),
           ),
         ),
         const SizedBox(height: 2),
@@ -236,7 +234,11 @@ class _Tab extends StatelessWidget {
           style: TextStyle(
             fontSize: 10.5,
             fontWeight: FontWeight.w700,
-            color: Color.lerp(AetherTokens.textTertiary, Colors.white, on),
+            color: Color.lerp(
+              AetherTokens.textTertiary,
+              Color.lerp(accent, Colors.white, 0.2),
+              on,
+            ),
           ),
         ),
       ],

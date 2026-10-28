@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,9 +22,37 @@ class DockState {
   DockState._();
   static final hidden = ValueNotifier<int>(0);
   static int index = 0;
+
+  /// The pages opened from «Altro» (settings…), so coming back to that tab finds them as they were left.
+  static List<String> moreStack = [];
   static void hide() => hidden.value++;
   static void show() {
     if (hidden.value > 0) hidden.value--;
+  }
+}
+
+/// For a page that covers the whole screen (the player, Theater Mode): the tab bar stays away while it is open.
+mixin HidesDock<T extends StatefulWidget> on State<T> {
+  bool _hid = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_hid) {
+        _hid = true;
+        DockState.hide();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_hid) {
+      _hid = false;
+      scheduleMicrotask(DockState.show);
+    }
+    super.dispose();
   }
 }
 
@@ -61,6 +91,18 @@ class DockOverlay extends ConsumerWidget {
               final path = router.routerDelegate.currentConfiguration.uri.path;
               final tab = _tabs.indexWhere((t) => path.startsWith(t.$3));
               if (tab >= 0) DockState.index = tab;
+              if (path == '/more') {
+                DockState.moreStack = [];
+              } else if (path.startsWith('/settings/') ||
+                  path == '/addons' ||
+                  path == '/downloads') {
+                DockState.moreStack =
+                    path.startsWith('/settings/') &&
+                        path != '/settings/root' &&
+                        path != '/settings/about'
+                    ? ['/settings/root', path]
+                    : [path];
+              }
               final show =
                   DockState.hidden.value == 0 &&
                   !_noDock.any((p) => path.startsWith(p));
@@ -83,7 +125,18 @@ class DockOverlay extends ConsumerWidget {
                             items: [for (final t in _tabs) (t.$1, t.$2)],
                             index: DockState.index,
                             opacity: dockOpacity,
-                            onSelect: (i) => router.go(_tabs[i].$3),
+                            onSelect: (i) {
+                              final back = i == 4 && DockState.index != 4
+                                  ? [...DockState.moreStack]
+                                  : const <String>[];
+                              router.go(_tabs[i].$3);
+                              // «Altro» reopens the settings page that was open when the viewer left.
+                              Future<void>.microtask(() {
+                                for (final p in back) {
+                                  router.push(p);
+                                }
+                              });
+                            },
                           ),
                         ),
                       ),
