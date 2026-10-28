@@ -133,7 +133,6 @@ class MetadataPage extends ConsumerWidget {
             const PrefSwitch('modFinancials', 'Incassi e budget', _fin),
             const PrefSwitch('modFacts', 'Dettagli (slogan, voto)', _facts),
             const PrefSwitch('modCollection', 'Saga / collezione', _coll),
-            const PrefSwitch('modSimilar', 'Titoli simili', _similar),
           ],
         ),
         SettingsGroup(
@@ -242,7 +241,6 @@ class MetadataPage extends ConsumerWidget {
   static bool _fin(AppSettings s) => s.modFinancials;
   static bool _facts(AppSettings s) => s.modFacts;
   static bool _coll(AppSettings s) => s.modCollection;
-  static bool _similar(AppSettings s) => s.modSimilar;
   static bool _posterRatings(AppSettings s) => s.posterRatings;
   static double _refresh(AppSettings s) => s.catalogRefreshMin.toDouble();
   static String _minutes(double v) =>

@@ -10,6 +10,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../app/orientation.dart';
 import '../../app/providers.dart';
+import '../../data/prefs_ext.dart';
 import '../../core/segments/skip_segments.dart';
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
@@ -49,6 +50,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   double _dragSeekStartMs = 0;
   double? _dragSeekMs;
   EpisodeSkipSegments? _segments;
+  double _speedBefore = 1;
+  Timer? _sleepTimer;
+  bool _downloadCleaned = false;
   double _brightness = 0.5;
   double _volume = 1.0;
   int _verticalKind = 0; // 1 brightness, 2 volume
@@ -74,6 +78,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _session.addListener(_onSession);
     _session.start();
     _loadSegments();
+    final sleep = ref.read(settingsProvider).sleepTimerMin;
+    if (sleep > 0) {
+      _sleepTimer = Timer(Duration(minutes: sleep), () {
+        if (!mounted) return;
+        _engine.pause();
+        _hint('Timer di spegnimento: in pausa');
+        setState(() => _controls = true);
+      });
+    }
     _pipChannel.setMethodCallHandler((call) async {
       if (call.method == 'pipChanged' && mounted)
         setState(() => _inPip = call.arguments == true);
@@ -170,12 +183,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _onSession() {
     if (!mounted) return;
+    if (_session.completedReached &&
+        !_downloadCleaned &&
+        ref.read(settingsProvider).deleteAfterWatching) {
+      _downloadCleaned = true;
+      ref.read(servicesProvider).downloads.removeIfDone(_session.args.videoId);
+    }
     if (_session.nextRequested && _nextTimer == null) _startNextCountdown();
     setState(() {});
   }
 
   void _startNextCountdown() {
-    _nextCountdown = 8;
+    _nextCountdown = ref.read(settingsProvider).nextCountdownSec;
     _nextTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return t.cancel();
       setState(() => _nextCountdown--);
@@ -208,6 +227,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _hideTimer?.cancel();
+    _sleepTimer?.cancel();
     _nextTimer?.cancel();
     _hintTimer?.cancel();
     _pipChannel.setMethodCallHandler(null);
@@ -222,10 +242,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _scheduleHide() {
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && _session.playing && !_panelOpen)
-        setState(() => _controls = false);
-    });
+    _hideTimer = Timer(
+      Duration(seconds: ref.read(settingsProvider).controlsHideSec),
+      () {
+        if (mounted && _session.playing && !_panelOpen)
+          setState(() => _controls = false);
+      },
+    );
   }
 
   bool _panelOpen = false;
@@ -315,20 +338,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               Positioned(
                 left: 40,
                 right: 40,
-                bottom: showControls ? 96 : 36,
+                bottom: showControls ? 96 : 20 + settings.subBottom * 4,
                 child: IgnorePointer(
                   child: Text(
                     s.externalLine!,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 22 * settings.subtitleScale,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      fontWeight: settings.subBold
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                      color: colorFromHex(settings.subColor),
+                      backgroundColor: colorFromHex(settings.subBgColor)
+                          .withValues(alpha: settings.subBgOpacity),
                       height: 1.25,
-                      shadows: const [
-                        Shadow(blurRadius: 6, color: Colors.black),
-                        Shadow(blurRadius: 2, color: Colors.black),
-                      ],
+                      shadows: settings.subOutline
+                          ? [
+                              Shadow(
+                                blurRadius: 6,
+                                color: colorFromHex(settings.subOutlineColor),
+                              ),
+                              Shadow(
+                                blurRadius: 2,
+                                color: colorFromHex(settings.subOutlineColor),
+                              ),
+                            ]
+                          : null,
                     ),
                   ),
                 ),
@@ -340,18 +375,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   builder: (context, c) => GestureDetector(
                     behavior: HitTestBehavior.translucent,
                     onTap: _toggleControls,
-                    onDoubleTapDown: s.locked
+                    onDoubleTapDown: (s.locked || !settings.gestures)
                         ? null
                         : (d) {
                             final left = d.localPosition.dx < c.maxWidth / 2;
-                            s.seekBy(Duration(seconds: left ? -10 : 10));
-                            _hint(left ? '−10 s' : '+10 s');
+                            final secs = left
+                                ? -settings.skipBackSec
+                                : settings.skipForwardSec;
+                            s.seekBy(Duration(seconds: secs));
+                            _hint('${secs > 0 ? '+' : '−'}${secs.abs()} s');
                           },
                     onDoubleTap: () {},
-                    onVerticalDragStart: s.locked
+                    onLongPressStart: (s.locked || !settings.holdToSpeed)
+                        ? null
+                        : (_) {
+                            _speedBefore = s.speed;
+                            s.setSpeed(settings.holdSpeed);
+                            _hint('${settings.holdSpeed.toStringAsFixed(2)}×');
+                          },
+                    onLongPressEnd: (s.locked || !settings.holdToSpeed)
+                        ? null
+                        : (_) => s.setSpeed(_speedBefore),
+                    onVerticalDragStart: (s.locked || !settings.gestures)
                         ? null
                         : (d) => _verticalStart(d.localPosition.dx, c.maxWidth),
-                    onVerticalDragUpdate: s.locked
+                    onVerticalDragUpdate: (s.locked || !settings.gestures)
                         ? null
                         : (d) => _verticalUpdate(d.delta.dy, c.maxHeight),
                     onHorizontalDragStart: s.locked
@@ -551,11 +599,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               GlassButton(
-                                icon: Icons.replay_10_rounded,
-                                tooltip: 'Indietro di 10 secondi',
+                                icon: settings.skipBackSec == 10
+                                    ? Icons.replay_10_rounded
+                                    : Icons.replay_rounded,
+                                tooltip:
+                                    'Indietro di ${settings.skipBackSec} secondi',
                                 size: 54,
                                 onPressed: () {
-                                  s.seekBy(const Duration(seconds: -10));
+                                  s.seekBy(
+                                    Duration(seconds: -settings.skipBackSec),
+                                  );
                                   _scheduleHide();
                                 },
                               ),
@@ -574,11 +627,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               ),
                               const SizedBox(width: 28),
                               GlassButton(
-                                icon: Icons.forward_10_rounded,
+                                icon: settings.skipForwardSec == 10
+                                    ? Icons.forward_10_rounded
+                                    : Icons.fast_forward_rounded,
                                 tooltip: 'Avanti di 10 secondi',
                                 size: 54,
                                 onPressed: () {
-                                  s.seekBy(const Duration(seconds: 10));
+                                  s.seekBy(
+                                    Duration(seconds: settings.skipForwardSec),
+                                  );
                                   _scheduleHide();
                                 },
                               ),

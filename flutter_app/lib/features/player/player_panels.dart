@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
+import 'playback_engine.dart';
 import 'player_session.dart';
 
 /// A panel at the right edge (not full screen): in landscape the picture stays visible while choosing.
@@ -135,24 +136,7 @@ class SubtitlePanel extends StatelessWidget {
                 selected: s.embeddedSubtitle?.id == t.id,
                 onTap: () => s.selectEmbeddedSubtitle(t),
               ),
-            if (s.args.externalSubtitles.isNotEmpty)
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 10, 16, 2),
-                child: Text(
-                  'Da addon',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AetherTokens.textTertiary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            for (final e in s.args.externalSubtitles)
-              _Choice(
-                label: e.label,
-                selected: s.externalSubtitle?.id == e.id,
-                onTap: () => s.selectExternalSubtitle(e),
-              ),
+            ..._addonGroups(s),
             if (s.loadingSubtitle)
               const Padding(
                 padding: EdgeInsets.all(16),
@@ -292,4 +276,68 @@ class SourcesPanel extends StatelessWidget {
         ),
     ],
   );
+}
+
+/// Subtitles from addons, grouped by language and, inside each language, by addon (the language of the settings first).
+List<Widget> _addonGroups(PlayerSession s) {
+  final subs = s.args.externalSubtitles;
+  if (subs.isEmpty) return const [];
+  final byLang = <String, Map<String, List<ExternalSubtitle>>>{};
+  for (final e in subs) {
+    final lang = TrackInfo.languageName(e.language ?? 'und');
+    byLang
+        .putIfAbsent(lang, () => {})
+        .putIfAbsent(e.addon ?? 'Addon', () => [])
+        .add(e);
+  }
+  final preferred = TrackInfo.languageName(s.settings.subtitleLanguage);
+  final langs = byLang.keys.toList()
+    ..sort((a, b) {
+      if (a == preferred) return -1;
+      if (b == preferred) return 1;
+      return a.compareTo(b);
+    });
+  const head = TextStyle(
+    fontSize: 11,
+    color: AetherTokens.textTertiary,
+    fontWeight: FontWeight.w700,
+  );
+  return [
+    const Padding(
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 2),
+      child: Text('Da addon', style: head),
+    ),
+    for (final lang in langs)
+      Theme(
+        data: ThemeData(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded:
+              lang == preferred ||
+              byLang[lang]!.values.any(
+                (l) => l.any((e) => s.externalSubtitle?.id == e.id),
+              ),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+          title: Text(
+            '$lang · ${byLang[lang]!.values.fold<int>(0, (a, l) => a + l.length)}',
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          ),
+          children: [
+            for (final addon in byLang[lang]!.keys) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 2, 16, 0),
+                child: Text(addon, style: head),
+              ),
+              for (var i = 0; i < byLang[lang]![addon]!.length; i++)
+                _Choice(
+                  label: '$lang ${i + 1}',
+                  selected:
+                      s.externalSubtitle?.id == byLang[lang]![addon]![i].id,
+                  onTap: () =>
+                      s.selectExternalSubtitle(byLang[lang]![addon]![i]),
+                ),
+            ],
+          ],
+        ),
+      ),
+  ];
 }

@@ -107,6 +107,13 @@ class MediaKitEngine implements PlaybackEngine {
   Future<void> seek(Duration to) => _player.seek(to);
   @override
   Future<void> setRate(double rate) => _player.setRate(rate);
+
+  @override
+  Future<void> setOption(String name, String value) async {
+    final p = _player.platform;
+    if (p is NativePlayer) await p.setProperty(name, value);
+  }
+
   @override
   Future<void> setVolume(double volume01) =>
       _player.setVolume((volume01.clamp(0.0, 1.0)) * 100);

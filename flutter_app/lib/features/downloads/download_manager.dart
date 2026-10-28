@@ -118,6 +118,37 @@ class DownloadManager extends ChangeNotifier {
   final Map<String, CancelToken> _tokens = {};
 
   set policy(NetworkPolicy p) => _policy = p;
+
+  /// How many transfers run at once; the others wait as «in coda».
+  int maxConcurrent = 2;
+  bool allowCellular = false;
+
+  /// Asked before a transfer starts; false keeps it queued (for example: only on Wi-Fi).
+  Future<bool> Function()? networkAllowed;
+
+  Future<void> _pump() async {
+    for (final item
+        in _items.where((i) => i.status == DownloadStatus.queued).toList()) {
+      final running = _items
+          .where((i) => i.status == DownloadStatus.running)
+          .length;
+      if (running >= maxConcurrent) return;
+      if (networkAllowed != null && !await networkAllowed!()) {
+        item.error = 'In attesa del Wi-Fi';
+        notifyListeners();
+        return;
+      }
+      item.error = null;
+      unawaited(_run(item));
+    }
+  }
+
+  /// Removes the finished download of a video (used by «Elimina i download dopo la visione»).
+  Future<void> removeIfDone(String videoId) async {
+    final i = byVideo(videoId);
+    if (i != null && i.status == DownloadStatus.done) await remove(i.id);
+  }
+
   List<DownloadItem> get items => List.unmodifiable(_items);
   DownloadItem? byVideo(String videoId) {
     for (final i in _items) {
@@ -195,7 +226,7 @@ class DownloadManager extends ChangeNotifier {
     _items.add(item);
     await _save();
     notifyListeners();
-    unawaited(_run(item));
+    unawaited(_pump());
     return item;
   }
 
@@ -204,7 +235,9 @@ class DownloadManager extends ChangeNotifier {
     if (item.status == DownloadStatus.running ||
         item.status == DownloadStatus.done)
       return;
-    unawaited(_run(item));
+    item.status = DownloadStatus.queued;
+    notifyListeners();
+    unawaited(_pump());
   }
 
   Future<void> pause(String id) async {
@@ -314,6 +347,7 @@ class DownloadManager extends ChangeNotifier {
       _tokens.remove(item.id);
       await _save();
       notifyListeners();
+      unawaited(_pump());
     }
   }
 }

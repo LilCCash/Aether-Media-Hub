@@ -18,7 +18,11 @@ import '../core/segments/skip_segments.dart';
 import '../core/metadata/tmdb_client.dart';
 import '../core/streams/badge_pack_loader.dart';
 import '../core/subtitles/subtitle_loader.dart';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+
 import '../data/library_repository.dart';
+import '../data/prefs_ext.dart';
 import '../data/settings.dart';
 import '../data/stores.dart';
 import '../features/downloads/download_manager.dart';
@@ -115,6 +119,20 @@ class AppServices {
       policy: policy,
     );
     await downloads.load();
+    WatchProgress.threshold = settings.watchedThreshold;
+    downloads.maxConcurrent = settings.maxDownloads;
+    downloads.allowCellular = settings.downloadOverCellular;
+    downloads.networkAllowed = () async {
+      if (downloads.allowCellular) return true;
+      try {
+        final r = await Connectivity().checkConnectivity();
+        return !r.contains(ConnectivityResult.mobile) ||
+            r.contains(ConnectivityResult.wifi) ||
+            r.contains(ConnectivityResult.ethernet);
+      } on Object {
+        return true;
+      }
+    };
     return AppServices(
       store: store,
       secrets: secrets,

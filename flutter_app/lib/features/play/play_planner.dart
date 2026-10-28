@@ -100,6 +100,7 @@ class PlayPlanner {
           id: s.id,
           label: '$lang${s.addonName == null ? '' : ' · ${s.addonName}'}',
           language: s.lang,
+          addon: s.addonName,
           url: s.url,
         ),
       );

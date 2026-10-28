@@ -14,6 +14,8 @@ import '../core/model/manifest.dart';
 import '../core/model/meta.dart';
 import '../core/model/stream.dart';
 import '../core/util/app_log.dart';
+import '../data/library_repository.dart';
+import '../data/prefs_ext.dart';
 import '../data/settings.dart';
 import '../data/stores.dart';
 import 'services.dart';
@@ -34,6 +36,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
     final policy = NetworkPolicy(allowLocalNetwork: state.allowLocalNetwork);
     s.addonClient.policy = policy;
     s.downloads.policy = policy;
+    WatchProgress.threshold = state.watchedThreshold;
+    s.downloads.maxConcurrent = state.maxDownloads;
+    s.downloads.allowCellular = state.downloadOverCellular;
     await s.settingsRepo.save(state);
   }
 }
@@ -420,7 +425,9 @@ final searchProvider = StreamProvider.autoDispose.family<SearchState, String>((
 final tmdbDetailsProvider = FutureProvider.autoDispose
     .family<RichDetails?, String>((ref, imdbId) async {
       final services = ref.watch(servicesProvider);
-      if (!imdbId.startsWith('tt')) return null;
+      if (!imdbId.startsWith('tt') || !ref.read(settingsProvider).tmdbEnabled) {
+        return null;
+      }
       final lang = ref.read(settingsProvider).language;
       return services.tmdb.details(
         imdbId.split(':').first,

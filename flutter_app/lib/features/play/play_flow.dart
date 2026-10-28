@@ -12,7 +12,6 @@ import '../../core/streams/stream_analyzer.dart';
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
 import '../player/playback_engine.dart';
-import '../player/player_session.dart';
 import 'play_planner.dart';
 
 /// From a tap on a source to the player: handles direct links, torrents through TorBox (with a confirmation before anything is

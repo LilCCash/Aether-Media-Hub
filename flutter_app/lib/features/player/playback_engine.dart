@@ -118,6 +118,9 @@ abstract class PlaybackEngine {
   Future<void> seek(Duration to);
   Future<void> setRate(double rate);
   Future<void> setVolume(double volume01);
+
+  /// A raw option of the engine (libmpv property name and value); engines without it ignore the call.
+  Future<void> setOption(String name, String value);
   Future<void> selectAudio(TrackInfo? track);
 
   /// Selects an embedded subtitle track, or switches the embedded subtitles off (null).

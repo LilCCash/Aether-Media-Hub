@@ -51,6 +51,7 @@ dependencies:
   wakelock_plus: ^1.8.2
   screen_brightness: ^2.1.11
   xml: ^7.1.0
+  connectivity_plus: ^7.3.2
 
 dev_dependencies:
   flutter_test:

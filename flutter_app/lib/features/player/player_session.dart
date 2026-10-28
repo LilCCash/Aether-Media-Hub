@@ -7,6 +7,7 @@ import '../../core/subtitles/subtitle_loader.dart';
 import '../../core/subtitles/subtitle_parser.dart';
 import '../../core/util/app_log.dart';
 import '../../data/library_repository.dart';
+import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
 import 'playback_engine.dart';
 
@@ -18,7 +19,9 @@ class ExternalSubtitle {
     this.language,
     this.url,
     this.text,
+    this.addon,
   });
+  final String? addon;
   final String id;
   final String label;
   final String? language;
@@ -173,9 +176,13 @@ class PlayerSession extends ChangeNotifier {
         startAt == Duration.zero &&
         args.videoId.isNotEmpty) {
       final p = library.progressOf(args.videoId);
-      if (p != null && p.resumable)
+      if (p != null && p.resumable) {
+        final back = Duration(seconds: settings.resumeRewindSec);
         startAt = Duration(milliseconds: p.positionMs);
+        startAt = startAt > back ? startAt - back : Duration.zero;
+      }
     }
+    await _applyEngineOptions();
     _subs
       ..add(
         engine.positionStream.listen((d) {
@@ -266,12 +273,48 @@ class PlayerSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Decoding, picture and subtitle options from the settings, handed to the engine before the video opens.
+  Future<void> _applyEngineOptions() async {
+    final o = <String, String>{
+      'hwdec': settings.hwDecoding ? 'auto-safe' : 'no',
+      'deband': settings.deband ? 'yes' : 'no',
+      'brightness': '${settings.imgBrightness}',
+      'contrast': '${settings.imgContrast}',
+      'saturation': '${settings.imgSaturation}',
+      'gamma': '${settings.imgGamma}',
+      if (settings.bufferSec > 0)
+        'demuxer-readahead-secs': '${settings.bufferSec}',
+      'sub-color': settings.subColor,
+      'sub-bold': settings.subBold ? 'yes' : 'no',
+      'sub-border-size': settings.subOutline ? '3' : '0',
+      'sub-border-color': settings.subOutlineColor,
+      'sub-back-color':
+          '#${(settings.subBgOpacity * 255).round().toRadixString(16).padLeft(2, '0')}${settings.subBgColor.substring(1)}',
+      'sub-pos': '${(100 - settings.subBottom).round()}',
+    };
+    for (final e in o.entries) {
+      try {
+        await engine.setOption(e.key, e.value);
+      } on Object {
+        // an engine that does not know the option keeps its default
+      }
+    }
+  }
+
   Future<void> _applyPreferredTracks() async {
     TrackInfo? preferredAudio;
     for (final a in tracks.audio) {
       if (TrackInfo.sameLanguage(a.language, settings.audioLanguage)) {
         preferredAudio = a;
         break;
+      }
+    }
+    if (preferredAudio == null && settings.fallbackAudio != 'off') {
+      for (final a in tracks.audio) {
+        if (TrackInfo.sameLanguage(a.language, settings.fallbackAudio)) {
+          preferredAudio = a;
+          break;
+        }
       }
     }
     final defaultAudio = tracks.audio.where((a) => a.isDefault).firstOrNull;
@@ -285,11 +328,19 @@ class PlayerSession extends ChangeNotifier {
       return;
     }
     final audioLang = audio?.language;
-    final wanted = tracks.subtitles
+    var wanted = tracks.subtitles
         .where(
           (s) => TrackInfo.sameLanguage(s.language, settings.subtitleLanguage),
         )
         .toList();
+    if (wanted.isEmpty && settings.fallbackSubtitle != 'off') {
+      wanted = tracks.subtitles
+          .where(
+            (s) =>
+                TrackInfo.sameLanguage(s.language, settings.fallbackSubtitle),
+          )
+          .toList();
+    }
     // When the film is already in the viewer's language only the forced subtitles (foreign dialogue) are wanted.
     final sameAsAudio = TrackInfo.sameLanguage(
       audioLang,

@@ -11,6 +11,8 @@ import '../../design/glass.dart';
 import '../../design/tokens.dart';
 import '../../design/widgets.dart';
 import '../../data/library_repository.dart';
+import '../../data/prefs_ext.dart';
+import '../downloads/season_downloader.dart';
 import 'stream_picker.dart';
 
 class DetailScreen extends ConsumerStatefulWidget {
@@ -31,6 +33,56 @@ class DetailScreen extends ConsumerStatefulWidget {
 class _DetailScreenState extends ConsumerState<DetailScreen> {
   int? _season;
   bool _expanded = false;
+  bool _seasonBusy = false;
+  bool _seasonCancel = false;
+  String? _seasonMessage;
+
+  Future<void> _downloadSeason(MetaItem meta, int season) async {
+    final services = ref.read(servicesProvider);
+    final settings = ref.read(settingsProvider);
+    if (await services.activeDebrid(settings) != null) {
+      if (!mounted) return;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Scaricare tutta la stagione?'),
+          content: const Text(
+            'Per i torrent verrà usato il tuo servizio debrid, che può avviare download sul tuo account e contare sui tuoi limiti. Aether non cancella mai nulla dal tuo account.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Annulla'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Scarica'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    setState(() {
+      _seasonBusy = true;
+      _seasonCancel = false;
+      _seasonMessage = 'Cerco le sorgenti…';
+    });
+    final summary = await SeasonDownloader(services, settings).run(
+      meta,
+      season,
+      onMessage: (m) {
+        if (mounted) setState(() => _seasonMessage = m);
+      },
+      cancelled: () => _seasonCancel || !mounted,
+    );
+    if (mounted) {
+      setState(() {
+        _seasonBusy = false;
+        _seasonMessage = summary.message;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +156,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                             runSpacing: 6,
                             children: [
                               for (final r in ratings)
-                                Pill('${r.title} ${r.display}'),
+                                if (settings.ratingSources.contains(r.source))
+                                  Pill('${r.title} ${r.display}'),
                             ],
                           ),
                         ],
@@ -165,8 +218,9 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                             ),
                           ],
                         ),
-                        if (meta.trailerYoutubeIds.isNotEmpty ||
-                            (rich?.trailers.isNotEmpty ?? false))
+                        if (settings.modTrailers &&
+                            (meta.trailerYoutubeIds.isNotEmpty ||
+                                (rich?.trailers.isNotEmpty ?? false)))
                           Padding(
                             padding: const EdgeInsets.only(top: 10),
                             child: GlassButton(
@@ -180,7 +234,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                               ),
                             ),
                           ),
-                        if ((rich?.tagline ?? '').isNotEmpty)
+                        if (settings.modFacts &&
+                            (rich?.tagline ?? '').isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 16),
                             child: Text(
@@ -260,6 +315,48 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                       ),
                     ),
                   ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              GlassButton(
+                                icon: Icons.download_rounded,
+                                label:
+                                    'Scarica ${selectedSeason == 0 ? 'gli speciali' : 'la stagione $selectedSeason'}',
+                                size: 38,
+                                onPressed: _seasonBusy
+                                    ? null
+                                    : () =>
+                                          _downloadSeason(meta, selectedSeason),
+                              ),
+                              if (_seasonBusy)
+                                GlassButton(
+                                  icon: Icons.close_rounded,
+                                  label: 'Annulla',
+                                  size: 38,
+                                  onPressed: () =>
+                                      setState(() => _seasonCancel = true),
+                                ),
+                            ],
+                          ),
+                          if (_seasonMessage != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                _seasonMessage!,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
                   SliverList.builder(
                     itemCount: meta.episodesOf(selectedSeason).length,
                     itemBuilder: (context, i) {
@@ -277,7 +374,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                     },
                   ),
                 ],
-                if (rich != null && rich.cast.isNotEmpty)
+                if (rich != null && rich.cast.isNotEmpty && settings.modCast)
                   SliverToBoxAdapter(child: _CastRow(cast: rich.cast))
                 else if (meta.cast.isNotEmpty)
                   SliverToBoxAdapter(
@@ -291,10 +388,18 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                     child: _NamesBlock(title: 'Regia', names: meta.directors),
                   ),
                 if (rich != null &&
-                    (rich.companies.isNotEmpty ||
-                        rich.budget != null ||
-                        rich.collectionName != null))
-                  SliverToBoxAdapter(child: _Facts(rich: rich)),
+                    ((settings.modCompanies && rich.companies.isNotEmpty) ||
+                        (settings.modFinancials && rich.budget != null) ||
+                        (settings.modCollection &&
+                            rich.collectionName != null)))
+                  SliverToBoxAdapter(
+                    child: _Facts(
+                      rich: rich,
+                      companies: settings.modCompanies,
+                      financials: settings.modFinancials,
+                      collection: settings.modCollection,
+                    ),
+                  ),
                 if (rich != null)
                   const SliverToBoxAdapter(
                     child: Padding(
@@ -644,20 +749,29 @@ class _NamesBlock extends StatelessWidget {
 }
 
 class _Facts extends StatelessWidget {
-  const _Facts({required this.rich});
+  const _Facts({
+    required this.rich,
+    this.companies = true,
+    this.financials = true,
+    this.collection = true,
+  });
   final dynamic rich;
+  final bool companies;
+  final bool financials;
+  final bool collection;
 
   @override
   Widget build(BuildContext context) {
     String money(int v) =>
         '\$${(v / 1000000).toStringAsFixed(v >= 100000000 ? 0 : 1)} M';
     final rows = <(String, String)>[
-      if (rich.collectionName != null) ('Saga', rich.collectionName as String),
-      if ((rich.companies as List).isNotEmpty)
+      if (collection && rich.collectionName != null)
+        ('Saga', rich.collectionName as String),
+      if (companies && (rich.companies as List).isNotEmpty)
         ('Produzione', (rich.companies as List).take(4).join(', ')),
-      if (rich.budget != null && (rich.budget as int) > 0)
+      if (financials && rich.budget != null && (rich.budget as int) > 0)
         ('Budget', money(rich.budget as int)),
-      if (rich.revenue != null && (rich.revenue as int) > 0)
+      if (financials && rich.revenue != null && (rich.revenue as int) > 0)
         ('Incassi', money(rich.revenue as int)),
     ];
     return Padding(

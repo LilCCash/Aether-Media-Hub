@@ -12,6 +12,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/fake_adapter.dart';
 
 class FakeEngine implements PlaybackEngine {
+  final Map<String, String> options = {};
+  @override
+  Future<void> setOption(String name, String value) async =>
+      options[name] = value;
+
   final _pos = StreamController<Duration>.broadcast();
   final _dur = StreamController<Duration>.broadcast();
   final _playing = StreamController<bool>.broadcast();

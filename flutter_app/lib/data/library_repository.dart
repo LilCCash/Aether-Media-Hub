@@ -35,10 +35,14 @@ class WatchProgress {
   double get fraction =>
       durationMs <= 0 ? 0 : (positionMs / durationMs).clamp(0, 1).toDouble();
 
-  /// Watched when 92% (or the last 3 minutes) is behind.
+  /// The share of a title after which it counts as watched (Settings ▸ Player avanzato).
+  static double threshold = 0.92;
+
+  /// Watched when the threshold (or the last 3 minutes) is behind.
   bool get completed =>
       durationMs > 0 &&
-      (fraction >= 0.92 || durationMs - positionMs < 180000 && fraction > 0.5);
+      (fraction >= threshold ||
+          durationMs - positionMs < 180000 && fraction > 0.5);
 
   bool get resumable => !completed && positionMs >= 10000;
 
