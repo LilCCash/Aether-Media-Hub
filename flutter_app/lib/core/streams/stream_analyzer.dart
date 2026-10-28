@@ -219,7 +219,19 @@ class RankedStream {
 }
 
 class StreamRanker {
-  const StreamRanker({this.preferredLanguage, this.debridConfigured = false});
+  const StreamRanker({
+    this.preferredLanguage,
+    this.debridConfigured = false,
+    this.maxHeight = 0,
+    this.addonOrder,
+  });
+
+  /// 0 = no limit. A source above the limit is pushed down the list, not hidden (it may be the only one).
+  final int maxHeight;
+
+  /// When set, sources are grouped by addon in this order (ids of the installed addons, first = highest priority) and ranked
+  /// by quality only inside each group; null = one list ranked by quality.
+  final List<String>? addonOrder;
 
   /// "Italiano", "Inglese"... as the analyzer names them.
   final String? preferredLanguage;
@@ -254,6 +266,17 @@ class StreamRanker {
           (info.languages.contains(preferredLanguage) ||
               info.languages.contains('Multi')))
         score += 60;
+      if (maxHeight > 0) {
+        final h = switch (info.quality) {
+          VideoQuality.p480 => 480,
+          VideoQuality.p720 => 720,
+          VideoQuality.p1080 => 1080,
+          VideoQuality.p1440 => 1440,
+          VideoQuality.p2160 => 2160,
+          VideoQuality.unknown => 0,
+        };
+        if (h > maxHeight) score -= 600;
+      }
       if (play == StreamPlayability.direct) score += 1000;
       if (play == StreamPlayability.needsDebrid)
         score += debridConfigured ? 800 : -500;
@@ -263,7 +286,16 @@ class StreamRanker {
       ranked.add(RankedStream(s, info, play, score));
     }
     final indexed = [for (var i = 0; i < ranked.length; i++) (i, ranked[i])];
+    final order = addonOrder;
+    int group(RankedStream r) {
+      if (order == null) return 0;
+      final i = order.indexOf(r.stream.addonId ?? '');
+      return i < 0 ? order.length : i;
+    }
+
     indexed.sort((a, b) {
+      final g = group(a.$2).compareTo(group(b.$2));
+      if (g != 0) return g;
       final c = b.$2.score.compareTo(a.$2.score);
       return c != 0 ? c : a.$1.compareTo(b.$1);
     });

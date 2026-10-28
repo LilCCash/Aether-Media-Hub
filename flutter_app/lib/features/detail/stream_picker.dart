@@ -7,7 +7,11 @@ import '../../core/debrid/torbox_client.dart';
 import '../../core/streams/badge_pack.dart';
 import '../../core/model/meta.dart';
 import '../../core/streams/stream_analyzer.dart';
-import '../../data/stores.dart';
+import '../../data/prefs_ext.dart';
+import '../../data/settings.dart';
+
+import 'package:flutter/services.dart';
+
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
 import '../../design/widgets.dart';
@@ -85,8 +89,9 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
     final async = ref.watch(streamsProvider(key));
     final settings = ref.watch(settingsProvider);
     final state = async.value ?? const StreamsState();
-    final ranker = StreamRanker(
-      preferredLanguage: settings.preferredStreamLanguage,
+    final ranker = PlayPlanner.rankerFor(
+      ref.read(servicesProvider),
+      settings,
       debridConfigured: _debrid,
     );
     final ranked = ranker.rank(state.streams);
@@ -220,6 +225,20 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
                           ? null
                           : _cached[r.stream.infoHash],
                       debridConfigured: _debrid,
+                      settings: settings,
+                      onPlay: () async {
+                        final ctx = Navigator.of(context).context;
+                        await playStream(
+                          ctx,
+                          ref,
+                          meta: widget.meta,
+                          video: video,
+                          chosen: r,
+                          all: ranked,
+                          state: state,
+                        );
+                      },
+                      onCopy: () => _copy(r),
                       customBadges: CustomBadgePack.badgesFor(
                         r.stream,
                         settings.customBadges,
@@ -237,8 +256,11 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
                           state: state,
                         );
                       },
-                      onDownload: r.playability == StreamPlayability.direct
-                          ? () => _download(r)
+                      onDownload:
+                          (r.playability == StreamPlayability.direct ||
+                              (r.playability == StreamPlayability.needsDebrid &&
+                                  _debrid))
+                          ? () => _download(r, ranked, state)
                           : null,
                     ),
                   if (shown.isEmpty && !state.loading)
@@ -293,27 +315,59 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
     );
   }
 
-  Future<void> _download(RankedStream r) async {
+  Future<void> _copy(RankedStream r) async {
+    final text = r.stream.url ?? r.stream.magnet;
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) showProblem(context, 'Copiato negli appunti.');
+  }
+
+  /// Direct links are queued as they are; a torrent is first resolved through the debrid service (with the usual confirmation).
+  Future<void> _download(
+    RankedStream r,
+    List<RankedStream> ranked,
+    StreamsState state,
+  ) async {
     final dl = ref.read(servicesProvider).downloads;
-    try {
-      await dl.enqueue(
-        metaId: widget.meta.id,
-        videoId: widget.video?.id ?? widget.meta.id,
-        type: widget.meta.type,
-        title: widget.video == null
-            ? widget.meta.name
-            : '${widget.meta.name} · ${widget.video!.label}',
-        url: r.stream.url!,
-        poster: widget.meta.poster,
-        season: widget.video?.season,
-        episode: widget.video?.episode,
-        fileName: r.stream.filename,
-      );
-      if (mounted)
-        showProblem(context, 'Download avviato: lo trovi in Altro ▸ Download.');
-    } on FormatException catch (e) {
-      if (mounted) showProblem(context, e.message);
+    Future<void> queue(String url) async {
+      try {
+        await dl.enqueue(
+          metaId: widget.meta.id,
+          videoId: widget.video?.id ?? widget.meta.id,
+          type: widget.meta.type,
+          title: widget.video == null
+              ? widget.meta.name
+              : '${widget.meta.name} · ${widget.video!.label}',
+          url: url,
+          poster: widget.meta.poster,
+          season: widget.video?.season,
+          episode: widget.video?.episode,
+          fileName: r.stream.filename,
+        );
+        if (mounted) {
+          showProblem(
+            context,
+            'Download avviato: lo trovi in Altro ▸ Download.',
+          );
+        }
+      } on FormatException catch (e) {
+        if (mounted) showProblem(context, e.message);
+      }
     }
+
+    if (r.playability == StreamPlayability.direct) {
+      await queue(r.stream.url!);
+      return;
+    }
+    await playStream(
+      context,
+      ref,
+      meta: widget.meta,
+      video: widget.video,
+      chosen: r,
+      all: ranked,
+      state: state,
+      onResolved: (source) => queue(source.uri),
+    );
   }
 }
 
@@ -354,13 +408,66 @@ class _StreamRow extends StatelessWidget {
     required this.onTap,
     this.onDownload,
     this.customBadges = const [],
+    required this.settings,
+    this.onPlay,
+    this.onCopy,
   });
+  final AppSettings settings;
+  final VoidCallback? onPlay;
+  final VoidCallback? onCopy;
   final List<CustomBadgeRule> customBadges;
   final RankedStream ranked;
   final bool? cached;
   final bool debridConfigured;
   final VoidCallback onTap;
   final VoidCallback? onDownload;
+
+  List<PopupMenuEntry<String>> _items(BuildContext _) => [
+    if (onPlay != null)
+      const PopupMenuItem(
+        value: 'play',
+        child: ListTile(
+          leading: Icon(Icons.play_arrow_rounded),
+          title: Text('Riproduci'),
+        ),
+      ),
+    if (onDownload != null)
+      const PopupMenuItem(
+        value: 'download',
+        child: ListTile(
+          leading: Icon(Icons.download_rounded),
+          title: Text('Scarica per guardarlo offline'),
+        ),
+      ),
+    if (onCopy != null)
+      PopupMenuItem(
+        value: 'copy',
+        child: ListTile(
+          leading: const Icon(Icons.copy_rounded),
+          title: Text(
+            ranked.stream.url != null ? 'Copia il link' : 'Copia il magnet',
+          ),
+        ),
+      ),
+  ];
+
+  void _run(String v) => switch (v) {
+    'play' => onPlay?.call(),
+    'download' => onDownload?.call(),
+    'copy' => onCopy?.call(),
+    _ => null,
+  };
+
+  /// Long press: the same actions as the ⋮ button, next to the finger.
+  Future<void> _menu(BuildContext context, Offset at) async {
+    final v = await showMenu<String>(
+      context: context,
+      color: AetherTokens.inkRaised,
+      position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
+      items: _items(context),
+    );
+    if (v != null) _run(v);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -372,20 +479,30 @@ class _StreamRow extends StatelessWidget {
             ?.split('\n')
             .firstWhere((l) => l.trim().isNotEmpty, orElse: () => '') ??
         '';
+    final st = settings.badgeStyle;
+    final hide = settings.hiddenBadges.toSet();
     final badges = <Widget>[
-      if (info.quality != VideoQuality.unknown)
-        Pill(info.quality.text, color: const Color(0xFF7FB2FF)),
-      for (final h in info.hdr)
-        Pill('${h.label} (dal nome)', color: AetherTokens.warning),
-      if (info.codec != null) Pill(info.codec!),
-      if (info.audio != null) Pill(info.audio!, color: const Color(0xFFC59BFF)),
-      for (final l in info.languages) Pill(l, color: AetherTokens.success),
-      if (info.sizeLabel != null) Pill(info.sizeLabel!),
-      if (info.format != null) Pill(info.format!),
-      if (info.release != null) Pill(info.release!),
+      if (info.quality != VideoQuality.unknown && !hide.contains('quality'))
+        Pill(style: st, info.quality.text, color: const Color(0xFF7FB2FF)),
+      if (!hide.contains('hdr'))
+        for (final h in info.hdr)
+          Pill(style: st, '${h.label} (dal nome)', color: AetherTokens.warning),
+      if (info.codec != null && !hide.contains('codec'))
+        Pill(style: st, info.codec!),
+      if (info.audio != null && !hide.contains('audio'))
+        Pill(style: st, info.audio!, color: const Color(0xFFC59BFF)),
+      if (!hide.contains('language'))
+        for (final l in info.languages)
+          Pill(style: st, l, color: AetherTokens.success),
+      if (info.sizeLabel != null && !hide.contains('size'))
+        Pill(style: st, info.sizeLabel!),
+      if (info.format != null && !hide.contains('format'))
+        Pill(style: st, info.format!),
+      if (info.release != null) Pill(style: st, info.release!),
       for (final b in customBadges) ImportedBadge(rule: b),
       if (ranked.playability == StreamPlayability.needsDebrid)
         Pill(
+          style: st,
           cached == null
               ? (debridConfigured
                     ? 'TorBox · verifico…'
@@ -396,7 +513,7 @@ class _StreamRow extends StatelessWidget {
               : (cached == false ? AetherTokens.warning : Colors.white),
         ),
       if (ranked.playability == StreamPlayability.external)
-        const Pill('Si apre fuori da Aether', color: AetherTokens.warning),
+        Pill(style: st, 'Si apre fuori da Aether', color: AetherTokens.warning),
     ];
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -405,6 +522,7 @@ class _StreamRow extends StatelessWidget {
         label: title,
         child: GestureDetector(
           onTap: onTap,
+          onLongPressStart: (d) => _menu(context, d.globalPosition),
           child: GlassSurface(
             padding: const EdgeInsets.all(14),
             child: Row(
@@ -426,7 +544,7 @@ class _StreamRow extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (s.addonName != null)
+                          if (s.addonName != null && settings.showAddonLogo)
                             Padding(
                               padding: const EdgeInsets.only(left: 8),
                               child: Text(
@@ -458,12 +576,13 @@ class _StreamRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (onDownload != null)
-                  IconButton(
-                    tooltip: 'Scarica per guardarlo offline',
-                    icon: const Icon(Icons.download_rounded),
-                    onPressed: onDownload,
-                  ),
+                PopupMenuButton<String>(
+                  tooltip: 'Altre azioni',
+                  icon: const Icon(Icons.more_vert_rounded),
+                  color: AetherTokens.inkRaised,
+                  onSelected: _run,
+                  itemBuilder: _items,
+                ),
               ],
             ),
           ),

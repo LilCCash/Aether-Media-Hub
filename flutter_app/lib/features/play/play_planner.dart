@@ -7,6 +7,7 @@ import '../../core/debrid/torbox_client.dart';
 import '../../core/model/meta.dart';
 import '../../core/model/stream.dart';
 import '../../core/streams/stream_analyzer.dart';
+import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
 import '../../data/stores.dart';
 import '../player/playback_engine.dart';
@@ -28,8 +29,21 @@ class PlayPlanner {
   Future<bool> get debridConfigured async =>
       (await services.activeDebrid(settings)) != null;
 
-  StreamRanker get ranker =>
-      StreamRanker(preferredLanguage: settings.preferredStreamLanguage);
+  StreamRanker get ranker => rankerFor(services, settings);
+
+  /// The ranker the settings describe: language, quality limit, and the addon order when «Per addon» is chosen.
+  static StreamRanker rankerFor(
+    AppServices services,
+    AppSettings settings, {
+    bool debridConfigured = false,
+  }) => StreamRanker(
+    preferredLanguage: settings.preferredStreamLanguage,
+    debridConfigured: debridConfigured,
+    maxHeight: settings.qualityCap,
+    addonOrder: settings.streamOrdering == 'byAddon'
+        ? [for (final a in services.addons.addons) a.id]
+        : null,
+  );
 
   /// The local file of a finished download for this video, as a source (offline playback), or null.
   PlaybackSource? offlineSource(String videoId) {
@@ -100,6 +114,7 @@ class PlayPlanner {
     required PlaybackSource source,
     List<AddonSubtitle> addonSubtitles = const [],
     List<RankedStream> others = const [],
+    Future<PlaybackSource> Function(PrepareControl)? prepare,
   }) {
     final season = video?.season;
     final episode = video?.episode;
@@ -132,6 +147,7 @@ class PlayPlanner {
       externalSubtitles: subtitlesFor(stream, addonSubtitles),
       alternatives: alternatives,
       onNext: video == null ? null : () => nextEpisode(meta, video, stream),
+      prepare: prepare,
     );
   }
 
@@ -170,8 +186,9 @@ class PlayPlanner {
     }
     if (streams.isEmpty) return null;
     final debrid = await debridConfigured;
-    final ranked = StreamRanker(
-      preferredLanguage: settings.preferredStreamLanguage,
+    final ranked = rankerFor(
+      services,
+      settings,
       debridConfigured: debrid,
     ).rank(streams);
     // Same release group first (binge group), then the best.

@@ -44,6 +44,7 @@ class AppSettings {
     this.titleFont = 'standard',
     this.greetingName,
     this.theater = const TheaterPrefs(),
+    this.ext = const {},
   });
 
   final String language;
@@ -80,6 +81,9 @@ class AppSettings {
   final String? greetingName;
   final TheaterPrefs theater;
 
+  /// Less common options, by key (see `prefs_ext.dart`, which reads and validates them): a missing or damaged one is its default.
+  final Map<String, Object?> ext;
+
   AppSettings copyWith({
     String? language,
     String? audioLanguage,
@@ -114,6 +118,7 @@ class AppSettings {
     String? titleFont,
     Object? greetingName = _keep,
     TheaterPrefs? theater,
+    Map<String, Object?>? ext,
   }) => AppSettings(
     language: language ?? this.language,
     audioLanguage: audioLanguage ?? this.audioLanguage,
@@ -154,6 +159,7 @@ class AppSettings {
         ? this.greetingName
         : greetingName as String?,
     theater: theater ?? this.theater,
+    ext: ext ?? this.ext,
   );
 
   Map<String, Object?> toJson() => {
@@ -190,6 +196,7 @@ class AppSettings {
     'titleFont': titleFont,
     'greetingName': greetingName,
     'theater': theater.toJson(),
+    'ext': ext,
   };
 
   factory AppSettings.fromJson(Object? raw) {
@@ -264,8 +271,24 @@ class AppSettings {
       titleFont: TitleFont.byName(asString(m['titleFont'])).name,
       greetingName: _name(m['greetingName']),
       theater: TheaterPrefs.fromJson(m['theater']),
+      ext: _cleanExt(m['ext']),
     );
   }
+}
+
+/// Only plain values survive: numbers, booleans, strings and lists of strings.
+Map<String, Object?> _cleanExt(Object? raw) {
+  final out = <String, Object?>{};
+  asMap(raw)?.forEach((k, v) {
+    if (v is bool || v is num) {
+      out[k] = v;
+    } else if (v is String) {
+      out[k] = v.length > 200 ? v.substring(0, 200) : v;
+    } else if (v is List) {
+      out[k] = asStringList(v).take(200).toList();
+    }
+  });
+  return out;
 }
 
 String? _name(Object? v) {

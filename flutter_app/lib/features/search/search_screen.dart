@@ -244,7 +244,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 subtitle: '${g.addonName} · ${typeName(g.type)}',
               ),
               SizedBox(
-                height: 232,
+                height: AetherLook.of(context).rowHeight(232),
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AetherTokens.pageMargin,

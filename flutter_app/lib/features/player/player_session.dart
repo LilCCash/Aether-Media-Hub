@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
 
 import '../../core/subtitles/subtitle_loader.dart';
@@ -49,7 +50,28 @@ class PlayerArgs {
     this.alternatives = const [],
     this.onNext,
     this.saveProgress = true,
+    this.prepare,
   });
+
+  /// When set, [source] is a placeholder: the player opens at once, shows the title and runs this to obtain the real source
+  /// (a debrid service may need seconds, or the viewer's confirmation). Throwing shows the message and offers a retry.
+  final Future<PlaybackSource> Function(PrepareControl control)? prepare;
+
+  PlayerArgs withSource(PlaybackSource s) => PlayerArgs(
+    title: title,
+    source: s,
+    metaId: metaId,
+    videoId: videoId,
+    type: type,
+    poster: poster,
+    season: season,
+    episode: episode,
+    episodeTitle: episodeTitle,
+    externalSubtitles: externalSubtitles,
+    alternatives: alternatives,
+    onNext: onNext,
+    saveProgress: saveProgress,
+  );
 
   final String title;
   final PlaybackSource source;
@@ -507,4 +529,20 @@ class PlayerSession extends ChangeNotifier {
   }
 
   bool get disposed => _disposed;
+}
+
+/// What [PlayerArgs.prepare] can use to talk to the viewer while it works.
+class PrepareControl {
+  PrepareControl({
+    required this.status,
+    required this.confirm,
+    required this.cancel,
+  });
+
+  /// A line shown under the title ("Controllo TorBox…") and an optional 0–1 progress.
+  final void Function(String message, [double? fraction]) status;
+
+  /// Asks a yes/no question (for example before TorBox downloads something).
+  final Future<bool> Function(String title, String message, String yes) confirm;
+  final CancelToken cancel;
 }

@@ -12,6 +12,7 @@ import '../../core/streams/stream_analyzer.dart';
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
 import '../player/playback_engine.dart';
+import '../player/player_session.dart';
 import 'play_planner.dart';
 
 /// From a tap on a source to the player: handles direct links, torrents through TorBox (with a confirmation before anything is
@@ -24,6 +25,9 @@ Future<void> playStream(
   required RankedStream chosen,
   required List<RankedStream> all,
   required StreamsState state,
+
+  /// When set, the player is not opened: the resolved source goes here instead (used to download a torrent source).
+  Future<void> Function(PlaybackSource source)? onResolved,
 }) async {
   final services = ref.read(servicesProvider);
   final planner = PlayPlanner(services, ref.read(settingsProvider));
@@ -76,6 +80,54 @@ Future<void> playStream(
       return;
     }
     if (!context.mounted) return;
+    if (onResolved == null) {
+      // The player opens at once, shows the logo and does the waiting itself (with its own confirmation).
+      final args = planner.buildArgs(
+        meta: meta,
+        video: video,
+        stream: chosen.stream,
+        source: const PlaybackSource(uri: ''),
+        addonSubtitles: state.subtitles,
+        others: all,
+        prepare: (ctl) async {
+          ctl.status(
+            'Controllo ${(await planner.provider)?.name ?? 'il servizio'}…',
+          );
+          try {
+            return await planner.sourceFor(
+              chosen.stream,
+              season: video?.season,
+              episode: video?.episode,
+              onStatus: (s) => ctl.status(s.message, s.fraction),
+              cancel: ctl.cancel,
+            );
+          } on DebridException catch (e) {
+            if (e.failure != DebridFailure.notCached) rethrow;
+            final ok = await ctl.confirm(
+              'Avviare il download sul servizio debrid?',
+              'Questo contenuto non è già pronto: andrebbe scaricato sul tuo account (può contare sui tuoi limiti). Aether non cancella mai nulla dal tuo account.',
+              'Avvia il download',
+            );
+            if (!ok) {
+              throw const DebridException(
+                DebridFailure.cancelled,
+                'Download annullato.',
+              );
+            }
+            return planner.sourceFor(
+              chosen.stream,
+              allowDownload: true,
+              season: video?.season,
+              episode: video?.episode,
+              onStatus: (s) => ctl.status(s.message, s.fraction),
+              cancel: ctl.cancel,
+            );
+          }
+        },
+      );
+      router.push('/player', extra: args);
+      return;
+    }
     source = await _resolveWithDialog(
       context,
       planner,
@@ -125,6 +177,10 @@ Future<void> playStream(
     }
   }
   if (source == null) return;
+  if (onResolved != null) {
+    await onResolved(source);
+    return;
+  }
   final args = planner.buildArgs(
     meta: meta,
     video: video,

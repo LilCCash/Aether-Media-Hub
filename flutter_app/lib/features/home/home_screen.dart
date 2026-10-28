@@ -11,6 +11,8 @@ import '../../core/addons/addon_repository.dart';
 import '../../core/model/manifest.dart';
 import '../../core/model/meta.dart';
 import '../../data/library_repository.dart';
+import '../../data/prefs_ext.dart';
+import '../../data/settings.dart';
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
 import '../../design/widgets.dart';
@@ -104,41 +106,18 @@ class HomeScreen extends ConsumerWidget {
                 ),
               )
             else ...[
-              SliverToBoxAdapter(
-                child: hero.isEmpty
-                    ? SizedBox(height: MediaQuery.paddingOf(context).top + 24)
-                    : HeroCarousel(items: hero),
-              ),
-              if (settings.greetingName != null)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                    child: Text(
-                      '${greeting(DateTime.now())}, ${settings.greetingName}',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
+              for (final sec in settings.homeSections)
+                if (sec.visible)
+                  ..._section(
+                    context,
+                    ref,
+                    sec.id,
+                    settings: settings,
+                    hero: hero,
+                    continueList: continueList,
+                    rows: rows,
+                    library: library,
                   ),
-                ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: GlassButton(
-                      icon: Icons.theaters_rounded,
-                      label: 'Theater Mode',
-                      size: 40,
-                      onPressed: () => context.push('/theater'),
-                    ),
-                  ),
-                ),
-              ),
-              if (continueList.isNotEmpty)
-                SliverToBoxAdapter(child: _ContinueRow(items: continueList)),
-              for (final (addon, catalog) in rows)
-                SliverToBoxAdapter(
-                  child: CatalogRow(addon: addon, catalog: catalog),
-                ),
               const SliverToBoxAdapter(child: SizedBox(height: 120)),
             ],
           ],
@@ -146,11 +125,101 @@ class HomeScreen extends ConsumerWidget {
       ),
     );
   }
+
+  List<Widget> _section(
+    BuildContext context,
+    WidgetRef ref,
+    String id, {
+    required AppSettings settings,
+    required List<MetaItem> hero,
+    required List<WatchProgress> continueList,
+    required List<(InstalledAddon, ManifestCatalog)> rows,
+    required LibraryRepository library,
+  }) {
+    switch (id) {
+      case 'hero':
+        return [
+          SliverToBoxAdapter(
+            child: hero.isEmpty
+                ? SizedBox(height: MediaQuery.paddingOf(context).top + 24)
+                : HeroCarousel(
+                    items: hero,
+                    fullBleed: settings.heroStyle == 'fullBleed',
+                    autoScroll: settings.heroAutoScroll && settings.animations,
+                  ),
+          ),
+          if (settings.greetingName != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: Text(
+                  '${greeting(DateTime.now())}, ${settings.greetingName}',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ),
+            ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: GlassButton(
+                  icon: Icons.theaters_rounded,
+                  label: 'Theater Mode',
+                  size: 40,
+                  onPressed: () => context.push('/theater'),
+                ),
+              ),
+            ),
+          ),
+        ];
+      case 'continue':
+        return continueList.isEmpty
+            ? const []
+            : [SliverToBoxAdapter(child: _ContinueRow(items: continueList))];
+      case 'nextUp':
+        final next = library.history
+            .where(
+              (p) =>
+                  p.season != null && p.fraction >= settings.watchedThreshold,
+            )
+            .take(12)
+            .toList();
+        return next.isEmpty
+            ? const []
+            : [SliverToBoxAdapter(child: _NextUpRow(items: next))];
+      case 'watchlist':
+        return library.watchlist.isEmpty
+            ? const []
+            : [
+                SliverToBoxAdapter(
+                  child: _PosterRow(
+                    title: 'Watchlist',
+                    items: library.watchlist,
+                  ),
+                ),
+              ];
+      default:
+        return [
+          for (final (addon, catalog) in rows)
+            SliverToBoxAdapter(
+              child: CatalogRow(addon: addon, catalog: catalog),
+            ),
+        ];
+    }
+  }
 }
 
 class HeroCarousel extends ConsumerStatefulWidget {
-  const HeroCarousel({super.key, required this.items});
+  const HeroCarousel({
+    super.key,
+    required this.items,
+    this.fullBleed = false,
+    this.autoScroll = true,
+  });
   final List<MetaItem> items;
+  final bool fullBleed;
+  final bool autoScroll;
 
   @override
   ConsumerState<HeroCarousel> createState() => _HeroCarouselState();
@@ -168,6 +237,7 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel> {
       final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
       if (!mounted ||
           reduce ||
+          !widget.autoScroll ||
           widget.items.length < 2 ||
           !_controller.hasClients)
         return;
@@ -188,10 +258,9 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    final height = (MediaQuery.sizeOf(context).height * 0.58).clamp(
-      380.0,
-      560.0,
-    );
+    final height =
+        (MediaQuery.sizeOf(context).height * (widget.fullBleed ? 0.78 : 0.58))
+            .clamp(380.0, widget.fullBleed ? 760.0 : 560.0);
     return SizedBox(
       height: height,
       child: Stack(
@@ -480,7 +549,7 @@ class CatalogRow extends ConsumerWidget {
               subtitle: '${addon.displayName} · ${_typeName(catalog.type)}',
             ),
             SizedBox(
-              height: landscape ? 150 : 232,
+              height: landscape ? 150 : AetherLook.of(context).rowHeight(232),
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AetherTokens.pageMargin,
@@ -519,4 +588,49 @@ String greeting(DateTime now) {
   if (h >= 12 && h < 18) return 'Buon pomeriggio';
   if (h >= 18 && h < 23) return 'Buonasera';
   return 'Buonanotte';
+}
+
+/// A row of posters with a title (Watchlist).
+class _PosterRow extends StatelessWidget {
+  const _PosterRow({required this.title, required this.items});
+  final String title;
+  final List<MetaItem> items;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      SectionHeader(title: title),
+      SizedBox(
+        height: AetherLook.of(context).rowHeight(232),
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AetherTokens.pageMargin,
+          ),
+          scrollDirection: Axis.horizontal,
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (context, i) => PosterCard(
+            item: items[i],
+            onTap: () => openTitle(context, items[i]),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+/// «Prossimi episodi»: series whose last episode you finished; the title page offers the next one.
+class _NextUpRow extends StatelessWidget {
+  const _NextUpRow({required this.items});
+  final List<WatchProgress> items;
+
+  @override
+  Widget build(BuildContext context) => _PosterRow(
+    title: 'Prossimi episodi',
+    items: [
+      for (final p in items)
+        MetaItem(id: p.metaId, type: p.type, name: p.name, poster: p.poster),
+    ],
+  );
 }

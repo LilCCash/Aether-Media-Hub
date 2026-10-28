@@ -8,6 +8,7 @@ import '../../app/router.dart';
 import '../../app/version.dart';
 import '../../core/debrid/torbox_client.dart';
 import '../../core/metadata/fanart_client.dart';
+import 'settings_pages2.dart';
 import '../../design/palettes.dart';
 import '../../core/metadata/tmdb_client.dart';
 import '../../core/model/meta.dart';
@@ -87,6 +88,36 @@ class MoreScreen extends ConsumerWidget {
                   onTap: () => context.push('/settings/content'),
                 ),
                 NavRow(
+                  icon: Icons.palette_rounded,
+                  title: 'Personalizzazione',
+                  subtitle: 'Sfondo, cornici, angoli, Home, In evidenza',
+                  onTap: () => context.push('/settings/look'),
+                ),
+                NavRow(
+                  icon: Icons.sort_rounded,
+                  title: 'Sorgenti',
+                  subtitle: 'Ordine, qualità, badge',
+                  onTap: () => context.push('/settings/sources'),
+                ),
+                NavRow(
+                  icon: Icons.movie_filter_rounded,
+                  title: 'Metadati e scheda del titolo',
+                  subtitle: 'TMDB, voti MDBList, cataloghi, ricerca',
+                  onTap: () => context.push('/settings/metadata'),
+                ),
+                NavRow(
+                  icon: Icons.tune_rounded,
+                  title: 'Player avanzato',
+                  subtitle: 'Gesti, sottotitoli, immagine, ripresa',
+                  onTap: () => context.push('/settings/player'),
+                ),
+                NavRow(
+                  icon: Icons.download_for_offline_rounded,
+                  title: 'Download e archiviazione',
+                  subtitle: 'Stagioni, limiti, cache',
+                  onTap: () => context.push('/settings/downloads'),
+                ),
+                NavRow(
                   icon: Icons.key_rounded,
                   title: 'Servizi',
                   subtitle: 'TorBox e TMDB (le tue chiavi)',
@@ -136,6 +167,11 @@ class SettingsPageScreen extends ConsumerWidget {
       'content' => const _ContentPage(),
       'catalogs' => const _CatalogsPage(),
       'services' => const _ServicesPage(),
+      'sources' => const SourcesPage(),
+      'metadata' => const MetadataPage(),
+      'downloads' => const DownloadsSettingsPage(),
+      'player' => const PlayerAdvancedPage(),
+      'look' => const LookPage(),
       'data' => const _DataPage(),
       'diagnostics' => const _DiagnosticsPage(),
       'about' => const _AboutPage(),
@@ -1110,6 +1146,18 @@ class _AboutPage extends StatelessWidget {
   Widget build(BuildContext context) => SettingsPageFrame(
     title: 'Informazioni',
     children: [
+      Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(26),
+          child: Image.asset(
+            'assets/brand/icon.png',
+            width: 104,
+            height: 104,
+            semanticLabel: 'Logo di Aether',
+          ),
+        ),
+      ),
+      const SizedBox(height: 14),
       const Text(
         'Aether $appVersion',
         style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),

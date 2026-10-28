@@ -222,7 +222,17 @@ class _Step extends StatelessWidget {
             GlassSurface(
               radius: 36,
               padding: const EdgeInsets.all(22),
-              child: Icon(icon, size: 52, color: AetherLook.of(context).accent),
+              child: icon == Icons.blur_on_rounded
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(22),
+                      child: Image.asset(
+                        'assets/brand/icon.png',
+                        width: 88,
+                        height: 88,
+                        semanticLabel: 'Logo di Aether',
+                      ),
+                    )
+                  : Icon(icon, size: 52, color: AetherLook.of(context).accent),
             ),
             const SizedBox(height: 26),
             Text(

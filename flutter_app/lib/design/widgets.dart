@@ -17,12 +17,12 @@ class PosterImage extends StatelessWidget {
     super.key,
     required this.url,
     required this.title,
-    this.radius = AetherTokens.rMedium,
+    this.radius,
     this.fit = BoxFit.cover,
   });
   final String? url;
   final String title;
-  final double radius;
+  final double? radius;
   final BoxFit fit;
 
   @override
@@ -59,7 +59,9 @@ class PosterImage extends StatelessWidget {
       ),
     );
     return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
+      borderRadius: BorderRadius.circular(
+        radius ?? AetherLook.of(context).corner,
+      ),
       child: url == null || url!.isEmpty || disableNetwork
           ? placeholder()
           : CachedNetworkImage(
@@ -75,6 +77,41 @@ class PosterImage extends StatelessWidget {
 }
 
 /// A catalog card: poster, a title below, optional rating chip.
+/// The frame a card gets from the «Cornice» setting.
+BoxDecoration _chrome(AetherLook look) {
+  final r = BorderRadius.circular(look.corner);
+  switch (look.chrome) {
+    case 'outline':
+      return BoxDecoration(
+        borderRadius: r,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.35),
+          width: 1.2,
+        ),
+      );
+    case 'shadow':
+      return BoxDecoration(
+        borderRadius: r,
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black87,
+            blurRadius: 14,
+            offset: Offset(0, 6),
+          ),
+        ],
+      );
+    case 'glow':
+      return BoxDecoration(
+        borderRadius: r,
+        boxShadow: [
+          BoxShadow(color: look.accent.withValues(alpha: 0.55), blurRadius: 16),
+        ],
+      );
+    default:
+      return BoxDecoration(borderRadius: r);
+  }
+}
+
 class PosterCard extends StatelessWidget {
   const PosterCard({
     super.key,
@@ -90,13 +127,14 @@ class PosterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final look = AetherLook.of(context);
     return Semantics(
       button: true,
       label: item.name,
       child: GestureDetector(
         onTap: onTap,
         child: SizedBox(
-          width: width,
+          width: width * look.posterScale,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -104,11 +142,17 @@ class PosterCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    PosterImage(
-                      url: item.poster ?? item.background,
-                      title: item.name,
+                    DecoratedBox(
+                      position: DecorationPosition.foreground,
+                      decoration: _chrome(look),
+                      child: PosterImage(
+                        url: item.poster ?? item.background,
+                        title: item.name,
+                      ),
                     ),
-                    if (showRating && item.imdbRating != null)
+                    if (showRating &&
+                        look.posterRatings &&
+                        item.imdbRating != null)
                       Positioned(
                         top: 6,
                         right: 6,
@@ -331,19 +375,29 @@ class ErrorState extends StatelessWidget {
 
 /// A small pill used for quality / HDR / language badges.
 class Pill extends StatelessWidget {
-  const Pill(this.text, {super.key, this.color});
+  const Pill(this.text, {super.key, this.color, this.style = 'filled'});
   final String text;
   final Color? color;
+
+  /// `filled`, `outline` or `plain` (the «Stile dei badge» setting).
+  final String style;
 
   @override
   Widget build(BuildContext context) {
     final c = color ?? Colors.white;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: style == 'plain'
+          ? const EdgeInsets.symmetric(vertical: 3)
+          : const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.16),
+        color: style == 'filled' ? c.withValues(alpha: 0.16) : null,
         borderRadius: BorderRadius.circular(AetherTokens.rPill),
-        border: Border.all(color: c.withValues(alpha: 0.35), width: 0.7),
+        border: style == 'plain'
+            ? null
+            : Border.all(
+                color: c.withValues(alpha: style == 'outline' ? 0.7 : 0.35),
+                width: style == 'outline' ? 1 : 0.7,
+              ),
       ),
       child: Text(
         text,

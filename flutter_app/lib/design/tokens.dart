@@ -99,6 +99,15 @@ class AetherLook extends InheritedWidget {
     required this.amoled,
     required this.cinematic,
     this.secondary,
+    this.corner = 14,
+    this.chrome = 'standard',
+    this.posterScale = 1,
+    this.posterRatings = true,
+    this.backdropStyle = 'aurora',
+    this.backdropIntensity = 1,
+    this.halos = true,
+    this.customBackground,
+    this.animations = true,
     required super.child,
   });
 
@@ -110,6 +119,20 @@ class AetherLook extends InheritedWidget {
 
   /// Second wash of the palette, shown as a faint glow in the lower corner.
   final Color? secondary;
+
+  /// Personalization: corner radius of cards, card frame, size of posters, backdrop, motion.
+  final double corner;
+  final String chrome;
+  final double posterScale;
+  final bool posterRatings;
+  final String backdropStyle;
+  final double backdropIntensity;
+  final bool halos;
+  final Color? customBackground;
+  final bool animations;
+
+  /// A row height scaled with the poster size.
+  double rowHeight(double base) => base * posterScale;
 
   static AetherLook of(BuildContext context) {
     final look = context.dependOnInheritedWidgetOfExactType<AetherLook>();
@@ -124,7 +147,16 @@ class AetherLook extends InheritedWidget {
       reduceEffects != old.reduceEffects ||
       amoled != old.amoled ||
       cinematic != old.cinematic ||
-      secondary != old.secondary;
+      secondary != old.secondary ||
+      corner != old.corner ||
+      chrome != old.chrome ||
+      posterScale != old.posterScale ||
+      posterRatings != old.posterRatings ||
+      backdropStyle != old.backdropStyle ||
+      backdropIntensity != old.backdropIntensity ||
+      halos != old.halos ||
+      customBackground != old.customBackground ||
+      animations != old.animations;
 }
 
 class _Fallback {

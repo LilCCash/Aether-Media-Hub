@@ -12,6 +12,7 @@ import '../features/library/library_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/player/offline_test_screen.dart';
 import '../features/player/player_screen.dart';
+import '../features/player/preparing_player.dart';
 import '../features/player/player_session.dart';
 import '../features/search/search_screen.dart';
 import '../features/settings/settings_screens.dart';
@@ -91,7 +92,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/player',
-        builder: (_, state) => PlayerScreen(args: state.extra as PlayerArgs),
+        builder: (_, state) {
+          final args = state.extra as PlayerArgs;
+          return args.prepare == null
+              ? PlayerScreen(args: args)
+              : PreparingPlayer(args: args);
+        },
       ),
       GoRoute(path: '/theater', builder: (_, __) => const TheaterScreen()),
       GoRoute(

@@ -220,35 +220,50 @@ class AetherBackdrop extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final look = AetherLook.of(context);
-    final base = look.amoled ? Colors.black : AetherTokens.ink;
+    final base = look.amoled
+        ? Colors.black
+        : (look.customBackground ?? AetherTokens.ink);
     final glow = (look.cinematic ? tint : null) ?? look.accent;
-    final reduced = look.reduceEffects;
+    final reduced = look.reduceEffects || look.backdropStyle == 'plain';
     final second = look.secondary;
-    final strength = look.amoled
-        ? 0.10
-        : (look.cinematic && tint != null ? 0.38 : 0.22);
+    final k = look.backdropIntensity;
+    final strength =
+        (look.amoled ? 0.10 : (look.cinematic && tint != null ? 0.38 : 0.22)) *
+        k;
+    // The three styles differ in where the light comes from.
+    final (center, radius) = switch (look.backdropStyle) {
+      'flow' => (const Alignment(-0.8, -0.9), 1.6),
+      'spotlight' => (const Alignment(0, -1.1), 0.9),
+      _ => (const Alignment(0.7, -1.0), 1.25),
+    };
     return AnimatedContainer(
-      duration: reduced ? Duration.zero : AetherTokens.slow,
+      duration: (reduced || !look.animations)
+          ? Duration.zero
+          : AetherTokens.slow,
       decoration: BoxDecoration(
         color: base,
         gradient: reduced
             ? null
             : RadialGradient(
-                center: const Alignment(0.7, -1.0),
-                radius: 1.25,
+                center: center,
+                radius: radius,
                 colors: [
-                  glow.withValues(alpha: strength),
+                  glow.withValues(alpha: strength.clamp(0.0, 0.8)),
                   Colors.transparent,
                 ],
               ),
       ),
-      foregroundDecoration: (reduced || second == null || look.amoled)
+      foregroundDecoration:
+          (reduced || !look.halos || second == null || look.amoled)
           ? null
           : BoxDecoration(
               gradient: RadialGradient(
                 center: const Alignment(-0.9, 1.0),
                 radius: 1.0,
-                colors: [second.withValues(alpha: 0.14), Colors.transparent],
+                colors: [
+                  second.withValues(alpha: (0.14 * k).clamp(0.0, 0.6)),
+                  Colors.transparent,
+                ],
               ),
             ),
       // Ink (list tiles, switches) paints on the nearest Material: give the page one above the coloured backdrop.
