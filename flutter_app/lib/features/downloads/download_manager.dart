@@ -9,6 +9,7 @@ import '../../core/addons/network_policy.dart';
 import '../../core/util/app_log.dart';
 import '../../core/util/lenient.dart';
 import '../../data/stores.dart';
+import '../player/source_check.dart';
 
 enum DownloadStatus { queued, running, paused, failed, done }
 
@@ -391,7 +392,24 @@ class DownloadManager extends ChangeNotifier {
         item.total = offset;
         return;
       }
-      if (status != 200 && status != 206) throw _HttpFailure(status);
+      final contentType = (response.headers.value('content-type') ?? '')
+          .toLowerCase();
+      final textual =
+          contentType.contains('text/') ||
+          contentType.contains('json') ||
+          contentType.contains('html');
+      if ((status != 200 && status != 206) || textual) {
+        // An error page or a «playback unavailable» message: read it, so the reason can be shown and the next source tried.
+        final head = <int>[];
+        await for (final c in response.data!.stream) {
+          head.addAll(c);
+          if (head.length >= 1024) break;
+        }
+        throw _HttpFailure(
+          (status == 200 || status == 206) ? 415 : status,
+          textSnippet(head),
+        );
+      }
       if (status == 200) offset = 0; // no range support: start again
       final length =
           int.tryParse(
@@ -428,10 +446,12 @@ class DownloadManager extends ChangeNotifier {
         await _recover(item, 'Connessione interrotta: riprova.');
       }
     } on _HttpFailure catch (e) {
-      AppLog.instance.add('download', 'HTTP ${e.status}');
+      AppLog.instance.add('download', 'HTTP ${e.status} ${e.detail ?? ''}');
       await _recover(
         item,
-        'Il server ha risposto con errore HTTP ${e.status}.',
+        e.status == 415
+            ? explainBadAnswer(200, e.detail)
+            : explainBadAnswer(e.status, e.detail),
         status: e.status,
       );
     } on Object catch (e) {
@@ -451,6 +471,7 @@ class DownloadManager extends ChangeNotifier {
 }
 
 class _HttpFailure implements Exception {
-  const _HttpFailure(this.status);
+  const _HttpFailure(this.status, [this.detail]);
   final int status;
+  final String? detail;
 }

@@ -25,6 +25,7 @@ class GlassSurface extends StatelessWidget {
     this.padding,
     this.blur = AetherTokens.blurLow,
     this.tint,
+    this.intensity,
     this.strong = false,
     this.borderRadius,
     this.liquid = false,
@@ -36,6 +37,9 @@ class GlassSurface extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final double blur;
   final Color? tint;
+
+  /// Overrides the app-wide Clear ↔ Tinted choice for this surface (the tab bar has its own).
+  final double? intensity;
   final bool strong;
 
   /// Use real Liquid Glass (refraction) when the viewer has it on; the frosted glass below is the fallback.
@@ -50,6 +54,7 @@ class GlassSurface extends StatelessWidget {
         padding: padding,
         tint: tint,
         strong: strong,
+        intensity: intensity,
         child: child,
       );
     }
@@ -57,7 +62,7 @@ class GlassSurface extends StatelessWidget {
     final r = (radius * look.corner / 14).clamp(3.0, 60.0);
     final shape = borderRadius ?? BorderRadius.circular(r);
     final enabled = glassEnabled(context);
-    final k = look.glassIntensity.clamp(0.0, 1.0);
+    final k = (intensity ?? look.glassIntensity).clamp(0.0, 1.0);
     final base = tint ?? Colors.white;
     // The slider is Clear ↔ Tinted: more of it means a denser wash and more frost, never a switch between glass and no glass.
     // A chosen item (a tint with `strong`) must stand out at once: a dense accent fill and a bright edge.

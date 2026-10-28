@@ -13,11 +13,15 @@ class LiquidDock extends StatefulWidget {
     required this.items,
     required this.index,
     required this.onSelect,
+    this.opacity = 0.12,
   });
 
   final List<(IconData, String)> items;
   final int index;
   final ValueChanged<int> onSelect;
+
+  /// How dense the bar's glass is (0 clear … 1 tinted).
+  final double opacity;
 
   @override
   State<LiquidDock> createState() => _LiquidDockState();

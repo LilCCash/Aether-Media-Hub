@@ -119,6 +119,7 @@ class PlayerSession extends ChangeNotifier {
     required this.library,
     required this.settings,
     required this.subtitleLoader,
+    this.preflight,
     Duration progressInterval = const Duration(seconds: 5),
   }) : _progressInterval = progressInterval;
 
@@ -128,6 +129,42 @@ class PlayerSession extends ChangeNotifier {
   final AppSettings settings;
   final SubtitleLoader subtitleLoader;
   final Duration _progressInterval;
+
+  /// Looks at a source before it is opened and says why it cannot be played (null when it can).
+  final Future<String?> Function(PlaybackSource)? preflight;
+  final Set<int> _triedAlternatives = {};
+
+  Future<String?> _check(PlaybackSource s) async =>
+      (preflight == null || s.isLocalFile) ? null : preflight!(s);
+
+  /// The source did not pass the check: the next one offered is tried by itself, up to the end of the list.
+  Future<bool> _openAlternative(String why, Duration start) async {
+    for (var i = 0; i < args.alternatives.length; i++) {
+      if (!_triedAlternatives.add(i)) continue;
+      try {
+        final next = await args.alternatives[i].open();
+        final bad = await _check(next);
+        if (bad != null) {
+          AppLog.instance.add('player', 'Fonte alternativa scartata: $bad');
+          continue;
+        }
+        await engine.open(
+          PlaybackSource(
+            uri: next.uri,
+            headers: next.headers,
+            title: args.title,
+            start: start,
+            isLocalFile: next.isLocalFile,
+          ),
+        );
+        _opened = true;
+        return true;
+      } on Object {
+        continue;
+      }
+    }
+    return false;
+  }
 
   final List<StreamSubscription<Object?>> _subs = [];
   Timer? _progressTimer;
@@ -221,6 +258,16 @@ class PlayerSession extends ChangeNotifier {
       if (playing) unawaited(saveProgressNow());
     });
     try {
+      final bad = await _check(args.source);
+      if (bad != null) {
+        AppLog.instance.add('player', 'Fonte scartata: $bad');
+        if (!await _openAlternative(bad, startAt)) {
+          error = bad;
+          buffering = false;
+          notifyListeners();
+        }
+        return;
+      }
       await engine.open(
         PlaybackSource(
           uri: args.source.uri,
@@ -505,6 +552,13 @@ class PlayerSession extends ChangeNotifier {
     notifyListeners();
     try {
       final next = await alternative.open();
+      final bad = await _check(next);
+      if (bad != null) {
+        error = bad;
+        buffering = false;
+        notifyListeners();
+        return;
+      }
       await engine.open(
         PlaybackSource(
           uri: next.uri,

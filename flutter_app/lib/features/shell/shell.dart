@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/providers.dart';
+import '../../data/prefs_ext.dart';
 import 'liquid_dock.dart';
 
 /// The frame of the five main sections. The tab bar itself is [DockOverlay], which sits above every page of the app.
@@ -34,13 +37,14 @@ const _tabs = [
 const _noDock = ['/player', '/theater', '/onboarding', '/offline-test'];
 
 /// The floating tab bar over every page: titles, settings, addons… It goes away only on the player and when the sources open.
-class DockOverlay extends StatelessWidget {
+class DockOverlay extends ConsumerWidget {
   const DockOverlay({super.key, required this.router, required this.child});
   final GoRouter router;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dockOpacity = ref.watch(settingsProvider).dockOpacity;
     return Stack(
       children: [
         child,
@@ -78,6 +82,7 @@ class DockOverlay extends StatelessWidget {
                           child: LiquidDock(
                             items: [for (final t in _tabs) (t.$1, t.$2)],
                             index: DockState.index,
+                            opacity: dockOpacity,
                             onSelect: (i) => router.go(_tabs[i].$3),
                           ),
                         ),

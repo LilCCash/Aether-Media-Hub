@@ -7,6 +7,8 @@ import '../../core/streams/stream_analyzer.dart';
 import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
 import '../play/play_planner.dart';
+import '../player/playback_engine.dart';
+import '../player/source_check.dart';
 import 'download_manager.dart';
 
 class SeasonDownloadSummary {
@@ -205,6 +207,16 @@ class SeasonDownloader {
             fileName = link.fileName ?? fileName;
           }
           if (url == null) continue;
+          // A source that answers with an error or a «playback unavailable» message is skipped now, not after it was queued.
+          final directHeaders = c.playability == StreamPlayability.direct
+              ? c.stream.proxyHeaders
+              : const <String, String>{};
+          if (await checkSource(
+                PlaybackSource(uri: url, headers: directHeaders),
+              ) !=
+              null) {
+            continue;
+          }
           await services.downloads.enqueue(
             metaId: meta.id,
             videoId: v.id,

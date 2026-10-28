@@ -1,3 +1,4 @@
+import 'release_language.dart';
 import '../model/stream.dart';
 
 enum VideoQuality { unknown, p480, p720, p1080, p1440, p2160 }
@@ -129,37 +130,9 @@ class StreamAnalyzer {
     return null;
   }
 
-  static final Map<String, RegExp> _langs = {
-    'Italiano': RegExp(
-      r'(?<![a-z0-9])(ita|italian[oa]?|🇮🇹)(?![a-z0-9])',
-      caseSensitive: false,
-    ),
-    'Inglese': RegExp(
-      r'(?<![a-z0-9])(eng|english|🇬🇧|🇺🇸)(?![a-z0-9])',
-      caseSensitive: false,
-    ),
-    'Francese': RegExp(
-      r'(?<![a-z0-9])(fre|fra|french|vff|🇫🇷)(?![a-z0-9])',
-      caseSensitive: false,
-    ),
-    'Spagnolo': RegExp(
-      r'(?<![a-z0-9])(spa|spanish|esp|🇪🇸)(?![a-z0-9])',
-      caseSensitive: false,
-    ),
-    'Tedesco': RegExp(
-      r'(?<![a-z0-9])(ger|deu|german|🇩🇪)(?![a-z0-9])',
-      caseSensitive: false,
-    ),
-    'Multi': RegExp(
-      r'(?<![a-z0-9])(multi|multilang)(?![a-z0-9])',
-      caseSensitive: false,
-    ),
-  };
-
-  static List<String> _languages(String text) => [
-    for (final e in _langs.entries)
-      if (e.value.hasMatch(text)) e.key,
-  ];
+  /// The audio languages named in the release, read the same way as the iOS app does (subtitle-only tags ignored).
+  static List<String> _languages(String text) =>
+      ReleaseLanguage.languages(text);
 
   static int? _size(String text) {
     final m = RegExp(

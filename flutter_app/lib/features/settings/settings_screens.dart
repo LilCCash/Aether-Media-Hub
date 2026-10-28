@@ -604,6 +604,16 @@ class _AppearancePage extends ConsumerWidget {
                   : (v > 0.85 ? 'Colorato' : '${(v * 100).round()}%'),
               onChanged: (v) => n.update((x) => x.copyWith(glassIntensity: v)),
             ),
+            PrefSlider(
+              'dockOpacity',
+              'Opacità della barra in basso',
+              (x) => x.dockOpacity,
+              min: 0,
+              max: 1,
+              divisions: 20,
+              format: (v) =>
+                  v < 0.1 ? 'Quasi invisibile' : '${(v * 100).round()}%',
+            ),
             SwitchRow(
               title: 'Riduci gli effetti',
               subtitle: 'Superfici opache, niente sfocature né animazioni',

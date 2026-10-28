@@ -33,6 +33,7 @@ class LiquidSurface extends StatelessWidget {
     this.padding,
     this.tint,
     this.strong = false,
+    this.intensity,
   });
 
   final Widget child;
@@ -40,6 +41,7 @@ class LiquidSurface extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final Color? tint;
   final bool strong;
+  final double? intensity;
 
   @override
   Widget build(BuildContext context) {
@@ -49,11 +51,12 @@ class LiquidSurface extends StatelessWidget {
         padding: padding,
         tint: tint,
         strong: strong,
+        intensity: intensity,
         child: child,
       );
     }
     final look = AetherLook.of(context);
-    final t = look.glassIntensity.clamp(0.0, 1.0);
+    final t = (intensity ?? look.glassIntensity).clamp(0.0, 1.0);
     return RepaintBoundary(
       child: LiquidGlass.auto(
         settings: LiquidGlassSettings.ios27Regular(

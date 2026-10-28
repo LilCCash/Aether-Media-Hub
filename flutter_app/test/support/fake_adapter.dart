@@ -25,7 +25,12 @@ class FakeAdapter implements HttpClientAdapter {
       utf8.encode(r.body),
       r.status,
       headers: {
-        Headers.contentTypeHeader: ['application/json'],
+        // JSON answers are JSON; anything else stands for a file being downloaded.
+        Headers.contentTypeHeader: [
+          RegExp(r'^\s*[\[{]').hasMatch(r.body)
+              ? 'application/json'
+              : 'application/octet-stream',
+        ],
       },
     );
   }

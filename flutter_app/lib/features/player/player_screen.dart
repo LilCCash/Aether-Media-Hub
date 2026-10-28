@@ -23,6 +23,7 @@ import 'media_kit_engine.dart';
 import 'playback_engine.dart';
 import 'player_panels.dart';
 import 'player_session.dart';
+import 'source_check.dart';
 import 'subtitle_style.dart';
 
 /// Picture in Picture exists only where the platform engine can really keep playing in a floating window: Android (the activity
@@ -78,6 +79,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       library: services.library,
       settings: ref.read(settingsProvider),
       subtitleLoader: services.subtitleLoader,
+      preflight: checkSource,
     );
     _session.addListener(_onSession);
     _session.start();

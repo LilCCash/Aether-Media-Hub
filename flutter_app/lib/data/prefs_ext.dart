@@ -63,6 +63,9 @@ extension PrefsExt on AppSettings {
   int get controlsHideSec => _i('controlsHideSec', 4, 2, 15);
   int get resumeRewindSec => _i('resumeRewindSec', 0, 0, 30);
   int get nextCountdownSec => _i('nextCountdownSec', 8, 3, 30);
+
+  /// How dense the tab bar's glass is: 0 clear, 1 tinted. Low by default, so the page shows through it.
+  double get dockOpacity => _d('dockOpacity', 0.12, 0, 1);
   double get watchedThreshold => _d('watchedThreshold', 0.9, 0.5, 0.99);
   bool get holdToSpeed => _b('holdToSpeed', true);
   double get holdSpeed => _d('holdSpeed', 2.0, 1.25, 4.0);

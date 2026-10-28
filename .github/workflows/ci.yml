@@ -5,9 +5,11 @@ name: CI
 # Documentation-only changes do not start the workflow.
 on:
   push:
-    branches: ['**']
+    # The Flutter branch has its own workflows (Flutter CI, Flutter Build): the iOS app's CI is not run for it.
+    branches: ['**', '!aether-flutter-comp']
     paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE']
   pull_request:
+    branches-ignore: ['aether-flutter-comp']
     paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE']
   workflow_dispatch:
     inputs:

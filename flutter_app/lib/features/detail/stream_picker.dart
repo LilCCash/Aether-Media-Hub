@@ -135,6 +135,7 @@ class StreamPickerSheet extends ConsumerStatefulWidget {
 
 class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
   String? _addon;
+  String _query = '';
   Map<String, bool> _cached = {};
   bool _debrid = false;
   String? _cacheProblem;
@@ -215,9 +216,19 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
     }
     final addonNames = {for (final r in ranked) r.stream.addonName ?? 'Addon'}
         .toList();
-    final shown = ranked
-        .where((r) => _addon == null || r.stream.addonName == _addon)
+    // The search box looks in the names of the sources: every word typed must appear in the name, description or file name.
+    final words = _query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
         .toList();
+    final shown = ranked.where((r) {
+      if (_addon != null && r.stream.addonName != _addon) return false;
+      if (words.isEmpty) return true;
+      final text = '${r.stream.searchText} ${r.stream.addonName ?? ''}'
+          .toLowerCase();
+      return words.every(text.contains);
+    }).toList();
     final offline = video == null
         ? PlayPlanner(
             ref.read(servicesProvider),
@@ -279,6 +290,30 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                 ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: GlassSurface(
+                radius: 16,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: TextField(
+                  onChanged: (v) => setState(() => _query = v),
+                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    hintText: 'Cerca tra le sorgenti (nome, qualità, lingua…)',
+                    hintStyle: const TextStyle(fontSize: 13),
+                    icon: const Icon(Icons.search_rounded, size: 20),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            onPressed: () => setState(() => _query = ''),
+                          ),
+                  ),
+                ),
               ),
             ),
             if (addonNames.length > 1)
