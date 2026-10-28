@@ -116,3 +116,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+dependency_overrides:
+  # iOS 16 as the minimum (the Google Cast SDK needs it): see third_party/flutter_chrome_cast/NOTICE-AETHER.md
+  flutter_chrome_cast:
+    path: third_party/flutter_chrome_cast

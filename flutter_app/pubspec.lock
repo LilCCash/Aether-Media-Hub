@@ -297,10 +297,9 @@ packages:
   flutter_chrome_cast:
     dependency: "direct main"
     description:
-      name: flutter_chrome_cast
-      sha256: "4626726837651b941ccfa7bf5320fd61fe2eec939fb414f86da57b0f84b72e88"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/flutter_chrome_cast"
+      relative: true
+    source: path
     version: "2.0.0"
   flutter_gpu:
     dependency: transitive
