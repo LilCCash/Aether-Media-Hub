@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart' show RequestOptions;
@@ -10,6 +11,7 @@ import 'package:aether_flutter/data/stores.dart';
 import 'package:aether_flutter/design/tokens.dart';
 import 'package:aether_flutter/design/widgets.dart';
 import 'package:aether_flutter/features/player/player_screen.dart';
+import 'package:aether_flutter/features/player/preparing_player.dart';
 import 'package:aether_flutter/features/theater/theater_sound.dart';
 import 'package:aether_flutter/features/player/playback_engine.dart';
 import 'package:aether_flutter/features/player/player_session.dart';
@@ -304,6 +306,86 @@ void main() {
       expect(find.text('THEATER MODE'), findsNothing);
     },
   );
+
+  group('player that opens before the link is ready', () {
+    Future<void> boot2(
+      WidgetTester tester,
+      Future<PlaybackSource> Function(PrepareControl) prepare,
+      FakeEngine engine,
+    ) async {
+      final s = await tester.runAsync(
+        () => services(settings: const AppSettings(onboardingDone: true)),
+      );
+      tester.view.physicalSize = const Size(2400, 1080);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [servicesProvider.overrideWithValue(s!)],
+          child: MaterialApp(
+            builder: (c, child) => AetherLook(
+              accent: Colors.blue,
+              glassIntensity: 1,
+              reduceEffects: true,
+              amoled: false,
+              cinematic: false,
+              child: child!,
+            ),
+            home: PreparingPlayer(
+              engine: engine,
+              args: PlayerArgs(
+                title: 'Film lento',
+                saveProgress: false,
+                source: const PlaybackSource(uri: ''),
+                prepare: prepare,
+              ),
+            ),
+          ),
+        ),
+      );
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 1));
+      });
+    }
+
+    testWidgets(
+      'shows the title and what is happening at once, then becomes the player',
+      (tester) async {
+        final gate = Completer<PlaybackSource>();
+        final engine = FakeEngine();
+        await boot2(tester, (ctl) {
+          ctl.status('Controllo TorBox…', 0.3);
+          return gate.future;
+        }, engine);
+        await frames(tester, 3);
+        expect(find.text('Film lento'), findsOneWidget);
+        expect(find.text('Controllo TorBox…'), findsOneWidget);
+        gate.complete(
+          const PlaybackSource(uri: '/tmp/x.mp4', isLocalFile: true),
+        );
+        await frames(tester, 6);
+        expect(find.text('Controllo TorBox…'), findsNothing);
+        expect(engine.opened, isNotNull);
+      },
+    );
+
+    testWidgets('a failure is explained and can be retried', (tester) async {
+      var tries = 0;
+      final engine = FakeEngine();
+      await boot2(tester, (ctl) async {
+        tries++;
+        if (tries == 1) throw Exception('TorBox non risponde.');
+        return const PlaybackSource(uri: '/tmp/x.mp4', isLocalFile: true);
+      }, engine);
+      await frames(tester, 4);
+      expect(find.text('TorBox non risponde.'), findsOneWidget);
+      await tester.tap(find.text('Riprova'));
+      await frames(tester, 6);
+      expect(tries, 2);
+      expect(engine.opened, isNotNull);
+    });
+  });
 
   group('player screen', () {
     PlayerArgs args() => const PlayerArgs(

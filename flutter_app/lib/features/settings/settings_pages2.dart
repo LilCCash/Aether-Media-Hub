@@ -712,10 +712,6 @@ class LookPage extends ConsumerWidget {
               _size,
               {'small': 'Piccola', 'medium': 'Media', 'large': 'Grande'},
             ),
-            const PrefChoice<String>('density', 'Densità', _density, {
-              'compact': 'Compatta',
-              'comfortable': 'Comoda',
-            }),
             const PrefSwitch(
               'posterRatings',
               'Voto sulle locandine',
@@ -801,7 +797,6 @@ class LookPage extends ConsumerWidget {
   static String _chrome(AppSettings s) => s.cardChrome;
   static String _corner(AppSettings s) => s.cornerStyle;
   static String _size(AppSettings s) => s.posterSize;
-  static String _density(AppSettings s) => s.density;
   static bool _posterRatings(AppSettings s) => s.posterRatings;
   static bool _anim(AppSettings s) => s.animations;
   static String _hero(AppSettings s) => s.heroStyle;

@@ -1,4 +1,7 @@
-# Parità funzionale iOS ↔ Android TV ↔ Flutter (2026-10-28)
+# Parità funzionale iOS ↔ Android TV ↔ Flutter (2026-10-29)
+
+> Elenco puntuale, voce per voce, con le spunte: [IOS_PARITY_CHECKLIST.md](IOS_PARITY_CHECKLIST.md) (ricavato dal codice Swift di `main-secondary`).
+
 
 Ricavata **leggendo i documenti e il codice** dei rami `main-secondary` (iOS, Swift) e `feature/aether-android-tv` (Kotlin; `android-tv/docs/PARITA.md`), non le descrizioni.
 Stati originali: ✅ implementato e provato da test · 🟦 compilato/provato solo in CI o simulatore · 🟡 parziale · ⛔ assente.

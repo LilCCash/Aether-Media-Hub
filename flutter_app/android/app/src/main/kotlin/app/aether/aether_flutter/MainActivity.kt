@@ -15,6 +15,9 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
 
+    /** Set by the player while a video plays and «Picture-in-Picture automatico» is on: leaving the app then floats the video. */
+    private var autoPip = false
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.aether/pip").also { ch ->
@@ -34,8 +37,23 @@ class MainActivity : FlutterActivity() {
                             }
                         }
                     }
+                    "setAuto" -> {
+                        autoPip = call.argument<Boolean>("on") ?: false
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
+            }
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (autoPip && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build())
+            } catch (e: IllegalStateException) {
+                // the device does not allow it: nothing to do
             }
         }
     }

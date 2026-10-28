@@ -29,6 +29,10 @@ class TheaterPrefs {
     this.sprockets = false,
     this.intro = true,
     this.sound = true,
+    this.corners = 1,
+    this.border = 1,
+    this.glow = true,
+    this.rowStyle = 0,
   });
 
   final int palette; // TheaterPalette index
@@ -41,6 +45,12 @@ class TheaterPrefs {
   final bool sprockets;
   final bool intro;
   final bool sound;
+  final int corners; // 0 sharp, 1 soft, 2 round
+  final int border; // 0 none, 1 thin, 2 accent
+  final bool glow; // light around the selected card
+  final int rowStyle; // row titles: 0 normal, 1 serif, 2 small caps
+
+  double get radius => const [4.0, 14.0, 22.0][corners];
 
   /// Version of the Theater interface (not of the app).
   static const version = '0.1.0';
@@ -63,6 +73,10 @@ class TheaterPrefs {
     bool? sprockets,
     bool? intro,
     bool? sound,
+    int? corners,
+    int? border,
+    bool? glow,
+    int? rowStyle,
   }) => TheaterPrefs(
     palette: palette ?? this.palette,
     background: background ?? this.background,
@@ -74,6 +88,10 @@ class TheaterPrefs {
     sprockets: sprockets ?? this.sprockets,
     intro: intro ?? this.intro,
     sound: sound ?? this.sound,
+    corners: corners ?? this.corners,
+    border: border ?? this.border,
+    glow: glow ?? this.glow,
+    rowStyle: rowStyle ?? this.rowStyle,
   );
 
   Map<String, Object?> toJson() => {
@@ -87,6 +105,10 @@ class TheaterPrefs {
     'sprockets': sprockets,
     'intro': intro,
     'sound': sound,
+    'corners': corners,
+    'border': border,
+    'glow': glow,
+    'rowStyle': rowStyle,
   };
 
   factory TheaterPrefs.fromJson(Object? raw) {
@@ -108,6 +130,10 @@ class TheaterPrefs {
       sprockets: asBool(m['sprockets'], fallback: d.sprockets),
       intro: asBool(m['intro'], fallback: d.intro),
       sound: asBool(m['sound'], fallback: d.sound),
+      corners: pick('corners', 2, d.corners),
+      border: pick('border', 2, d.border),
+      glow: asBool(m['glow'], fallback: d.glow),
+      rowStyle: pick('rowStyle', 2, d.rowStyle),
     );
   }
 }

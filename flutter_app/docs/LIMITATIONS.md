@@ -4,6 +4,8 @@
 
 **Theater Mode:** versione ridotta (vedi FEATURE_PARITY): niente effetto proiettore né angoli/bordo/alone configurabili; il suono d'ingresso è generato dall'app e non è stato ascoltato su un telefono.
 
+**Ancora da portare (vedi IOS_PARITY_CHECKLIST.md):** tipi di Scopri configurabili, link IMDb dell'episodio, limite in MB della cache immagini, spazio libero, effetto proiettore e foglio a due colonne del Theater, cambio automatico di sorgente per un download già avviato, tema chiaro (solo scuro in Flutter), «densità».
+
 **Non implementato (e senza pulsanti finti):** AirPlay, Google Cast, DLNA su iPhone (la ricerca SSDP richiede un permesso Apple per il multicast), ponte e remux/transcodifica, PiP su iOS (libmpv), HDR/Dolby Vision garantiti, QR per aggiungere addon, cornici/angoli/layout delle card, modalità chiara, Android TV/telecomando.
 
 **Implementato ma mai provato contro il servizio reale o su un telefono:** Real-Debrid, TheTVDB, MDBList, fanart.tv, IntroDB, TorBox, TMDB (solo server finti nei test); gesti di luminosità/volume, trasmissione DLNA, link `stremio://` del sistema, suono d'ingresso del Theater.

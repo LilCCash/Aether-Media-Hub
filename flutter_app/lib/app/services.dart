@@ -138,6 +138,8 @@ class AppServices {
     await downloads.load();
     WatchProgress.threshold = settings.watchedThreshold;
     AppLog.instance.enabled = settings.keepLog;
+    client.cacheEnabled = settings.cacheMetadata;
+    client.minCacheSeconds = settings.catalogRefreshMin * 60;
     downloads.maxConcurrent = settings.maxDownloads;
     downloads.allowCellular = settings.downloadOverCellular;
     downloads.networkAllowed = () async {

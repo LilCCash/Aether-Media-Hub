@@ -78,6 +78,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _session.addListener(_onSession);
     _session.start();
     _loadSegments();
+    if (Platform.isAndroid) {
+      _pipChannel
+          .invokeMethod<void>('setAuto', {
+            'on': ref.read(settingsProvider).autoPip,
+          })
+          .catchError((Object _) {});
+    }
     final sleep = ref.read(settingsProvider).sleepTimerMin;
     if (sleep > 0) {
       _sleepTimer = Timer(Duration(minutes: sleep), () {
@@ -219,13 +226,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive)
+        state == AppLifecycleState.inactive) {
       _session.saveProgressNow();
+    }
+    if (state == AppLifecycleState.paused &&
+        !ref.read(settingsProvider).backgroundAudio) {
+      // Give the activity a moment to report Picture in Picture before deciding the video must stop.
+      Future<void>.delayed(const Duration(milliseconds: 400), () {
+        if (mounted && !_inPip) _engine.pause();
+      });
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (Platform.isAndroid) {
+      _pipChannel
+          .invokeMethod<void>('setAuto', {'on': false})
+          .catchError((Object _) {});
+    }
     _hideTimer?.cancel();
     _sleepTimer?.cancel();
     _nextTimer?.cancel();

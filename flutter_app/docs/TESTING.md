@@ -1,6 +1,6 @@
 # Test (2026-10-29)
 
-Eseguiti in questo ambiente con Flutter 3.47.8 (`flutter test`): **105 test, tutti superati**; la CI (`.github/workflows/flutter-ci.yml`) esegue formattazione, analisi statica e gli stessi test su Ubuntu.
+Eseguiti in questo ambiente con Flutter 3.47.8 (`flutter test`): **114 test, tutti superati**; la CI (`.github/workflows/flutter-ci.yml`) esegue formattazione, analisi statica e gli stessi test su Ubuntu.
 Nessun test è stato eseguito su iPhone, iPad, telefono Android o emulatore: **non c'erano** nell'ambiente.
 
 | Area | File | Cosa prova |
@@ -15,6 +15,9 @@ Nessun test è stato eseguito su iPhone, iPad, telefono Android o emulatore: **n
 | Backup | `backup_test` | niente segreti senza richiesta, ripristino completo, file non valido |
 | Interfaccia | `ui_test` | primo avvio → addon → Home, Home vuota, ogni scheda e ogni pagina impostazioni, impostazioni persistenti, scheda titolo e selettore sorgenti, Theater Mode (ingresso e uscita, barra scorrevole), link `stremio://` → anteprima addon senza installare, **tasto indietro del player**, controlli del player, errore di riproduzione |
 | Colore | `mood_color_test` | colore Cinematic |
+| Opzioni e ordine | `prefs_test` | opzioni estese (valori fuori scala, andata e ritorno, `ext` danneggiato), sezioni della Home, ordine delle sorgenti per addon / per qualità, limite di qualità |
+| Stagioni | `season_test` | regola di scelta delle sorgenti (lingua, limite rigoroso, più leggere, torrent solo con debrid), riepilogo, opzioni |
+| Player che si apre subito | `ui_test` | titolo e stato visibili subito, poi il player; errore spiegato e «Riprova» |
 | Servizi opzionali | `services_test` | fanart.tv (scelta del logo, nessuna richiesta senza chiave), MDBList (scale dei voti, duplicati), TheTVDB (login, nuovo login su 401, episodi, chiave non ripetuta), IntroDB (secondi/millisecondi, finestra del pulsante, cache), Real-Debrid (conferma prima di aggiungere, selezione file, link https, token mai negli errori) — tutti con server finti |
 | Badge importati | `badge_pack_test` | formato «filters» Nuvio/Fusion e lista semplice, colori con alpha, immagini solo https, espressioni regolari rotte, caricatore (solo https e non locale) |
 | Filtri | `filters_test` | tipo/genere/decennio, anno da testo libero |

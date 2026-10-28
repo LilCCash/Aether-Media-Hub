@@ -373,8 +373,12 @@ class _TheaterRow extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
                   child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    prefs.rowStyle == 2 ? title.toUpperCase() : title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontFamily: prefs.rowStyle == 1 ? 'serif' : null,
+                      letterSpacing: prefs.rowStyle == 2 ? 2 : null,
+                      fontSize: prefs.rowStyle == 2 ? 13 : null,
+                    ),
                   ),
                 ),
                 SizedBox(
@@ -408,14 +412,22 @@ class _TheaterRow extends ConsumerWidget {
                                   duration: AetherTokens.medium,
                                   height: prefs.rowHeight,
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(
+                                      prefs.radius + 2,
+                                    ),
                                     border: Border.all(
                                       color: selected
                                           ? accent
-                                          : Colors.transparent,
-                                      width: 2,
+                                          : (prefs.border == 2
+                                                ? accent.withValues(alpha: 0.6)
+                                                : (prefs.border == 1
+                                                      ? Colors.white24
+                                                      : Colors.transparent)),
+                                      width: selected || prefs.border == 2
+                                          ? 2
+                                          : 1,
                                     ),
-                                    boxShadow: selected
+                                    boxShadow: selected && prefs.glow
                                         ? [
                                             BoxShadow(
                                               color: accent.withValues(
@@ -431,7 +443,7 @@ class _TheaterRow extends ConsumerWidget {
                                         ? (m.poster ?? m.background)
                                         : (m.background ?? m.poster),
                                     title: m.name,
-                                    radius: 14,
+                                    radius: prefs.radius,
                                   ),
                                 ),
                                 if (prefs.titles)

@@ -36,6 +36,8 @@ class SettingsNotifier extends Notifier<AppSettings> {
     final policy = NetworkPolicy(allowLocalNetwork: state.allowLocalNetwork);
     s.addonClient.policy = policy;
     s.downloads.policy = policy;
+    s.addonClient.cacheEnabled = state.cacheMetadata;
+    s.addonClient.minCacheSeconds = state.catalogRefreshMin * 60;
     WatchProgress.threshold = state.watchedThreshold;
     s.downloads.maxConcurrent = state.maxDownloads;
     s.downloads.allowCellular = state.downloadOverCellular;

@@ -165,6 +165,7 @@ class AddonClient {
     if (problem != null) throw AddonException(problem);
     final now = DateTime.now();
     final cached = _cache[uri.toString()];
+    useCache = useCache && cacheEnabled;
     if (useCache && cached != null && cached.expires.isAfter(now))
       return cached.json;
     try {
@@ -192,7 +193,12 @@ class AddonClient {
       if (useCache && maxAge > 0)
         _cache[uri.toString()] = _Cached(
           json,
-          now.add(Duration(seconds: maxAge.clamp(1, 3600))),
+          now.add(
+            Duration(
+              seconds: (maxAge < minCacheSeconds ? minCacheSeconds : maxAge)
+                  .clamp(1, 7200),
+            ),
+          ),
         );
       return json;
     } on DioException catch (e) {
@@ -213,6 +219,10 @@ class AddonClient {
   }
 
   void clearCache() => _cache.clear();
+
+  /// Settings ▸ Metadati: «Salva in cache» off disables the cache; «Aggiorna ogni N minuti» is the least time an answer is kept.
+  bool cacheEnabled = true;
+  int minCacheSeconds = 0;
 }
 
 class _Cached {

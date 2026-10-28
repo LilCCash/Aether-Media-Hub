@@ -77,6 +77,42 @@ class TheaterMore extends ConsumerWidget {
               ],
             ),
             SettingsGroup(
+              title: 'Cornici',
+              children: [
+                ChoiceRow<int>(
+                  title: 'Angoli',
+                  value: t.corners,
+                  options: const {0: 'Netti', 1: 'Morbidi', 2: 'Arrotondati'},
+                  onChanged: (v) => set((x) => x.copyWith(corners: v)),
+                ),
+                ChoiceRow<int>(
+                  title: 'Bordo',
+                  value: t.border,
+                  options: const {
+                    0: 'Nessuno',
+                    1: 'Sottile',
+                    2: 'Colore d’accento',
+                  },
+                  onChanged: (v) => set((x) => x.copyWith(border: v)),
+                ),
+                SwitchRow(
+                  title: 'Alone sulla locandina selezionata',
+                  value: t.glow,
+                  onChanged: (v) => set((x) => x.copyWith(glow: v)),
+                ),
+                ChoiceRow<int>(
+                  title: 'Titoli delle righe',
+                  value: t.rowStyle,
+                  options: const {
+                    0: 'Normale',
+                    1: 'Con grazie',
+                    2: 'Maiuscoletto',
+                  },
+                  onChanged: (v) => set((x) => x.copyWith(rowStyle: v)),
+                ),
+              ],
+            ),
+            SettingsGroup(
               title: 'Righe e barra',
               children: [
                 SwitchRow(

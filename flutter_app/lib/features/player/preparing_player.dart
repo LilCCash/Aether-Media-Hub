@@ -7,14 +7,18 @@ import 'package:go_router/go_router.dart';
 import '../../app/orientation.dart';
 import '../../app/providers.dart';
 import '../../design/glass.dart';
+import 'playback_engine.dart';
 import 'player_screen.dart';
 import 'player_session.dart';
 
 /// The player as soon as the viewer taps «Guarda» on a torrent: it is already landscape, shows the fanart.tv logo (or the title)
 /// and what the debrid service is doing, and swaps to the real player when the link is ready. Back cancels the wait.
 class PreparingPlayer extends ConsumerStatefulWidget {
-  const PreparingPlayer({super.key, required this.args});
+  const PreparingPlayer({super.key, required this.args, this.engine});
   final PlayerArgs args;
+
+  /// Tests inject an engine for the real player that replaces this screen.
+  final PlaybackEngine? engine;
 
   @override
   ConsumerState<PreparingPlayer> createState() => _PreparingPlayerState();
@@ -101,7 +105,7 @@ class _PreparingPlayerState extends ConsumerState<PreparingPlayer> {
   @override
   Widget build(BuildContext context) {
     final ready = _ready;
-    if (ready != null) return PlayerScreen(args: ready);
+    if (ready != null) return PlayerScreen(args: ready, engine: widget.engine);
     final a = widget.args;
     final logo = ref
         .watch(logoProvider((metaId: a.metaId, isMovie: a.type != 'series')))

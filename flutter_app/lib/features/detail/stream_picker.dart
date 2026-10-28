@@ -51,6 +51,7 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
   bool _debrid = false;
   String? _cacheProblem;
   final Set<String> _asked = {};
+  bool _autoDone = false;
 
   @override
   void initState() {
@@ -96,6 +97,34 @@ class _StreamPickerSheetState extends ConsumerState<StreamPickerSheet> {
     );
     final ranked = ranker.rank(state.streams);
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkCache(ranked));
+    // «Scegli automaticamente la sorgente migliore»: once the addons have answered, the first source that opens without
+    // asking anything starts by itself (a torrent only when it is known to be in cache).
+    if (settings.autoSelectStream &&
+        !_autoDone &&
+        !state.loading &&
+        ranked.isNotEmpty) {
+      bool sure(RankedStream r) =>
+          r.playability == StreamPlayability.direct ||
+          (r.playability == StreamPlayability.needsDebrid &&
+              _cached[r.stream.infoHash] == true);
+      final best = ranked.where(sure).firstOrNull;
+      if (best != null) {
+        _autoDone = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+          final ctx = Navigator.of(context).context;
+          await playStream(
+            ctx,
+            ref,
+            meta: widget.meta,
+            video: video,
+            chosen: best,
+            all: ranked,
+            state: state,
+          );
+        });
+      }
+    }
     final addonNames = {for (final r in ranked) r.stream.addonName ?? 'Addon'}
         .toList();
     final shown = ranked
