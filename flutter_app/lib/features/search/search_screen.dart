@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../../core/catalog/result_filters.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -26,6 +29,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Timer? _debounce;
   String _query = '';
   List<String> _recent = [];
+  ResultFilters _filters = ResultFilters.none;
 
   @override
   void initState() {
@@ -189,9 +193,33 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 : '${state.errors.length} addon non hanno risposto.',
           );
         }
+        final every = [for (final g in state.groups) ...g.items];
+        final groups = [
+          for (final g in state.groups)
+            if (_filters.type == null || g.type == _filters.type)
+              SearchGroup(
+                g.addonName,
+                g.catalogName,
+                g.type,
+                _filters.copyWith(type: null).apply(g.items),
+              ),
+        ].where((g) => g.items.isNotEmpty).toList();
         return ListView(
           padding: const EdgeInsets.only(bottom: 120),
           children: [
+            FilterBar(
+              filters: _filters,
+              types: {for (final g in state.groups) g.type}.toList()..sort(),
+              genres: ResultFilters.genresOf(every),
+              decades: ResultFilters.decadesOf(every),
+              typeName: typeName,
+              onChanged: (f) => setState(() => _filters = f),
+            ),
+            if (groups.isEmpty && _filters.active)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Nessun risultato con questi filtri.'),
+              ),
             if (state.loading)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -210,7 +238,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ],
                 ),
               ),
-            for (final g in state.groups) ...[
+            for (final g in groups) ...[
               SectionHeader(
                 title: g.catalogName,
                 subtitle: '${g.addonName} · ${typeName(g.type)}',

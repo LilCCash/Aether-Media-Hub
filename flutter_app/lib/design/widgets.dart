@@ -1,3 +1,4 @@
+import '../core/catalog/result_filters.dart';
 import '../core/streams/badge_pack.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -407,4 +408,126 @@ class ImportedBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A row of three filter buttons (type, genre, decade) that open a list to pick from, plus "Azzera" when one is set.
+class FilterBar extends StatelessWidget {
+  const FilterBar({
+    super.key,
+    required this.filters,
+    required this.types,
+    required this.genres,
+    required this.decades,
+    required this.onChanged,
+    this.typeName = _plain,
+  });
+
+  final ResultFilters filters;
+  final List<String> types;
+  final List<String> genres;
+  final List<int> decades;
+  final ValueChanged<ResultFilters> onChanged;
+  final String Function(String) typeName;
+
+  static String _plain(String s) => s;
+
+  Future<T?> _pick<T>(
+    BuildContext context,
+    String title,
+    List<T> options,
+    String Function(T) label,
+  ) {
+    return showModalBottomSheet<T>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text(title, style: Theme.of(c).textTheme.titleMedium),
+            ),
+            for (final o in options)
+              ListTile(title: Text(label(o)), onTap: () => Navigator.pop(c, o)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        children: [
+          if (types.length > 1)
+            _chip(
+              context,
+              filters.type == null ? 'Tipo' : typeName(filters.type!),
+              filters.type != null,
+              () async {
+                final v = await _pick<String>(context, 'Tipo', types, typeName);
+                if (v != null) onChanged(filters.copyWith(type: v));
+              },
+            ),
+          if (genres.isNotEmpty)
+            _chip(
+              context,
+              filters.genre ?? 'Genere',
+              filters.genre != null,
+              () async {
+                final v = await _pick<String>(
+                  context,
+                  'Genere',
+                  genres,
+                  (s) => s,
+                );
+                if (v != null) onChanged(filters.copyWith(genre: v));
+              },
+            ),
+          if (decades.isNotEmpty)
+            _chip(
+              context,
+              filters.decade == null ? 'Anno' : '${filters.decade}',
+              filters.decade != null,
+              () async {
+                final v = await _pick<int>(
+                  context,
+                  'Decennio',
+                  decades,
+                  (d) => '$d – ${d + 9}',
+                );
+                if (v != null) onChanged(filters.copyWith(decade: v));
+              },
+            ),
+          if (filters.active)
+            _chip(
+              context,
+              'Azzera',
+              false,
+              () => onChanged(ResultFilters.none),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(
+    BuildContext context,
+    String label,
+    bool selected,
+    VoidCallback onTap,
+  ) => Padding(
+    padding: const EdgeInsets.only(right: 8),
+    child: GlassButton(
+      label: label,
+      size: 36,
+      selected: selected,
+      onPressed: onTap,
+    ),
+  );
 }

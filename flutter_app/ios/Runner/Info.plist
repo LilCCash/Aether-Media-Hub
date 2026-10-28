@@ -6,6 +6,20 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>app.aether.addon-links</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>stremio</string>
+				<string>aether</string>
+			</array>
+		</dict>
+	</array>
+	<key>FlutterDeepLinkingEnabled</key>
+	<true/>
 	<key>CFBundleDisplayName</key>
 	<string>Aether</string>
 	<key>CFBundleExecutable</key>

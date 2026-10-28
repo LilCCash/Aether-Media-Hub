@@ -29,6 +29,14 @@ final routerProvider = Provider<GoRouter>((ref) {
   final onboardingDone = ref.read(settingsProvider).onboardingDone;
   return GoRouter(
     initialLocation: onboardingDone ? '/home' : '/onboarding',
+    redirect: (context, state) {
+      // `stremio://…/manifest.json` and `aether://addon?url=…` open the addon page with the preview of that address.
+      final u = state.uri;
+      if (u.scheme == 'stremio' || u.scheme == 'aether') {
+        return '/addons?install=${Uri.encodeQueryComponent(u.toString())}';
+      }
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/onboarding',
@@ -90,7 +98,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/offline-test',
         builder: (_, __) => const OfflineTestScreen(),
       ),
-      GoRoute(path: '/addons', builder: (_, __) => const AddonsScreen()),
+      GoRoute(
+        path: '/addons',
+        builder: (_, state) =>
+            AddonsScreen(installUrl: state.uri.queryParameters['install']),
+      ),
       GoRoute(path: '/downloads', builder: (_, __) => const DownloadsScreen()),
       GoRoute(
         path: '/settings/:page',

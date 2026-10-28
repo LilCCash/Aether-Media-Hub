@@ -98,6 +98,42 @@ void main() {
   }
 
   testWidgets(
+    'a stremio:// link opens the addon page with the preview of that address; the viewer still confirms',
+    (tester) async {
+      final s = await tester.runAsync(() => services(installed: false));
+      await tester.runAsync(
+        () =>
+            SettingsRepository(s!.store)
+                .save(const AppSettings(onboardingDone: true)),
+      );
+      final s2 = await tester.runAsync(() async {
+        final svc = await AppServices.build(
+          store: s!.store,
+          secrets: MemorySecretStore(),
+          downloadsDir: dir,
+          dio: fakeDio(_server),
+        );
+        return svc;
+      });
+      await boot(tester, s2!);
+      final ctx = tester.element(find.byType(Scaffold).first);
+      GoRouter.of(ctx).go('stremio://x.example/cfg/manifest.json');
+      await frames(tester, 3);
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)),
+      );
+      await frames(tester, 5);
+      expect(find.textContaining('UI Addon'), findsWidgets);
+      expect(find.text('Installa'), findsOneWidget);
+      expect(
+        s2.addons.addons,
+        isEmpty,
+        reason: 'nothing is installed without a tap',
+      );
+    },
+  );
+
+  testWidgets(
     'first launch shows the welcome, lets the viewer install an addon and ends on the Home with its rows',
     (tester) async {
       final s = await tester.runAsync(() => services(installed: false));

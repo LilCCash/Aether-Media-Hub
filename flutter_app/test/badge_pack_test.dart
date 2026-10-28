@@ -23,7 +23,12 @@ void main() {
 
   test('the Fusion/Nuvio format: patterns, colours with alpha, https pictures only, disabled and incomplete entries skipped', () {
     final rules = CustomBadgePack.parse(fusion);
-    expect(rules.map((r) => r.label), ['Remux', 'HDR', 'Bad image', 'Broken regex']);
+    expect(rules.map((r) => r.label), [
+      'Remux',
+      'HDR',
+      'Bad image',
+      'Broken regex',
+    ]);
     final remux = rules.first;
     expect(remux.imageUrl, 'https://img.example/remux.png');
     expect(remux.fillHex, '#FF9500');
@@ -49,9 +54,9 @@ void main() {
 
   test('the simple list and the wrapped forms are understood; garbage and oversized input give nothing', () {
     expect(
-      CustomBadgePack.parse('[{"label":"Remux","match":["remux","bdremux"],"color":"#FF9500"}]')
-          .single
-          .match,
+      CustomBadgePack.parse(
+        '[{"label":"Remux","match":["remux","bdremux"],"color":"#FF9500"}]',
+      ).single.match,
       ['remux', 'bdremux'],
     );
     expect(
@@ -59,7 +64,10 @@ void main() {
       1,
     );
     expect(CustomBadgePack.parse('not json'), isEmpty);
-    expect(CustomBadgePack.parse('x' * (CustomBadgePack.maxBytes + 1)), isEmpty);
+    expect(
+      CustomBadgePack.parse('x' * (CustomBadgePack.maxBytes + 1)),
+      isEmpty,
+    );
   });
 
   test('imported rules survive a settings round trip', () {

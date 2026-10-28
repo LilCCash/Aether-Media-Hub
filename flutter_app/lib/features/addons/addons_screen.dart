@@ -13,7 +13,10 @@ import '../../design/tokens.dart';
 import '../../design/widgets.dart';
 
 class AddonsScreen extends ConsumerWidget {
-  const AddonsScreen({super.key});
+  const AddonsScreen({super.key, this.installUrl});
+
+  /// An address that arrived from a `stremio://` or `aether://` link: the preview opens at once, the viewer still confirms.
+  final String? installUrl;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,6 +28,8 @@ class AddonsScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
             children: [
+              if (installUrl != null)
+                _OnceCallback(() => _add(context, ref, initial: installUrl)),
               Row(
                 children: [
                   GlassButton(
@@ -73,8 +78,12 @@ class AddonsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _add(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
+  Future<void> _add(
+    BuildContext context,
+    WidgetRef ref, {
+    String? initial,
+  }) async {
+    final controller = TextEditingController(text: initial);
     final preview = await showDialog<AddonPreview>(
       context: context,
       builder: (c) => _AddDialog(controller: controller, ref: ref),
@@ -99,6 +108,14 @@ class _AddDialog extends StatefulWidget {
 }
 
 class _AddDialogState extends State<_AddDialog> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.controller.text.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+    }
+  }
+
   bool _busy = false;
   String? _error;
   AddonPreview? _preview;
@@ -437,4 +454,24 @@ class _AddonCardState extends State<_AddonCard> {
     );
     if (ok == true) await widget.notifier.remove(widget.addon.id);
   }
+}
+
+/// Runs [run] once, after the first frame (used to open the install preview for a link).
+class _OnceCallback extends StatefulWidget {
+  const _OnceCallback(this.run);
+  final VoidCallback run;
+
+  @override
+  State<_OnceCallback> createState() => _OnceCallbackState();
+}
+
+class _OnceCallbackState extends State<_OnceCallback> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => widget.run());
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }

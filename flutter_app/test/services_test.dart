@@ -28,38 +28,45 @@ void main() {
       expect(FanartClient.bestLogo([], 'it'), isNull);
     });
 
-    test('asks with the key, never without one, and a failure is "no logo"', () async {
-      Uri? asked;
-      final client = FanartClient(
-        keyProvider: () async => 'KEY',
-        dio: fakeDio((o) {
-          asked = o.uri;
-          return ok({
-            'hdmovielogo': [
-              {'url': 'https://assets.fanart.tv/x.png', 'lang': 'en', 'likes': 3},
-            ],
-          });
-        }),
-      );
-      expect(
-        await client.logoUrl(FanartKind.movie, 'tt0111161', 'en'),
-        'https://assets.fanart.tv/x.png',
-      );
-      expect(asked!.path, endsWith('/movies/tt0111161'));
-      expect(asked!.queryParameters['api_key'], 'KEY');
-      expect(await client.logoUrl(FanartKind.movie, '../x', 'en'), isNull);
+    test(
+      'asks with the key, never without one, and a failure is "no logo"',
+      () async {
+        Uri? asked;
+        final client = FanartClient(
+          keyProvider: () async => 'KEY',
+          dio: fakeDio((o) {
+            asked = o.uri;
+            return ok({
+              'hdmovielogo': [
+                {
+                  'url': 'https://assets.fanart.tv/x.png',
+                  'lang': 'en',
+                  'likes': 3,
+                },
+              ],
+            });
+          }),
+        );
+        expect(
+          await client.logoUrl(FanartKind.movie, 'tt0111161', 'en'),
+          'https://assets.fanart.tv/x.png',
+        );
+        expect(asked!.path, endsWith('/movies/tt0111161'));
+        expect(asked!.queryParameters['api_key'], 'KEY');
+        expect(await client.logoUrl(FanartKind.movie, '../x', 'en'), isNull);
 
-      final none = FanartClient(
-        keyProvider: () async => null,
-        dio: fakeDio((o) => fail('no request without a key')),
-      );
-      expect(await none.logoUrl(FanartKind.tv, '1', 'en'), isNull);
-      final broken = FanartClient(
-        keyProvider: () async => 'KEY',
-        dio: fakeDio((o) => (status: 500, body: 'oops')),
-      );
-      expect(await broken.logoUrl(FanartKind.tv, '1', 'en'), isNull);
-    });
+        final none = FanartClient(
+          keyProvider: () async => null,
+          dio: fakeDio((o) => fail('no request without a key')),
+        );
+        expect(await none.logoUrl(FanartKind.tv, '1', 'en'), isNull);
+        final broken = FanartClient(
+          keyProvider: () async => 'KEY',
+          dio: fakeDio((o) => (status: 500, body: 'oops')),
+        );
+        expect(await broken.logoUrl(FanartKind.tv, '1', 'en'), isNull);
+      },
+    );
   });
 
   group('MDBList', () {
@@ -147,7 +154,12 @@ void main() {
           return ok({
             'data': {
               'episodes': [
-                {'seasonNumber': 1, 'number': 2, 'name': 'Titolo', 'overview': 'Trama'},
+                {
+                  'seasonNumber': 1,
+                  'number': 2,
+                  'name': 'Titolo',
+                  'overview': 'Trama',
+                },
                 {'seasonNumber': 1},
               ],
             },
@@ -205,7 +217,10 @@ void main() {
       expect(segs.active(29.5)?.kind, SkipKind.intro);
       expect(segs.active(60)?.kind, SkipKind.intro);
       expect(segs.active(89.5), isNull);
-      expect(segs.active(60, duration: 40), isNull); // file shorter than the data says
+      expect(
+        segs.active(60, duration: 40),
+        isNull,
+      ); // file shorter than the data says
       expect(segs.active(double.nan), isNull);
     });
 
@@ -259,7 +274,10 @@ void main() {
           }
           if (p.endsWith('/torrents/addMagnet')) {
             expect(o.data, isA<Map>());
-            expect((o.data as Map)['magnet'], startsWith('magnet:?xt=urn:btih:'));
+            expect(
+              (o.data as Map)['magnet'],
+              startsWith('magnet:?xt=urn:btih:'),
+            );
             return ok({'id': 'T1'});
           }
           if (p.contains('/torrents/selectFiles/')) {
@@ -291,20 +309,23 @@ void main() {
       );
     }
 
-    test('without confirmation a torrent that is not in the account is not added', () async {
-      final log = <String>[];
-      await expectLater(
-        make(log).resolve(stream),
-        throwsA(
-          isA<DebridException>().having(
-            (e) => e.failure,
-            'failure',
-            DebridFailure.notCached,
+    test(
+      'without confirmation a torrent that is not in the account is not added',
+      () async {
+        final log = <String>[];
+        await expectLater(
+          make(log).resolve(stream),
+          throwsA(
+            isA<DebridException>().having(
+              (e) => e.failure,
+              'failure',
+              DebridFailure.notCached,
+            ),
           ),
-        ),
-      );
-      expect(log.where((l) => l.contains('addMagnet')), isEmpty);
-    });
+        );
+        expect(log.where((l) => l.contains('addMagnet')), isEmpty);
+      },
+    );
 
     test('with confirmation: adds, selects the files, waits, picks the video, unrestricts to https', () async {
       final log = <String>[];
@@ -321,11 +342,14 @@ void main() {
       expect(progress.any((m) => m.contains('40%')), isTrue);
     });
 
-    test('a torrent already in the account is reused without adding it', () async {
-      final log = <String>[];
-      await make(log, inAccount: true).resolve(stream);
-      expect(log.where((l) => l.contains('addMagnet')), isEmpty);
-    });
+    test(
+      'a torrent already in the account is reused without adding it',
+      () async {
+        final log = <String>[];
+        await make(log, inAccount: true).resolve(stream);
+        expect(log.where((l) => l.contains('addMagnet')), isEmpty);
+      },
+    );
 
     test('has no cache probe and never leaks the token in an error', () async {
       expect(await make([]).cached(['a']), isNull);

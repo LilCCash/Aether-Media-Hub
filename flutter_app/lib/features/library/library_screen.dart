@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../app/router.dart';
+import '../../core/catalog/result_filters.dart';
 import '../../core/model/meta.dart';
 import '../../data/library_repository.dart';
+import '../home/home_screen.dart' show typeName;
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
 import '../../design/widgets.dart';
@@ -18,6 +20,8 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   int _tab = 0;
+  String _query = '';
+  ResultFilters _filters = ResultFilters.none;
   static const _tabs = ['Continua', 'Watchlist', 'Preferiti', 'Cronologia'];
 
   @override
@@ -59,6 +63,36 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ],
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: GlassSurface(
+                radius: 18,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: TextField(
+                  onChanged: (v) => setState(() => _query = v.trim()),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    hintText: 'Cerca nella libreria',
+                    icon: Icon(Icons.search_rounded),
+                  ),
+                ),
+              ),
+            ),
+            if (_tab == 1 || _tab == 2)
+              FilterBar(
+                filters: _filters,
+                types: ResultFilters.typesOf(
+                  _tab == 1 ? lib.watchlist : lib.favorites,
+                ),
+                genres: ResultFilters.genresOf(
+                  _tab == 1 ? lib.watchlist : lib.favorites,
+                ),
+                decades: ResultFilters.decadesOf(
+                  _tab == 1 ? lib.watchlist : lib.favorites,
+                ),
+                typeName: typeName,
+                onChanged: (f) => setState(() => _filters = f),
+              ),
             Expanded(
               child: switch (_tab) {
                 0 => _progressList(
@@ -92,7 +126,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  Widget _grid(List<MetaItem> items, String title, String message) {
+  Widget _grid(List<MetaItem> all, String title, String message) {
+    final q = _query.toLowerCase();
+    final items = _filters
+        .apply(all)
+        .where((m) => q.isEmpty || m.name.toLowerCase().contains(q))
+        .toList();
+    if (all.isNotEmpty && items.isEmpty) {
+      return const EmptyState(
+        icon: Icons.filter_alt_off_rounded,
+        title: 'Nessun risultato',
+        message: 'Cambia la ricerca o azzera i filtri.',
+      );
+    }
     if (items.isEmpty)
       return EmptyState(
         icon: Icons.video_library_outlined,
@@ -117,12 +163,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Widget _progressList(
-    List<WatchProgress> items,
+    List<WatchProgress> all,
     String title,
     String message,
     LibraryRepository lib, {
     bool clearable = false,
   }) {
+    final q = _query.toLowerCase();
+    final items = all
+        .where((p) => q.isEmpty || p.name.toLowerCase().contains(q))
+        .toList();
+    if (all.isNotEmpty && items.isEmpty) {
+      return const EmptyState(
+        icon: Icons.search_off_rounded,
+        title: 'Nessun risultato',
+        message: 'Nessun titolo corrisponde alla ricerca.',
+      );
+    }
     if (items.isEmpty)
       return EmptyState(
         icon: Icons.history_rounded,
