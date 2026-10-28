@@ -14,6 +14,7 @@ import '../../core/debrid/torbox_client.dart';
 import '../../core/metadata/fanart_client.dart';
 import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
+import 'about_eggs.dart';
 import 'settings_pages2.dart';
 import '../../design/palettes.dart';
 import '../../core/metadata/tmdb_client.dart';
@@ -1283,7 +1284,9 @@ class _AboutPage extends StatelessWidget {
   Widget build(BuildContext context) => SettingsPageFrame(
     title: 'Informazioni',
     children: [
-      const Center(child: _TapLogo()),
+      const Center(child: AboutLogo()),
+      const SizedBox(height: 12),
+      const Center(child: TheaterLogo()),
       const SizedBox(height: 14),
       const Text(
         'Aether $appVersion',
@@ -1550,50 +1553,4 @@ class _BadgesGroupState extends ConsumerState<_BadgesGroup> {
       ],
     );
   }
-}
-
-/// The app icon in «Informazioni»: seven quick taps turn it around (a small thank-you, nothing hidden or unlocked).
-class _TapLogo extends StatefulWidget {
-  const _TapLogo();
-
-  @override
-  State<_TapLogo> createState() => _TapLogoState();
-}
-
-class _TapLogoState extends State<_TapLogo> {
-  int _taps = 0;
-  DateTime _last = DateTime.fromMillisecondsSinceEpoch(0);
-  double _turns = 0;
-
-  void _tap() {
-    final now = DateTime.now();
-    _taps = now.difference(_last) < const Duration(seconds: 2) ? _taps + 1 : 1;
-    _last = now;
-    if (_taps >= 7) {
-      _taps = 0;
-      setState(() => _turns += 1);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Grazie di usare Aether ✨')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: _tap,
-    child: AnimatedRotation(
-      turns: _turns,
-      duration: const Duration(milliseconds: 900),
-      curve: Curves.easeInOutBack,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(26),
-        child: Image.asset(
-          'assets/brand/icon.png',
-          width: 104,
-          height: 104,
-          semanticLabel: 'Logo di Aether',
-        ),
-      ),
-    ),
-  );
 }

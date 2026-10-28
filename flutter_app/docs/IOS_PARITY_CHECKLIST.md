@@ -72,7 +72,7 @@ Una voce è spuntata solo quando il codice c'è **e** `flutter analyze`/`flutter
 - ✅ G11 Dati: backup su file (crea/ripristina, includi chiavi/addon), elimina tutti i dati locali, cancella cronologia/ricerche
 - ✅ G12 Archiviazione: svuota cache immagini e cataloghi. ⬜ limite in MB della cache immagini e spazio libero
 - ✅ G13 Diagnostica: log on/off, esporta log
-- ✅ G14 Easter egg del logo (Informazioni)
+- ✅ G14 Due easter egg nella pagina Informazioni (logo dell'app e logo di Theater Mode), come su iOS
 
 ## H. Theater Mode
 - ✅ H1 Rail, hero, righe, palette, sfondi, dimensioni, locandine verticali, fori pellicola, introduzione e suono, pagina «Altro»
