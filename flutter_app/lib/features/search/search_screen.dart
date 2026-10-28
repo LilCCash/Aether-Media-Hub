@@ -94,6 +94,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: TextField(
                   controller: _controller,
+                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
                   onChanged: _onChanged,
                   onSubmitted: (v) {
                     setState(() => _query = v.trim());

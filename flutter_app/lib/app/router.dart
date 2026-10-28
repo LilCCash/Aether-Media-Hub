@@ -19,14 +19,28 @@ import '../features/settings/settings_screens.dart';
 import '../features/shell/shell.dart';
 import '../features/theater/theater_screen.dart';
 import 'providers.dart';
+import '../data/prefs_ext.dart';
+import 'transitions.dart';
 
 /// Where a title page lives; the catalog item travels as `extra` so the page shows something at once.
-void openTitle(BuildContext context, MetaItem item) => context.push(
-  '/title/${Uri.encodeComponent(item.type)}/${Uri.encodeComponent(item.id)}',
-  extra: item,
-);
+void openTitle(BuildContext context, MetaItem item) {
+  TitleOrigin.capture(context);
+  context.push(
+    '/title/${Uri.encodeComponent(item.type)}/${Uri.encodeComponent(item.id)}',
+    extra: item,
+  );
+}
 
 final routerProvider = Provider<GoRouter>((ref) {
+  PageTransitionKind titleKind() {
+    final s = ref.read(settingsProvider);
+    final k = transitionKindOf(s.titleTransition);
+    if (k != PageTransitionKind.auto) return k;
+    return s.cinematic ? PageTransitionKind.zoom : PageTransitionKind.slide;
+  }
+
+  PageTransitionKind slideKind() => PageTransitionKind.slide;
+
   final onboardingDone = ref.read(settingsProvider).onboardingDone;
   return GoRouter(
     initialLocation: onboardingDone ? '/home' : '/onboarding',
@@ -84,10 +98,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/title/:type/:id',
-        builder: (_, state) => DetailScreen(
-          type: Uri.decodeComponent(state.pathParameters['type']!),
-          id: Uri.decodeComponent(state.pathParameters['id']!),
-          preview: state.extra is MetaItem ? state.extra as MetaItem : null,
+        pageBuilder: (_, state) => AetherPage(
+          key: state.pageKey,
+          kind: titleKind,
+          child: DetailScreen(
+            type: Uri.decodeComponent(state.pathParameters['type']!),
+            id: Uri.decodeComponent(state.pathParameters['id']!),
+            preview: state.extra is MetaItem ? state.extra as MetaItem : null,
+          ),
         ),
       ),
       GoRoute(
@@ -102,18 +120,35 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/theater', builder: (_, __) => const TheaterScreen()),
       GoRoute(
         path: '/offline-test',
-        builder: (_, __) => const OfflineTestScreen(),
+        pageBuilder: (_, state) => AetherPage(
+          key: state.pageKey,
+          kind: slideKind,
+          child: const OfflineTestScreen(),
+        ),
       ),
       GoRoute(
         path: '/addons',
-        builder: (_, state) =>
-            AddonsScreen(installUrl: state.uri.queryParameters['install']),
+        pageBuilder: (_, state) => AetherPage(
+          key: state.pageKey,
+          kind: slideKind,
+          child: AddonsScreen(installUrl: state.uri.queryParameters['install']),
+        ),
       ),
-      GoRoute(path: '/downloads', builder: (_, __) => const DownloadsScreen()),
+      GoRoute(
+        path: '/downloads',
+        pageBuilder: (_, state) => AetherPage(
+          key: state.pageKey,
+          kind: slideKind,
+          child: const DownloadsScreen(),
+        ),
+      ),
       GoRoute(
         path: '/settings/:page',
-        builder: (_, state) =>
-            SettingsPageScreen(page: state.pathParameters['page']!),
+        pageBuilder: (_, state) => AetherPage(
+          key: state.pageKey,
+          kind: slideKind,
+          child: SettingsPageScreen(page: state.pathParameters['page']!),
+        ),
       ),
       GoRoute(
         path: '/person/:id',

@@ -1,7 +1,9 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'liquid.dart';
 import 'tokens.dart';
 
 /// Whether heavy effects are allowed: switched off by the setting, by the system's "reduce motion" / "remove animations",
@@ -9,9 +11,7 @@ import 'tokens.dart';
 bool glassEnabled(BuildContext context) {
   final look = AetherLook.of(context);
   final media = MediaQuery.maybeOf(context);
-  return !look.reduceEffects &&
-      look.glassIntensity > 0.02 &&
-      !(media?.disableAnimations ?? false);
+  return !look.reduceEffects && !(media?.disableAnimations ?? false);
 }
 
 /// A translucent "liquid glass" surface: a clipped backdrop blur, a soft light gradient, a thin edge highlight and a faint inner
@@ -27,6 +27,7 @@ class GlassSurface extends StatelessWidget {
     this.tint,
     this.strong = false,
     this.borderRadius,
+    this.liquid = false,
   });
 
   final Widget child;
@@ -37,20 +38,46 @@ class GlassSurface extends StatelessWidget {
   final Color? tint;
   final bool strong;
 
+  /// Use real Liquid Glass (refraction) when the viewer has it on; the frosted glass below is the fallback.
+  final bool liquid;
+
   @override
   Widget build(BuildContext context) {
     final look = AetherLook.of(context);
-    final shape = borderRadius ?? BorderRadius.circular(radius);
+    if (liquid && borderRadius == null && liquidAvailable(context)) {
+      return LiquidSurface(
+        radius: radius,
+        padding: padding,
+        tint: tint,
+        strong: strong,
+        child: child,
+      );
+    }
+    // «Angoli» changes every glass surface: 14 is the standard corner, the others scale from it.
+    final r = (radius * look.corner / 14).clamp(3.0, 60.0);
+    final shape = borderRadius ?? BorderRadius.circular(r);
     final enabled = glassEnabled(context);
     final k = look.glassIntensity.clamp(0.0, 1.0);
     final base = tint ?? Colors.white;
-    final top = base.withValues(
-      alpha: (strong ? 0.20 : 0.13) * (enabled ? k : 1),
-    );
-    final bottom = base.withValues(
-      alpha: (strong ? 0.08 : 0.04) * (enabled ? k : 1),
-    );
+    // The slider is Clear ↔ Tinted: more of it means a denser wash and more frost, never a switch between glass and no glass.
+    final top = base.withValues(alpha: (strong ? 0.15 : 0.09) + 0.17 * k);
+    final bottom = base.withValues(alpha: (strong ? 0.05 : 0.025) + 0.08 * k);
     final flat = look.amoled ? const Color(0xFF111114) : AetherTokens.inkRaised;
+    final edge = look.chrome == 'outline'
+        ? 0.5
+        : (enabled ? 0.16 + 0.14 * k : 0.12);
+    final shadows = <BoxShadow>[
+      if (enabled || look.chrome == 'shadow')
+        BoxShadow(
+          color: Colors.black.withValues(
+            alpha: look.chrome == 'shadow' ? 0.55 : 0.26,
+          ),
+          blurRadius: look.chrome == 'shadow' ? 30 : 22,
+          offset: const Offset(0, 10),
+        ),
+      if (look.chrome == 'glow')
+        BoxShadow(color: look.accent.withValues(alpha: 0.45), blurRadius: 22),
+    ];
 
     Widget content = DecoratedBox(
       decoration: BoxDecoration(
@@ -68,32 +95,21 @@ class GlassSurface extends StatelessWidget {
                 ],
               ),
         border: Border.all(
-          color: Colors.white.withValues(
-            alpha: enabled ? 0.22 * k + 0.04 : 0.12,
-          ),
-          width: 0.8,
+          color: (look.chrome == 'glow' ? look.accent : Colors.white)
+              .withValues(alpha: edge),
+          width: look.chrome == 'outline' ? 1.3 : 0.8,
         ),
-        boxShadow: enabled
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.28),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ]
-            : const [],
+        boxShadow: shadows,
       ),
       child: padding == null ? child : Padding(padding: padding!, child: child),
     );
 
     if (enabled) {
+      final sigma = blur * (0.5 + 0.9 * k);
       content = ClipRRect(
         borderRadius: shape,
         child: BackdropFilter(
-          filter: ImageFilter.blur(
-            sigmaX: blur * (0.4 + 0.6 * k),
-            sigmaY: blur * (0.4 + 0.6 * k),
-          ),
+          filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
           child: content,
         ),
       );
@@ -115,7 +131,11 @@ class GlassButton extends StatelessWidget {
     this.prominent = false,
     this.size = 44,
     this.selected = false,
+    this.liquid = false,
   });
+
+  /// Real Liquid Glass (refraction) for this button; use it on the few main controls of a screen, not on every chip.
+  final bool liquid;
 
   final IconData? icon;
   final String? label;
@@ -158,13 +178,15 @@ class GlassButton extends StatelessWidget {
       ),
     );
     final isRound = label == null;
+    // «Angoli» also shapes the buttons: round ones stay round, pills get squarer with sharper corners.
+    final br = isRound
+        ? size / 2
+        : (size / 2).clamp(0.0, look.corner * 1.6 + 4);
     final body = prominent
         ? DecoratedBox(
             decoration: BoxDecoration(
               color: look.accent,
-              borderRadius: BorderRadius.circular(
-                isRound ? size : AetherTokens.rPill,
-              ),
+              borderRadius: BorderRadius.circular(br),
             ),
             child: SizedBox(
               height: size,
@@ -176,7 +198,8 @@ class GlassButton extends StatelessWidget {
             ),
           )
         : GlassSurface(
-            radius: AetherTokens.rPill,
+            radius: br * 14 / look.corner,
+            liquid: liquid,
             strong: selected,
             tint: selected ? look.accent : null,
             child: SizedBox(
@@ -203,7 +226,11 @@ class GlassButton extends StatelessWidget {
               minWidth: 44,
               minHeight: size < 44 ? 44 : size,
             ),
-            child: Align(widthFactor: 1, heightFactor: 1, child: body),
+            child: Align(
+              widthFactor: 1,
+              heightFactor: 1,
+              child: _PressScale(enabled: enabled, child: body),
+            ),
           ),
         ),
       ),
@@ -211,7 +238,8 @@ class GlassButton extends StatelessWidget {
   }
 }
 
-/// The animated page background: deep ink, a soft accent glow, and (when [tint] is given) the colour of the film on screen.
+/// The animated page background: deep ink, moving light in the style the viewer chose, and (when [tint] is given) the colour
+/// of the film on screen.
 class AetherBackdrop extends StatelessWidget {
   const AetherBackdrop({super.key, this.tint, this.child});
   final Color? tint;
@@ -225,51 +253,187 @@ class AetherBackdrop extends StatelessWidget {
         : (look.customBackground ?? AetherTokens.ink);
     final glow = (look.cinematic ? tint : null) ?? look.accent;
     final reduced = look.reduceEffects || look.backdropStyle == 'plain';
-    final second = look.secondary;
     final k = look.backdropIntensity;
     final strength =
-        (look.amoled ? 0.10 : (look.cinematic && tint != null ? 0.38 : 0.22)) *
+        (look.amoled ? 0.10 : (look.cinematic && tint != null ? 0.40 : 0.26)) *
         k;
-    // The three styles differ in where the light comes from.
-    final (center, radius) = switch (look.backdropStyle) {
-      'flow' => (const Alignment(-0.8, -0.9), 1.6),
-      'spotlight' => (const Alignment(0, -1.1), 0.9),
-      _ => (const Alignment(0.7, -1.0), 1.25),
-    };
     return AnimatedContainer(
       duration: (reduced || !look.animations)
           ? Duration.zero
           : AetherTokens.slow,
-      decoration: BoxDecoration(
-        color: base,
-        gradient: reduced
-            ? null
-            : RadialGradient(
-                center: center,
-                radius: radius,
-                colors: [
-                  glow.withValues(alpha: strength.clamp(0.0, 0.8)),
-                  Colors.transparent,
-                ],
-              ),
-      ),
-      foregroundDecoration:
-          (reduced || !look.halos || second == null || look.amoled)
-          ? null
-          : BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(-0.9, 1.0),
-                radius: 1.0,
-                colors: [
-                  second.withValues(alpha: (0.14 * k).clamp(0.0, 0.6)),
-                  Colors.transparent,
-                ],
+      color: base,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (!reduced)
+            RepaintBoundary(
+              child: _BackdropFx(
+                style: look.backdropStyle,
+                glow: glow,
+                second: look.halos && !look.amoled ? look.secondary : null,
+                strength: strength.clamp(0.0, 0.85),
+                moving: look.animations,
               ),
             ),
-      // Ink (list tiles, switches) paints on the nearest Material: give the page one above the coloured backdrop.
-      child: child == null
-          ? null
-          : Material(type: MaterialType.transparency, child: child),
+          // Ink (list tiles, switches) paints on the nearest Material: give the page one above the coloured backdrop.
+          if (child != null)
+            Material(type: MaterialType.transparency, child: child),
+        ],
+      ),
     );
   }
+}
+
+/// The light itself. aurora: two soft lights drifting; flow: slow diagonal waves; spotlight: a cone from above that breathes.
+class _BackdropFx extends StatefulWidget {
+  const _BackdropFx({
+    required this.style,
+    required this.glow,
+    required this.second,
+    required this.strength,
+    required this.moving,
+  });
+  final String style;
+  final Color glow;
+  final Color? second;
+  final double strength;
+  final bool moving;
+
+  @override
+  State<_BackdropFx> createState() => _BackdropFxState();
+}
+
+class _BackdropFxState extends State<_BackdropFx>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 26),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.moving) _c.repeat();
+  }
+
+  @override
+  void didUpdateWidget(_BackdropFx old) {
+    super.didUpdateWidget(old);
+    if (widget.moving && !_c.isAnimating) _c.repeat();
+    if (!widget.moving && _c.isAnimating) _c.stop();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _c,
+    builder: (context, _) {
+      final t = _c.value * 2 * math.pi;
+      final a = widget.glow;
+      final b = widget.second ?? widget.glow;
+      final st = widget.strength;
+      switch (widget.style) {
+        case 'flow':
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment(-1 + 0.6 * math.sin(t), -1),
+                end: Alignment(1, 1 + 0.6 * math.cos(t)),
+                colors: [
+                  a.withValues(alpha: st * 0.95),
+                  Colors.transparent,
+                  b.withValues(alpha: st * 0.8),
+                  Colors.transparent,
+                  a.withValues(alpha: st * 0.5),
+                ],
+                stops: const [0, 0.28, 0.55, 0.78, 1],
+              ),
+            ),
+          );
+        case 'spotlight':
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(0.15 * math.sin(t), -1.15),
+                radius: 1.0 + 0.12 * math.sin(t * 2),
+                colors: [
+                  Colors.white.withValues(alpha: st * 0.45),
+                  a.withValues(alpha: st * 0.55),
+                  Colors.transparent,
+                ],
+                stops: const [0, 0.35, 1],
+              ),
+            ),
+          );
+        default:
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment(
+                      0.7 + 0.25 * math.sin(t),
+                      -0.9 + 0.2 * math.cos(t),
+                    ),
+                    radius: 1.25,
+                    colors: [
+                      a.withValues(alpha: st),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment(
+                      -0.8 + 0.25 * math.cos(t),
+                      0.9 - 0.2 * math.sin(t),
+                    ),
+                    radius: 1.0,
+                    colors: [
+                      b.withValues(alpha: st * 0.6),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+      }
+    },
+  );
+}
+
+/// Presses a control like a drop of glass: it shrinks a little under the finger and springs back.
+class _PressScale extends StatefulWidget {
+  const _PressScale({required this.child, required this.enabled});
+  final Widget child;
+  final bool enabled;
+
+  @override
+  State<_PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<_PressScale> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: (_) => widget.enabled ? setState(() => _down = true) : null,
+    onPointerUp: (_) => setState(() => _down = false),
+    onPointerCancel: (_) => setState(() => _down = false),
+    child: AnimatedScale(
+      scale: _down ? 0.93 : 1,
+      duration: const Duration(milliseconds: 140),
+      curve: _down ? Curves.easeOut : Curves.easeOutBack,
+      child: widget.child,
+    ),
+  );
 }

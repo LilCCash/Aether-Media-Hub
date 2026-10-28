@@ -510,9 +510,11 @@ class _Hero extends StatelessWidget {
         ).createShader(rect),
         blendMode: BlendMode.dstIn,
         child: PosterImage(
-          url: meta.background ?? meta.poster,
+          url: meta.poster ?? meta.background,
           title: meta.name,
           radius: 0,
+          alignment: Alignment.topCenter,
+          cacheWidth: 1600,
         ),
       ),
     );

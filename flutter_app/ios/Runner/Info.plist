@@ -22,6 +22,8 @@
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Aether usa la rete locale per gli addon sul tuo NAS e per trovare i dispositivi a cui inviare un video.</string>
+	<key>FLTEnableFlutterGPU</key>
+	<true/>
 	<key>CFBundleDisplayName</key>
 	<string>Aether</string>
 	<key>CFBundleExecutable</key>

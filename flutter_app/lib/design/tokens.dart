@@ -108,6 +108,8 @@ class AetherLook extends InheritedWidget {
     this.halos = true,
     this.customBackground,
     this.animations = true,
+    this.liquid = true,
+    this.compact = false,
     required super.child,
   });
 
@@ -130,6 +132,10 @@ class AetherLook extends InheritedWidget {
   final bool halos;
   final Color? customBackground;
   final bool animations;
+
+  /// Real Liquid Glass on the main controls (dock, buttons, sheets), and a tighter layout.
+  final bool liquid;
+  final bool compact;
 
   /// A row height scaled with the poster size.
   double rowHeight(double base) => base * posterScale;
@@ -156,7 +162,9 @@ class AetherLook extends InheritedWidget {
       backdropIntensity != old.backdropIntensity ||
       halos != old.halos ||
       customBackground != old.customBackground ||
-      animations != old.animations;
+      animations != old.animations ||
+      liquid != old.liquid ||
+      compact != old.compact;
 }
 
 class _Fallback {

@@ -19,7 +19,20 @@ class PosterImage extends StatelessWidget {
     required this.title,
     this.radius,
     this.fit = BoxFit.cover,
+    this.alignment = Alignment.center,
+    this.cacheWidth = 600,
   });
+
+  /// Where a cropped picture is anchored (top for posters, so heads are not cut) and the decoded width (big for hero art).
+  final Alignment alignment;
+  final int cacheWidth;
+
+  /// Cinemeta serves art in sizes; the small ones look grainy when stretched over a hero, so ask for the large one.
+  static String sharper(String url) => url
+      .replaceFirst('/poster/small/', '/poster/large/')
+      .replaceFirst('/poster/medium/', '/poster/large/')
+      .replaceFirst('/background/small/', '/background/large/')
+      .replaceFirst('/background/medium/', '/background/large/');
   final String? url;
   final String title;
   final double? radius;
@@ -65,12 +78,14 @@ class PosterImage extends StatelessWidget {
       child: url == null || url!.isEmpty || disableNetwork
           ? placeholder()
           : CachedNetworkImage(
-              imageUrl: url!,
+              imageUrl: cacheWidth > 600 ? sharper(url!) : url!,
               fit: fit,
+              alignment: alignment,
+              filterQuality: FilterQuality.high,
               fadeInDuration: AetherTokens.medium,
               placeholder: (_, __) => placeholder(),
               errorWidget: (_, __, ___) => placeholder(),
-              memCacheWidth: 600,
+              memCacheWidth: cacheWidth,
             ),
     );
   }
@@ -387,22 +402,31 @@ class Pill extends StatelessWidget {
     final c = color ?? Colors.white;
     return Container(
       padding: style == 'plain'
-          ? const EdgeInsets.symmetric(vertical: 3)
-          : const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          ? const EdgeInsets.symmetric(vertical: 1)
+          : const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
       decoration: BoxDecoration(
-        color: style == 'filled' ? c.withValues(alpha: 0.16) : null,
-        borderRadius: BorderRadius.circular(AetherTokens.rPill),
+        gradient: style == 'filled'
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [c.withValues(alpha: 0.24), c.withValues(alpha: 0.10)],
+              )
+            : null,
+        borderRadius: BorderRadius.circular(6),
         border: style == 'plain'
             ? null
             : Border.all(
-                color: c.withValues(alpha: style == 'outline' ? 0.7 : 0.35),
-                width: style == 'outline' ? 1 : 0.7,
+                color: c.withValues(alpha: style == 'outline' ? 0.65 : 0.30),
+                width: 0.6,
               ),
       ),
       child: Text(
         text,
+        maxLines: 1,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: 9.5,
+          height: 1.25,
+          letterSpacing: 0.25,
           fontWeight: FontWeight.w700,
           color: c.withValues(alpha: 0.95),
         ),

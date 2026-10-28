@@ -23,9 +23,18 @@ class AppOrientation {
     return restore();
   }
 
-  /// Back to what the screen underneath wants.
+  /// A screen on top (the player) turns sideways WITHOUT changing what the screen underneath wants.
+  static Future<void> enterLandscape() async {
+    await SystemChrome.setPreferredOrientations(landscape);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  /// Back to what the screen underneath wants. iOS only rotates back when asked again after the first change has settled.
   static Future<void> restore() async {
     await SystemChrome.setPreferredOrientations(_base);
     await SystemChrome.setEnabledSystemUIMode(_ui);
+    Future<void>.delayed(const Duration(milliseconds: 250), () {
+      SystemChrome.setPreferredOrientations(_base);
+    });
   }
 }

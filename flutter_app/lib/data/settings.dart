@@ -23,7 +23,7 @@ class AppSettings {
     this.resumePlayback = true,
     this.allowLocalNetwork = false,
     this.hideAdultCatalogs = true,
-    this.glassIntensity = 1.0,
+    this.glassIntensity = 0.45,
     this.reduceEffects = false,
     this.amoled = false,
     this.accentHex = '#7C8CFF',
@@ -236,7 +236,7 @@ class AppSettings {
         m['hideAdultCatalogs'],
         fallback: d.hideAdultCatalogs,
       ),
-      glassIntensity: clampD(m['glassIntensity'], 1.0, 0.0, 1.0),
+      glassIntensity: clampD(m['glassIntensity'], 0.45, 0.0, 1.0),
       reduceEffects: asBool(m['reduceEffects']),
       amoled: asBool(m['amoled']),
       accentHex: (hex != null && RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(hex))

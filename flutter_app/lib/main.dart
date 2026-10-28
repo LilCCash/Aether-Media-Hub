@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app.dart';
+import 'design/liquid.dart';
 import 'app/providers.dart';
 import 'app/services.dart';
 import 'features/player/media_kit_engine.dart';
@@ -14,6 +15,7 @@ Future<void> main() async {
   await SystemChrome.setPreferredOrientations(const [
     DeviceOrientation.portraitUp,
   ]);
+  await precacheLiquid();
   final services = await AppServices.create();
   runApp(
     ProviderScope(

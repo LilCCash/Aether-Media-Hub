@@ -69,6 +69,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 radius: 18,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: TextField(
+                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
                   onChanged: (v) => setState(() => _query = v.trim()),
                   decoration: const InputDecoration(
                     border: InputBorder.none,

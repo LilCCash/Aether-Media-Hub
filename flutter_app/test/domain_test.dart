@@ -299,7 +299,7 @@ void main() {
       });
       expect(bad.subtitleScale, 2.0);
       expect(bad.accentHex, '#7C8CFF');
-      expect(bad.glassIntensity, 1.0);
+      expect(bad.glassIntensity, 0.45);
       expect(bad.subtitleOffsetMs, 30000);
       expect(bad.catalogTitles, {'a': '5'});
       store.data[SettingsRepository.key] = 'garbage';

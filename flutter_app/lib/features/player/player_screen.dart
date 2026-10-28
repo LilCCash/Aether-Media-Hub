@@ -333,7 +333,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final settings = ref.watch(settingsProvider);
     final look = AetherLook.of(context);
     final canPip = Platform.isAndroid;
-    final showControls = _controls && !_inPip && !s.locked;
+    // While the first picture is being prepared the logo/title is on screen: the controls wait.
+    final starting =
+        s.buffering && s.position == Duration.zero && s.error == null;
+    final showControls = _controls && !_inPip && !s.locked && !starting;
     final skip = _segments?.active(
       s.position.inMilliseconds / 1000,
       duration: s.duration.inMilliseconds / 1000,
@@ -360,31 +363,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 right: 40,
                 bottom: showControls ? 96 : 20 + settings.subBottom * 4,
                 child: IgnorePointer(
-                  child: Text(
-                    s.externalLine!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 22 * settings.subtitleScale,
-                      fontWeight: settings.subBold
-                          ? FontWeight.w800
-                          : FontWeight.w600,
-                      color: colorFromHex(settings.subColor),
-                      backgroundColor: colorFromHex(settings.subBgColor)
-                          .withValues(alpha: settings.subBgOpacity),
-                      height: 1.25,
-                      shadows: settings.subOutline
-                          ? [
-                              Shadow(
-                                blurRadius: 6,
-                                color: colorFromHex(settings.subOutlineColor),
-                              ),
-                              Shadow(
-                                blurRadius: 2,
-                                color: colorFromHex(settings.subOutlineColor),
-                              ),
-                            ]
-                          : null,
-                    ),
+                  child: _SubtitleText(
+                    text: s.externalLine!,
+                    scale: settings.subtitleScale,
+                    color: colorFromHex(settings.subColor),
+                    bold: settings.subBold,
+                    outline: settings.subOutline,
+                    outlineColor: colorFromHex(settings.subOutlineColor),
+                    background: colorFromHex(settings.subBgColor)
+                        .withValues(alpha: settings.subBgOpacity),
                   ),
                 ),
               ),
@@ -470,6 +457,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 child: s.position == Duration.zero
                     ? _StartingCard(args: s.args)
                     : const CircularProgressIndicator(),
+              ),
+            if (starting && !_inPip)
+              Positioned(
+                left: 16,
+                top: 12,
+                child: SafeArea(
+                  child: GlassButton(
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    tooltip: 'Chiudi il player',
+                    onPressed: _exit,
+                  ),
+                ),
               ),
             if (skip != null && !_inPip && !s.locked)
               Positioned(
@@ -880,6 +879,65 @@ class _StartingCard extends ConsumerWidget {
         const SizedBox(height: 18),
         const CircularProgressIndicator(),
       ],
+    );
+  }
+}
+
+/// An external subtitle line: a solid outline is painted under the fill, so it stays readable on any picture and whatever colour
+/// the viewer picked. (A text style with only shadows turned unreadable on bright scenes.)
+class _SubtitleText extends StatelessWidget {
+  const _SubtitleText({
+    required this.text,
+    required this.scale,
+    required this.color,
+    required this.bold,
+    required this.outline,
+    required this.outlineColor,
+    required this.background,
+  });
+  final String text;
+  final double scale;
+  final Color color;
+  final bool bold;
+  final bool outline;
+  final Color outlineColor;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = TextStyle(
+      fontSize: 22 * scale,
+      fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+      height: 1.25,
+      decoration: TextDecoration.none,
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Stack(
+        children: [
+          if (outline)
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: base.copyWith(
+                foreground: Paint()
+                  ..style = PaintingStyle.stroke
+                  ..strokeWidth = 4 * scale.clamp(0.8, 1.6)
+                  ..strokeJoin = StrokeJoin.round
+                  ..color = outlineColor,
+              ),
+            ),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: base.copyWith(color: color),
+          ),
+        ],
+      ),
     );
   }
 }

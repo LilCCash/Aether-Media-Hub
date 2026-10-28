@@ -151,6 +151,22 @@ extension PrefsExt on AppSettings {
     for (final e in s) '${e.id}:${e.visible ? 1 : 0}',
   ]);
 
+  /// How a title page appears: auto (zoom with Dynamic Cinematic, else slide), zoom, fade, slide, none.
+  String get titleTransition =>
+      _s('titleTransition', 'auto', {'auto', 'zoom', 'fade', 'slide', 'none'});
+
+  // ── Interface ──
+  bool get liquidGlass => _b('liquidGlass', true);
+  bool get compact =>
+      _s('density', 'comfortable', {'compact', 'comfortable'}) == 'compact';
+  double get textScale => _d('textScale', 1.0, 0.85, 1.3);
+
+  /// Font of the whole interface: system, serif or mono (families every phone has).
+  String get uiFont => _s('uiFont', 'system', {'system', 'serif', 'mono'});
+
+  // ── Settings screen ──
+  bool get coloredIcons => _b('coloredIcons', true);
+
   // ── Diagnostics ──
   bool get keepLog => _b('keepLog', true);
 

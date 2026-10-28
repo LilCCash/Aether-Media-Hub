@@ -118,67 +118,9 @@ class MetadataPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsProvider);
-    final n = ref.read(settingsProvider.notifier);
     return SettingsPageFrame(
-      title: 'Metadati e scheda del titolo',
+      title: 'Cataloghi e ricerca',
       children: [
-        SettingsGroup(
-          title: 'TMDB',
-          footer: 'Servono la chiave TMDB (Servizi). Spegnendo un modulo la scheda del titolo non lo mostra e non lo scarica.',
-          children: [
-            const PrefSwitch('tmdbEnabled', 'Usa i dati di TMDB', _tmdb),
-            const PrefSwitch('modCast', 'Cast e troupe', _cast),
-            const PrefSwitch('modTrailers', 'Trailer', _trailers),
-            const PrefSwitch('modCompanies', 'Produzione', _companies),
-            const PrefSwitch('modFinancials', 'Incassi e budget', _fin),
-            const PrefSwitch('modFacts', 'Dettagli (slogan, voto)', _facts),
-            const PrefSwitch('modCollection', 'Saga / collezione', _coll),
-          ],
-        ),
-        SettingsGroup(
-          title: 'Voti (MDBList)',
-          footer: 'Serve la chiave MDBList (Servizi).',
-          children: [
-            SwitchRow(
-              title: 'Mostra i voti',
-              value: s.showRatings,
-              onChanged: (v) => n.update((x) => x.copyWith(showRatings: v)),
-            ),
-            const PrefSwitch(
-              'posterRatings',
-              'Voto sulle locandine',
-              _posterRatings,
-            ),
-          ],
-        ),
-        SettingsGroup(
-          title: 'Servizi di voto da mostrare',
-          children: [
-            for (final e in _rating.entries)
-              SwitchRow(
-                title: e.value,
-                value: s.ratingSources.contains(e.key),
-                onChanged: (v) => n.update((x) {
-                  final cur = [...x.ratingSources];
-                  v
-                      ? (cur.contains(e.key) ? null : cur.add(e.key))
-                      : cur.remove(e.key);
-                  return x.withExt('ratingSources', cur);
-                }),
-              ),
-          ],
-        ),
-        SettingsGroup(
-          title: 'Titoli degli episodi',
-          children: [
-            SwitchRow(
-              title: 'Tradotti da TheTVDB',
-              value: s.tvdbEpisodes,
-              onChanged: (v) => n.update((x) => x.copyWith(tvdbEpisodes: v)),
-            ),
-          ],
-        ),
         SettingsGroup(
           title: 'Cataloghi e cache',
           children: [
@@ -649,6 +591,82 @@ class LookPage extends ConsumerWidget {
       title: 'Personalizzazione',
       children: [
         SettingsGroup(
+          title: 'Stili pronti',
+          open: true,
+          icon: Icons.auto_awesome_rounded,
+          footer: 'Un tocco cambia insieme palette, sfondo animato, cornici, angoli, carattere e vetro. Poi puoi ritoccare ogni voce qui sotto.',
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final p in kStylePresets)
+                    ActionChip(
+                      avatar: Text(p.emoji),
+                      label: Text(p.name),
+                      onPressed: () => n.update((x) => p.apply(x)),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        SettingsGroup(
+          title: 'Transizioni',
+          icon: Icons.slow_motion_video_rounded,
+          footer: 'Come si apre la pagina di un titolo. «Automatica» usa lo zoom dalla locandina quando Dynamic Cinematic è attivo.',
+          children: const [
+            PrefChoice<String>(
+              'titleTransition',
+              'Apertura di un titolo',
+              _transition,
+              {
+                'auto': 'Automatica',
+                'zoom': 'Zoom dalla locandina',
+                'fade': 'Dissolvenza',
+                'slide': 'Scorrimento',
+                'none': 'Nessuna',
+              },
+            ),
+          ],
+        ),
+        SettingsGroup(
+          title: 'Interfaccia',
+          icon: Icons.text_fields_rounded,
+          children: [
+            const PrefChoice<String>('density', 'Densità', _density, {
+              'comfortable': 'Comoda',
+              'compact': 'Compatta',
+            }),
+            PrefSlider(
+              'textScale',
+              'Dimensione del testo',
+              (x) => x.textScale,
+              min: 0.85,
+              max: 1.3,
+              divisions: 9,
+              format: _pct,
+            ),
+            const PrefChoice<String>(
+              'uiFont',
+              'Carattere dell’interfaccia',
+              _uiFont,
+              {
+                'system': 'Sistema',
+                'serif': 'Con grazie',
+                'mono': 'Monospaziato',
+              },
+            ),
+            const PrefSwitch(
+              'coloredIcons',
+              'Icone colorate nelle impostazioni',
+              _colored,
+            ),
+          ],
+        ),
+        SettingsGroup(
           title: 'Colori',
           children: [
             Padding(
@@ -790,6 +808,11 @@ class LookPage extends ConsumerWidget {
     );
   }
 
+  static String _transition(AppSettings s) => s.titleTransition;
+  static String _density(AppSettings s) =>
+      s.ext['density'] == 'compact' ? 'compact' : 'comfortable';
+  static String _uiFont(AppSettings s) => s.uiFont;
+  static bool _colored(AppSettings s) => s.coloredIcons;
   static String? _bgColor(AppSettings s) => s.customBackgroundHex;
   static String _bd(AppSettings s) => s.backdropStyle;
   static double _bi(AppSettings s) => s.backdropIntensity;
@@ -831,3 +854,135 @@ class _AccentField extends StatelessWidget {
     ),
   );
 }
+
+/// A ready-made look: one tap sets palette, animated background, frame, corners, fonts and glass together.
+class StylePreset {
+  const StylePreset(this.name, this.emoji, this._apply);
+  final String name;
+  final String emoji;
+  final AppSettings Function(AppSettings) _apply;
+  AppSettings apply(AppSettings s) => _apply(s);
+}
+
+AppSettings _preset(
+  AppSettings s, {
+  required String palette,
+  required String backdrop,
+  required String chrome,
+  required String corner,
+  String titleFont = 'standard',
+  String uiFont = 'system',
+  double glass = 0.45,
+  bool amoled = false,
+  bool compact = false,
+  String poster = 'medium',
+  double intensity = 1,
+}) => s
+    .copyWith(
+      palette: palette,
+      titleFont: titleFont,
+      glassIntensity: glass,
+      amoled: amoled,
+    )
+    .withExt('backdropStyle', backdrop)
+    .withExt('cardChrome', chrome)
+    .withExt('cornerStyle', corner)
+    .withExt('uiFont', uiFont)
+    .withExt('density', compact ? 'compact' : 'comfortable')
+    .withExt('posterSize', poster)
+    .withExt('backdropIntensity', intensity);
+
+final kStylePresets = <StylePreset>[
+  StylePreset(
+    'Aether',
+    '✨',
+    (s) => _preset(
+      s,
+      palette: 'aether',
+      backdrop: 'aurora',
+      chrome: 'standard',
+      corner: 'standard',
+    ),
+  ),
+  StylePreset(
+    'Cinema',
+    '🎞️',
+    (s) => _preset(
+      s,
+      palette: 'cinema',
+      backdrop: 'spotlight',
+      chrome: 'outline',
+      corner: 'sharp',
+      titleFont: 'serif',
+      glass: 0.3,
+      poster: 'large',
+    ),
+  ),
+  StylePreset(
+    'Neon',
+    '🌌',
+    (s) => _preset(
+      s,
+      palette: 'midnight',
+      backdrop: 'flow',
+      chrome: 'glow',
+      corner: 'bubble',
+      titleFont: 'mono',
+      glass: 0.6,
+      intensity: 1.3,
+    ),
+  ),
+  StylePreset(
+    'Minimale',
+    '▫️',
+    (s) => _preset(
+      s,
+      palette: 'aether',
+      backdrop: 'plain',
+      chrome: 'standard',
+      corner: 'rounded',
+      glass: 0.2,
+      amoled: true,
+      compact: true,
+      poster: 'small',
+    ),
+  ),
+  StylePreset(
+    'Pastello',
+    '🍬',
+    (s) => _preset(
+      s,
+      palette: 'candy',
+      backdrop: 'aurora',
+      chrome: 'shadow',
+      corner: 'rounded',
+      glass: 0.7,
+    ),
+  ),
+  StylePreset(
+    'Oceano',
+    '🌊',
+    (s) => _preset(
+      s,
+      palette: 'ocean',
+      backdrop: 'flow',
+      chrome: 'standard',
+      corner: 'bubble',
+      glass: 0.5,
+      intensity: 1.2,
+    ),
+  ),
+  StylePreset(
+    'Tramonto',
+    '🌅',
+    (s) => _preset(
+      s,
+      palette: 'sunset',
+      backdrop: 'aurora',
+      chrome: 'glow',
+      corner: 'rounded',
+      glass: 0.55,
+      intensity: 1.2,
+    ),
+  ),
+];

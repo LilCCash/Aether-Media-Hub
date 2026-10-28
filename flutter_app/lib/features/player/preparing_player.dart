@@ -34,12 +34,7 @@ class _PreparingPlayerState extends ConsumerState<PreparingPlayer> {
   @override
   void initState() {
     super.initState();
-    AppOrientation.setBase(
-      AppOrientation.landscape,
-      ui: SystemUiMode.immersiveSticky,
-    ).then((_) {
-      if (!mounted) AppOrientation.restore();
-    });
+    AppOrientation.enterLandscape();
     _run();
   }
 

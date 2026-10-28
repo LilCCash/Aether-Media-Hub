@@ -55,6 +55,7 @@ dependencies:
   file_picker: ^13.3.0
   share_plus: ^13.3.1
   flutter_cache_manager: ^3.4.6
+  liquid_glass_renderer: ^1.0.0-dev.2
 
 dev_dependencies:
   flutter_test:

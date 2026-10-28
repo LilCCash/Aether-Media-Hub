@@ -454,7 +454,7 @@ void main() {
       (tester) async {
         await openPlayer(tester);
         expect(find.text('Film di prova'), findsWidgets);
-        await tester.tap(find.byTooltip('Chiudi il player'));
+        await tester.tap(find.byTooltip('Chiudi il player').hitTestable());
         await tester.pump(const Duration(milliseconds: 100));
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 50)),

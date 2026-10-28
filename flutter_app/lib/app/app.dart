@@ -29,6 +29,12 @@ class AetherApp extends ConsumerWidget {
     ).copyWith(primary: accent, onSurface: AetherTokens.textPrimary);
     final theme = ThemeData(
       useMaterial3: true,
+      visualDensity: s.compact ? VisualDensity.compact : VisualDensity.standard,
+      fontFamily: switch (s.uiFont) {
+        'serif' => 'serif',
+        'mono' => 'monospace',
+        _ => null,
+      },
       colorScheme: scheme,
       scaffoldBackgroundColor: scaffold,
       textTheme: AetherTokens.textTheme(
@@ -75,34 +81,43 @@ class AetherApp extends ConsumerWidget {
       darkTheme: theme,
       themeMode: ThemeMode.dark,
       routerConfig: ref.watch(routerProvider),
-      builder: (context, child) => AetherLook(
-        accent: accent,
-        glassIntensity: s.glassIntensity,
-        reduceEffects: s.reduceEffects,
-        amoled: s.amoled,
-        cinematic: s.cinematic,
-        secondary: palette.secondary,
-        corner: switch (s.cornerStyle) {
-          'sharp' => 4,
-          'rounded' => 20,
-          'bubble' => 28,
-          _ => 14,
-        },
-        chrome: s.cardChrome,
-        posterScale: switch (s.posterSize) {
-          'small' => 0.85,
-          'large' => 1.2,
-          _ => 1.0,
-        },
-        posterRatings: s.posterRatings,
-        backdropStyle: s.backdropStyle,
-        backdropIntensity: s.backdropIntensity,
-        halos: s.halos,
-        customBackground: s.customBackgroundHex == null
-            ? null
-            : colorFromHex(s.customBackgroundHex!),
-        animations: s.animations,
-        child: child ?? const SizedBox(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(
+            MediaQuery.of(context).textScaler.scale(1) * s.textScale,
+          ),
+        ),
+        child: AetherLook(
+          accent: accent,
+          glassIntensity: s.glassIntensity,
+          reduceEffects: s.reduceEffects,
+          amoled: s.amoled,
+          cinematic: s.cinematic,
+          secondary: palette.secondary,
+          corner: switch (s.cornerStyle) {
+            'sharp' => 4,
+            'rounded' => 20,
+            'bubble' => 28,
+            _ => 14,
+          },
+          chrome: s.cardChrome,
+          posterScale: switch (s.posterSize) {
+            'small' => 0.85,
+            'large' => 1.2,
+            _ => 1.0,
+          },
+          posterRatings: s.posterRatings,
+          backdropStyle: s.backdropStyle,
+          backdropIntensity: s.backdropIntensity,
+          halos: s.halos,
+          customBackground: s.customBackgroundHex == null
+              ? null
+              : colorFromHex(s.customBackgroundHex!),
+          animations: s.animations,
+          liquid: s.liquidGlass,
+          compact: s.compact,
+          child: child ?? const SizedBox(),
+        ),
       ),
     );
   }

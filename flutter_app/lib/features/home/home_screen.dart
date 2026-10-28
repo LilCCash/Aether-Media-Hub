@@ -313,10 +313,13 @@ class _HeroPage extends ConsumerWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // The hero is a tall area: the portrait poster fits it with almost no crop (and from the top), the wide backdrop does not.
           PosterImage(
-            url: item.background ?? item.poster,
+            url: item.poster ?? item.background,
             title: item.name,
             radius: 0,
+            alignment: Alignment.topCenter,
+            cacheWidth: 1600,
           ),
           const DecoratedBox(
             decoration: BoxDecoration(

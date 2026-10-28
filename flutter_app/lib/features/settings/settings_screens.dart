@@ -15,7 +15,9 @@ import '../../core/metadata/fanart_client.dart';
 import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
 import 'about_eggs.dart';
+import "settings_extra.dart";
 import 'settings_pages2.dart';
+import 'settings_services.dart';
 import '../../design/palettes.dart';
 import '../../core/metadata/tmdb_client.dart';
 import '../../core/model/meta.dart';
@@ -75,66 +77,37 @@ class MoreScreen extends ConsumerWidget {
             ),
             SettingsGroup(
               title: 'Impostazioni',
+              open: true,
               children: [
                 NavRow(
-                  icon: Icons.play_circle_outline_rounded,
-                  title: 'Riproduzione',
-                  subtitle: 'Lingue, sottotitoli, velocità, ripresa',
-                  onTap: () => context.push('/settings/playback'),
-                ),
-                NavRow(
-                  icon: Icons.palette_outlined,
-                  title: 'Aspetto',
-                  subtitle: 'Colori, vetro, Cinematic, AMOLED',
-                  onTap: () => context.push('/settings/appearance'),
-                ),
-                NavRow(
-                  icon: Icons.view_list_rounded,
-                  title: 'Contenuti e cataloghi',
-                  subtitle: 'Lingua, nomi e ordine dei cataloghi, rete locale',
-                  onTap: () => context.push('/settings/content'),
-                ),
-                NavRow(
                   icon: Icons.palette_rounded,
-                  title: 'Personalizzazione',
-                  subtitle: 'Sfondo, cornici, angoli, Home, In evidenza',
+                  title: 'Aspetto e personalizzazione',
+                  subtitle: 'Colori, vetro, sfondo, cornici, Home, transizioni',
                   onTap: () => context.push('/settings/look'),
                 ),
                 NavRow(
-                  icon: Icons.sort_rounded,
-                  title: 'Sorgenti',
-                  subtitle: 'Ordine, qualità, badge',
-                  onTap: () => context.push('/settings/sources'),
+                  icon: Icons.play_circle_outline_rounded,
+                  title: 'Riproduzione e player',
+                  subtitle: 'Lingue, sottotitoli, gesti, immagine, ripresa',
+                  onTap: () => context.push('/settings/playback'),
                 ),
                 NavRow(
-                  icon: Icons.movie_filter_rounded,
-                  title: 'Metadati e scheda del titolo',
-                  subtitle: 'TMDB, voti MDBList, cataloghi, ricerca',
-                  onTap: () => context.push('/settings/metadata'),
-                ),
-                NavRow(
-                  icon: Icons.tune_rounded,
-                  title: 'Player avanzato',
-                  subtitle: 'Gesti, sottotitoli, immagine, ripresa',
-                  onTap: () => context.push('/settings/player'),
-                ),
-                NavRow(
-                  icon: Icons.download_for_offline_rounded,
-                  title: 'Download e archiviazione',
-                  subtitle: 'Stagioni, limiti, cache',
-                  onTap: () => context.push('/settings/downloads'),
+                  icon: Icons.view_list_rounded,
+                  title: 'Contenuti e sorgenti',
+                  subtitle: 'Cataloghi, ricerca, ordine e badge delle sorgenti',
+                  onTap: () => context.push('/settings/content'),
                 ),
                 NavRow(
                   icon: Icons.key_rounded,
                   title: 'Servizi',
-                  subtitle: 'TorBox e TMDB (le tue chiavi)',
+                  subtitle: 'TorBox, Real-Debrid, TMDB, MDBList, TheTVDB…',
                   onTap: () => context.push('/settings/services'),
                 ),
                 NavRow(
-                  icon: Icons.save_alt_rounded,
-                  title: 'Dati e backup',
-                  subtitle: 'Esporta, ripristina, cancella',
-                  onTap: () => context.push('/settings/data'),
+                  icon: Icons.download_for_offline_rounded,
+                  title: 'Download e dati',
+                  subtitle: 'Stagioni, limiti, backup, cancellazione',
+                  onTap: () => context.push('/settings/downloads'),
                 ),
               ],
             ),
@@ -169,17 +142,24 @@ class SettingsPageScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return switch (page) {
-      'playback' => const _PlaybackPage(),
-      'appearance' => const _AppearancePage(),
-      'content' => const _ContentPage(),
+      'look' || 'appearance' => const MergedSettingsPage(
+        title: 'Aspetto e personalizzazione',
+        parts: [_AppearancePage(), LookPage()],
+      ),
+      'playback' || 'player' => const MergedSettingsPage(
+        title: 'Riproduzione e player',
+        parts: [_PlaybackPage(), PlayerAdvancedPage()],
+      ),
+      'content' || 'sources' || 'metadata' => const MergedSettingsPage(
+        title: 'Contenuti e sorgenti',
+        parts: [_ContentPage(), SourcesPage(), MetadataPage()],
+      ),
       'catalogs' => const _CatalogsPage(),
-      'services' => const _ServicesPage(),
-      'sources' => const SourcesPage(),
-      'metadata' => const MetadataPage(),
-      'downloads' => const DownloadsSettingsPage(),
-      'player' => const PlayerAdvancedPage(),
-      'look' => const LookPage(),
-      'data' => const _DataPage(),
+      'services' => const ServicesPage(),
+      'downloads' || 'data' => const MergedSettingsPage(
+        title: 'Download e dati',
+        parts: [DownloadsSettingsPage(), _DataPage()],
+      ),
       'diagnostics' => const _DiagnosticsPage(),
       'about' => const _AboutPage(),
       _ => SettingsPageFrame(
@@ -409,16 +389,26 @@ class _AppearancePage extends ConsumerWidget {
           ],
         ),
         SettingsGroup(
-          title: 'Vetro',
-          footer: 'Il vetro sfocato è più impegnativo per i telefoni meno recenti: riduci gli effetti se noti scatti.',
+          title: 'Liquid Glass',
+          open: true,
+          icon: Icons.blur_on_rounded,
+          footer: 'Come il cursore di iOS: a sinistra il vetro è trasparente, a destra è più denso e colorato. Il vero Liquid Glass (rifrazione) richiede un telefono con GPU recente; altrimenti l’app usa il vetro sfocato. Riduci gli effetti se noti scatti.',
           children: [
+            PrefSwitch(
+              'liquidGlass',
+              'Liquid Glass con rifrazione',
+              (x) => x.liquidGlass,
+              subtitle: 'Barra in basso, pulsanti principali e pannelli',
+            ),
             SliderRow(
-              title: 'Intensità del vetro',
+              title: 'Trasparente ↔ Colorato',
               value: s.glassIntensity,
               min: 0,
               max: 1,
-              divisions: 10,
-              format: (v) => '${(v * 100).round()}%',
+              divisions: 20,
+              format: (v) => v < 0.15
+                  ? 'Trasparente'
+                  : (v > 0.85 ? 'Colorato' : '${(v * 100).round()}%'),
               onChanged: (v) => n.update((x) => x.copyWith(glassIntensity: v)),
             ),
             SwitchRow(
@@ -696,270 +686,6 @@ class _CatalogsPage extends ConsumerWidget {
       name.trim().isEmpty ? titles.remove(id) : titles[id] = name.trim();
       return x.copyWith(catalogTitles: titles);
     });
-  }
-}
-
-class _ServicesPage extends ConsumerWidget {
-  const _ServicesPage();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsProvider);
-    final n = ref.read(settingsProvider.notifier);
-    return SettingsPageFrame(
-      title: 'Servizi',
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(bottom: 16),
-          child: Text(
-            'Le chiavi sono tue: restano nel portachiavi sicuro del telefono, non vanno nei log né nei backup (a meno che tu non lo chieda), e puoi rimuoverle quando vuoi.',
-          ),
-        ),
-        SettingsGroup(
-          title: 'Debrid',
-          footer: 'Se il servizio scelto non ha una chiave, Aether usa l’altro (se ce l’ha). Real-Debrid non permette di sapere in anticipo se un torrent è pronto: prima di aggiungerlo chiede conferma.',
-          children: [
-            ChoiceRow<String>(
-              title: 'Servizio preferito',
-              value: s.debridProvider,
-              options: const {'torbox': 'TorBox', 'realdebrid': 'Real-Debrid'},
-              onChanged: (v) => n.update((x) => x.copyWith(debridProvider: v)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _KeyCard(
-          title: 'TorBox',
-          description: 'Per riprodurre i torrent degli addon con la tua cache TorBox. Aether non cancella mai nulla dal tuo account e non avvia download senza chiederti conferma.',
-          service: ServiceKey.torbox,
-          verify: (ref) async {
-            try {
-              final plan = await ref.read(servicesProvider).torbox.check();
-              return 'Connesso a TorBox ($plan).';
-            } on DebridException catch (e) {
-              return e.message;
-            }
-          },
-        ),
-        _KeyCard(
-          title: 'Real-Debrid',
-          description: 'Token personale dal tuo account Real-Debrid (account Premium). Aether non cancella nulla e non aggiunge torrent senza chiederti conferma.',
-          service: ServiceKey.realdebrid,
-          verify: (ref) async {
-            try {
-              final plan = await ref.read(servicesProvider).realDebrid.check();
-              return 'Connesso a Real-Debrid ($plan).';
-            } on DebridException catch (e) {
-              return e.message;
-            }
-          },
-        ),
-        _KeyCard(
-          title: 'TMDB',
-          description: 'Per cast con foto, filmografie, trailer e dettagli. Chiave v3 o token v4 dal tuo account TMDB.',
-          service: ServiceKey.tmdb,
-          verify: (ref) async =>
-              await ref.read(servicesProvider).tmdb.check() ??
-              'TMDB accetta la chiave.',
-        ),
-        SettingsGroup(
-          title: 'Dettagli del titolo',
-          children: [
-            SwitchRow(
-              title: 'Voti da più servizi (MDBList)',
-              value: s.showRatings,
-              onChanged: (v) => n.update((x) => x.copyWith(showRatings: v)),
-            ),
-            SwitchRow(
-              title: 'Titoli degli episodi tradotti (TheTVDB)',
-              value: s.tvdbEpisodes,
-              onChanged: (v) => n.update((x) => x.copyWith(tvdbEpisodes: v)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _KeyCard(
-          title: 'MDBList',
-          description: 'Voti di IMDb, Rotten Tomatoes, Metacritic, Trakt e altri nella scheda del titolo. Chiave dal tuo account MDBList.',
-          service: ServiceKey.mdblist,
-          verify: (ref) async =>
-              await ref.read(servicesProvider).mdblist.check() ??
-              'MDBList accetta la chiave.',
-        ),
-        _KeyCard(
-          title: 'TheTVDB',
-          description: 'Titoli e trame degli episodi nella tua lingua. Chiave di progetto TheTVDB v4.',
-          service: ServiceKey.tvdb,
-          verify: (ref) async =>
-              await ref.read(servicesProvider).tvdb.check() ??
-              'TheTVDB accetta la chiave.',
-        ),
-        _KeyCard(
-          title: 'TheTVDB · PIN (facoltativo)',
-          description: 'Solo se la tua chiave TheTVDB è di un abbonato e richiede il PIN.',
-          service: ServiceKey.tvdbPin,
-          verify: (ref) async =>
-              await ref.read(servicesProvider).tvdb.check() ??
-              'TheTVDB accetta chiave e PIN.',
-        ),
-        _KeyCard(
-          title: 'fanart.tv',
-          description: 'Logo trasparente del titolo mostrato dal player mentre prepara la sorgente. Chiave personale dal tuo account fanart.tv.',
-          service: ServiceKey.fanart,
-          verify: (ref) async {
-            final url = await ref
-                .read(servicesProvider)
-                .fanart
-                .logoUrl(FanartKind.movie, 'tt0111161', 'en');
-            return url == null
-                ? 'fanart.tv non ha risposto con un logo: controlla la chiave.'
-                : 'fanart.tv accetta la chiave.';
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _KeyCard extends ConsumerStatefulWidget {
-  const _KeyCard({
-    required this.title,
-    required this.description,
-    required this.service,
-    required this.verify,
-  });
-  final String title;
-  final String description;
-  final ServiceKey service;
-  final Future<String> Function(WidgetRef) verify;
-
-  @override
-  ConsumerState<_KeyCard> createState() => _KeyCardState();
-}
-
-class _KeyCardState extends ConsumerState<_KeyCard> {
-  final _c = TextEditingController();
-  bool _saved = false;
-  String? _status;
-  bool _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    ref.read(servicesProvider).secrets.serviceKey(widget.service).then((v) {
-      if (mounted) setState(() => _saved = (v ?? '').isNotEmpty);
-    });
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  Future<void> _verify() async {
-    setState(() {
-      _busy = true;
-      _status = null;
-    });
-    final r = await widget.verify(ref);
-    if (mounted)
-      setState(() {
-        _status = r;
-        _busy = false;
-      });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final secrets = ref.read(servicesProvider).secrets;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: GlassSurface(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  widget.title,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const Spacer(),
-                if (_saved)
-                  const Pill('Chiave salvata', color: AetherTokens.success),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              widget.description,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            if (!_saved) ...[
-              TextField(
-                controller: _c,
-                obscureText: true,
-                autocorrect: false,
-                enableSuggestions: false,
-                decoration: InputDecoration(
-                  hintText: 'Incolla la chiave',
-                  filled: true,
-                  fillColor: Colors.white10,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              GlassButton(
-                label: 'Salva e verifica',
-                icon: Icons.verified_rounded,
-                prominent: true,
-                onPressed: _busy
-                    ? null
-                    : () async {
-                        if (_c.text.trim().isEmpty) return;
-                        await secrets.setServiceKey(widget.service, _c.text);
-                        _c.clear();
-                        setState(() => _saved = true);
-                        await _verify();
-                      },
-              ),
-            ] else
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  GlassButton(
-                    label: _busy ? 'Verifico…' : 'Verifica',
-                    icon: Icons.verified_rounded,
-                    onPressed: _busy ? null : _verify,
-                  ),
-                  GlassButton(
-                    label: 'Rimuovi',
-                    icon: Icons.delete_outline_rounded,
-                    onPressed: () async {
-                      await secrets.setServiceKey(widget.service, null);
-                      setState(() {
-                        _saved = false;
-                        _status = null;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            if (_status != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Text(_status!, style: const TextStyle(fontSize: 13)),
-              ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
