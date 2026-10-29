@@ -51,6 +51,7 @@ const kGroupStyles = <String, (IconData, Color)>{
   ),
   'Tema chiaro e condivisione': (Icons.light_mode_rounded, Color(0xFFFFC857)),
   'Sfondi animati e locandine': (Icons.animation_rounded, Color(0xFFFF6FB5)),
+  'Tema': (Icons.contrast_rounded, Color(0xFF7C8CFF)),
   'Contenuti da nascondere': (Icons.visibility_off_rounded, Color(0xFFFF6B6B)),
   'Calendario e notifiche': (
     Icons.notifications_active_rounded,
@@ -180,12 +181,16 @@ class SettingsGroup extends StatelessWidget {
     required this.children,
     this.icon,
     this.open = false,
+    this.collapsible = false,
   });
   final String? title;
   final String? footer;
   final List<Widget> children;
   final IconData? icon;
   final bool open;
+
+  /// A collapsed «tendina» instead of an open section (only for long, rarely used groups).
+  final bool collapsible;
 
   /// The «tendine» the viewer opened, kept while the app runs: leaving the settings and coming back finds them as they were.
   static final Set<String> openTitles = <String>{};
@@ -222,38 +227,76 @@ class SettingsGroup extends StatelessWidget {
         child: GlassSurface(child: body),
       );
     }
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassSurface(
-        child: Theme(
-          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-          child: ExpansionTile(
-            initiallyExpanded: open || openTitles.contains(title),
-            onExpansionChanged: (v) {
-              if (v) {
-                openTitles.add(title!);
-              } else {
-                openTitles.remove(title);
-              }
-            },
-            tilePadding: const EdgeInsets.symmetric(horizontal: 14),
-            minTileHeight: 48,
-            childrenPadding: EdgeInsets.zero,
-            shape: const Border(),
-            collapsedShape: const Border(),
-            leading: (icon ?? style?.$1) == null
-                ? null
-                : _ColoredIcon(icon ?? style!.$1, title!, color: style?.$2),
-            title: Text(
-              title!,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14.5,
+    if (collapsible) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: GlassSurface(
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              initiallyExpanded: open || openTitles.contains(title),
+              onExpansionChanged: (v) {
+                if (v) {
+                  openTitles.add(title!);
+                } else {
+                  openTitles.remove(title);
+                }
+              },
+              tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+              minTileHeight: 48,
+              childrenPadding: EdgeInsets.zero,
+              shape: const Border(),
+              collapsedShape: const Border(),
+              leading: (icon ?? style?.$1) == null
+                  ? null
+                  : _ColoredIcon(icon ?? style!.$1, title!, color: style?.$2),
+              title: Text(
+                title!,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14.5,
+                ),
               ),
+              children: [const Divider(height: 1), body],
             ),
-            children: [const Divider(height: 1), body],
           ),
         ),
+      );
+    }
+    // A section like in iOS Settings: a small header (tile + name) and the rows in one card, always visible.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+            child: Row(
+              children: [
+                if ((icon ?? style?.$1) != null) ...[
+                  _ColoredIcon(
+                    icon ?? style!.$1,
+                    title!,
+                    color: style?.$2,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 9),
+                ],
+                Expanded(
+                  child: Text(
+                    title!,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
+                      color: AetherTokens.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          GlassSurface(child: body),
+        ],
       ),
     );
   }
@@ -261,7 +304,8 @@ class SettingsGroup extends StatelessWidget {
 
 /// An icon on a soft tinted tile; the tint follows the section unless «Icone colorate» is off.
 class _ColoredIcon extends ConsumerWidget {
-  const _ColoredIcon(this.icon, this.key_, {this.color});
+  const _ColoredIcon(this.icon, this.key_, {this.color, this.size = 30});
+  final double size;
   final IconData icon;
   final String key_;
   final Color? color;
@@ -273,13 +317,13 @@ class _ColoredIcon extends ConsumerWidget {
         ? (color ?? sectionColor(key_))
         : AetherTokens.textSecondary;
     return Container(
-      width: 30,
-      height: 30,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: c,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(size * 0.27),
       ),
-      child: Icon(icon, size: 17, color: Colors.white),
+      child: Icon(icon, size: size * 0.57, color: Colors.white),
     );
   }
 }
