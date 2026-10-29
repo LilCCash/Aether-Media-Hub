@@ -524,7 +524,9 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         let primaries = Int(par.pointee.color_primaries.rawValue)
         let transfer = Int(par.pointee.color_trc.rawValue)
         let matrix = Int(par.pointee.color_space.rawValue)
-        if primaries > 0 && primaries != 2 {
+        // Only HDR carries its colour description (PQ or HLG); an SDR file is read as BT.709 without it, and a half-filled or odd
+        // description made AVFoundation drop the whole video track.
+        if (transfer == 16 || transfer == 18) && primaries == 9 && (matrix == 9 || matrix == 10) {
             var colr = Data("nclx".utf8)
             colr.append(MP4Writer.u16(primaries))
             colr.append(MP4Writer.u16(transfer))
