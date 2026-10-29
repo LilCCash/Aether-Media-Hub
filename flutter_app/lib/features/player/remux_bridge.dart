@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import '../../core/util/app_log.dart';
 import 'playback_engine.dart';
 
 /// What the phone serves for a file: the address a player or a television opens.
@@ -31,16 +32,22 @@ class RemuxBridge {
   static final _airplay = StreamController<bool>.broadcast();
   static bool _listening = false;
 
+  static void _listen() {
+    if (_listening || !supported) return;
+    _listening = true;
+    _ch.setMethodCallHandler((call) async {
+      final a = call.arguments as Map?;
+      if (call.method == 'route') {
+        _airplay.add(a?['airplay'] == true);
+      } else if (call.method == 'log') {
+        AppLog.instance.add('remux', '${a?['m']}');
+      }
+    });
+  }
+
   /// True when the output goes to an AirPlay receiver, false when it comes back to the phone.
   static Stream<bool> get airplay {
-    if (!_listening && supported) {
-      _listening = true;
-      _ch.setMethodCallHandler((call) async {
-        if (call.method == 'route') {
-          _airplay.add((call.arguments as Map)['airplay'] == true);
-        }
-      });
-    }
+    _listen();
     return _airplay.stream;
   }
 
@@ -104,15 +111,20 @@ class RemuxBridge {
     List<String> languages = const [],
     int? audioIndex,
     bool lan = true,
-  }) async => _lease(
-    await _ch.invokeMethod<Object>('open', {
-      'url': url,
-      'headers': headers,
-      'languages': languages,
-      'audioIndex': ?audioIndex,
-      'lan': lan,
-    }),
-  );
+  }) async {
+    _listen();
+    return _lease(
+      await _ch
+          .invokeMethod<Object>('open', {
+            'url': url,
+            'headers': headers,
+            'languages': languages,
+            'audioIndex': ?audioIndex,
+            'lan': lan,
+          })
+          .timeout(const Duration(seconds: 90)),
+    );
+  }
 
   /// Forwards the file as it is through the phone (the television gets an address without headers).
   static Future<RemuxLease> forward(

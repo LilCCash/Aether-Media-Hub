@@ -6,9 +6,14 @@ import AetherCore
 /// Channel `aether/remux`: `available`, `open {url, headers, languages, audioIndex, lan}` → `{id, url, lan, audio: [...]}`, `close`.
 public class AetherNativePlugin: NSObject, FlutterPlugin {
     @MainActor private static let host = RemuxHost()
+    private static var channel: FlutterMethodChannel?
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "aether/remux", binaryMessenger: registrar.messenger())
+        AetherNativePlugin.channel = channel
+        Task { @MainActor in
+            AetherNativePlugin.host.log = { text in AetherNativePlugin.channel?.invokeMethod("log", arguments: ["m": text]) }
+        }
         registrar.addMethodCallDelegate(AetherNativePlugin(), channel: channel)
         // Tells Dart when the sound/picture goes to or comes back from an AirPlay receiver: the converted file must then be served on the
         // Wi-Fi address (the receiver cannot reach 127.0.0.1).

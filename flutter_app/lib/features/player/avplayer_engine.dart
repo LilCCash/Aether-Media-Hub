@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../core/util/app_log.dart';
 import 'playback_engine.dart';
 import 'remux_bridge.dart';
 
@@ -137,12 +138,17 @@ class AvPlayerEngine implements PlaybackEngine {
     if (!source.isLocalFile && !isNative(source)) {
       // MKV and the rest: the phone converts it to HLS and AVPlayer plays that (so picture in picture and AirPlay work).
       try {
+        AppLog.instance.add('player', 'AVPlayer: converto il file (remux)');
         final l = await RemuxBridge.open(
           source.uri,
           source.headers,
           languages: languages,
           audioIndex: _audioIndex,
           lan: _lan,
+        );
+        AppLog.instance.add(
+          'player',
+          'AVPlayer: conversione pronta, apro la lista HLS',
         );
         lease = l;
         uri = l.url;
@@ -160,6 +166,8 @@ class AvPlayerEngine implements PlaybackEngine {
           _lan = true;
           unawaited(_reopenHere());
         }
+      } on TimeoutException {
+        throw StateError('La conversione del file non risponde (oltre 90 s).');
       } on Object catch (e) {
         throw StateError(RemuxBridge.messageOf(e));
       }
@@ -176,7 +184,12 @@ class AvPlayerEngine implements PlaybackEngine {
           );
     _c = c;
     _tick = Timer.periodic(const Duration(milliseconds: 250), (_) => _poll());
-    await c.initialize();
+    try {
+      await c.initialize().timeout(const Duration(seconds: 45));
+    } on TimeoutException {
+      throw StateError('AVPlayer non carica la lista HLS (oltre 45 s).');
+    }
+    AppLog.instance.add('player', 'AVPlayer: pronto');
     await c.setVolume(_volume);
     await c.setPlaybackSpeed(_rate);
     if (source.start > Duration.zero) await c.seekTo(source.start);

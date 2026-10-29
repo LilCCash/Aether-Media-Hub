@@ -27,6 +27,8 @@ final class RemuxHost {
     private var current: (id: RelaySessionID, fetcher: RelayRangeFetcher)?
     private var restarting = false
     private var epoch = 0
+    /// Progress lines for the app's log (no addresses, no keys).
+    var log: (String) -> Void = { _ in }
 
     /// A file forwarded as it is (a source that needs request headers a television cannot send): `leaf` names it for the receiver.
     func forward(_ upstream: RelayUpstream, ext: String) async throws -> Opened {
@@ -78,16 +80,20 @@ final class RemuxHost {
         let fetcher = URLSessionRangeFetcher(upstream: upstream, guardian: guardian)
         var source: RemuxSource?
         do {
+            log("sorgente in lettura (\(lan == nil ? "127.0.0.1" : "Wi-Fi"))")
             let resource = try await fetcher.probe()
             guard mine == epoch else { throw CancellationError() }
             guard let total = resource.length, total > 0 else { throw RelayError.upstreamNoRanges }
+            log("sorgente raggiunta, \(total / 1_048_576) MB")
             guard let engine = RemuxHost.makeEngine(fetcher, total, audio) else { throw RemuxHostError.unavailable }
             let made = RemuxSource(engine: engine)
             source = made
             let prepared = try await made.prepare()
             guard mine == epoch else { throw CancellationError() }
+            log("file analizzato: \(prepared.segments.count) pezzi, \(Int(prepared.duration)) s")
 
             _ = try await startServer(host: host, lan: lan)
+            log("server locale avviato")
             guard mine == epoch else { throw CancellationError() }
             registry.ownAddress = lan?.address
             let created = try registry.create(source: made, leaf: nil, owner: .airPlay, peerRule: .any)
@@ -127,7 +133,10 @@ final class RemuxHost {
         server?.stop()
         server = nil
         let configuration = RelayServer.Configuration(bindAddress: host, lan: lan, allowLoopbackPeers: true)
-        let created = RelayServer(registry: registry, configuration: configuration, log: { _ in })
+        let created = RelayServer(registry: registry, configuration: configuration, log: { [weak self] event in
+            let text = event.message
+            Task { @MainActor in self?.log(text) }
+        })
         created.onFailure = { [weak self, weak created] in
             Task { @MainActor in
                 if let self = self, let created = created { self.serverFailed(created, host: host, lan: lan) }
