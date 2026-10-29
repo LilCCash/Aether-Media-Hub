@@ -34,6 +34,7 @@ import UserNotifications
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "AetherAirPlay") {
       registrar.register(AirPlayPickerFactory(), withId: "aether/airplay")
+      AirPlayPresenter.shared.attach(messenger: registrar.messenger())
       nowPlaying = NowPlayingBridge(messenger: registrar.messenger())
       downloads = BackgroundDownloadBridge.shared
       downloads?.attach(messenger: registrar.messenger())
@@ -277,5 +278,37 @@ final class BackgroundDownloadBridge: NSObject, URLSessionDownloadDelegate {
       self.systemCompletion?()
       self.systemCompletion = nil
     }
+  }
+}
+
+
+/// Opens the system AirPlay list from a Flutter button: a hidden system picker is pressed in code (an AirPlay button drawn as a native
+/// view inside the controls broke the drawing of the widgets painted after it).
+final class AirPlayPresenter {
+  static let shared = AirPlayPresenter()
+  private var picker: AVRoutePickerView?
+
+  func attach(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(name: "aether/airplaypicker", binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard call.method == "show" else { return result(FlutterMethodNotImplemented) }
+      self?.show()
+      result(true)
+    }
+  }
+
+  private func show() {
+    guard let window = UIApplication.shared.connectedScenes
+      .compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first else { return }
+    if picker == nil {
+      let hidden = AVRoutePickerView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
+      hidden.alpha = 0.02
+      hidden.prioritizesVideoDevices = true
+      window.addSubview(hidden)
+      picker = hidden
+    }
+    guard let picker = picker else { return }
+    if picker.superview == nil { window.addSubview(picker) }
+    for case let button as UIButton in picker.subviews { button.sendActions(for: .touchUpInside) }
   }
 }

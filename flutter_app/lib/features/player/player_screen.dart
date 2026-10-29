@@ -24,6 +24,7 @@ import '../../core/casting/upnp.dart';
 
 import 'package:pip_kit/pip_kit.dart';
 
+import 'airplay_picker.dart';
 import 'avplayer_engine.dart';
 import 'remux_bridge.dart';
 import 'cast_sheet.dart';
@@ -1075,15 +1076,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                   ),
                                 ),
                                 if (Platform.isIOS)
-                                  GlassSurface(
-                                    radius: 22,
-                                    child: const SizedBox(
-                                      width: 44,
-                                      height: 44,
-                                      child: UiKitView(
-                                        viewType: 'aether/airplay',
-                                      ),
-                                    ),
+                                  GlassButton(
+                                    icon: Icons.airplay_rounded,
+                                    tooltip: 'AirPlay',
+                                    onPressed: AirPlayPicker.show,
                                   ),
                                 if (_canCast)
                                   GlassButton(

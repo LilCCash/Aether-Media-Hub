@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../core/casting/upnp.dart';
 import '../../design/glass.dart';
 import '../../design/widgets.dart';
+import 'airplay_picker.dart';
 import 'google_cast_section.dart';
 
 /// «Trasmetti sulla TV» (DLNA): finds the televisions on the Wi-Fi, gives the chosen one the link of the video and offers
@@ -155,10 +156,10 @@ class _CastSheetState extends State<CastSheet> {
             if (Platform.isIOS) ...[
               Row(
                 children: [
-                  const SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: UiKitView(viewType: 'aether/airplay'),
+                  GlassButton(
+                    icon: Icons.airplay_rounded,
+                    tooltip: 'AirPlay',
+                    onPressed: AirPlayPicker.show,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
