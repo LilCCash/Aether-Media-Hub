@@ -1,3 +1,4 @@
+import AVFoundation
 import Flutter
 import Foundation
 import AetherCore
@@ -9,6 +10,11 @@ public class AetherNativePlugin: NSObject, FlutterPlugin {
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "aether/remux", binaryMessenger: registrar.messenger())
         registrar.addMethodCallDelegate(AetherNativePlugin(), channel: channel)
+        // Tells Dart when the sound/picture goes to or comes back from an AirPlay receiver: the converted file must then be served on the
+        // Wi-Fi address (the receiver cannot reach 127.0.0.1).
+        NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { _ in
+            channel.invokeMethod("route", arguments: ["airplay": airPlayActive()])
+        }
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -16,6 +22,8 @@ public class AetherNativePlugin: NSObject, FlutterPlugin {
         switch call.method {
         case "available":
             result(FFmpegAvailability.isLinked)
+        case "airplay":
+            result(airPlayActive())
         case "close":
             Task { @MainActor in
                 AetherNativePlugin.host.close()
@@ -88,4 +96,8 @@ public class AetherNativePlugin: NSObject, FlutterPlugin {
             return "La sorgente ha risposto in modo inatteso e non si può convertire."
         }
     }
+}
+
+func airPlayActive() -> Bool {
+    return AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .airPlay }
 }

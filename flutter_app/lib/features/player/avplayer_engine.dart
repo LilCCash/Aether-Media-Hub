@@ -34,6 +34,8 @@ class AvPlayerEngine implements PlaybackEngine {
   /// Whether this engine can take [source]: an http(s) link to a file AVPlayer opens.
   /// The file this engine opened through the converter (an MKV), if any.
   RemuxLease? lease;
+  bool _lan = false;
+  StreamSubscription<bool>? _route;
   PlaybackSource? _source;
   List<String> languages = const [];
   EngineTracks _trackList = const EngineTracks();
@@ -140,11 +142,24 @@ class AvPlayerEngine implements PlaybackEngine {
           source.headers,
           languages: languages,
           audioIndex: _audioIndex,
+          lan: _lan,
         );
         lease = l;
         uri = l.url;
         headers = const {};
         _trackList = EngineTracks(audio: l.audio);
+        // On the phone the file is served on 127.0.0.1 (no network permission needed); when the output moves to an AirPlay
+        // receiver it is served again on the Wi-Fi address, from the same place.
+        _route ??= RemuxBridge.airplay.listen((on) {
+          if (on != _lan && lease != null) {
+            _lan = on;
+            unawaited(_reopenHere());
+          }
+        });
+        if (!_lan && await RemuxBridge.airplayActive()) {
+          _lan = true;
+          unawaited(_reopenHere());
+        }
       } on Object catch (e) {
         throw StateError(RemuxBridge.messageOf(e));
       }
@@ -207,6 +222,19 @@ class AvPlayerEngine implements PlaybackEngine {
 
   int? _audioIndex;
 
+  Future<void> _reopenHere() async {
+    final src = _source;
+    if (src == null) return;
+    await open(
+      PlaybackSource(
+        uri: src.uri,
+        headers: src.headers,
+        title: src.title,
+        start: _lastPos,
+      ),
+    );
+  }
+
   /// With a converted file the audio is one track of the HLS: choosing another converts again, from where the viewer is.
   @override
   Future<void> selectAudio(TrackInfo? track) async {
@@ -256,6 +284,7 @@ class AvPlayerEngine implements PlaybackEngine {
   @override
   Future<void> dispose() async {
     _tick?.cancel();
+    await _route?.cancel();
     await _c?.dispose();
     if (lease != null) await RemuxBridge.close();
     for (final s in [

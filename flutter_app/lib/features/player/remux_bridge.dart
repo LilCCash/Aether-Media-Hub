@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -26,6 +27,30 @@ class RemuxBridge {
   static const _ch = MethodChannel('aether/remux');
 
   static bool get supported => Platform.isIOS;
+
+  static final _airplay = StreamController<bool>.broadcast();
+  static bool _listening = false;
+
+  /// True when the output goes to an AirPlay receiver, false when it comes back to the phone.
+  static Stream<bool> get airplay {
+    if (!_listening && supported) {
+      _listening = true;
+      _ch.setMethodCallHandler((call) async {
+        if (call.method == 'route') {
+          _airplay.add((call.arguments as Map)['airplay'] == true);
+        }
+      });
+    }
+    return _airplay.stream;
+  }
+
+  static Future<bool> airplayActive() async {
+    try {
+      return await _ch.invokeMethod<bool>('airplay') ?? false;
+    } on Object {
+      return false;
+    }
+  }
 
   static bool isMatroska(String uriOrPath) {
     final p = (Uri.tryParse(uriOrPath)?.path ?? uriOrPath).toLowerCase();

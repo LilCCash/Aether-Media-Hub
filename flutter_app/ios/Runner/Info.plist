@@ -20,6 +20,13 @@
 	</array>
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSAllowsArbitraryLoadsInMediaAndWebContent</key>
+		<true/>
+	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Aether usa la rete locale per gli addon sul tuo NAS e per trovare i dispositivi a cui inviare un video.</string>
 	<key>FLTEnableFlutterGPU</key>
