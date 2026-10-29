@@ -74,8 +74,8 @@ void main() {
     );
     expect(find.text('Alfa'), findsOneWidget);
     expect(find.text('Beta'), findsNothing);
-    // closed until the viewer opens it
-    expect(find.text('uno'), findsNothing);
+    // the sections are open: their rows are on screen
+    expect(find.text('uno'), findsOneWidget);
   });
 
   test('TMDB facts follow their switches', () {

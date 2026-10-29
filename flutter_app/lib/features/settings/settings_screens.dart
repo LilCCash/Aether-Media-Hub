@@ -274,80 +274,276 @@ class SettingsRootScreen extends StatelessWidget {
 Widget _only(Set<String> titles, Widget child) =>
     GroupFilter(titles: titles, child: child);
 
-/// The groups of every topic, in the order they appear: some come from the page that builds them, listed here by their title.
-/// The topics and their order follow the iOS app's Settings.
+/// Which page builds each group of settings (a group is found by its title).
+final Map<String, Widget> _host = {
+  for (final t in [
+    'Stili pronti',
+    'Transizioni',
+    'Interfaccia',
+    'Colori',
+    'Sfondo',
+    'Schede e locandine',
+    'Movimento',
+    'In evidenza',
+    'Sezioni della Home',
+  ])
+    t: const LookPage(),
+  for (final t in [
+    'Modalità',
+    'Palette',
+    'Testo',
+    'Liquid Glass',
+    'Colore d’accento',
+    'Anteprima',
+  ])
+    t: const _AppearancePage(),
+  for (final t in ['Tema chiaro e condivisione', 'Sfondi animati e locandine'])
+    t: const ThemeExtrasPage(),
+  for (final t in ['Lingue', 'Sottotitoli', 'Player']) t: const _PlaybackPage(),
+  for (final t in [
+    'Lingue di riserva',
+    'Stile dei sottotitoli',
+    'Controlli e gesti',
+    'Ripresa e fine episodio',
+    'Prossimo episodio e titoli di coda',
+    'Fonti e schermata di blocco',
+    'Immagine (motore libmpv)',
+    'In sottofondo',
+  ])
+    t: const PlayerAdvancedPage(),
+  for (final t in [
+    'Ordine e scelta',
+    'Aspetto delle righe',
+    'Badge da mostrare',
+  ])
+    t: const SourcesPage(),
+  for (final t in ['Cataloghi e lingua', 'Badge personalizzati', 'Rete'])
+    t: const _ContentPage(),
+  for (final t in ['Scopri', 'Cataloghi e cache']) t: const MetadataPage(),
+  'Calendario e notifiche': const CalendarSettingsPage(),
+  'Contenuti da nascondere': const HiddenContentSettingsPage(),
+  for (final t in [
+    'Archiviazione',
+    'Download',
+    'Download di una stagione',
+    'Addon usati per le stagioni',
+  ])
+    t: const DownloadsSettingsPage(),
+};
+
+/// The groups [titles], one after the other, each from the page that builds it.
+List<Widget> _groups(List<String> titles) => [
+  for (final t in titles) _only({t}, _host[t]!),
+];
+
+/// A part of a topic with its own page: the topic page lists them like iOS Settings, each opens its groups as open sections.
+class _Sub {
+  const _Sub(
+    this.id,
+    this.title,
+    this.icon,
+    this.color,
+    this.subtitle,
+    this.groups,
+  );
+  final String id;
+  final String title;
+  final IconData icon;
+  final Color color;
+  final String subtitle;
+  final List<String> groups;
+}
+
+const _subs = <String, List<_Sub>>{
+  'look': [
+    _Sub(
+      'colors',
+      'Colori e stile',
+      Icons.palette_rounded,
+      Color(0xFFFF6FB5),
+      'Stili pronti, palette, colore d’accento',
+      [
+        'Stili pronti',
+        'Modalità',
+        'Palette',
+        'Colore d’accento',
+        'Colori',
+        'Anteprima',
+      ],
+    ),
+    _Sub(
+      'glass',
+      'Vetro, sfondo ed effetti',
+      Icons.blur_on_rounded,
+      Color(0xFF4FD1C5),
+      'Liquid Glass, sfondo, movimento',
+      [
+        'Liquid Glass',
+        'Sfondo',
+        'Movimento',
+        'Transizioni',
+        'Sfondi animati e locandine',
+      ],
+    ),
+    _Sub(
+      'text',
+      'Testo e interfaccia',
+      Icons.text_fields_rounded,
+      Color(0xFF5CC8FF),
+      'Caratteri, schede, locandine',
+      ['Testo', 'Interfaccia', 'Schede e locandine'],
+    ),
+    _Sub(
+      'home',
+      'Home',
+      Icons.home_rounded,
+      Color(0xFFFF8A5B),
+      'In evidenza e sezioni',
+      ['In evidenza', 'Sezioni della Home'],
+    ),
+    _Sub(
+      'light',
+      'Tema chiaro e condivisione',
+      Icons.light_mode_rounded,
+      Color(0xFFFFC857),
+      'Chiaro o automatico, copia e incolla un tema',
+      ['Tema chiaro e condivisione'],
+    ),
+  ],
+  'player': [
+    _Sub(
+      'lang',
+      'Lingue e sottotitoli',
+      Icons.subtitles_rounded,
+      Color(0xFFFFC857),
+      'Audio, sottotitoli e il loro stile',
+      ['Lingue', 'Lingue di riserva', 'Sottotitoli', 'Stile dei sottotitoli'],
+    ),
+    _Sub(
+      'controls',
+      'Player e controlli',
+      Icons.play_circle_rounded,
+      Color(0xFFFFA23B),
+      'Motore, gesti, prossimo episodio',
+      [
+        'Player',
+        'Controlli e gesti',
+        'Ripresa e fine episodio',
+        'Prossimo episodio e titoli di coda',
+        'In sottofondo',
+      ],
+    ),
+    _Sub(
+      'image',
+      'Immagine e schermata di blocco',
+      Icons.tune_rounded,
+      Color(0xFFB48CFF),
+      'HDR, qualità, sorgenti di riserva',
+      ['Immagine (motore libmpv)', 'Fonti e schermata di blocco'],
+    ),
+    _Sub(
+      'sources',
+      'Sorgenti',
+      Icons.link_rounded,
+      Color(0xFF4CD6A0),
+      'Ordine, aspetto delle righe, badge',
+      [
+        'Ordine e scelta',
+        'Aspetto delle righe',
+        'Badge da mostrare',
+        'Badge personalizzati',
+      ],
+    ),
+  ],
+  'content': [
+    _Sub(
+      'catalogs',
+      'Cataloghi e Scopri',
+      Icons.explore_rounded,
+      Color(0xFF4CD6A0),
+      'Lingua, categorie, cache',
+      ['Scopri', 'Cataloghi e lingua', 'Cataloghi e cache'],
+    ),
+    _Sub(
+      'calendar',
+      'Calendario e notifiche',
+      Icons.notifications_active_rounded,
+      Color(0xFFFF8A5B),
+      'Nuovi episodi, uscite',
+      ['Calendario e notifiche'],
+    ),
+    _Sub(
+      'hidden',
+      'Contenuti da nascondere',
+      Icons.visibility_off_rounded,
+      Color(0xFFFF6B6B),
+      'Per esempio i talk show',
+      ['Contenuti da nascondere'],
+    ),
+  ],
+};
+
+/// A topic with parts: the parts as rows (with a few quick settings on top for the look).
+Widget _hubPage(String topic, String title) => _Hub(topic: topic, title: title);
+
+class _Hub extends StatelessWidget {
+  const _Hub({required this.topic, required this.title});
+  final String topic;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => SettingsPageFrame(
+    title: title,
+    children: [
+      if (topic == 'look') const ThemeQuickSettings(),
+      SettingsGroup(
+        children: [
+          for (final p in _subs[topic]!)
+            HubRow(
+              icon: p.icon,
+              color: p.color,
+              title: p.title,
+              subtitle: p.subtitle,
+              onTap: () => context.push('/settings/$topic.${p.id}'),
+            ),
+        ],
+      ),
+    ],
+  );
+}
+
+Widget _subPage(String page) {
+  final topic = page.split('.').first;
+  final sub = _subs[topic]?.where((p) => '$topic.${p.id}' == page).firstOrNull;
+  if (sub == null) {
+    return SettingsPageFrame(
+      title: 'Impostazioni',
+      children: [Text('Pagina sconosciuta: $page')],
+    );
+  }
+  return MergedSettingsPage(title: sub.title, parts: _groups(sub.groups));
+}
+
+/// The groups of every topic, in the order they appear. The topics and their order follow the iOS app's Settings.
 Widget _topicPage(String page) {
   switch (page) {
     case 'look':
-      return MergedSettingsPage(
-        title: 'Aspetto',
-        parts: [
-          _only({'Stili pronti', 'Transizioni'}, const LookPage()),
-          const _AppearancePage(),
-          _only({
-            'Tema chiaro e condivisione',
-            'Sfondi animati e locandine',
-          }, const ThemeExtrasPage()),
-          _only({
-            'Interfaccia',
-            'Colori',
-            'Sfondo',
-            'Schede e locandine',
-            'Movimento',
-          }, const LookPage()),
-          _only({'In evidenza', 'Sezioni della Home'}, const LookPage()),
-        ],
-      );
+      return _hubPage('look', 'Aspetto');
     case 'player':
-      return MergedSettingsPage(
-        title: 'Riproduzione',
-        parts: [
-          _only({'Lingue'}, const _PlaybackPage()),
-          _only({'Lingue di riserva'}, const PlayerAdvancedPage()),
-          _only({'Sottotitoli'}, const _PlaybackPage()),
-          _only({'Stile dei sottotitoli'}, const PlayerAdvancedPage()),
-          _only({'Player'}, const _PlaybackPage()),
-          _only({
-            'Controlli e gesti',
-            'Ripresa e fine episodio',
-            'Prossimo episodio e titoli di coda',
-            'Fonti e schermata di blocco',
-            'Immagine (motore libmpv)',
-            'In sottofondo',
-          }, const PlayerAdvancedPage()),
-          const SourcesPage(),
-          _only({'Badge personalizzati'}, const _ContentPage()),
-        ],
-      );
+      return _hubPage('player', 'Riproduzione');
     case 'content':
-      return MergedSettingsPage(
-        title: 'Contenuti e scoperta',
-        parts: [
-          _only({'Scopri'}, const MetadataPage()),
-          _only({'Cataloghi e lingua'}, const _ContentPage()),
-          _only({'Calendario e notifiche'}, const CalendarSettingsPage()),
-          _only({'Contenuti da nascondere'}, const HiddenContentSettingsPage()),
-          _only({'Cataloghi e cache'}, const MetadataPage()),
-        ],
-      );
+      return _hubPage('content', 'Contenuti e scoperta');
     case 'casting':
-      return MergedSettingsPage(
-        title: 'Casting',
-        parts: [
-          _only({'Rete'}, const _ContentPage()),
-        ],
-      );
+      return MergedSettingsPage(title: 'Casting', parts: _groups(['Rete']));
     case 'storage':
       return MergedSettingsPage(
         title: 'Archiviazione',
-        parts: [
-          _only({
-            'Archiviazione',
-            'Download',
-            'Download di una stagione',
-            'Addon usati per le stagioni',
-          }, const DownloadsSettingsPage()),
-        ],
+        parts: _groups([
+          'Archiviazione',
+          'Download',
+          'Download di una stagione',
+          'Addon usati per le stagioni',
+        ]),
       );
     case 'data':
       return const MergedSettingsPage(
@@ -381,6 +577,7 @@ class SettingsPageScreen extends ConsumerWidget {
       'playback' => _topicPage('player'),
       'sources' || 'metadata' || 'catalogs' => _topicPage('content'),
       'downloads' => _topicPage('storage'),
+      _ when page.contains('.') => _subPage(page),
       _ => SettingsPageFrame(
         title: 'Impostazioni',
         children: [Text('Pagina sconosciuta: $page')],
