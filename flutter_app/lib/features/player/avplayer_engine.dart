@@ -202,7 +202,11 @@ class AvPlayerEngine implements PlaybackEngine {
     _tick?.cancel();
     _c = c;
     _tick = Timer.periodic(const Duration(milliseconds: 250), (_) => _poll());
-    unawaited(old?.dispose());
+    // The picture is redrawn on the new controller first; the old one goes away once the new view is on screen.
+    _swap.value++;
+    if (old != null) {
+      Timer(const Duration(milliseconds: 600), () => unawaited(old.dispose()));
+    }
     AppLog.instance.add('player', 'AVPlayer: pronto');
     await Future.wait([
       c.setVolume(_volume),
@@ -251,6 +255,9 @@ class AvPlayerEngine implements PlaybackEngine {
 
   int? _audioIndex;
 
+  /// Counts the controller swaps, so the picture is built again on the new one.
+  final _swap = ValueNotifier<int>(0);
+
   Future<void> _reopenHere() async {
     final src = _source;
     if (src == null) return;
@@ -286,25 +293,30 @@ class AvPlayerEngine implements PlaybackEngine {
 
   @override
   Widget buildVideo(BuildContext context, {required BoxFit fit}) {
-    final c = _c;
-    if (c == null) return const SizedBox.expand();
-    return ValueListenableBuilder<VideoPlayerValue>(
-      valueListenable: c,
-      builder: (context, v, _) {
-        if (!v.isInitialized || v.size == Size.zero) {
-          return const SizedBox.expand();
-        }
-        return ClipRect(
-          child: SizedBox.expand(
-            child: FittedBox(
-              fit: fit,
-              child: SizedBox(
-                width: v.size.width,
-                height: v.size.height,
-                child: VideoPlayer(c),
+    return ValueListenableBuilder<int>(
+      valueListenable: _swap,
+      builder: (context, _, _) {
+        final c = _c;
+        if (c == null) return const SizedBox.expand();
+        return ValueListenableBuilder<VideoPlayerValue>(
+          valueListenable: c,
+          builder: (context, v, _) {
+            if (!v.isInitialized || v.size == Size.zero) {
+              return const SizedBox.expand();
+            }
+            return ClipRect(
+              child: SizedBox.expand(
+                child: FittedBox(
+                  fit: fit,
+                  child: SizedBox(
+                    width: v.size.width,
+                    height: v.size.height,
+                    child: VideoPlayer(c, key: ObjectKey(c)),
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
