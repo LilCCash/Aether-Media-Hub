@@ -784,13 +784,14 @@ class _KenBurnsState extends State<KenBurns>
         animation: _c,
         child: widget.child,
         builder: (_, child) {
-          final t = Curves.easeInOut.transform(_c.value);
-          return Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()
-              ..translateByDouble(-14 * t, -8 * t, 0, 1)
-              ..scaleByDouble(1.04 + 0.08 * t, 1.04 + 0.08 * t, 1, 1),
-            child: child,
+          final scale = 1 + 0.07 * Curves.easeInOut.transform(_c.value);
+          // Anchored at the top (heads stay in the picture) and clipped to the box: the zoom never spills over the page.
+          return ClipRect(
+            child: Transform.scale(
+              scale: scale,
+              alignment: Alignment.topCenter,
+              child: child,
+            ),
           );
         },
       ),

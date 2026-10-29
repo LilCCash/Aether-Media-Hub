@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import 'playback_engine.dart';
+import 'remux_bridge.dart';
 
 /// [PlaybackEngine] on the system player (AVPlayer on iPhone): the one that can show Picture in Picture, because it draws
 /// through a real `AVPlayerLayer`. It opens MP4, MOV and HLS; anything else (MKV, AVI…) stays on libmpv, exactly as in the
@@ -31,8 +32,20 @@ class AvPlayerEngine implements PlaybackEngine {
   final _subs = StreamController<List<String>>.broadcast();
 
   /// Whether this engine can take [source]: an http(s) link to a file AVPlayer opens.
-  static bool canOpen(PlaybackSource source) {
+  /// The file this engine opened through the converter (an MKV), if any.
+  RemuxLease? lease;
+  PlaybackSource? _source;
+  List<String> languages = const [];
+  EngineTracks _trackList = const EngineTracks();
+
+  static bool canOpen(PlaybackSource source, {bool remux = false}) {
     if (!Platform.isIOS) return false;
+    if (remux &&
+        !source.isLocalFile &&
+        RemuxBridge.isMatroska(source.uri) &&
+        (Uri.tryParse(source.uri)?.scheme.startsWith('http') ?? false)) {
+      return true;
+    }
     final u = Uri.tryParse(source.uri);
     final path = (u?.path ?? source.uri).toLowerCase();
     final isWeb = u != null && u.scheme.startsWith('http');
@@ -68,7 +81,7 @@ class AvPlayerEngine implements PlaybackEngine {
   @override
   bool get playing => _lastPlaying;
   @override
-  EngineTracks get tracks => const EngineTracks();
+  EngineTracks get tracks => _trackList;
 
   /// The size of the picture, once known (for the Picture in Picture window).
   Size get videoSize => _c?.value.size ?? Size.zero;
@@ -116,7 +129,26 @@ class AvPlayerEngine implements PlaybackEngine {
     await _c?.dispose();
     _completed = false;
     _lastError = null;
-    final uri = Uri.parse(source.uri);
+    _source = source;
+    var uri = Uri.parse(source.uri);
+    var headers = source.headers;
+    if (!source.isLocalFile && RemuxBridge.isMatroska(source.uri)) {
+      // MKV: the phone converts it to HLS and AVPlayer plays that (so picture in picture and AirPlay work).
+      try {
+        final l = await RemuxBridge.open(
+          source.uri,
+          source.headers,
+          languages: languages,
+          audioIndex: _audioIndex,
+        );
+        lease = l;
+        uri = l.url;
+        headers = const {};
+        _trackList = EngineTracks(audio: l.audio);
+      } on Object catch (e) {
+        throw StateError(RemuxBridge.messageOf(e));
+      }
+    }
     final c = source.isLocalFile
         ? VideoPlayerController.file(
             File(source.uri),
@@ -124,7 +156,7 @@ class AvPlayerEngine implements PlaybackEngine {
           )
         : VideoPlayerController.networkUrl(
             uri,
-            httpHeaders: source.headers,
+            httpHeaders: headers,
             viewType: VideoViewType.platformView,
           );
     _c = c;
@@ -134,7 +166,7 @@ class AvPlayerEngine implements PlaybackEngine {
     await c.setPlaybackSpeed(_rate);
     if (source.start > Duration.zero) await c.seekTo(source.start);
     await c.play();
-    _tracks.add(const EngineTracks());
+    _tracks.add(_trackList);
     _poll();
   }
 
@@ -173,8 +205,25 @@ class AvPlayerEngine implements PlaybackEngine {
     };
   }
 
+  int? _audioIndex;
+
+  /// With a converted file the audio is one track of the HLS: choosing another converts again, from where the viewer is.
   @override
-  Future<void> selectAudio(TrackInfo? track) async {}
+  Future<void> selectAudio(TrackInfo? track) async {
+    final src = _source;
+    if (track == null || lease == null || src == null) return;
+    _audioIndex = int.tryParse(track.id);
+    final at = _lastPos;
+    await open(
+      PlaybackSource(
+        uri: src.uri,
+        headers: src.headers,
+        title: src.title,
+        start: at,
+      ),
+    );
+  }
+
   @override
   Future<void> selectSubtitle(TrackInfo? track) async {}
 
@@ -208,6 +257,7 @@ class AvPlayerEngine implements PlaybackEngine {
   Future<void> dispose() async {
     _tick?.cancel();
     await _c?.dispose();
+    if (lease != null) await RemuxBridge.close();
     for (final s in [
       _pos,
       _dur,

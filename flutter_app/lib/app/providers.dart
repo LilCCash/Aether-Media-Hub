@@ -43,6 +43,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
     WatchProgress.threshold = state.watchedThreshold;
     s.downloads.maxConcurrent = state.maxDownloads;
     s.downloads.backgroundNative = state.backgroundDownloads;
+    s.downloads.notifyDone = state.notifyDownloads;
     s.downloads.allowCellular = state.downloadOverCellular;
     await s.settingsRepo.save(state);
   }

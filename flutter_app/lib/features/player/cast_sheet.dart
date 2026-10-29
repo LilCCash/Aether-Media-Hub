@@ -17,6 +17,7 @@ class CastSheet extends StatefulWidget {
     required this.url,
     required this.title,
     this.artwork,
+    this.mime,
     this.hasHeaders = false,
     this.onCasting,
     this.discovery,
@@ -26,6 +27,9 @@ class CastSheet extends StatefulWidget {
   final Uri url;
   final String title;
   final String? artwork;
+
+  /// The content type when it is not the file's own (a converted MKV is HLS).
+  final String? mime;
 
   /// The source needs request headers the television cannot send.
   final bool hasHeaders;
@@ -173,6 +177,7 @@ class _CastSheetState extends State<CastSheet> {
                 url: widget.url,
                 title: widget.title,
                 artwork: widget.artwork,
+                mime: widget.mime,
                 onCasting: widget.onCasting,
               ),
               const SizedBox(height: 14),

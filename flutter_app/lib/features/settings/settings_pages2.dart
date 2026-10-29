@@ -24,6 +24,7 @@ const _badgeKinds = {
 
 /// Settings ▸ Sorgenti: how the list of sources is ordered, filtered and drawn.
 bool _bg(AppSettings s) => s.backgroundDownloads;
+bool _notifyDl(AppSettings s) => s.notifyDownloads;
 
 class SourcesPage extends ConsumerWidget {
   const SourcesPage({super.key});
@@ -211,6 +212,12 @@ class DownloadsSettingsPage extends ConsumerWidget {
               'Scarica anche con l’app chiusa (iOS)',
               _bg,
               subtitle: 'Il sistema porta avanti i download in background',
+            ),
+            const PrefSwitch(
+              'notifyDownloads',
+              'Avvisami quando un download è finito',
+              _notifyDl,
+              subtitle: 'Notifica anche se l’app è chiusa',
             ),
             const PrefSwitch(
               'downloadOverCellular',

@@ -398,6 +398,7 @@ const _languages = {
 };
 
 bool _nativePlayer(AppSettings s) => s.nativePlayer;
+bool _remuxMkv(AppSettings s) => s.remuxMkv;
 
 class _PlaybackPage extends ConsumerWidget {
   const _PlaybackPage();
@@ -498,7 +499,13 @@ class _PlaybackPage extends ConsumerWidget {
               'nativePlayer',
               'Player di sistema per MP4 e HLS (iPhone)',
               _nativePlayer,
-              subtitle: 'Serve al Picture in Picture. MKV, AVI e gli altri formati restano su libmpv.',
+              subtitle: 'Serve al Picture in Picture e ad AirPlay. AVI e gli altri formati restano su libmpv.',
+            ),
+            const PrefSwitch(
+              'remuxMkv',
+              'Converti gli MKV per il player di sistema (iPhone)',
+              _remuxMkv,
+              subtitle: 'Il telefono converte al volo l’MKV in HLS: così funzionano Picture in Picture, AirPlay e Cast anche con gli MKV.',
             ),
             SwitchRow(
               title: 'Pulsante «Salta intro»',

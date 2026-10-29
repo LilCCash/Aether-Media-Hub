@@ -151,6 +151,7 @@ class AppServices {
     client.minCacheSeconds = settings.catalogRefreshMin * 60;
     downloads.maxConcurrent = settings.maxDownloads;
     downloads.backgroundNative = settings.backgroundDownloads;
+    downloads.notifyDone = settings.notifyDownloads;
     downloads.allowCellular = settings.downloadOverCellular;
     downloads.networkAllowed = () async {
       if (downloads.allowCellular) return true;

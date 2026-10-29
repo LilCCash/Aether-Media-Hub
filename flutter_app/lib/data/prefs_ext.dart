@@ -31,7 +31,7 @@ extension PrefsExt on AppSettings {
   bool get nextPreview => _b('nextPreview', true);
   bool get autoSwitchSource => _b('autoSwitchSource', true);
   bool get nowPlaying => _b('nowPlaying', true);
-  bool get remuxMkv => _b('remuxMkv', false);
+  bool get remuxMkv => _b('remuxMkv', true);
   String get toneMapping => _s('toneMapping', 'auto', {
     'auto',
     'bt.2390',
@@ -51,6 +51,7 @@ extension PrefsExt on AppSettings {
   int get calendarDays => _i('calendarDays', 30, 7, 90);
 
   // ── Downloads ──
+  bool get notifyDownloads => _b('notifyDownloads', true);
   bool get backgroundDownloads => _b('backgroundDownloads', true);
 
   // ── Look ──

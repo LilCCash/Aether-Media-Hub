@@ -25,6 +25,7 @@ import '../../core/casting/upnp.dart';
 import 'package:pip_kit/pip_kit.dart';
 
 import 'avplayer_engine.dart';
+import 'remux_bridge.dart';
 import 'cast_sheet.dart';
 import '../../design/light_theme.dart';
 import 'now_playing.dart';
@@ -191,15 +192,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _openCast() async {
     final src = widget.args.source;
     _hideTimer?.cancel();
+    var url = Uri.parse(src.uri);
+    String? mime;
+    var headers = src.headers.isNotEmpty;
+    if (RemuxBridge.supported) {
+      // The television cannot send headers and does not read MKV: the phone serves the file (converted if need be) on the Wi-Fi.
+      final engine = _engine;
+      try {
+        if (engine is AvPlayerEngine && (engine.lease?.lan ?? false)) {
+          url = engine.lease!.url;
+          mime = 'application/x-mpegURL';
+          headers = false;
+        } else if (RemuxBridge.isMatroska(src.uri)) {
+          _hint('Preparo il file per la TV…', ms: 4000);
+          final l = await RemuxBridge.open(src.uri, src.headers);
+          url = l.url;
+          mime = 'application/x-mpegURL';
+          headers = false;
+        } else if (headers) {
+          _hint('Preparo il file per la TV…', ms: 4000);
+          final l = await RemuxBridge.forward(src.uri, src.headers);
+          url = l.url;
+          headers = false;
+        }
+      } on Object catch (e) {
+        _hint(RemuxBridge.messageOf(e), ms: 5000);
+      }
+    }
+    if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (_) => CastSheet(
-        url: Uri.parse(src.uri),
+        url: url,
+        mime: mime,
         title: widget.args.title,
         artwork: widget.args.poster,
-        hasHeaders: src.headers.isNotEmpty,
+        hasHeaders: headers,
         onCasting: () => _engine.pause(),
       ),
     );
@@ -363,8 +393,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   PlaybackEngine _pickEngine() =>
       Platform.isIOS &&
           ref.read(settingsProvider).nativePlayer &&
-          AvPlayerEngine.canOpen(widget.args.source)
-      ? AvPlayerEngine()
+          AvPlayerEngine.canOpen(
+            widget.args.source,
+            remux: ref.read(settingsProvider).remuxMkv,
+          )
+      ? (AvPlayerEngine()
+          ..languages = [ref.read(settingsProvider).audioLanguage])
       : MediaKitEngine();
 
   void _makeSession() {

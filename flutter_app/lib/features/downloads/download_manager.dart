@@ -142,6 +142,9 @@ class DownloadManager extends ChangeNotifier {
 
   /// iOS: let the system run the transfer (a background URLSession), so it goes on with the app closed.
   bool backgroundNative = false;
+
+  /// A notification when a file finishes while the app is closed.
+  bool notifyDone = true;
   static const _bg = MethodChannel('aether/bgdownload');
   final Map<String, Completer<Map<Object?, Object?>>> _nativeWaiters = {};
   bool _nativeListening = false;
@@ -199,6 +202,8 @@ class DownloadManager extends ChangeNotifier {
         'id': item.id,
         'url': item.url,
         'dest': pathOf(item),
+        'title': item.title,
+        'notify': notifyDone,
         'headers': {
           if (!item.headers.keys.any((k) => k.toLowerCase() == 'user-agent'))
             'User-Agent': 'Aether/1.0',

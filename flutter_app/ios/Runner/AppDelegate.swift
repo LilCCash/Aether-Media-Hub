@@ -142,6 +142,7 @@ final class BackgroundDownloadBridge: NSObject, URLSessionDownloadDelegate {
   private let store = UserDefaults.standard
   private let pendingKey = "aether.bgdownload.finished"
   private let destKey = "aether.bgdownload.dest"
+  private let titleKey = "aether.bgdownload.title"
 
   private lazy var session: URLSession = {
     let config = URLSessionConfiguration.background(withIdentifier: "app.aether.background-downloads")
@@ -194,11 +195,32 @@ final class BackgroundDownloadBridge: NSObject, URLSessionDownloadDelegate {
       var dests = self.store.dictionary(forKey: self.destKey) as? [String: String] ?? [:]
       dests[id] = dest
       self.store.set(dests, forKey: self.destKey)
+      var titles = self.store.dictionary(forKey: self.titleKey) as? [String: String] ?? [:]
+      if args["notify"] as? Bool ?? false {
+        titles[id] = args["title"] as? String ?? "Download"
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+      } else {
+        titles.removeValue(forKey: id)
+      }
+      self.store.set(titles, forKey: self.titleKey)
       task.resume()
     }
   }
 
+  /// «Download completato», also when the app is closed (the system wakes it for a moment when a file is done).
+  private func announce(_ id: String, ok: Bool) {
+    var titles = store.dictionary(forKey: titleKey) as? [String: String] ?? [:]
+    guard let title = titles.removeValue(forKey: id) else { return }
+    store.set(titles, forKey: titleKey)
+    let content = UNMutableNotificationContent()
+    content.title = ok ? "Download completato" : "Download non riuscito"
+    content.body = title
+    content.sound = .default
+    UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "dl-\(id)", content: content, trigger: nil))
+  }
+
   private func record(_ id: String, _ info: [String: Any]) {
+    announce(id, ok: info["ok"] as? Bool ?? false)
     var d = store.dictionary(forKey: pendingKey) ?? [:]
     d[id] = info
     store.set(d, forKey: pendingKey)

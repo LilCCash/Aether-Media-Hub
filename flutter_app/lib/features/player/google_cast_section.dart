@@ -15,8 +15,10 @@ class GoogleCastSection extends StatefulWidget {
     required this.url,
     required this.title,
     this.artwork,
+    this.mime,
     this.onCasting,
   });
+  final String? mime;
   final Uri url;
   final String title;
   final String? artwork;
@@ -73,6 +75,7 @@ class _GoogleCastSectionState extends State<GoogleCastSection> {
   }
 
   String get _mime {
+    if (widget.mime != null) return widget.mime!;
     final p = widget.url.path.toLowerCase();
     if (p.endsWith('.m3u8')) return 'application/x-mpegURL';
     if (p.endsWith('.mkv')) return 'video/x-matroska';
