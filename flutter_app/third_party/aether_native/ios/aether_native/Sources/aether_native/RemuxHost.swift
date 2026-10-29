@@ -11,6 +11,49 @@ enum RemuxHostError: Error {
 /// Converts a Matroska file into HLS for AVPlayer, AirPlay and Google Cast: the pieces are made on demand and served by a small server.
 /// On the Wi-Fi address when there is one (a television can fetch the pieces, and so can the phone's own player), else on 127.0.0.1.
 /// One file at a time.
+/// A text subtitle track of the file, and one line of it.
+struct RemuxSubtitleTrack: Sendable {
+    let index: Int
+    let language: String
+    let title: String
+    let codec: String
+    let isDefault: Bool
+    let isForced: Bool
+}
+
+struct RemuxCue: Sendable {
+    let track: Int
+    let start: Double
+    let end: Double
+    let text: String
+}
+
+/// What an engine that can read subtitle lines offers.
+protocol RemuxSubtitleSource: AnyObject {
+    var subtitleTracks: [RemuxSubtitleTrack] { get }
+    func setCueSink(_ sink: @escaping @Sendable ([RemuxCue]) -> Void)
+}
+
+enum RemuxCueText {
+    /// The codecs whose packets are text (pictures such as PGS are not).
+    static let textCodecs: Set<String> = ["subrip", "ass", "ssa", "webvtt", "mov_text", "text"]
+
+    /// A Matroska ASS packet is «ReadOrder,Layer,Style,Name,MarginL,MarginR,MarginV,Effect,Text»: the line is the last field.
+    static func assDialogue(_ line: String) -> String {
+        let parts = line.split(separator: ",", maxSplits: 8, omittingEmptySubsequences: false)
+        return parts.count == 9 ? String(parts[8]) : line
+    }
+
+    /// Plain text: no style blocks, no tags, line breaks as they are.
+    static func clean(_ raw: String) -> String {
+        var text = raw.replacingOccurrences(of: "\\N", with: "\n").replacingOccurrences(of: "\\n", with: "\n")
+            .replacingOccurrences(of: "\\h", with: " ").replacingOccurrences(of: "\r", with: "")
+        text = text.replacingOccurrences(of: "\\{[^}]*\\}", with: "", options: .regularExpression)
+        text = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 /// What was learned about a file the first time it was read, kept in memory only (never written to disk) while the app runs.
 struct RemuxKnown: Sendable {
     let keyframeCount: Int
@@ -24,6 +67,7 @@ final class RemuxHost {
         let url: URL
         let lan: Bool
         let plan: RemuxPlan?
+        var subtitles: [RemuxSubtitleTrack] = []
     }
 
     private let registry = RelaySessionRegistry()
@@ -35,6 +79,8 @@ final class RemuxHost {
     private var epoch = 0
     /// Progress lines for the app's log (no addresses, no keys).
     var log: (String) -> Void = { _ in }
+    /// Subtitle lines read from the file while it is converted.
+    var cues: ([RemuxCue]) -> Void = { _ in }
 
     /// A file forwarded as it is (a source that needs request headers a television cannot send): `leaf` names it for the receiver.
     func forward(_ upstream: RelayUpstream, ext: String) async throws -> Opened {
@@ -107,12 +153,22 @@ final class RemuxHost {
             let prepared = try await made.prepare()
             guard mine == epoch else { throw CancellationError() }
             log("file analizzato: \(prepared.segments.count) pezzi, \(Int(prepared.duration)) s")
+            var subtitleTracks: [RemuxSubtitleTrack] = []
+            if let source = engine as? RemuxSubtitleSource {
+                subtitleTracks = source.subtitleTracks
+                source.setCueSink { [weak self] lines in
+                    Task { @MainActor in self?.cues(lines) }
+                }
+            }
             // The first pieces are made while the server comes up; the diagnostic runs once per launch, off the way.
             let check = !RemuxHost.selfChecked
             RemuxHost.selfChecked = true
             let report = log
             Task {
                 guard let initData = try? await engine.initSegment(), let first = try? await engine.mediaSegment(0) else { return }
+                // The next two pieces are ready by the time the player asks for them.
+                _ = try? await engine.mediaSegment(1)
+                _ = try? await engine.mediaSegment(2)
                 if check { await RemuxSelfCheck.run(initSegment: initData, fragment: first, log: report) }
             }
 
@@ -126,7 +182,7 @@ final class RemuxHost {
                 throw RemuxHostError.unavailable
             }
             current = (created.id, fetcher)
-            return Opened(id: "\(created.id)", url: url, lan: lan != nil, plan: prepared.plan)
+            return Opened(id: "\(created.id)", url: url, lan: lan != nil, plan: prepared.plan, subtitles: subtitleTracks)
         } catch {
             source?.close()
             fetcher.invalidate()

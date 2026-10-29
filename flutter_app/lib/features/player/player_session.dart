@@ -11,6 +11,7 @@ import '../../core/util/app_log.dart';
 import '../../data/library_repository.dart';
 import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
+import 'avplayer_engine.dart';
 import 'playback_engine.dart';
 
 /// A subtitle that does not live inside the video file: from an addon (a link), or bundled (text).
@@ -52,6 +53,7 @@ class PlayerArgs {
     this.episode,
     this.episodeTitle,
     this.externalSubtitles = const [],
+    this.fetchSubtitles,
     this.alternatives = const [],
     this.onNext,
     this.onPrevious,
@@ -76,6 +78,7 @@ class PlayerArgs {
     episode: episode,
     episodeTitle: episodeTitle,
     externalSubtitles: externalSubtitles,
+    fetchSubtitles: fetchSubtitles,
     alternatives: alternatives,
     onNext: onNext,
     onPrevious: onPrevious,
@@ -94,6 +97,9 @@ class PlayerArgs {
   final int? episode;
   final String? episodeTitle;
   final List<ExternalSubtitle> externalSubtitles;
+
+  /// Asks the subtitle addons again once the source is known (its file name and size let them find the right release).
+  final Future<List<ExternalSubtitle>> Function()? fetchSubtitles;
   final List<PlayerAlternative> alternatives;
 
   /// Prepares the next episode (null when there is none).
@@ -250,12 +256,66 @@ class PlayerSession extends ChangeNotifier {
 
   /// The line of an external subtitle at the current position (offset applied), or null.
   String? get externalLine {
-    if (externalSubtitle == null || _cues.isEmpty) return null;
+    var cues = _cues;
+    final inFile = embeddedSubtitle;
+    final en = engine;
+    // The lines of a subtitle inside a converted file are read by the converter and drawn by the app.
+    if (externalSubtitle == null && inFile != null && en is AvPlayerEngine) {
+      cues = en.cuesFor(inFile) ?? const [];
+    } else if (externalSubtitle == null) {
+      return null;
+    }
+    if (cues.isEmpty) return null;
     return SubtitleParser.cueAt(
-      _cues,
+      cues,
       position,
       offset: Duration(milliseconds: subtitleOffsetMs),
     )?.text;
+  }
+
+  final List<ExternalSubtitle> _lateSubtitles = [];
+
+  /// The subtitles of the addons: the ones found with the list of sources, plus the ones found for this exact file.
+  List<ExternalSubtitle> get externalSubtitles => [
+    ...args.externalSubtitles,
+    ..._lateSubtitles,
+  ];
+
+  Future<void> _fetchLateSubtitles() async {
+    final more = args.fetchSubtitles;
+    if (more == null) return;
+    try {
+      final known = {for (final e in args.externalSubtitles) e.url};
+      final list = await more();
+      final fresh = [
+        for (final e in list)
+          if (known.add(e.url)) e,
+      ];
+      if (fresh.isEmpty) return;
+      _lateSubtitles.addAll(fresh);
+      AppLog.instance.add(
+        'subtitles',
+        '${fresh.length} sottotitoli in più dagli addon, cercati con il nome del file',
+      );
+      // Nothing chosen yet and the viewer wants subtitles in a language the new ones have: take one, as the others would have been.
+      if (!subtitlesOn &&
+          settings.subtitlesEnabledByDefault &&
+          !TrackInfo.sameLanguage(audio?.language, settings.subtitleLanguage)) {
+        final pick = fresh
+            .where(
+              (e) =>
+                  TrackInfo.sameLanguage(e.language, settings.subtitleLanguage),
+            )
+            .firstOrNull;
+        if (pick != null) {
+          unawaited(selectExternalSubtitle(pick));
+          return;
+        }
+      }
+      notifyListeners();
+    } on Object catch (e) {
+      AppLog.instance.add('subtitles', 'Ricerca per file non riuscita: $e');
+    }
   }
 
   bool get subtitlesOn => embeddedSubtitle != null || externalSubtitle != null;
@@ -277,6 +337,7 @@ class PlayerSession extends ChangeNotifier {
       }
     }
     await _applyEngineOptions();
+    unawaited(_fetchLateSubtitles());
     _subs
       ..add(
         engine.positionStream.listen((d) {
@@ -508,7 +569,7 @@ class PlayerSession extends ChangeNotifier {
       }
     }
     if (!sameAsAudio) {
-      final ext = args.externalSubtitles
+      final ext = externalSubtitles
           .where(
             (s) =>
                 TrackInfo.sameLanguage(s.language, settings.subtitleLanguage),

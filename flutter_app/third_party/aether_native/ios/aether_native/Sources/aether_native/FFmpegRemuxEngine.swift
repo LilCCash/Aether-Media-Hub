@@ -14,6 +14,7 @@ private let ffSeekForce: Int32 = 0x20000      // AVSEEK_FORCE
 private let ffKeyFlag: Int32 = 1              // AV_PKT_FLAG_KEY
 private let ffIndexKeyframe: Int32 = 1        // AVINDEX_KEYFRAME
 private let ffDispositionDefault: Int32 = 1   // AV_DISPOSITION_DEFAULT
+private let ffDispositionForced: Int32 = 0x40 // AV_DISPOSITION_FORCED
 private let ffSeekBackward: Int32 = 1         // AVSEEK_FLAG_BACKWARD
 private let ffCustomIO: Int32 = 0x0080        // AVFMT_FLAG_CUSTOM_IO
 
@@ -312,6 +313,13 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
 
     private let audioChoice: RemuxAudioChoice
 
+    /// Text subtitle tracks of the file (the pieces carry none: their lines are read while the pieces are made and sent to the app).
+    private(set) var subtitleTracks: [RemuxSubtitleTrack] = []
+    private var subtitleCodecs: [Int: String] = [:]
+    private var pendingCues: [RemuxCue] = []
+    private var sentCues = Set<String>()
+    private var cueSink: (@Sendable ([RemuxCue]) -> Void)?
+
     private let note: (String) -> Void
 
     private let known: RemuxKnown?
@@ -444,6 +452,14 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             guard let stream = ic.pointee.streams[index], let par = stream.pointee.codecpar else { continue }
             infos.append(describe(stream: stream, parameters: par, index: index))
         }
+        var textTracks: [RemuxSubtitleTrack] = []
+        for info in infos where info.kind == .subtitle && RemuxCueText.textCodecs.contains(info.codec) {
+            subtitleCodecs[info.index] = info.codec
+            let forced = ic.pointee.streams[info.index].map { $0.pointee.disposition & ffDispositionForced != 0 } ?? false
+            textTracks.append(RemuxSubtitleTrack(index: info.index, language: info.language ?? "", title: info.title ?? "",
+                                                 codec: info.codec, isDefault: info.isDefault, isForced: forced))
+        }
+        subtitleTracks = textTracks
         let plan: RemuxPlan
         switch RemuxPlanner.plan(infos, audio: audioChoice) {
         case .success(let decided): plan = decided
@@ -715,6 +731,36 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     }
 
     private func produce(segment index: Int) throws -> Data {
+        let data = try produceData(segment: index)
+        flushCues()
+        return data
+    }
+
+    func setCueSink(_ sink: @escaping @Sendable ([RemuxCue]) -> Void) {
+        queue.async { self.cueSink = sink }
+    }
+
+    /// Sends the subtitle lines read since the last piece, each once.
+    private func flushCues() {
+        guard !pendingCues.isEmpty else { return }
+        let fresh = pendingCues.filter { sentCues.insert("\($0.track):\(Int($0.start * 1000)):\($0.text.hashValue)").inserted }
+        pendingCues.removeAll()
+        if !fresh.isEmpty { cueSink?(fresh) }
+    }
+
+    private func captureCue(_ packet: UnsafeMutablePointer<AVPacket>, stream: UnsafeMutablePointer<AVStream>, index: Int, codec: String) {
+        guard packet.pointee.size > 0, let bytes = packet.pointee.data, packet.pointee.pts != ffNoPTS else { return }
+        let base = av_q2d(stream.pointee.time_base)
+        let start = Double(packet.pointee.pts) * base
+        var length = Double(packet.pointee.duration) * base
+        if !(length > 0) { length = 4 }
+        guard let raw = String(data: Data(bytes: bytes, count: Int(packet.pointee.size)), encoding: .utf8) else { return }
+        let text = RemuxCueText.clean(codec == "ass" || codec == "ssa" ? RemuxCueText.assDialogue(raw) : raw)
+        guard !text.isEmpty else { return }
+        pendingCues.append(RemuxCue(track: index, start: start, end: start + length, text: text))
+    }
+
+    private func produceData(segment index: Int) throws -> Data {
         guard let ic = context, let layout = layout else { throw RemuxError.closed }
         guard index >= 0, index < layout.segments.count else { throw RemuxError.segmentOutOfRange(index) }
         let span = layout.segments[index]
@@ -745,6 +791,10 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             }
             defer { av_packet_unref(packet) }
             let inputIndex = Int(packet.pointee.stream_index)
+            if let kind = subtitleCodecs[inputIndex], let subStream = ic.pointee.streams[inputIndex] {
+                captureCue(packet, stream: subStream, index: inputIndex, codec: kind)
+                continue
+            }
             guard copiedInputs.contains(inputIndex), let stream = ic.pointee.streams[inputIndex] else { continue }
             guard packet.pointee.pts != ffNoPTS || packet.pointee.dts != ffNoPTS else { continue }
             let seconds = Double(packet.pointee.pts != ffNoPTS ? packet.pointee.pts : packet.pointee.dts) * av_q2d(stream.pointee.time_base)
@@ -921,5 +971,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         firstFragment = nil
     }
 }
+
+extension FFmpegRemuxEngine: RemuxSubtitleSource {}
 
 #endif

@@ -13,6 +13,10 @@ public class AetherNativePlugin: NSObject, FlutterPlugin {
         AetherNativePlugin.channel = channel
         Task { @MainActor in
             AetherNativePlugin.host.log = { text in AetherNativePlugin.channel?.invokeMethod("log", arguments: ["m": text]) }
+            AetherNativePlugin.host.cues = { lines in
+                let items: [[Any]] = lines.map { [$0.track, $0.start, $0.end, $0.text] }
+                AetherNativePlugin.channel?.invokeMethod("cues", arguments: ["items": items])
+            }
         }
         registrar.addMethodCallDelegate(AetherNativePlugin(), channel: channel)
         // Tells Dart when the sound/picture goes to or comes back from an AirPlay receiver: the converted file must then be served on the
@@ -69,6 +73,9 @@ public class AetherNativePlugin: NSObject, FlutterPlugin {
                         "lan": opened.lan,
                         "audio": choices.map { s in
                             ["index": s.index, "language": s.language ?? "", "title": s.title ?? "", "codec": s.codec, "isDefault": s.isDefault]
+                        },
+                        "subtitles": opened.subtitles.map { t in
+                            ["index": t.index, "language": t.language, "title": t.title, "codec": t.codec, "isDefault": t.isDefault, "isForced": t.isForced]
                         },
                     ])
                 } catch {

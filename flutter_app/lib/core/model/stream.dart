@@ -73,6 +73,9 @@ class AddonStream {
   String get searchText =>
       [name, description, filename, _urlFileName].whereType<String>().join(' ');
 
+  /// The file name from the link, when the link ends with one.
+  String? get urlFileName => _urlFileName;
+
   String? get _urlFileName {
     final raw = url;
     if (raw == null) return null;

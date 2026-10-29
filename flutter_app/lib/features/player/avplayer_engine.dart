@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../core/subtitles/subtitle_parser.dart';
 import '../../core/util/app_log.dart';
 import 'playback_engine.dart';
 import 'remux_bridge.dart';
@@ -154,7 +155,9 @@ class AvPlayerEngine implements PlaybackEngine {
         lease = l;
         uri = l.url;
         headers = const {};
-        _trackList = EngineTracks(audio: l.audio);
+        _trackList = EngineTracks(audio: l.audio, subtitles: l.subtitles);
+        // The subtitle lines of the file come as its pieces are made; the app draws them (the system player is not asked to).
+        _cueSub ??= RemuxBridge.cues.listen(_addCues);
         // On the phone the file is served on 127.0.0.1 (no network permission needed); when the output moves to an AirPlay
         // receiver it is served again on the Wi-Fi address, from the same place.
         _route ??= RemuxBridge.airplay.listen((on) {
@@ -256,6 +259,27 @@ class AvPlayerEngine implements PlaybackEngine {
 
   int? _audioIndex;
 
+  StreamSubscription<List<RemuxCueItem>>? _cueSub;
+  final Map<String, List<SubtitleCue>> _cueStore = {};
+  final Set<String> _cueSeen = {};
+
+  void _addCues(List<RemuxCueItem> items) {
+    final touched = <String>{};
+    for (final i in items) {
+      if (!_cueSeen.add('${i.track}|${i.start.inMilliseconds}|${i.text}')) {
+        continue;
+      }
+      (_cueStore[i.track] ??= []).add(SubtitleCue(i.start, i.end, i.text));
+      touched.add(i.track);
+    }
+    for (final t in touched) {
+      _cueStore[t]!.sort((a, b) => a.start.compareTo(b.start));
+    }
+  }
+
+  /// The lines of a subtitle track of the file read so far (sorted), or null when this track has none.
+  List<SubtitleCue>? cuesFor(TrackInfo track) => _cueStore[track.id];
+
   /// Counts the controller swaps, so the picture is built again on the new one.
   final _swap = ValueNotifier<int>(0);
 
@@ -327,6 +351,7 @@ class AvPlayerEngine implements PlaybackEngine {
   Future<void> dispose() async {
     _tick?.cancel();
     await _route?.cancel();
+    await _cueSub?.cancel();
     await _c?.dispose();
     if (lease != null) await RemuxBridge.close();
     for (final s in [

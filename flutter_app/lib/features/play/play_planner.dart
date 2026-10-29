@@ -108,6 +108,34 @@ class PlayPlanner {
     return result;
   }
 
+  /// The subtitle addons asked again with the name and size of the chosen file: the addons match subtitles to the exact release by
+  /// them (without them an addon can answer with few subtitles, or none in a language).
+  Future<List<ExternalSubtitle>> subtitlesForFile(
+    MetaItem meta,
+    Video? video,
+    AddonStream stream,
+  ) async {
+    final name = stream.filename ?? stream.urlFileName;
+    final extra = <String, String>{
+      if (name != null) 'filename': name,
+      if (stream.videoSize != null) 'videoSize': '${stream.videoSize}',
+    };
+    if (extra.isEmpty) return const [];
+    final type = meta.type;
+    final id = video?.id ?? meta.id;
+    final found = <AddonSubtitle>[];
+    await Future.wait([
+      for (final a in services.addons.addons.where(
+        (a) => a.enabled && a.manifest.provides('subtitles', type, id),
+      ))
+        services.addonClient
+            .subtitles(a.base, type, id, addonName: a.displayName, extra: extra)
+            .then(found.addAll)
+            .catchError((Object _) {}),
+    ]);
+    return subtitlesFor(stream, found);
+  }
+
   PlayerArgs buildArgs({
     required MetaItem meta,
     required Video? video,
@@ -146,6 +174,7 @@ class PlayPlanner {
       episodeTitle: video?.title,
       source: source,
       externalSubtitles: subtitlesFor(stream, addonSubtitles),
+      fetchSubtitles: () => subtitlesForFile(meta, video, stream),
       alternatives: alternatives,
       onNext: video == null ? null : () => nextEpisode(meta, video, stream),
       onPrevious: video == null

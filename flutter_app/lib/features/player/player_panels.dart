@@ -256,7 +256,7 @@ class SourcesPanel extends StatelessWidget {
 
 /// Subtitles from addons, grouped by language and, inside each language, by addon (the language of the settings first).
 List<Widget> _addonGroups(BuildContext context, PlayerSession s) {
-  final subs = s.args.externalSubtitles;
+  final subs = s.externalSubtitles;
   if (subs.isEmpty) return const [];
   final byLang = <String, Map<String, List<ExternalSubtitle>>>{};
   for (final e in subs) {
@@ -565,10 +565,10 @@ class InfoPanel extends StatelessWidget {
               for (final t in audio) _row(' ', t.label),
               if (subs.isNotEmpty) _section('Sottotitoli nel file'),
               for (final t in subs) _row(' ', t.label),
-              if (a.externalSubtitles.isNotEmpty)
+              if (session.externalSubtitles.isNotEmpty)
                 _row(
                   'Da addon',
-                  '${a.externalSubtitles.length} sottotitoli disponibili',
+                  '${session.externalSubtitles.length} sottotitoli disponibili',
                 ),
               if (!snap.hasData)
                 const Padding(

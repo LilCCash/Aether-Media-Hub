@@ -6,6 +6,15 @@ import 'package:flutter/services.dart';
 import '../../core/util/app_log.dart';
 import 'playback_engine.dart';
 
+/// One subtitle line read from the file: the track it belongs to, when it shows and what it says.
+class RemuxCueItem {
+  const RemuxCueItem(this.track, this.start, this.end, this.text);
+  final String track;
+  final Duration start;
+  final Duration end;
+  final String text;
+}
+
 /// What the phone serves for a file: the address a player or a television opens.
 class RemuxLease {
   const RemuxLease({
@@ -13,6 +22,7 @@ class RemuxLease {
     required this.url,
     required this.lan,
     this.audio = const [],
+    this.subtitles = const [],
   });
   final String id;
   final Uri url;
@@ -20,6 +30,9 @@ class RemuxLease {
   /// Served on the Wi-Fi address (a television can fetch it), not only on this phone.
   final bool lan;
   final List<TrackInfo> audio;
+
+  /// The text subtitle tracks inside the file (their lines arrive on [RemuxBridge.cues] as the pieces are made).
+  final List<TrackInfo> subtitles;
 }
 
 /// iPhone: Matroska → HLS on the phone (FFmpeg, in the native plugin), so the system player (picture in picture, AirPlay) and Google
@@ -30,6 +43,14 @@ class RemuxBridge {
   static bool get supported => Platform.isIOS;
 
   static final _airplay = StreamController<bool>.broadcast();
+  static final _cueEvents = StreamController<List<RemuxCueItem>>.broadcast();
+
+  /// Subtitle lines read from the file, in batches, as its pieces are made.
+  static Stream<List<RemuxCueItem>> get cues {
+    _listen();
+    return _cueEvents.stream;
+  }
+
   static bool _listening = false;
 
   static void _listen() {
@@ -39,6 +60,20 @@ class RemuxBridge {
       final a = call.arguments as Map?;
       if (call.method == 'route') {
         _airplay.add(a?['airplay'] == true);
+      } else if (call.method == 'cues') {
+        final items = <RemuxCueItem>[];
+        for (final r in (a?['items'] as List? ?? const [])) {
+          final l = r as List;
+          items.add(
+            RemuxCueItem(
+              '${l[0]}',
+              Duration(milliseconds: ((l[1] as num) * 1000).round()),
+              Duration(milliseconds: ((l[2] as num) * 1000).round()),
+              '${l[3]}',
+            ),
+          );
+        }
+        if (items.isNotEmpty) _cueEvents.add(items);
       } else if (call.method == 'log') {
         AppLog.instance.add('remux', '${a?['m']}');
       }
@@ -96,11 +131,28 @@ class RemuxBridge {
           isDefault: a['isDefault'] == true,
         ),
     ];
+    final subs = <TrackInfo>[
+      for (final a in (m['subtitles'] as List? ?? const []))
+        TrackInfo(
+          id: '${(a as Map)['index']}',
+          kind: TrackKind.subtitle,
+          language: (a['language'] as String?)?.isEmpty ?? true
+              ? null
+              : a['language'] as String,
+          title: (a['title'] as String?)?.isEmpty ?? true
+              ? null
+              : a['title'] as String,
+          codec: a['codec'] as String?,
+          isDefault: a['isDefault'] == true,
+          isForced: a['isForced'] == true,
+        ),
+    ];
     return RemuxLease(
       id: m['id'] as String,
       url: Uri.parse(m['url'] as String),
       lan: m['lan'] == true,
       audio: tracks,
+      subtitles: subs,
     );
   }
 
