@@ -229,6 +229,9 @@ class PlayerSession extends ChangeNotifier {
   bool playing = false;
   bool buffering = true;
   String? error;
+
+  /// What the engine actually said (the reason behind the friendly message), for the log and the diagnostics line.
+  String? errorDetail;
   EngineTracks tracks = const EngineTracks();
   TrackInfo? audio;
   TrackInfo? embeddedSubtitle;
@@ -341,7 +344,8 @@ class PlayerSession extends ChangeNotifier {
       _opened = true;
       if (speed != 1.0) await engine.setRate(speed);
     } on Object catch (e) {
-      AppLog.instance.add('player', 'Apertura non riuscita: ${e.runtimeType}');
+      errorDetail = e is StateError ? e.message : '${e.runtimeType}: $e';
+      AppLog.instance.add('player', 'Apertura non riuscita: $errorDetail');
       error = 'Non riesco ad aprire questo video.';
       notifyListeners();
     }
@@ -350,6 +354,7 @@ class PlayerSession extends ChangeNotifier {
   void _onError(String message) {
     if (message.trim().isEmpty) return;
     AppLog.instance.add('player', 'Errore del motore: $message');
+    errorDetail = message;
     // A source that never started: the next one offered is tried by itself (up to three), as the iOS player does.
     if (!_everPlayed &&
         settings.autoSwitchSource &&

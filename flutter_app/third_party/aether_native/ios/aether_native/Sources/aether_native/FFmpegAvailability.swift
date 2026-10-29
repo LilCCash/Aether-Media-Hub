@@ -19,6 +19,7 @@ enum FFmpegAvailability {
     static var libavformatMajor: Int { return Int(avformat_version() >> 16) }
 }
 #else
+#error("FFmpeg (Libavformat) non è collegato: il remux non funzionerebbe")
 enum FFmpegAvailability {
     static let isLinked = false
     static var libavformatVersion: String { return "non collegata" }
