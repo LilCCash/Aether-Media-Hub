@@ -326,6 +326,11 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         case .failure(let refusal): throw RemuxError.refused(refusal)
         }
         let videoIndex = plan.video.index
+        if let vs = ic.pointee.streams[videoIndex], let vp = vs.pointee.codecpar {
+            let pixel = vp.pointee.format >= 0 ? (av_get_pix_fmt_name(AVPixelFormat(vp.pointee.format)).map { String(cString: $0) } ?? "?") : "sconosciuto"
+            let profile = avcodec_profile_name(vp.pointee.codec_id, vp.pointee.profile).map { String(cString: $0) } ?? "?"
+            note("video: \(plan.video.codec) \(profile) (\(vp.pointee.profile)), livello \(vp.pointee.level), pixel \(pixel), bit \(vp.pointee.bits_per_raw_sample), \(vp.pointee.width)x\(vp.pointee.height)")
+        }
         guard let videoStream = ic.pointee.streams[videoIndex], let videoPar = videoStream.pointee.codecpar else { throw RemuxError.unreadable }
 
         // Keyframes: Matroska loads its Cues index on the first seek.
@@ -458,6 +463,10 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             depth = Int(par.pointee.bits_per_raw_sample)
         } else if kind == .video, par.pointee.format >= 0, let descriptor = av_pix_fmt_desc_get(AVPixelFormat(par.pointee.format)) {
             depth = Int(descriptor.pointee.comp.0.depth)
+        }
+        // The profile says what the bit depth field may not: High 10, 4:2:2 and 4:4:4 H.264 cannot be decoded by iOS at all.
+        if kind == .video, par.pointee.codec_id == AV_CODEC_ID_H264, [110, 122, 244, 44].contains(Int(par.pointee.profile)) {
+            depth = max(depth ?? 0, 10)
         }
         var language: String?
         if let entry = av_dict_get(stream.pointee.metadata, "language", nil, 0) { language = String(cString: entry.pointee.value) }
