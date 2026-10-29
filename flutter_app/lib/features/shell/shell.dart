@@ -98,10 +98,7 @@ class DockOverlay extends ConsumerWidget {
               final inset = MediaQuery.viewPaddingOf(context).bottom;
               final bottom = inset > 0 ? (inset * 0.3).clamp(6.0, 14.0) : 10.0;
               final tab = _tabs.indexWhere((t) => path.startsWith(t.$3));
-              final inMore =
-                  path.startsWith('/settings/') ||
-                  path == '/addons' ||
-                  path == '/downloads';
+              final inMore = _isMorePage(path);
               // The pages opened from «Altro» belong to that tab: the bar keeps pointing at it.
               if (tab >= 0) {
                 DockState.index = tab;
@@ -161,31 +158,7 @@ class DockOverlay extends ConsumerWidget {
                                 router.go(_tabs[i].$3);
                                 return;
                               }
-                              // «Altro» reopens the settings page that was open when the viewer left: the pages are pushed once
-                              // «Altro» is really the page on screen, not before the router has settled on it.
-                              DockState.restoring = true;
-                              void settle() {
-                                final m = router.routerDelegate.currentConfiguration;
-                                if (m.matches.isEmpty ||
-                                    m.last.matchedLocation != '/more') {
-                                  return;
-                                }
-                                router.routerDelegate.removeListener(settle);
-                                for (final p in back) {
-                                  router.push(p);
-                                }
-                                DockState.restoring = false;
-                              }
-
-                              router.routerDelegate.addListener(settle);
-                              router.go('/more');
-                              Future<void>.delayed(
-                                const Duration(seconds: 2),
-                                () {
-                                  router.routerDelegate.removeListener(settle);
-                                  DockState.restoring = false;
-                                },
-                              );
+                              _restoreMore(router, back);
                             },
                           ),
                         ),
@@ -201,3 +174,29 @@ class DockOverlay extends ConsumerWidget {
     );
   }
 }
+
+/// «Altro» reopens the settings page that was open when the viewer left: the pages are pushed once «Altro» is really the page
+/// on screen, not before the router has settled on it.
+void _restoreMore(GoRouter router, List<String> back) {
+  DockState.restoring = true;
+  final delegate = router.routerDelegate;
+  void settle() {
+    final m = delegate.currentConfiguration;
+    if (m.matches.isEmpty || m.last.matchedLocation != '/more') return;
+    delegate.removeListener(settle);
+    for (final p in back) {
+      router.push(p);
+    }
+    DockState.restoring = false;
+  }
+
+  delegate.addListener(settle);
+  router.go('/more');
+  Future<void>.delayed(const Duration(seconds: 2), () {
+    delegate.removeListener(settle);
+    DockState.restoring = false;
+  });
+}
+
+bool _isMorePage(String path) =>
+    path.startsWith('/settings/') || path == '/addons' || path == '/downloads';
