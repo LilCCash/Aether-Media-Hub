@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import '../../data/stores.dart';
+import 'sync_app.dart';
 import '../metadata/service_http.dart';
 import '../util/lenient.dart';
 
@@ -56,8 +57,12 @@ class TraktClient {
   final ServiceHttp _http;
   static final base = Uri.parse('https://api.trakt.tv');
 
-  Future<String?> _client() => secrets.serviceKey(ServiceKey.traktClient);
-  Future<String?> _secret() => secrets.serviceKey(ServiceKey.traktSecret);
+  Future<String?> _client() async => SyncApp.hasTrakt
+      ? SyncApp.traktClientId
+      : await secrets.serviceKey(ServiceKey.traktClient);
+  Future<String?> _secret() async => SyncApp.hasTrakt
+      ? SyncApp.traktClientSecret
+      : await secrets.serviceKey(ServiceKey.traktSecret);
 
   Future<Map<String, Object?>?> _tokens() async {
     final raw = await secrets.serviceKey(ServiceKey.traktToken);

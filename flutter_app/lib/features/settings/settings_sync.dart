@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/providers.dart';
+import '../../core/sync/sync_app.dart';
 import '../../core/sync/trakt_client.dart';
 import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
@@ -64,7 +65,11 @@ class _SyncServiceTileState extends ConsumerState<SyncServiceTile> {
         : await sv.sync.simkl.linked;
     if (mounted) {
       setState(() {
-        _hasKeys = (id ?? '').isNotEmpty && (secret ?? '').isNotEmpty;
+        _hasKeys = widget.trakt
+            ? (SyncApp.hasTrakt ||
+                  ((id ?? '').isNotEmpty && (secret ?? '').isNotEmpty))
+            : (SyncApp.hasSimkl ||
+                  ((id ?? '').isNotEmpty && (secret ?? '').isNotEmpty));
         _linked = linked;
       });
     }

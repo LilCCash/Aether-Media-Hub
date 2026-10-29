@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../data/stores.dart';
+import 'sync_app.dart';
 import '../metadata/service_http.dart';
 import '../util/lenient.dart';
 import 'trakt_client.dart' show DeviceCode, DevicePoll;
@@ -15,7 +16,9 @@ class SimklClient {
   final ServiceHttp _http;
   static final base = Uri.parse('https://api.simkl.com');
 
-  Future<String?> _client() => secrets.serviceKey(ServiceKey.simklClient);
+  Future<String?> _client() async => SyncApp.hasSimkl
+      ? SyncApp.simklClientId
+      : await secrets.serviceKey(ServiceKey.simklClient);
   Future<bool> get linked async =>
       ((await secrets.serviceKey(ServiceKey.simklToken)) ?? '').isNotEmpty;
   Future<void> disconnect() =>
