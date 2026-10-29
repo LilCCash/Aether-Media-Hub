@@ -137,6 +137,32 @@ class AetherLook extends InheritedWidget {
   final bool liquid;
   final bool compact;
 
+  /// The same look with every blur and glass effect off: for what is drawn over a native video view (a blur there samples the wrong
+  /// pixels and shows as grey patches of the picture).
+  static Widget flat(BuildContext context, Widget child) {
+    final l = of(context);
+    return AetherLook(
+      accent: l.accent,
+      glassIntensity: l.glassIntensity,
+      reduceEffects: true,
+      amoled: l.amoled,
+      cinematic: l.cinematic,
+      secondary: l.secondary,
+      corner: l.corner,
+      chrome: l.chrome,
+      posterScale: l.posterScale,
+      posterRatings: l.posterRatings,
+      backdropStyle: l.backdropStyle,
+      backdropIntensity: l.backdropIntensity,
+      halos: l.halos,
+      customBackground: l.customBackground,
+      animations: l.animations,
+      liquid: false,
+      compact: l.compact,
+      child: child,
+    );
+  }
+
   /// A row height scaled with the poster size.
   double rowHeight(double base) => base * posterScale;
 
