@@ -55,8 +55,9 @@ class BackupService {
     }
     var doc = asMap(decoded);
     // The iPhone app written in Swift has its own backup format: it is read as well.
-    if (doc != null && SwiftBackup.isSwift(doc))
+    if (doc != null && SwiftBackup.isSwift(doc)) {
       doc = SwiftBackup.toFlutter(doc);
+    }
     if (doc == null || asString(doc['format']) != format) {
       throw const FormatException('Questo non è un backup di Aether.');
     }
