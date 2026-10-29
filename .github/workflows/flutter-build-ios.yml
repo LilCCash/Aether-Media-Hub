@@ -2,17 +2,17 @@ name: Flutter Build · iOS IPA
 
 # Builds only the iOS IPA of the Flutter app. It is UNSIGNED (no certificates live in the repository): re-sign it with your own
 # Apple ID or certificate. Start it by hand from the Actions tab (it asks which branch to build; the default is the Flutter
-# branch), or put [build-ios] in a commit message on aether-flutter-comp.
+# branch), or put [build-ios] in a commit message on aether-flutter-ios.
 on:
   push:
-    branches: ['aether-flutter-comp']
+    branches: ['aether-flutter-ios']
     paths: ['flutter_app/**', '.github/workflows/flutter-build-ios.yml']
   workflow_dispatch:
     inputs:
       ref:
         description: 'Branch, tag or commit to build'
         type: string
-        default: 'aether-flutter-comp'
+        default: 'aether-flutter-ios'
 
 concurrency:
   group: flutter-build-ios-${{ github.ref }}
