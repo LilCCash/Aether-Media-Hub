@@ -25,6 +25,7 @@ class DockState {
 
   /// The pages opened from «Altro» (settings…), so coming back to that tab finds them as they were left.
   static List<String> moreStack = [];
+  static bool restoring = false;
   static void hide() => hidden.value++;
   static void show() {
     if (hidden.value > 0) hidden.value--;
@@ -97,12 +98,19 @@ class DockOverlay extends ConsumerWidget {
               final inset = MediaQuery.viewPaddingOf(context).bottom;
               final bottom = inset > 0 ? (inset * 0.3).clamp(6.0, 14.0) : 10.0;
               final tab = _tabs.indexWhere((t) => path.startsWith(t.$3));
-              if (tab >= 0) DockState.index = tab;
-              if (path == '/more') {
-                DockState.moreStack = [];
-              } else if (path.startsWith('/settings/') ||
+              final inMore =
+                  path.startsWith('/settings/') ||
                   path == '/addons' ||
-                  path == '/downloads') {
+                  path == '/downloads';
+              // The pages opened from «Altro» belong to that tab: the bar keeps pointing at it.
+              if (tab >= 0) {
+                DockState.index = tab;
+              } else if (inMore) {
+                DockState.index = 4;
+              }
+              if (path == '/more' && !DockState.restoring) {
+                DockState.moreStack = [];
+              } else if (inMore) {
                 DockState.moreStack =
                     path.startsWith('/settings/') &&
                         path != '/settings/root' &&
@@ -149,13 +157,35 @@ class DockOverlay extends ConsumerWidget {
                               final back = i == 4 && DockState.index != 4
                                   ? [...DockState.moreStack]
                                   : const <String>[];
-                              router.go(_tabs[i].$3);
-                              // «Altro» reopens the settings page that was open when the viewer left.
-                              Future<void>.microtask(() {
+                              if (back.isEmpty) {
+                                router.go(_tabs[i].$3);
+                                return;
+                              }
+                              // «Altro» reopens the settings page that was open when the viewer left: the pages are pushed once
+                              // «Altro» is really the page on screen, not before the router has settled on it.
+                              DockState.restoring = true;
+                              void settle() {
+                                final m = router.routerDelegate.currentConfiguration;
+                                if (m.matches.isEmpty ||
+                                    m.last.matchedLocation != '/more') {
+                                  return;
+                                }
+                                router.routerDelegate.removeListener(settle);
                                 for (final p in back) {
                                   router.push(p);
                                 }
-                              });
+                                DockState.restoring = false;
+                              }
+
+                              router.routerDelegate.addListener(settle);
+                              router.go('/more');
+                              Future<void>.delayed(
+                                const Duration(seconds: 2),
+                                () {
+                                  router.routerDelegate.removeListener(settle);
+                                  DockState.restoring = false;
+                                },
+                              );
                             },
                           ),
                         ),

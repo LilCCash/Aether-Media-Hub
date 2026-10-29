@@ -128,8 +128,9 @@ class AvPlayerEngine implements PlaybackEngine {
 
   @override
   Future<void> open(PlaybackSource source) async {
-    _tick?.cancel();
-    await _c?.dispose();
+    // On a reopen (another audio track, a change of route) the last picture stays on screen, paused, until the new one is ready.
+    final old = _c;
+    if (old != null) unawaited(old.pause());
     _completed = false;
     _lastError = null;
     _source = source;
@@ -192,13 +193,16 @@ class AvPlayerEngine implements PlaybackEngine {
               allowBackgroundPlayback: true,
             ),
           );
-    _c = c;
-    _tick = Timer.periodic(const Duration(milliseconds: 250), (_) => _poll());
     try {
       await c.initialize().timeout(const Duration(seconds: 45));
     } on TimeoutException {
+      unawaited(c.dispose());
       throw StateError('AVPlayer non carica la lista HLS (oltre 45 s).');
     }
+    _tick?.cancel();
+    _c = c;
+    _tick = Timer.periodic(const Duration(milliseconds: 250), (_) => _poll());
+    unawaited(old?.dispose());
     AppLog.instance.add('player', 'AVPlayer: pronto');
     await c.setVolume(_volume);
     await c.setPlaybackSpeed(_rate);

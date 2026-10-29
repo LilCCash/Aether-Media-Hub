@@ -110,6 +110,7 @@ class AetherLook extends InheritedWidget {
     this.animations = true,
     this.liquid = true,
     this.compact = false,
+    this.noBlur = false,
     required super.child,
   });
 
@@ -137,14 +138,17 @@ class AetherLook extends InheritedWidget {
   final bool liquid;
   final bool compact;
 
-  /// The same look with every blur and glass effect off: for what is drawn over a native video view (a blur there samples the wrong
+  /// Glass tint and edge without the blur behind it.
+  final bool noBlur;
+
+  /// The same look with the blur and the refraction off (the tinted glass stays): for what is drawn over a native video view (a blur there samples the wrong
   /// pixels and shows as grey patches of the picture).
   static Widget flat(BuildContext context, Widget child) {
     final l = of(context);
     return AetherLook(
       accent: l.accent,
       glassIntensity: l.glassIntensity,
-      reduceEffects: true,
+      reduceEffects: l.reduceEffects,
       amoled: l.amoled,
       cinematic: l.cinematic,
       secondary: l.secondary,
@@ -159,6 +163,7 @@ class AetherLook extends InheritedWidget {
       animations: l.animations,
       liquid: false,
       compact: l.compact,
+      noBlur: true,
       child: child,
     );
   }
@@ -190,7 +195,8 @@ class AetherLook extends InheritedWidget {
       customBackground != old.customBackground ||
       animations != old.animations ||
       liquid != old.liquid ||
-      compact != old.compact;
+      compact != old.compact ||
+      noBlur != old.noBlur;
 }
 
 class _Fallback {

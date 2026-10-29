@@ -118,7 +118,7 @@ class GlassSurface extends StatelessWidget {
       child: padding == null ? child : Padding(padding: padding!, child: child),
     );
 
-    if (enabled) {
+    if (enabled && !look.noBlur) {
       final sigma = blur * (0.5 + 0.9 * k);
       content = ClipRRect(
         borderRadius: shape,

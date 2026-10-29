@@ -64,6 +64,9 @@ final class RemuxHost {
         }
     }
 
+    /// The diagnostic runs once per launch: reopening for another audio track should not repeat it.
+    @MainActor static var selfChecked = false
+
     func open(_ upstream: RelayUpstream, audio: RemuxAudioChoice, preferLAN: Bool) async throws -> Opened {
         close()
         let mine = epoch
@@ -93,7 +96,8 @@ final class RemuxHost {
             let prepared = try await made.prepare()
             guard mine == epoch else { throw CancellationError() }
             log("file analizzato: \(prepared.segments.count) pezzi, \(Int(prepared.duration)) s")
-            if let initData = try? await engine.initSegment(), let first = try? await engine.mediaSegment(0) {
+            if !RemuxHost.selfChecked, let initData = try? await engine.initSegment(), let first = try? await engine.mediaSegment(0) {
+                RemuxHost.selfChecked = true
                 await RemuxSelfCheck.run(initSegment: initData, fragment: first, log: log)
             }
 
