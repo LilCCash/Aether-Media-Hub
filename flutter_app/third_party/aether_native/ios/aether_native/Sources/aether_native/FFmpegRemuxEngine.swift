@@ -363,6 +363,25 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         keyframes.sort { $0.time < $1.time }
         var duration = ic.pointee.duration > 0 ? Double(ic.pointee.duration) / 1_000_000.0 : 0
         if scannedDuration > duration { duration = scannedDuration }
+        // The declared length can be nonsense (5 s for a file whose index runs for an hour): the real end is read from the last pieces.
+        if let last = keyframes.last, duration < last.time + 1 {
+            var end = last.time + 10
+            if av_seek_frame(ic, Int32(videoIndex), last.timestamp, ffSeekBackward) >= 0 {
+                var tailPacket = av_packet_alloc()
+                defer { av_packet_free(&tailPacket) }
+                if let tail = tailPacket {
+                    while !(input.isCancelled || isClosed), av_read_frame(ic, tail) >= 0 {
+                        if Int(tail.pointee.stream_index) == videoIndex, tail.pointee.pts != ffNoPTS {
+                            let finish = Double(tail.pointee.pts + max(tail.pointee.duration, 0)) * timeBase
+                            if finish > end { end = finish }
+                        }
+                        av_packet_unref(tail)
+                    }
+                }
+            }
+            note("durata dichiarata \(Int(duration)) s, reale \(Int(end)) s")
+            duration = end
+        }
         if duration <= 0, let last = keyframes.last { duration = last.time + 10 }
         guard duration > 0 else { throw RemuxError.unreadable }
         let spans = SegmentPlanner.plan(keyframes: keyframes.map { $0.time }, duration: duration, minimum: minimumSegment)
