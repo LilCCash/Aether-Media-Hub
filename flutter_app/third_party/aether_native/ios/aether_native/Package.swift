@@ -1,6 +1,7 @@
 // swift-tools-version: 5.9
 // The remux (Matroska → HLS) of the iOS app, as a Flutter plugin. AetherCore is a copy of Packages/AetherCore (the relay server, the
-// remux planner and the HLS playlists); FFmpeg comes from MPVKit (the LGPL product).
+// remux planner and the HLS playlists). FFmpeg is the one inside media_kit's libmpv (version 6.0, linked by the app itself): CFFmpeg only
+// holds that version's headers, so every structure is read at its real offsets. (Headers of another FFmpeg version read garbage.)
 
 import PackageDescription
 
@@ -10,17 +11,12 @@ let package = Package(
     products: [
         .library(name: "aether-native", targets: ["aether_native"])
     ],
-    dependencies: [
-        .package(url: "https://github.com/mpvkit/MPVKit", exact: "1.0.0")
-    ],
     targets: [
+        .target(name: "CFFmpeg", path: "Sources/CFFmpeg", publicHeadersPath: "include"),
         .target(name: "AetherCore", path: "Sources/AetherCore"),
         .target(
             name: "aether_native",
-            dependencies: [
-                "AetherCore",
-                .product(name: "MPVKit", package: "MPVKit")
-            ],
+            dependencies: ["AetherCore", "CFFmpeg"],
             path: "Sources/aether_native"
         )
     ],

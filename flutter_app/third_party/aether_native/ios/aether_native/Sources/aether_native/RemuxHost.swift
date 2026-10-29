@@ -118,7 +118,7 @@ final class RemuxHost {
 
     private static func makeEngine(_ fetcher: RelayRangeFetcher, _ total: Int64, _ audio: RemuxAudioChoice,
                                    _ note: @escaping (String) -> Void) -> RemuxEngine? {
-        #if canImport(Libavformat) && canImport(Libavcodec) && canImport(Libavutil)
+        #if canImport(CFFmpeg)
         return FFmpegRemuxEngine(fetcher: fetcher, totalBytes: total, audio: audio, note: note)
         #else
         return nil

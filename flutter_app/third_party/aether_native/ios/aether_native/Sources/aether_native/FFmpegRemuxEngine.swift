@@ -1,10 +1,8 @@
 import Foundation
 import AetherCore
 
-#if canImport(Libavformat) && canImport(Libavcodec) && canImport(Libavutil)
-import Libavformat
-import Libavcodec
-import Libavutil
+#if canImport(CFFmpeg)
+import CFFmpeg
 
 // MARK: - Numbers FFmpeg defines with macros Swift cannot import
 
@@ -476,14 +474,14 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
                                width: kind == .video ? Int(par.pointee.width) : nil, height: kind == .video ? Int(par.pointee.height) : nil,
                                channels: kind == .audio ? Int(par.pointee.ch_layout.nb_channels) : nil, language: language, title: title,
                                isDefault: stream.pointee.disposition & ffDispositionDefault != 0,
-                               dolbyVisionProfile: kind == .video ? dolbyVisionProfile(of: par) : nil)
+                               dolbyVisionProfile: kind == .video ? dolbyVisionProfile(of: stream) : nil)
     }
 
     /// The Dolby Vision profile the stream's configuration record states (5, 7, 8…), nil when it has none.
-    private func dolbyVisionProfile(of par: UnsafeMutablePointer<AVCodecParameters>) -> Int? {
-        guard par.pointee.nb_coded_side_data > 0, let list = par.pointee.coded_side_data,
-              let side = av_packet_side_data_get(list, par.pointee.nb_coded_side_data, AV_PKT_DATA_DOVI_CONF),
-              let data = side.pointee.data, side.pointee.size >= MemoryLayout<AVDOVIDecoderConfigurationRecord>.size else { return nil }
+    private func dolbyVisionProfile(of stream: UnsafeMutablePointer<AVStream>) -> Int? {
+        var size = 0
+        guard let data = av_stream_get_side_data(stream, AV_PKT_DATA_DOVI_CONF, &size),
+              size >= MemoryLayout<AVDOVIDecoderConfigurationRecord>.size else { return nil }
         let record = data.withMemoryRebound(to: AVDOVIDecoderConfigurationRecord.self, capacity: 1) { $0.pointee }
         let profile = Int(record.dv_profile)
         return profile > 0 ? profile : nil

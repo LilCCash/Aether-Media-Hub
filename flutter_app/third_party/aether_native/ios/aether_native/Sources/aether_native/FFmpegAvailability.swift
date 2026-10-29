@@ -2,10 +2,8 @@ import Foundation
 
 // The FFmpeg libraries ship inside MPVKit (LGPL build). The remuxer talks to them directly; this file only says whether they can be
 // imported in this build, so the rest of the app (and the tests) can ask instead of guessing.
-#if canImport(Libavformat) && canImport(Libavcodec) && canImport(Libavutil)
-import Libavformat
-import Libavcodec
-import Libavutil
+#if canImport(CFFmpeg)
+import CFFmpeg
 
 enum FFmpegAvailability {
     static let isLinked = true
