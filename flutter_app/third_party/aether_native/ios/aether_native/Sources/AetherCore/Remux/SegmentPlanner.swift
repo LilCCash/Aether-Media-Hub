@@ -18,7 +18,9 @@ public struct RemuxSegmentSpan: Equatable, Sendable {
 public enum SegmentPlanner {
     /// Cuts the timeline at video keyframes so that every piece lasts at least `minimum` seconds, except possibly the last. A piece
     /// can only start where a player can start decoding, so a long keyframe interval gives long pieces.
-    public static func plan(keyframes: [Double], duration: Double, minimum: Double = 6) -> [RemuxSegmentSpan] {
+    /// `opening` is a shorter minimum for the first `openingCount` pieces after the first, so playback can start on a small download.
+    public static func plan(keyframes: [Double], duration: Double, minimum: Double = 6, opening: Double? = nil,
+                            openingCount: Int = 3) -> [RemuxSegmentSpan] {
         guard duration > 0 else { return [] }
         let sorted = Array(Set(keyframes.filter { $0 >= 0 && $0 < duration })).sorted()
         guard !sorted.isEmpty else { return [] }
@@ -28,7 +30,9 @@ public enum SegmentPlanner {
         let first = sorted[0]
         var cuts: [Double] = [0]
         var anchor = first
-        for time in sorted where time > first && time - anchor >= minimum {
+        for time in sorted where time > first {
+            let need = cuts.count <= openingCount ? (opening ?? minimum) : minimum
+            guard time - anchor >= need else { continue }
             cuts.append(time)
             anchor = time
         }

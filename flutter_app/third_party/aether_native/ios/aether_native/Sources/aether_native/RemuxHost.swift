@@ -11,6 +11,12 @@ enum RemuxHostError: Error {
 /// Converts a Matroska file into HLS for AVPlayer, AirPlay and Google Cast: the pieces are made on demand and served by a small server.
 /// On the Wi-Fi address when there is one (a television can fetch the pieces, and so can the phone's own player), else on 127.0.0.1.
 /// One file at a time.
+/// What was learned about a file the first time it was read, kept in memory only (never written to disk) while the app runs.
+struct RemuxKnown: Sendable {
+    let keyframeCount: Int
+    let duration: Double
+}
+
 @MainActor
 final class RemuxHost {
     struct Opened {
@@ -66,6 +72,7 @@ final class RemuxHost {
 
     /// The diagnostic runs once per launch: reopening for another audio track should not repeat it.
     @MainActor static var selfChecked = false
+    private var known: (key: String, value: RemuxKnown)?
 
     func open(_ upstream: RelayUpstream, audio: RemuxAudioChoice, preferLAN: Bool) async throws -> Opened {
         close()
@@ -88,7 +95,11 @@ final class RemuxHost {
             guard mine == epoch else { throw CancellationError() }
             guard let total = resource.length, total > 0 else { throw RelayError.upstreamNoRanges }
             log("sorgente raggiunta, \(total / 1_048_576) MB")
-            guard let engine = RemuxHost.makeEngine(fetcher, total, audio, { [weak self] text in
+            let key = "\(upstream.url.absoluteString)#\(total)"
+            let before = known?.key == key ? known?.value : nil
+            guard let engine = RemuxHost.makeEngine(fetcher, total, audio, before, { [weak self] value in
+                Task { @MainActor in self?.known = (key, value) }
+            }, { [weak self] text in
                 Task { @MainActor in self?.log(text) }
             }) else { throw RemuxHostError.unavailable }
             let made = RemuxSource(engine: engine)
@@ -96,9 +107,13 @@ final class RemuxHost {
             let prepared = try await made.prepare()
             guard mine == epoch else { throw CancellationError() }
             log("file analizzato: \(prepared.segments.count) pezzi, \(Int(prepared.duration)) s")
-            if !RemuxHost.selfChecked, let initData = try? await engine.initSegment(), let first = try? await engine.mediaSegment(0) {
-                RemuxHost.selfChecked = true
-                await RemuxSelfCheck.run(initSegment: initData, fragment: first, log: log)
+            // The first pieces are made while the server comes up; the diagnostic runs once per launch, off the way.
+            let check = !RemuxHost.selfChecked
+            RemuxHost.selfChecked = true
+            let report = log
+            Task {
+                guard let initData = try? await engine.initSegment(), let first = try? await engine.mediaSegment(0) else { return }
+                if check { await RemuxSelfCheck.run(initSegment: initData, fragment: first, log: report) }
             }
 
             _ = try await startServer(host: host, lan: lan)
@@ -120,10 +135,10 @@ final class RemuxHost {
         }
     }
 
-    private static func makeEngine(_ fetcher: RelayRangeFetcher, _ total: Int64, _ audio: RemuxAudioChoice,
-                                   _ note: @escaping (String) -> Void) -> RemuxEngine? {
+    private static func makeEngine(_ fetcher: RelayRangeFetcher, _ total: Int64, _ audio: RemuxAudioChoice, _ known: RemuxKnown?,
+                                   _ learned: @escaping (RemuxKnown) -> Void, _ note: @escaping (String) -> Void) -> RemuxEngine? {
         #if canImport(CFFmpeg)
-        return FFmpegRemuxEngine(fetcher: fetcher, totalBytes: total, audio: audio, note: note)
+        return FFmpegRemuxEngine(fetcher: fetcher, totalBytes: total, audio: audio, known: known, learned: learned, note: note)
         #else
         return nil
         #endif

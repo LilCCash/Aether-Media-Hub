@@ -27,6 +27,53 @@ private func ffTag(_ text: String) -> UInt32 {
 
 /// The bytes FFmpeg's demuxer reads, fetched from the real source one window at a time. FFmpeg calls it from the engine's own thread, so
 /// the fetch (which is async) is waited for here.
+/// A part of the file downloaded ahead of time, in parallel with the rest.
+private final class PinnedWindow: @unchecked Sendable {
+    let start: Int64
+    private let ready = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var data: Data?
+    private var finished = false
+    private var task: Task<Void, Never>?
+
+    init(start: Int64) { self.start = start }
+
+    func begin(_ fetcher: RelayRangeFetcher, _ range: ClosedRange<Int64>) {
+        let job = Task { [self] in
+            let got = try? await fetcher.fetch(range)
+            lock.lock()
+            data = got
+            finished = true
+            lock.unlock()
+            ready.signal()
+        }
+        lock.lock()
+        task = job
+        lock.unlock()
+    }
+
+    /// Waits for the download; nil if it failed (the caller then asks for the range itself).
+    func wait() -> Data? {
+        lock.lock()
+        let done = finished
+        lock.unlock()
+        if !done {
+            ready.wait()
+            ready.signal()
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        return data
+    }
+
+    func cancel() {
+        lock.lock()
+        let job = task
+        lock.unlock()
+        job?.cancel()
+    }
+}
+
 private final class RangeInput {
     private let fetcher: RelayRangeFetcher
     let total: Int64
@@ -40,12 +87,32 @@ private final class RangeInput {
     private(set) var failure: Error?
     private let note: (String) -> Void
     private var windows = 0
+    /// The beginning and the end of the file (headers, then the Cues index) are asked for at once, as soon as the file is opened, and
+    /// kept: the demuxer goes back to them more than once.
+    private var pinned: [PinnedWindow] = []
 
     init(fetcher: RelayRangeFetcher, total: Int64, windowSize: Int64 = 4 << 20, note: @escaping (String) -> Void = { _ in }) {
         self.fetcher = fetcher
         self.total = total
         self.windowSize = windowSize
         self.note = note
+        guard total > 0 else { return }
+        let head = PinnedWindow(start: 0)
+        head.begin(fetcher, 0...(min(windowSize, total) - 1))
+        pinned.append(head)
+        if total > 2 * windowSize {
+            let tail = PinnedWindow(start: total - windowSize)
+            tail.begin(fetcher, (total - windowSize)...(total - 1))
+            pinned.append(tail)
+        }
+    }
+
+    private func pinnedWindow(for position: Int64) -> (start: Int64, data: Data)? {
+        for part in pinned where position >= part.start && position < part.start + windowSize {
+            guard let data = part.wait(), position < part.start + Int64(data.count) else { continue }
+            return (part.start, data)
+        }
+        return nil
     }
 
     var isCancelled: Bool {
@@ -60,6 +127,7 @@ private final class RangeInput {
         let task = currentFetch
         lock.unlock()
         task?.cancel()
+        for part in pinned { part.cancel() }
     }
 
     private final class Outcome: @unchecked Sendable {
@@ -95,30 +163,35 @@ private final class RangeInput {
         if isCancelled { return ffExit }
         guard position < total, count > 0 else { return ffEOF }
         if position < windowStart || position >= windowStart + Int64(window.count) {
-            let end = min(position + windowSize, total) - 1
-            var outcome = fetchBlocking(position...end)
-            // A window that fails is asked again (twice) before the file is given up on: a debrid link can refuse one request and
-            // accept the next.
-            var attempt = 1
-            while case .failure(let error) = outcome, attempt < 3, !isCancelled {
-                note("finestra a \(position >> 20) MB: errore (\(RelayError.mapping(error))), riprovo")
-                Thread.sleep(forTimeInterval: 0.6 * Double(attempt))
-                attempt += 1
-                outcome = fetchBlocking(position...end)
-            }
-            switch outcome {
-            case .success(let data):
-                windows += 1
-                if windows <= 6 || data.count != Int(end - position + 1) {
-                    note("finestra a \(position >> 20) MB: \(data.count / 1024) KB (chiesti \((end - position + 1) / 1024))")
+            if let hit = pinnedWindow(for: position) {
+                window = hit.data
+                windowStart = hit.start
+            } else {
+                let end = min(position + windowSize, total) - 1
+                var outcome = fetchBlocking(position...end)
+                // A window that fails is asked again (twice) before the file is given up on: a debrid link can refuse one request and
+                // accept the next.
+                var attempt = 1
+                while case .failure(let error) = outcome, attempt < 3, !isCancelled {
+                    note("finestra a \(position >> 20) MB: errore (\(RelayError.mapping(error))), riprovo")
+                    Thread.sleep(forTimeInterval: 0.6 * Double(attempt))
+                    attempt += 1
+                    outcome = fetchBlocking(position...end)
                 }
-                guard !data.isEmpty else { return ffEOF }
-                window = data
-                windowStart = position
-            case .failure(let error):
-                failure = error
-                note("finestra a \(position >> 20) MB: persa (\(RelayError.mapping(error)))")
-                return isCancelled ? ffExit : ffEOF - 1
+                switch outcome {
+                case .success(let data):
+                    windows += 1
+                    if windows <= 6 || data.count != Int(end - position + 1) {
+                        note("finestra a \(position >> 20) MB: \(data.count / 1024) KB (chiesti \((end - position + 1) / 1024))")
+                    }
+                    guard !data.isEmpty else { return ffEOF }
+                    window = data
+                    windowStart = position
+                case .failure(let error):
+                    failure = error
+                    note("finestra a \(position >> 20) MB: persa (\(RelayError.mapping(error)))")
+                    return isCancelled ? ffExit : ffEOF - 1
+                }
             }
         }
         let offset = Int(position - windowStart)
@@ -204,8 +277,13 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
 
     private let note: (String) -> Void
 
+    private let known: RemuxKnown?
+    private let learned: ((RemuxKnown) -> Void)?
+
     init(fetcher: RelayRangeFetcher, totalBytes: Int64, minimumSegment: Double = 6, audio: RemuxAudioChoice = .standard,
-         note: @escaping (String) -> Void = { _ in }) {
+         known: RemuxKnown? = nil, learned: ((RemuxKnown) -> Void)? = nil, note: @escaping (String) -> Void = { _ in }) {
+        self.known = known
+        self.learned = learned
         self.note = note
         self.input = RangeInput(fetcher: fetcher, total: totalBytes, note: note)
         self.totalBytes = totalBytes
@@ -366,6 +444,8 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         keyframes.sort { $0.time < $1.time }
         var duration = ic.pointee.duration > 0 ? Double(ic.pointee.duration) / 1_000_000.0 : 0
         if scannedDuration > duration { duration = scannedDuration }
+        // The same file opened again (another audio track, the television): its real length is already known.
+        if let known = known, known.keyframeCount == keyframes.count, known.duration > duration { duration = known.duration }
         // The declared length can be nonsense (5 s for a file whose index runs for an hour): the real end is read from the last pieces.
         if let last = keyframes.last, duration < last.time + 1 {
             var end = last.time + 10
@@ -387,7 +467,8 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         }
         if duration <= 0, let last = keyframes.last { duration = last.time + 10 }
         guard duration > 0 else { throw RemuxError.unreadable }
-        let spans = SegmentPlanner.plan(keyframes: keyframes.map { $0.time }, duration: duration, minimum: minimumSegment)
+        if scannedDuration == 0 { learned?(RemuxKnown(keyframeCount: keyframes.count, duration: duration)) }
+        let spans = SegmentPlanner.plan(keyframes: keyframes.map { $0.time }, duration: duration, minimum: minimumSegment, opening: 3)
         guard !spans.isEmpty, keyframes.count >= 2 || duration < 30 else { throw RemuxError.noKeyframeIndex }
         // One piece for a big file would be the whole film in memory: better to refuse than to hang.
         if spans.count == 1 && totalBytes > 64 << 20 { throw RemuxError.noKeyframeIndex }

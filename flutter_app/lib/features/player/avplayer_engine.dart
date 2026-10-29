@@ -204,8 +204,10 @@ class AvPlayerEngine implements PlaybackEngine {
     _tick = Timer.periodic(const Duration(milliseconds: 250), (_) => _poll());
     unawaited(old?.dispose());
     AppLog.instance.add('player', 'AVPlayer: pronto');
-    await c.setVolume(_volume);
-    await c.setPlaybackSpeed(_rate);
+    await Future.wait([
+      c.setVolume(_volume),
+      if (_rate != 1.0) c.setPlaybackSpeed(_rate),
+    ]);
     if (source.start > Duration.zero) await c.seekTo(source.start);
     await c.play();
     _tracks.add(_trackList);

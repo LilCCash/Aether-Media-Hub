@@ -18,6 +18,7 @@ import '../../data/prefs_ext.dart';
 import '../../core/segments/skip_segments.dart';
 import '../../design/glass.dart';
 import '../../design/liquid.dart';
+import '../../design/loader.dart';
 import '../../design/tokens.dart';
 import '../../design/widgets.dart';
 import '../../core/casting/upnp.dart';
@@ -900,7 +901,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               Center(
                 child: s.position == Duration.zero
                     ? _StartingCard(args: s.args)
-                    : const CircularProgressIndicator(),
+                    : const AetherLoader(),
               ),
             if (starting && !_inPip)
               Positioned(
@@ -1374,7 +1375,7 @@ class _StartingCard extends ConsumerWidget {
             style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
           ),
         const SizedBox(height: 18),
-        const CircularProgressIndicator(),
+        const AetherLoader(),
       ],
     );
   }
