@@ -496,25 +496,27 @@ class _PlaybackPage extends ConsumerWidget {
               },
               onChanged: (v) => n.update((x) => x.copyWith(playbackSpeed: v)),
             ),
-            const PrefChoice<String>(
-              'playerEngine',
-              'Player video (iPhone)',
-              _engineMode,
-              {
-                'auto': 'Automatico',
-                'av': 'Player di sistema (AVPlayer)',
-                'mpv': 'libmpv',
-              },
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
-              child: Text(
-                'Player di sistema: serve a Picture in Picture e ad AirPlay; converte al volo ogni file che non legge (MKV…). '
-                'libmpv: apre tutto così com’è, ma senza Picture in Picture né video su AirPlay. '
-                'Automatico: sistema per MP4, MOV e HLS, libmpv per il resto.',
-                style: TextStyle(fontSize: 12, color: Colors.white54),
+            if (Platform.isIOS) ...[
+              const PrefChoice<String>(
+                'playerEngine',
+                'Player video (iPhone)',
+                _engineMode,
+                {
+                  'auto': 'Automatico',
+                  'av': 'Player di sistema (AVPlayer)',
+                  'mpv': 'libmpv',
+                },
               ),
-            ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: Text(
+                  'Player di sistema: serve a Picture in Picture e ad AirPlay; converte al volo ogni file che non legge (MKV…). '
+                  'libmpv: apre tutto così com’è, ma senza Picture in Picture né video su AirPlay. '
+                  'Automatico: sistema per MP4, MOV e HLS, libmpv per il resto.',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+              ),
+            ],
             SwitchRow(
               title: 'Pulsante «Salta intro»',
               subtitle: 'Dati volontari di IntroDB (nessuna chiave): possono essere di pochi secondi fuori per un’altra versione dell’episodio.',
