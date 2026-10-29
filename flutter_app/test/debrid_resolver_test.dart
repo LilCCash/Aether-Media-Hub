@@ -23,14 +23,16 @@ void main() {
     final resolver = DebridResolver(
       _client((o) {
         paths.add(o.uri.path.split('/').last);
-        if (o.uri.path.endsWith('createtorrent'))
+        if (o.uri.path.endsWith('createtorrent')) {
           return (
             status: 200,
             body: '{"success":true,"data":{"torrent_id":3}}',
           );
+        }
         if (o.uri.path.endsWith('mylist')) {
-          if (!o.uri.queryParameters.containsKey('id'))
+          if (!o.uri.queryParameters.containsKey('id')) {
             return (status: 200, body: '{"success":true,"data":[]}');
+          }
           mylistCalls++;
           final ready = mylistCalls >= 2;
           return (
@@ -75,13 +77,15 @@ void main() {
     var createdWithoutCacheFlag = false;
     final resolver = DebridResolver(
       _client((o) {
-        if (o.uri.path.endsWith('mylist'))
+        if (o.uri.path.endsWith('mylist')) {
           return (status: 200, body: '{"success":true,"data":[]}');
+        }
         final fields = {
           for (final f in (o.data as FormData).fields) f.key: f.value,
         };
-        if (fields['add_only_if_cached'] != 'true')
+        if (fields['add_only_if_cached'] != 'true') {
           createdWithoutCacheFlag = true;
+        }
         return (status: 409, body: '{"success":false}');
       }),
       pollInterval: fast,
@@ -144,11 +148,12 @@ void main() {
   test('cancellation and timeouts are reported', () async {
     final resolver = DebridResolver(
       _client((o) {
-        if (o.uri.path.endsWith('createtorrent'))
+        if (o.uri.path.endsWith('createtorrent')) {
           return (
             status: 200,
             body: '{"success":true,"data":{"torrent_id":1}}',
           );
+        }
         return (
           status: 200,
           body: '{"success":true,"data":{"id":1,"download_finished":false,"download_present":false,"progress":0.1}}',

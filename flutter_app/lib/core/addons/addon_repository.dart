@@ -142,22 +142,27 @@ class AddonRepository {
   /// Downloads and checks the manifest without installing anything.
   Future<AddonPreview> preview(String input, {CancelToken? cancel}) async {
     final base = AddonUrl.parseBase(input);
-    if (base == null)
+    if (base == null) {
       throw const AddonException(
         'Non riconosco questo indirizzo: incolla il link del manifest dell’addon.',
       );
+    }
     final manifest = await _client.fetchManifest(base, cancel: cancel);
     final warnings = <String>[];
-    if (base.scheme == 'http')
+    if (base.scheme == 'http') {
       warnings.add('L’indirizzo non è cifrato (http).');
-    if (manifest.behaviorHints.adult)
+    }
+    if (manifest.behaviorHints.adult) {
       warnings.add('L’addon dichiara contenuti per adulti.');
-    if (manifest.behaviorHints.p2p)
+    }
+    if (manifest.behaviorHints.p2p) {
       warnings.add(
         'L’addon usa il peer-to-peer (torrent): serve un servizio debrid per riprodurre.',
       );
-    if (manifest.behaviorHints.configurationRequired)
+    }
+    if (manifest.behaviorHints.configurationRequired) {
       warnings.add('L’addon richiede una configurazione prima dell’uso.');
+    }
     final existing = _addons.any(
       (a) => a.manifest.id == manifest.id && a.base == base,
     );

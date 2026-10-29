@@ -30,22 +30,25 @@ const _manifest =
 ({int status, String body}) _server(RequestOptions o) {
   final p = o.uri.path;
   if (p.endsWith('/manifest.json')) return (status: 200, body: _manifest);
-  if (p.contains('/catalog/'))
+  if (p.contains('/catalog/')) {
     return (
       status: 200,
       body: '{"metas":[{"id":"tt1","type":"movie","name":"Film Uno","poster":"https://img/1.jpg","background":"https://img/b1.jpg","imdbRating":"7.5","genres":["Azione"]},{"id":"tt2","type":"movie","name":"Film Due"}]}',
     );
-  if (p.contains('/meta/'))
+  }
+  if (p.contains('/meta/')) {
     return (
       status: 200,
       body: '{"meta":{"id":"tt1","type":"movie","name":"Film Uno","description":"Trama di prova del film.","genres":["Azione"]}}',
     );
-  if (p.contains('/stream/'))
+  }
+  if (p.contains('/stream/')) {
     return (
       status: 200,
       body:
           '{"streams":[{"url":"https://cdn/a.1080p.ITA.mkv","name":"Addon\\n1080p"},{"infoHash":"${'a' * 40}","name":"Torrent 2160p HDR"}]}',
     );
+  }
   return (status: 404, body: '{}');
 }
 
@@ -76,8 +79,9 @@ void main() {
       downloadsDir: dir,
       dio: fakeDio(_server),
     );
-    if (installed)
+    if (installed) {
       await s.addons.install(await s.addons.preview('https://x.example/cfg'));
+    }
     return s;
   }
 

@@ -94,8 +94,9 @@ class AddonStream {
     final hash = asNonEmptyString(map['infoHash']);
     final yt = asNonEmptyString(map['ytId']);
     final external = asNonEmptyString(map['externalUrl']);
-    if (url == null && hash == null && yt == null && external == null)
+    if (url == null && hash == null && yt == null && external == null) {
       return null;
+    }
     final hints = asMap(map['behaviorHints']) ?? const {};
     final headers = <String, String>{};
     final request = asMap(asMap(hints['proxyHeaders'])?['request']);

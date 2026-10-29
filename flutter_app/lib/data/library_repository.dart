@@ -112,8 +112,9 @@ class LibraryRepository {
         if (p != null) {
           _progress[p.videoId] = p;
           final seen = _lastSeen[p.metaId];
-          if (seen == null || p.updatedAt.isAfter(seen))
+          if (seen == null || p.updatedAt.isAfter(seen)) {
             _lastSeen[p.metaId] = p.updatedAt;
+          }
         }
       }
     } on FormatException {
@@ -249,8 +250,9 @@ class LibraryRepository {
       final p = WatchProgress.fromJson(item);
       if (p != null) {
         final existing = _progress[p.videoId];
-        if (existing == null || p.updatedAt.isAfter(existing.updatedAt))
+        if (existing == null || p.updatedAt.isAfter(existing.updatedAt)) {
           _progress[p.videoId] = p;
+        }
       }
     }
     await _save();

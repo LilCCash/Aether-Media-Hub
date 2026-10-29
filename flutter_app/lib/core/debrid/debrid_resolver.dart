@@ -53,19 +53,21 @@ class DebridResolver implements DebridProvider {
     CancelToken? cancel,
   }) async {
     final hash = stream.infoHash;
-    if (hash == null)
+    if (hash == null) {
       throw const DebridException(
         DebridFailure.unknown,
         'Questa sorgente non è un torrent.',
       );
+    }
     void report(String m, [double? f]) =>
         onStatus?.call(ResolveStatus(m, fraction: f));
     void checkCancel() {
-      if (cancel?.isCancelled ?? false)
+      if (cancel?.isCancelled ?? false) {
         throw const DebridException(
           DebridFailure.cancelled,
           'Operazione annullata.',
         );
+      }
     }
 
     report('Controllo TorBox…');
@@ -105,13 +107,14 @@ class DebridResolver implements DebridProvider {
           fileIdx: stream.fileIdx,
           episodeHint: hint,
         );
-        if (file == null)
+        if (file == null) {
           throw DebridException(
             DebridFailure.notReady,
             hint != null
                 ? 'L’episodio ${hint.toUpperCase()} non è nel torrent.'
                 : 'Nel torrent non c’è nessun file video.',
           );
+        }
         report('Ottengo il link…');
         final link = await client.requestLink(id, file.id, cancel: cancel);
         return ResolvedLink(link, fileName: file.name);
@@ -124,7 +127,7 @@ class DebridResolver implements DebridProvider {
               : 'TorBox non ha preparato il contenuto in tempo.',
         );
       }
-      final pct = torrent == null ? null : torrent.progress;
+      final pct = torrent?.progress;
       report(
         allowDownload
             ? 'Download su TorBox${pct == null ? '' : ' · ${(pct * 100).round()}%'}'

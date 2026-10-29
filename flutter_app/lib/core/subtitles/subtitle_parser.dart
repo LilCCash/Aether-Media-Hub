@@ -20,8 +20,9 @@ class SubtitleParser {
       r'^\[Script Info\]',
       multiLine: true,
       caseSensitive: false,
-    ).hasMatch(text))
+    ).hasMatch(text)) {
       return _ass(text);
+    }
     return _timed(text);
   }
 

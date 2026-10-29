@@ -25,8 +25,9 @@ final moodColorProvider = FutureProvider.autoDispose.family<Color?, String?>((
       ),
     );
     final bytes = response.data;
-    if (bytes == null || bytes.isEmpty || bytes.length > 8 * 1024 * 1024)
+    if (bytes == null || bytes.isEmpty || bytes.length > 8 * 1024 * 1024) {
       return null;
+    }
     final codec = await ui.instantiateImageCodec(
       Uint8List.fromList(bytes),
       targetWidth: 12,

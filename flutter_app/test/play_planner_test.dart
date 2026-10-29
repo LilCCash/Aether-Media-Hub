@@ -59,20 +59,22 @@ void main() {
 
   test('next episode: crosses the season, prefers the same binge group, skips what needs a download', () async {
     final s = await services((o) {
-      if (o.uri.path.endsWith('manifest.json'))
+      if (o.uri.path.endsWith('manifest.json')) {
         return (status: 200, body: _manifest);
+      }
       if (o.uri.path.contains('tt1%3A1%3A2')) {
         return (
           status: 200,
           body: '{"streams":[{"url":"https://cdn/e2-720.mp4","name":"720p","behaviorHints":{"bingeGroup":"g1"}},{"url":"https://cdn/e2-1080.mp4","name":"1080p","behaviorHints":{"bingeGroup":"g2"}}]}',
         );
       }
-      if (o.uri.path.contains('tt1%3A2%3A1'))
+      if (o.uri.path.contains('tt1%3A2%3A1')) {
         return (
           status: 200,
           body:
               '{"streams":[{"infoHash":"${'b' * 40}","name":"2160p torrent"}]}',
         );
+      }
       return (status: 200, body: '{"streams":[]}');
     });
     final p = PlayPlanner(s, const AppSettings());

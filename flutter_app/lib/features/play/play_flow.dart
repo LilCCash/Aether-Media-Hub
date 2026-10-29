@@ -156,7 +156,7 @@ Future<void> playStream(
           ],
         ),
       );
-      if (ok == true && context.mounted)
+      if (ok == true && context.mounted) {
         source = await _resolveWithDialog(
           context,
           planner,
@@ -164,14 +164,16 @@ Future<void> playStream(
           video,
           allowDownload: true,
         );
+      }
     }
     if (source == null) {
       if (_lastFailure != null &&
           _lastFailure != DebridFailure.cancelled &&
-          _lastFailure != DebridFailure.notCached)
+          _lastFailure != DebridFailure.notCached) {
         messenger.showSnackBar(
           SnackBar(content: Text(_lastMessage ?? 'TorBox non ha risposto.')),
         );
+      }
       return;
     }
   }

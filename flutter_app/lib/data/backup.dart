@@ -52,8 +52,9 @@ class BackupService {
       );
     }
     final doc = asMap(decoded);
-    if (doc == null || asString(doc['format']) != format)
+    if (doc == null || asString(doc['format']) != format) {
       throw const FormatException('Questo non è un backup di Aether.');
+    }
     var settingsRestored = false;
     if (doc['settings'] != null) {
       await applySettings(AppSettings.fromJson(doc['settings']));
@@ -63,8 +64,9 @@ class BackupService {
         services.library.history.length +
         services.library.favorites.length +
         services.library.watchlist.length;
-    if (doc['library'] != null)
+    if (doc['library'] != null) {
       await services.library.importJson(doc['library']);
+    }
     final after =
         services.library.history.length +
         services.library.favorites.length +

@@ -164,12 +164,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         message: 'Cambia la ricerca o azzera i filtri.',
       );
     }
-    if (items.isEmpty)
+    if (items.isEmpty) {
       return EmptyState(
         icon: Icons.video_library_outlined,
         title: title,
         message: message,
       );
+    }
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -205,12 +206,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         message: 'Nessun titolo corrisponde alla ricerca.',
       );
     }
-    if (items.isEmpty)
+    if (items.isEmpty) {
       return EmptyState(
         icon: Icons.history_rounded,
         title: title,
         message: message,
       );
+    }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
       itemCount: items.length + (clearable ? 1 : 0),

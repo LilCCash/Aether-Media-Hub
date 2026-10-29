@@ -93,6 +93,9 @@ final class RemuxHost {
             let prepared = try await made.prepare()
             guard mine == epoch else { throw CancellationError() }
             log("file analizzato: \(prepared.segments.count) pezzi, \(Int(prepared.duration)) s")
+            if let initData = try? await engine.initSegment(), let first = try? await engine.mediaSegment(0) {
+                await RemuxSelfCheck.run(initSegment: initData, fragment: first, log: log)
+            }
 
             _ = try await startServer(host: host, lan: lan)
             log("server locale avviato")

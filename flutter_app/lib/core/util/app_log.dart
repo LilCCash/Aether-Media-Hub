@@ -16,8 +16,9 @@ class AppLog {
     if (!enabled) return;
     final now = DateTime.now().toIso8601String().substring(11, 19);
     _lines.add('$now [$area] ${redact(message)}');
-    if (_lines.length > capacity)
+    if (_lines.length > capacity) {
       _lines.removeRange(0, _lines.length - capacity);
+    }
   }
 
   void clear() => _lines.clear();

@@ -261,12 +261,14 @@ class _SeasonGroup extends StatelessWidget {
               switch (v) {
                 case 'pause':
                   if (d.status == DownloadStatus.running ||
-                      d.status == DownloadStatus.queued)
+                      d.status == DownloadStatus.queued) {
                     dl.pause(d.id);
+                  }
                 case 'resume':
                   if (d.status == DownloadStatus.paused ||
-                      d.status == DownloadStatus.failed)
+                      d.status == DownloadStatus.failed) {
                     dl.resume(d.id);
+                  }
                 case 'delete':
                   dl.remove(d.id);
               }

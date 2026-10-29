@@ -134,6 +134,18 @@ class DockOverlay extends ConsumerWidget {
                             index: DockState.index,
                             opacity: dockOpacity,
                             onSelect: (i) {
+                              // The tab already open, on a page deeper than its main one (a settings page, a title): back to the main page.
+                              if (i == DockState.index && path != _tabs[i].$3) {
+                                if (i == 4) DockState.moreStack = [];
+                                for (
+                                  var n = 0;
+                                  n < 12 && router.canPop();
+                                  n++
+                                ) {
+                                  router.pop();
+                                }
+                                return;
+                              }
                               final back = i == 4 && DockState.index != 4
                                   ? [...DockState.moreStack]
                                   : const <String>[];

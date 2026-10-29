@@ -45,6 +45,7 @@ extension PrefsExt on AppSettings {
   int get targetPeak => _i('targetPeak', 0, 0, 1000);
 
   // ── Content: calendar and notifications ──
+  bool get hideTalkShows => _b('hideTalkShows', false);
   bool get notifyNewEpisodes => _b('notifyNewEpisodes', false);
   int get notifyLeadMin => _i('notifyLeadMin', 0, 0, 1440);
   bool get notifyWatchlist => _b('notifyWatchlist', true);

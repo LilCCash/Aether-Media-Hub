@@ -376,19 +376,23 @@ class PlayerSession extends ChangeNotifier {
 
   static String _friendly(String raw) {
     final m = raw.toLowerCase();
-    if (m.contains('403') || m.contains('401') || m.contains('forbidden'))
+    if (m.contains('403') || m.contains('401') || m.contains('forbidden')) {
       return 'Il server ha rifiutato l’accesso al video (il link potrebbe essere scaduto).';
-    if (m.contains('404') || m.contains('not found'))
+    }
+    if (m.contains('404') || m.contains('not found')) {
       return 'Il video non è più disponibile su questo link.';
+    }
     if (m.contains('timed out') ||
         m.contains('timeout') ||
-        m.contains('connect'))
+        m.contains('connect')) {
       return 'Connessione al server non riuscita o troppo lenta.';
+    }
     if (m.contains('unsupported') ||
         m.contains('codec') ||
         m.contains('demuxer') ||
-        m.contains('format'))
+        m.contains('format')) {
       return 'Questo formato o codec non è supportato da questo dispositivo.';
+    }
     return 'Non riesco a riprodurre questo video.';
   }
 
@@ -583,10 +587,11 @@ class PlayerSession extends ChangeNotifier {
       List<SubtitleCue> cues;
       if (sub.text != null) {
         cues = SubtitleParser.parse(sub.text!);
-        if (cues.isEmpty)
+        if (cues.isEmpty) {
           throw const FormatException(
             'Nel file non ho trovato sottotitoli leggibili.',
           );
+        }
       } else {
         cues = await subtitleLoader.load(sub.url!);
       }
@@ -690,8 +695,9 @@ class PlayerSession extends ChangeNotifier {
         args.metaId.isEmpty ||
         args.videoId.isEmpty ||
         duration <= Duration.zero ||
-        !_opened)
+        !_opened) {
       return;
+    }
     await library.saveProgress(
       WatchProgress(
         metaId: args.metaId,

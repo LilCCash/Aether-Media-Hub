@@ -280,8 +280,10 @@ class DownloadManager extends ChangeNotifier {
       for (final item in asList(jsonDecode(raw))) {
         final d = DownloadItem.fromJson(item);
         if (d == null) continue;
-        if (d.status == DownloadStatus.done && !await File(pathOf(d)).exists())
+        if (d.status == DownloadStatus.done &&
+            !await File(pathOf(d)).exists()) {
           continue; // file removed from outside
+        }
         _items.add(d);
       }
     } on FormatException {
@@ -326,8 +328,9 @@ class DownloadManager extends ChangeNotifier {
     final problem = _policy.reject(Uri.parse(url));
     if (problem != null) throw FormatException(problem);
     final existing = byVideo(videoId);
-    if (existing != null && existing.status != DownloadStatus.failed)
+    if (existing != null && existing.status != DownloadStatus.failed) {
       return existing;
+    }
     if (existing != null) _items.remove(existing);
     final item =
         DownloadItem(
@@ -354,8 +357,9 @@ class DownloadManager extends ChangeNotifier {
   Future<void> resume(String id) async {
     final item = _items.firstWhere((i) => i.id == id);
     if (item.status == DownloadStatus.running ||
-        item.status == DownloadStatus.done)
+        item.status == DownloadStatus.done) {
       return;
+    }
     item.status = DownloadStatus.queued;
     notifyListeners();
     unawaited(_pump());
@@ -528,8 +532,9 @@ class DownloadManager extends ChangeNotifier {
       await sink.flush();
       await sink.close();
       sink = null;
-      if (item.total > 0 && item.received < item.total)
+      if (item.total > 0 && item.received < item.total) {
         throw const HttpException('Download interrotto dal server.');
+      }
       await part.rename(pathOf(item));
       item.total = item.received;
       item.status = DownloadStatus.done;

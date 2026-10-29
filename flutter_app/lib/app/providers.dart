@@ -13,6 +13,7 @@ import '../core/metadata/mdblist_client.dart';
 import '../core/metadata/tmdb_client.dart';
 import '../core/metadata/tvdb_client.dart';
 import '../core/model/manifest.dart';
+import '../core/model/content_filter.dart';
 import '../core/model/meta.dart';
 import '../core/model/stream.dart';
 import '../core/util/app_log.dart';
@@ -168,7 +169,10 @@ final catalogProvider = FutureProvider.autoDispose
         extra: extra,
         cancel: cancel,
       );
-      return page.items;
+      return withoutTalkShows(
+        page.items,
+        hide: ref.read(settingsProvider).hideTalkShows,
+      );
     });
 
 class MetaKey {
@@ -407,13 +411,17 @@ final searchProvider = StreamProvider.autoDispose.family<SearchState, String>((
             cancel: cancel,
           )
           .then((page) {
-            if (page.items.isNotEmpty)
+            if (page.items.isNotEmpty) {
               groups[i] = SearchGroup(
                 addon.displayName,
                 catalog.name,
                 catalog.type,
-                page.items,
+                withoutTalkShows(
+                  page.items,
+                  hide: ref.read(settingsProvider).hideTalkShows,
+                ),
               );
+            }
           })
           .catchError((Object e) {
             errors['${addon.displayName} · ${catalog.name}'] =
@@ -494,6 +502,7 @@ final sameActorsProvider = FutureProvider.autoDispose
             isMovie: c.isMovie,
             year: c.year,
             poster: c.poster,
+            genreIds: c.genreIds,
           ),
       ];
     });

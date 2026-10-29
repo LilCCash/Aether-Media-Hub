@@ -40,22 +40,25 @@ void main() {
     final dio = fakeDio((o) {
       final p = o.uri.path;
       if (p.endsWith('/manifest.json')) return (status: 200, body: _manifest);
-      if (p.contains('/catalog/'))
+      if (p.contains('/catalog/')) {
         return (
           status: 200,
           body: '{"metas":[{"id":"tt1","type":"movie","name":"A"},{"nope":1}],"cacheMaxAge":120}',
         );
-      if (p.contains('/meta/'))
+      }
+      if (p.contains('/meta/')) {
         return (
           status: 200,
           body: '{"meta":{"id":"tt1","type":"movie","name":"A","description":"d"}}',
         );
-      if (p.contains('/stream/'))
+      }
+      if (p.contains('/stream/')) {
         return (
           status: 200,
           body:
               '{"streams":[{"url":"https://c/a.mp4","name":"x"},{"bad":true}]}',
         );
+      }
       return (
         status: 200,
         body: '{"subtitles":[{"id":"1","url":"https://s/a.srt","lang":"ita"}]}',

@@ -13,6 +13,7 @@ import '../../app/mood.dart';
 import '../../app/providers.dart';
 import '../../app/router.dart';
 import '../../core/metadata/tvdb_client.dart';
+import '../../core/model/content_filter.dart';
 import '../../core/model/meta.dart';
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
@@ -498,8 +499,9 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     final history = (library.history as List<WatchProgress>).where(
       (p) => p.metaId == meta.id && p.season != null,
     );
-    if (history.isNotEmpty && seasons.contains(history.first.season))
+    if (history.isNotEmpty && seasons.contains(history.first.season)) {
       return history.first.season!;
+    }
     return seasons.firstWhere((s) => s != 0, orElse: () => seasons.first);
   }
 
@@ -1351,6 +1353,14 @@ class _SimilarRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hide = ref.watch(settingsProvider.select((s) => s.hideTalkShows));
+    final titles = hide
+        ? [
+            for (final t in this.titles)
+              if (!t.genreIds.contains(kTmdbTalkGenre)) t,
+          ]
+        : this.titles;
+    if (titles.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

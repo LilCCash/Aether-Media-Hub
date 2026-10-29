@@ -43,7 +43,9 @@ class SimilarTitle {
     this.year,
     this.poster,
     this.rating,
+    this.genreIds = const [],
   });
+  final List<int> genreIds;
   final int tmdbId;
   final String title;
   final bool isMovie;
@@ -130,7 +132,9 @@ class PersonCredit {
     required this.isMovie,
     required this.tmdbId,
     this.popularity = 0,
+    this.genreIds = const [],
   });
+  final List<int> genreIds;
   final String title;
   final String? role;
   final String? year;
@@ -191,12 +195,14 @@ class TmdbClient {
         ),
       );
       final status = response.statusCode ?? 0;
-      if (status == 401)
+      if (status == 401) {
         throw const FormatException('TMDB non accetta la chiave.');
-      if (status == 429)
+      }
+      if (status == 429) {
         throw const FormatException(
           'TMDB: troppe richieste, riprova più tardi.',
         );
+      }
       if (status < 200 || status >= 300) return null;
       return asMap(response.data);
     } on DioException catch (e) {
@@ -379,6 +385,10 @@ class TmdbClient {
             year: (d != null && d.length >= 4) ? d.substring(0, 4) : null,
             poster: image(poster, size: 'w342'),
             rating: asDouble(m['vote_average']),
+            genreIds: asList(m['genre_ids'])
+                .map(asInt)
+                .whereType<int>()
+                .toList(),
           ),
         );
       }
@@ -596,6 +606,7 @@ class TmdbClient {
           isMovie: isMovie,
           tmdbId: id,
           popularity: asDouble(m['popularity']) ?? 0,
+          genreIds: asList(m['genre_ids']).map(asInt).whereType<int>().toList(),
         ),
       );
     }

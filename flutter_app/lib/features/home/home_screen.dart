@@ -240,8 +240,9 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel> {
           reduce ||
           !widget.autoScroll ||
           widget.items.length < 2 ||
-          !_controller.hasClients)
+          !_controller.hasClients) {
         return;
+      }
       _controller.animateToPage(
         (_page + 1) % widget.items.length,
         duration: AetherTokens.slow,

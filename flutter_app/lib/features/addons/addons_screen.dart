@@ -91,10 +91,11 @@ class AddonsScreen extends ConsumerWidget {
     controller.dispose();
     if (preview == null || !context.mounted) return;
     await ref.read(addonsProvider.notifier).install(preview);
-    if (context.mounted)
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Installato: ${preview.manifest.name}')),
       );
+    }
   }
 }
 
@@ -160,10 +161,11 @@ class _AddDialogState extends State<_AddDialog> {
                   icon: const Icon(Icons.paste_rounded),
                   onPressed: () async {
                     final data = await Clipboard.getData(Clipboard.kTextPlain);
-                    if (data?.text != null)
+                    if (data?.text != null) {
                       setState(
                         () => widget.controller.text = data!.text!.trim(),
                       );
+                    }
                   },
                 ),
               ),

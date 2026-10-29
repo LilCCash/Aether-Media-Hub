@@ -13,8 +13,9 @@ class ManifestResource {
   final List<String> idPrefixes;
 
   static ManifestResource? parse(Object? raw) {
-    if (raw is String)
+    if (raw is String) {
       return raw.trim().isEmpty ? null : ManifestResource(name: raw.trim());
+    }
     final map = asMap(raw);
     final name = asNonEmptyString(map?['name']);
     if (map == null || name == null) return null;
@@ -191,8 +192,9 @@ class AddonManifest {
   /// Throws [FormatException] with a readable reason when the document is not a usable manifest.
   static AddonManifest parse(Object? raw) {
     final map = asMap(raw);
-    if (map == null)
+    if (map == null) {
       throw const FormatException('Il manifest non è un oggetto JSON.');
+    }
     final id = asNonEmptyString(map['id']);
     final name = asNonEmptyString(map['name']);
     if (id == null) throw const FormatException('Nel manifest manca «id».');

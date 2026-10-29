@@ -18,8 +18,9 @@ class SubtitleLoader {
 
   Future<List<SubtitleCue>> load(String url, {CancelToken? cancel}) async {
     final uri = Uri.tryParse(url);
-    if (uri == null)
+    if (uri == null) {
       throw const FormatException('Indirizzo del sottotitolo non valido.');
+    }
     final problem = _policy.reject(uri);
     if (problem != null) throw FormatException(problem);
     final response = await _dio.getUri<List<int>>(
@@ -32,13 +33,15 @@ class SubtitleLoader {
         validateStatus: (_) => true,
       ),
     );
-    if ((response.statusCode ?? 0) ~/ 100 != 2)
+    if ((response.statusCode ?? 0) ~/ 100 != 2) {
       throw FormatException(
         'Il server dei sottotitoli ha risposto ${response.statusCode}.',
       );
+    }
     final bytes = response.data ?? const <int>[];
-    if (bytes.length > maxBytes)
+    if (bytes.length > maxBytes) {
       throw const FormatException('Il file dei sottotitoli è troppo grande.');
+    }
     String text;
     try {
       text = utf8.decode(bytes);
@@ -46,10 +49,11 @@ class SubtitleLoader {
       text = latin1.decode(bytes);
     }
     final cues = SubtitleParser.parse(text);
-    if (cues.isEmpty)
+    if (cues.isEmpty) {
       throw const FormatException(
         'Nel file non ho trovato sottotitoli leggibili (formato non supportato?).',
       );
+    }
     return cues;
   }
 }

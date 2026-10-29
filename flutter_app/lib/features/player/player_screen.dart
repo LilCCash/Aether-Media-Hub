@@ -112,8 +112,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       });
     }
     _pipChannel.setMethodCallHandler((call) async {
-      if (call.method == 'pipChanged' && mounted)
+      if (call.method == 'pipChanged' && mounted) {
         setState(() => _inPip = call.arguments == true);
+      }
     });
     _scheduleHide();
   }
@@ -310,8 +311,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
         case 'seek':
           final p = (a['position'] as num?)?.toDouble();
-          if (p != null)
+          if (p != null) {
             _session.seekTo(Duration(milliseconds: (p * 1000).round()));
+          }
         case 'next':
           _goNext();
         case 'previous':
@@ -503,8 +505,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _hideTimer = Timer(
       Duration(seconds: ref.read(settingsProvider).controlsHideSec),
       () {
-        if (mounted && _session.playing && !_panelOpen)
+        if (mounted && _session.playing && !_panelOpen) {
           setState(() => _controls = false);
+        }
       },
     );
   }
@@ -560,7 +563,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       await _pipChannel.invokeMethod<void>('enter', {'width': 16, 'height': 9});
     } on PlatformException {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -568,6 +571,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ),
         );
+      }
     }
   }
 
@@ -853,8 +857,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         : (_) {
                             final target = _dragSeekMs;
                             setState(() => _dragSeekMs = null);
-                            if (target != null)
+                            if (target != null) {
                               s.seekTo(Duration(milliseconds: target.round()));
+                            }
                             _scheduleHide();
                           },
                   ),

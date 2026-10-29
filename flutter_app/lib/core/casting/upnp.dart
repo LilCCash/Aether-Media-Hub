@@ -93,8 +93,9 @@ class UpnpDescriptionParser {
       if (type == null || control == null) continue;
       final resolved = base.resolve(control);
       // Same host as the one that answered, and a LAN address.
-      if (resolved.host != location.host || !isLocalHost(resolved.host))
+      if (resolved.host != location.host || !isLocalHost(resolved.host)) {
         continue;
+      }
       if (resolved.scheme != 'http' && resolved.scheme != 'https') continue;
       services.add(UpnpService(type, resolved));
     }
@@ -251,8 +252,9 @@ class Ssdp {
     }
     for (final l in lines.skip(1)) {
       final i = l.indexOf(':');
-      if (i < 0 || l.substring(0, i).trim().toUpperCase() != 'LOCATION')
+      if (i < 0 || l.substring(0, i).trim().toUpperCase() != 'LOCATION') {
         continue;
+      }
       final u = Uri.tryParse(l.substring(i + 1).trim());
       if (u != null &&
           (u.scheme == 'http' || u.scheme == 'https') &&
@@ -338,8 +340,9 @@ class UpnpClient {
 
   UpnpService _av(UpnpDevice d) {
     final s = d.avTransport;
-    if (s == null)
+    if (s == null) {
       throw const UpnpException('Il dispositivo non può riprodurre video.');
+    }
     return s;
   }
 
@@ -408,10 +411,11 @@ class UpnpClient {
 
   Future<void> setVolume(UpnpDevice d, int percent) async {
     final s = d.renderingControl;
-    if (s == null)
+    if (s == null) {
       throw const UpnpException(
         'Il televisore non permette di cambiare il volume.',
       );
+    }
     await _call(s, 'SetVolume', [
       ('InstanceID', '0'),
       ('Channel', 'Master'),

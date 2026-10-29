@@ -386,10 +386,11 @@ void main() {
       var step = 0;
       final c = client((o) {
         final p = o.uri.path;
-        if (p.endsWith('createtorrent'))
+        if (p.endsWith('createtorrent')) {
           return step == 0
               ? (status: 409, body: '{"success":false}')
               : (status: 200, body: '{"success":true,"data":{"torrent_id":7}}');
+        }
         if (p.endsWith('mylist')) {
           return (
             status: 200,
@@ -443,8 +444,9 @@ void main() {
         keyProvider: () async => 'eyJtoken',
         dio: fakeDio((o) {
           seen.add(o);
-          if (o.uri.path.contains('/find/'))
+          if (o.uri.path.contains('/find/')) {
             return (status: 200, body: '{"movie_results":[{"id":603}]}');
+          }
           return (
             status: 200,
             body: jsonEncode({

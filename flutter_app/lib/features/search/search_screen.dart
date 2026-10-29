@@ -37,10 +37,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void initState() {
     super.initState();
     ref.read(servicesProvider).store.read(_recentKey).then((raw) {
-      if (raw != null && mounted)
+      if (raw != null && mounted) {
         setState(
           () => _recent = raw.split('\n').where((e) => e.isNotEmpty).toList(),
         );
+      }
     });
   }
 
@@ -146,12 +147,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _recentList() {
-    if (_recent.isEmpty)
+    if (_recent.isEmpty) {
       return const EmptyState(
         icon: Icons.manage_search_rounded,
         title: 'Cerca in tutti i tuoi addon',
         message: 'Scrivi almeno due lettere.',
       );
+    }
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
       children: [

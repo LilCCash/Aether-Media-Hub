@@ -166,8 +166,9 @@ class AddonClient {
     final now = DateTime.now();
     final cached = _cache[uri.toString()];
     useCache = useCache && cacheEnabled;
-    if (useCache && cached != null && cached.expires.isAfter(now))
+    if (useCache && cached != null && cached.expires.isAfter(now)) {
       return cached.json;
+    }
     try {
       final response = await _dio.getUri<List<int>>(uri, cancelToken: cancel);
       final status = response.statusCode ?? 0;
@@ -181,8 +182,9 @@ class AddonClient {
           retryable: status >= 500 || status == 429,
         );
       }
-      if (bytes.length > maxBytes)
+      if (bytes.length > maxBytes) {
         throw const AddonException('La risposta dell’addon è troppo grande.');
+      }
       final Object? json;
       try {
         json = jsonDecode(utf8.decode(bytes, allowMalformed: true));
@@ -190,7 +192,7 @@ class AddonClient {
         throw const AddonException('L’addon non ha risposto con JSON valido.');
       }
       final maxAge = asInt(asMap(json)?['cacheMaxAge']) ?? 60;
-      if (useCache && maxAge > 0)
+      if (useCache && maxAge > 0) {
         _cache[uri.toString()] = _Cached(
           json,
           now.add(
@@ -200,10 +202,12 @@ class AddonClient {
             ),
           ),
         );
+      }
       return json;
     } on DioException catch (e) {
-      if (CancelToken.isCancel(e))
+      if (CancelToken.isCancel(e)) {
         throw const AddonException('Richiesta annullata.');
+      }
       AppLog.instance.add('addon', 'Errore di rete per $uri: ${e.type.name}');
       final timeout =
           e.type == DioExceptionType.connectionTimeout ||

@@ -105,14 +105,16 @@ class StreamAnalyzer {
 
   static List<HdrFormat> _hdr(String t) {
     final result = <HdrFormat>[];
-    if (_has(t, r'dolby[ .\-]?vision|dovi|dv'))
+    if (_has(t, r'dolby[ .\-]?vision|dovi|dv')) {
       result.add(HdrFormat.dolbyVision);
+    }
     if (_has(t, r'hdr10\+|hdr10plus')) result.add(HdrFormat.hdr10Plus);
     if (RegExp(
       r'hdr10(?!\+|plus)|(?<![a-z0-9])hdr(?![a-z0-9])',
       caseSensitive: false,
-    ).hasMatch(t))
+    ).hasMatch(t)) {
       result.add(HdrFormat.hdr10);
+    }
     if (_has(t, r'hlg')) result.add(HdrFormat.hlg);
     return result;
   }
@@ -122,8 +124,9 @@ class StreamAnalyzer {
     if (_has(t, r'truehd')) return 'TrueHD';
     if (_has(t, r'dts[\-. ]?hd(?:[\-. ]?ma)?|dts[\-. ]?x')) return 'DTS-HD';
     if (_has(t, r'dts')) return 'DTS';
-    if (_has(t, r'e[\-. ]?ac[\-. ]?3|dd\+|ddp(?:5[. ]1)?'))
+    if (_has(t, r'e[\-. ]?ac[\-. ]?3|dd\+|ddp(?:5[. ]1)?')) {
       return 'Dolby Digital+';
+    }
     if (_has(t, r'ac[\-. ]?3|dd5[. ]1|dolby digital')) return 'Dolby Digital';
     if (_has(t, r'aac')) return 'AAC';
     if (_has(t, r'opus')) return 'Opus';
@@ -162,8 +165,9 @@ class StreamAnalyzer {
       'wmv',
     ]) {
       if (RegExp('\\.$ext(?:\\?|\$|\\s|/)').hasMatch(names) ||
-          RegExp('(?<![a-z0-9])$ext(?![a-z0-9])').hasMatch(lower))
+          RegExp('(?<![a-z0-9])$ext(?![a-z0-9])').hasMatch(lower)) {
         return ext.toUpperCase();
+      }
     }
     return null;
   }
@@ -213,8 +217,9 @@ class StreamRanker {
   StreamPlayability playability(AddonStream s) {
     if (s.isDirect) return StreamPlayability.direct;
     if (s.isTorrent) return StreamPlayability.needsDebrid;
-    if (s.externalUrl != null || s.ytId != null)
+    if (s.externalUrl != null || s.ytId != null) {
       return StreamPlayability.external;
+    }
     return StreamPlayability.unsupported;
   }
 
@@ -237,8 +242,9 @@ class StreamRanker {
       if (info.hdr.isNotEmpty) score += 10;
       if (preferredLanguage != null &&
           (info.languages.contains(preferredLanguage) ||
-              info.languages.contains('Multi')))
+              info.languages.contains('Multi'))) {
         score += 60;
+      }
       if (maxHeight > 0) {
         final h = switch (info.quality) {
           VideoQuality.p480 => 480,
@@ -251,11 +257,13 @@ class StreamRanker {
         if (h > maxHeight) score -= 600;
       }
       if (play == StreamPlayability.direct) score += 1000;
-      if (play == StreamPlayability.needsDebrid)
+      if (play == StreamPlayability.needsDebrid) {
         score += debridConfigured ? 800 : -500;
+      }
       if (play == StreamPlayability.external ||
-          play == StreamPlayability.unsupported)
+          play == StreamPlayability.unsupported) {
         score -= 1000;
+      }
       ranked.add(RankedStream(s, info, play, score));
     }
     final indexed = [for (var i = 0; i < ranked.length; i++) (i, ranked[i])];

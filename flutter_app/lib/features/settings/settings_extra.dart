@@ -171,8 +171,9 @@ class PrefColor extends ConsumerWidget {
                   final t = v.trim().startsWith('#')
                       ? v.trim()
                       : '#${v.trim()}';
-                  if (RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(t))
+                  if (RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(t)) {
                     set(t.toUpperCase());
+                  }
                 },
               ),
             ),

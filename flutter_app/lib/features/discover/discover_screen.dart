@@ -37,8 +37,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   void initState() {
     super.initState();
     _scroll.addListener(() {
-      if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 600)
+      if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 600) {
         _loadMore();
+      }
     });
   }
 

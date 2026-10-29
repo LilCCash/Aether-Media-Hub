@@ -75,11 +75,12 @@ class TorBoxClient {
 
   Future<String> _key() async {
     final key = (await keyProvider())?.trim();
-    if (key == null || key.isEmpty)
+    if (key == null || key.isEmpty) {
       throw const DebridException(
         DebridFailure.notConfigured,
         'Manca la chiave TorBox (Impostazioni ▸ Servizi).',
       );
+    }
     return key;
   }
 
@@ -121,53 +122,61 @@ class TorBoxClient {
         }
       }
       final code = asString(body['error']);
-      if (status == 401 || status == 403 || code == 'AUTH_ERROR')
+      if (status == 401 || status == 403 || code == 'AUTH_ERROR') {
         throw const DebridException(
           DebridFailure.invalidKey,
           'TorBox non accetta la chiave.',
         );
-      if (status == 429)
+      }
+      if (status == 429) {
         throw const DebridException(
           DebridFailure.rateLimited,
           'Troppe richieste a TorBox: riprova tra un minuto.',
         );
-      if (status == 409)
+      }
+      if (status == 409) {
         throw const DebridException(
           DebridFailure.notCached,
           'Il contenuto non è nella cache di TorBox.',
         );
+      }
       // «Torrent not found in cache. Disable the add only if cached parameter…»: not cached, not an error to show as it is.
       final detail = '${asString(body['detail']) ?? ''} ${code ?? ''}'
           .toLowerCase();
       if (detail.contains('not found in cache') ||
           detail.contains('only if cached') ||
-          detail.contains('only_if_cached'))
+          detail.contains('only_if_cached')) {
         throw const DebridException(
           DebridFailure.notCached,
           'Il contenuto non è nella cache di TorBox.',
         );
-      if (code == 'PLAN_RESTRICTED_FEATURE')
+      }
+      if (code == 'PLAN_RESTRICTED_FEATURE') {
         throw const DebridException(
           DebridFailure.planRequired,
           'Il tuo piano TorBox non consente questa funzione.',
         );
-      if (status >= 500 || status == 0)
+      }
+      if (status >= 500 || status == 0) {
         throw DebridException(
           DebridFailure.unavailable,
           'TorBox non è raggiungibile ($status).',
         );
-      if (status >= 400 && body['success'] != true)
+      }
+      if (status >= 400 && body['success'] != true) {
         throw DebridException(
           DebridFailure.unknown,
           asString(body['detail']) ?? 'TorBox ha risposto $status.',
         );
+      }
       return body;
     } on DioException catch (e) {
-      if (CancelToken.isCancel(e))
+      if (CancelToken.isCancel(e)) {
         throw const DebridException(
           DebridFailure.cancelled,
           'Operazione annullata.',
         );
+      }
       AppLog.instance.add('torbox', 'Errore di rete (${e.type.name})');
       throw const DebridException(
         DebridFailure.unavailable,
@@ -244,11 +253,12 @@ class TorBoxClient {
     );
     final data = asMap(body['data']);
     final id = asInt(data?['torrent_id']) ?? asInt(data?['queued_id']);
-    if (id == null)
+    if (id == null) {
       throw const DebridException(
         DebridFailure.notReady,
         'TorBox non ha restituito l’elemento aggiunto.',
       );
+    }
     return id;
   }
 
@@ -267,7 +277,7 @@ class TorBoxClient {
     for (final f in asList(item['files'])) {
       final m = asMap(f);
       final fid = asInt(m?['id']);
-      if (m != null && fid != null)
+      if (m != null && fid != null) {
         files.add(
           TorBoxFile(
             id: fid,
@@ -275,6 +285,7 @@ class TorBoxClient {
             size: asInt(m['size']) ?? 0,
           ),
         );
+      }
     }
     return TorBoxTorrent(
       id: id,
@@ -298,8 +309,9 @@ class TorBoxClient {
     if (raw is! List) return null;
     for (final item in raw) {
       final m = asMap(item);
-      if (asString(m?['hash'])?.toLowerCase() == hash.toLowerCase())
+      if (asString(m?['hash'])?.toLowerCase() == hash.toLowerCase()) {
         return asInt(m?['id']);
+      }
     }
     return null;
   }
@@ -323,11 +335,12 @@ class TorBoxClient {
     );
     final link = asNonEmptyString(body['data']);
     final uri = link == null ? null : Uri.tryParse(link);
-    if (uri == null || uri.scheme != 'https')
+    if (uri == null || uri.scheme != 'https') {
       throw const DebridException(
         DebridFailure.notReady,
         'TorBox non ha restituito un link valido.',
       );
+    }
     return uri;
   }
 
@@ -378,8 +391,9 @@ class TorBoxClient {
     if (fileIdx != null &&
         fileIdx >= 0 &&
         fileIdx < files.length &&
-        files[fileIdx].isVideo)
+        files[fileIdx].isVideo) {
       return files[fileIdx];
+    }
     videos.sort((a, b) => b.size.compareTo(a.size));
     return videos.first;
   }

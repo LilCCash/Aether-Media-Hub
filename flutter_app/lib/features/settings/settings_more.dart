@@ -52,14 +52,16 @@ class ThemeExtrasPage extends ConsumerWidget {
       if (m is! Map) return null;
       var out = s;
       final hex = m['accentHex'];
-      if (m['palette'] is String)
+      if (m['palette'] is String) {
         out = out.copyWith(palette: m['palette'] as String);
+      }
       if (hex is String && RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(hex)) {
         out = out.copyWith(accentHex: hex);
       }
       if (m['amoled'] is bool) out = out.copyWith(amoled: m['amoled'] as bool);
-      if (m['titleFont'] is String)
+      if (m['titleFont'] is String) {
         out = out.copyWith(titleFont: m['titleFont'] as String);
+      }
       for (final k in const ['themeMode', 'uiFont', 'customBackgroundHex']) {
         final v = m[k];
         if (v is String &&
@@ -224,3 +226,28 @@ class CalendarSettingsPage extends ConsumerWidget {
     );
   }
 }
+
+/// What the viewer does not want to see anywhere (Home, Scopri, Cerca, titoli simili, filmografie).
+class HiddenContentSettingsPage extends StatelessWidget {
+  const HiddenContentSettingsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SettingsPageFrame(
+    title: 'Contenuti e scoperta',
+    children: [
+      SettingsGroup(
+        title: 'Contenuti da nascondere',
+        children: [
+          PrefSwitch(
+            'hideTalkShows',
+            'Nascondi i talk show',
+            _hideTalk,
+            subtitle: 'Non compaiono in Home, Scopri, Cerca, titoli simili, stessi attori e filmografie',
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+bool _hideTalk(AppSettings s) => s.hideTalkShows;

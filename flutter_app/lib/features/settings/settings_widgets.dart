@@ -51,6 +51,7 @@ const kGroupStyles = <String, (IconData, Color)>{
   ),
   'Tema chiaro e condivisione': (Icons.light_mode_rounded, Color(0xFFFFC857)),
   'Sfondi animati e locandine': (Icons.animation_rounded, Color(0xFFFF6FB5)),
+  'Contenuti da nascondere': (Icons.visibility_off_rounded, Color(0xFFFF6B6B)),
   'Calendario e notifiche': (
     Icons.notifications_active_rounded,
     Color(0xFFFF8A5B),
@@ -186,6 +187,9 @@ class SettingsGroup extends StatelessWidget {
   final IconData? icon;
   final bool open;
 
+  /// The «tendine» the viewer opened, kept while the app runs: leaving the settings and coming back finds them as they were.
+  static final Set<String> openTitles = <String>{};
+
   @override
   Widget build(BuildContext context) {
     final only = GroupFilter.of(context);
@@ -224,7 +228,14 @@ class SettingsGroup extends StatelessWidget {
         child: Theme(
           data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
           child: ExpansionTile(
-            initiallyExpanded: open,
+            initiallyExpanded: open || openTitles.contains(title),
+            onExpansionChanged: (v) {
+              if (v) {
+                openTitles.add(title!);
+              } else {
+                openTitles.remove(title);
+              }
+            },
             tilePadding: const EdgeInsets.symmetric(horizontal: 14),
             minTileHeight: 48,
             childrenPadding: EdgeInsets.zero,

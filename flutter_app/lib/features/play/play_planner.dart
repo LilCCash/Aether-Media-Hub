@@ -58,8 +58,9 @@ class PlayPlanner {
     void Function(ResolveStatus)? onStatus,
     CancelToken? cancel,
   }) async {
-    if (stream.isDirect)
+    if (stream.isDirect) {
       return PlaybackSource(uri: stream.url!, headers: stream.proxyHeaders);
+    }
     if (stream.isTorrent) {
       final debrid = await provider;
       if (debrid == null) {

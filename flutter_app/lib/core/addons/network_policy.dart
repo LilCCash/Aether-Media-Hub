@@ -9,11 +9,13 @@ class NetworkPolicy {
   /// Returns a reason in Italian when the address must not be used, or null when it is acceptable.
   String? reject(Uri uri) {
     final scheme = uri.scheme.toLowerCase();
-    if (scheme != 'http' && scheme != 'https')
+    if (scheme != 'http' && scheme != 'https') {
       return 'L’indirizzo deve iniziare con http:// o https://.';
+    }
     if (uri.host.isEmpty) return 'L’indirizzo non contiene un host.';
-    if (uri.userInfo.isNotEmpty)
+    if (uri.userInfo.isNotEmpty) {
       return 'Gli indirizzi con nome utente e password non sono ammessi.';
+    }
     final host = uri.host.toLowerCase();
     if (host == 'localhost' ||
         host.endsWith('.localhost') ||
@@ -24,8 +26,9 @@ class NetworkPolicy {
     }
     final v4 = _parseV4(host);
     if (v4 != null) {
-      if (v4[0] == 127)
+      if (v4[0] == 127) {
         return 'Gli indirizzi sul dispositivo stesso (127.x) non sono ammessi.';
+      }
       if (v4[0] == 0) return 'Indirizzo non valido.';
       if (_isPrivateV4(v4) && !allowLocalNetwork) {
         return 'Gli indirizzi della rete locale sono bloccati: attivali in Impostazioni ▸ Contenuti se l’addon è tuo.';
@@ -71,13 +74,15 @@ class AddonUrl {
       if (target == null) return null;
       text = target;
     }
-    if (text.toLowerCase().startsWith('stremio://'))
+    if (text.toLowerCase().startsWith('stremio://')) {
       text = 'https://${text.substring('stremio://'.length)}';
+    }
     final uri = Uri.tryParse(text);
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
     var path = uri.path;
-    if (path.endsWith('/manifest.json'))
+    if (path.endsWith('/manifest.json')) {
       path = path.substring(0, path.length - '/manifest.json'.length);
+    }
     while (path.endsWith('/')) {
       path = path.substring(0, path.length - 1);
     }

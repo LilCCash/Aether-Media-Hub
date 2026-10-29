@@ -18,6 +18,7 @@ import 'settings_pages2.dart';
 import 'settings_services.dart';
 import '../../design/palettes.dart';
 import '../../core/metadata/tmdb_client.dart';
+import '../../core/model/content_filter.dart';
 import '../../core/model/meta.dart';
 import '../../core/util/app_log.dart';
 import '../../data/backup.dart';
@@ -325,6 +326,7 @@ Widget _topicPage(String page) {
           _only({'Scopri'}, const MetadataPage()),
           _only({'Cataloghi e lingua'}, const _ContentPage()),
           _only({'Calendario e notifiche'}, const CalendarSettingsPage()),
+          _only({'Contenuti da nascondere'}, const HiddenContentSettingsPage()),
           _only({'Cataloghi e cache'}, const MetadataPage()),
         ],
       );
@@ -1132,7 +1134,8 @@ class _DataPageState extends ConsumerState<_DataPage> {
                     .update((_) => const AppSettings());
                 ref.read(addonsProvider.notifier).reload();
                 ref.read(libraryVersionProvider.notifier).bump();
-                if (mounted) context.go('/onboarding');
+                if (!context.mounted) return;
+                context.go('/onboarding');
               },
             ),
             ListTile(
@@ -1470,18 +1473,26 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
         FutureBuilder<List<PersonCredit>>(
           future: _future,
           builder: (context, snap) {
-            if (snap.connectionState != ConnectionState.done)
+            if (snap.connectionState != ConnectionState.done) {
               return const Padding(
                 padding: EdgeInsets.all(40),
                 child: Center(child: CircularProgressIndicator()),
               );
-            final credits = snap.data ?? const [];
-            if (credits.isEmpty)
+            }
+            final hide = ref.watch(
+              settingsProvider.select((s) => s.hideTalkShows),
+            );
+            final credits = [
+              for (final c in snap.data ?? const <PersonCredit>[])
+                if (!hide || !c.genreIds.contains(kTmdbTalkGenre)) c,
+            ];
+            if (credits.isEmpty) {
               return const EmptyState(
                 icon: Icons.person_search_rounded,
                 title: 'Nessun titolo',
                 message: 'TMDB non ha restituito titoli: controlla la chiave in Impostazioni ▸ Servizi.',
               );
+            }
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
