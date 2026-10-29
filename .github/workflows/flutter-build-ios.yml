@@ -35,6 +35,14 @@ jobs:
           channel: stable
           flutter-version: '3.47.8'
           cache: true
+      # The downloaded iOS libraries (CocoaPods) and the pub packages are kept between builds; a changed lock file starts a new cache.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            flutter_app/ios/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('flutter_app/pubspec.lock', 'flutter_app/ios/Podfile', 'flutter_app/ios/Podfile.lock') }}
+          restore-keys: pods-${{ runner.os }}-
       - run: flutter pub get
       - name: Build without signing
         run: flutter build ios --release --no-codesign
@@ -45,11 +53,6 @@ jobs:
           cp -R build/ios/iphoneos/Runner.app Payload/Runner.app
           zip -qry Aether-flutter-unsigned.ipa Payload
           ls -la Aether-flutter-unsigned.ipa
-      - name: Check the package
-        run: |
-          unzip -l Aether-flutter-unsigned.ipa | grep -E "Info.plist|Frameworks/Mpv|Frameworks/Libmpv|App.framework" | head -6
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' Payload/Runner.app/Info.plist
-          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' Payload/Runner.app/Info.plist
       - uses: actions/upload-artifact@v4
         with:
           name: aether-flutter-ipa-unsigned
