@@ -167,7 +167,9 @@ class AvPlayerEngine implements PlaybackEngine {
           unawaited(_reopenHere());
         }
       } on TimeoutException {
-        throw StateError('La conversione del file non risponde (oltre 90 s).');
+        throw StateError(
+          'La conversione del file non risponde (oltre 5 minuti).',
+        );
       } on Object catch (e) {
         throw StateError(RemuxBridge.messageOf(e));
       }

@@ -308,7 +308,27 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
 
         // Keyframes: Matroska loads its Cues index on the first seek.
         _ = av_seek_frame(ic, Int32(videoIndex), 0, ffSeekBackward)
-        let entryCount = Int(avformat_index_get_entries_count(videoStream))
+        var entryCount = Int(avformat_index_get_entries_count(videoStream))
+        // A file with no Cues (and often no Duration) would become ONE piece holding the whole film: read it once from end to end, so
+        // the demuxer learns where the keyframes are and the real length, then go back to the start.
+        var scannedDuration = 0.0
+        if entryCount < 2 && totalBytes > 32 << 20 {
+            if var scan = av_packet_alloc() {
+                let scanBase = av_q2d(videoStream.pointee.time_base)
+                while true {
+                    if input.isCancelled || isClosed { av_packet_free(&scan); throw RemuxError.closed }
+                    if av_read_frame(ic, scan) < 0 { break }
+                    if Int(scan.pointee.stream_index) == videoIndex, scan.pointee.pts != ffNoPTS {
+                        let end = Double(scan.pointee.pts + max(scan.pointee.duration, 0)) * scanBase
+                        if end > scannedDuration { scannedDuration = end }
+                    }
+                    av_packet_unref(scan)
+                }
+                av_packet_free(&scan)
+            }
+            _ = av_seek_frame(ic, Int32(videoIndex), 0, ffSeekBackward)
+            entryCount = Int(avformat_index_get_entries_count(videoStream))
+        }
         let timeBase = av_q2d(videoStream.pointee.time_base)
         var keyframes: [(timestamp: Int64, time: Double)] = []
         for entryIndex in 0..<max(0, entryCount) {
@@ -317,10 +337,13 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         }
         keyframes.sort { $0.time < $1.time }
         var duration = ic.pointee.duration > 0 ? Double(ic.pointee.duration) / 1_000_000.0 : 0
+        if scannedDuration > duration { duration = scannedDuration }
         if duration <= 0, let last = keyframes.last { duration = last.time + 10 }
         guard duration > 0 else { throw RemuxError.unreadable }
         let spans = SegmentPlanner.plan(keyframes: keyframes.map { $0.time }, duration: duration, minimum: minimumSegment)
         guard !spans.isEmpty, keyframes.count >= 2 || duration < 30 else { throw RemuxError.noKeyframeIndex }
+        // One piece for a big file would be the whole film in memory: better to refuse than to hang.
+        if spans.count == 1 && totalBytes > 64 << 20 { throw RemuxError.noKeyframeIndex }
         var starts: [Int64] = []
         for span in spans {
             let match = keyframes.first(where: { $0.time >= span.start - 1e-6 }) ?? keyframes[0]

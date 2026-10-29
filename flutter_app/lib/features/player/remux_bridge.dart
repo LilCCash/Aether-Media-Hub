@@ -122,7 +122,7 @@ class RemuxBridge {
             'audioIndex': ?audioIndex,
             'lan': lan,
           })
-          .timeout(const Duration(seconds: 90)),
+          .timeout(const Duration(seconds: 300)),
     );
   }
 
