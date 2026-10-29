@@ -639,8 +639,22 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
 
         // The samples of every track, in its own time scale (video 90 kHz, audio its sample rate).
         let videoBase = av_q2d(videoStream.pointee.time_base)
-        let shiftTicks = Int64((layout.shiftSeconds / videoBase).rounded())
         let sortedPTS = kept.filter { Int($0.pointee.stream_index) == layout.videoIndex }.map { $0.pointee.pts }.sorted()
+        // How far a frame's decode time can be after its presentation time (frame reordering): the file says it in `video_delay`, but
+        // when it does not, the first piece shows it. Presentation times are moved later by that much, for every piece, so a frame is
+        // never shown before it is decoded.
+        var shiftSeconds = layout.shiftSeconds
+        var reorder = 0.0
+        for (position, frame) in kept.filter({ Int($0.pointee.stream_index) == layout.videoIndex && $0.pointee.pts != ffNoPTS }).enumerated()
+        where position < sortedPTS.count {
+            reorder = max(reorder, Double(sortedPTS[position] - frame.pointee.pts) * videoBase)
+        }
+        if reorder > shiftSeconds + 1e-6 {
+            shiftSeconds = (reorder * 1000).rounded(.up) / 1000
+            if index == 0 { self.layout?.shiftSeconds = shiftSeconds }
+            note("riordino dei fotogrammi: \(Int(reorder * 1000)) ms (il file dichiarava \(Int(layout.shiftSeconds * 1000)) ms)")
+        }
+        let shiftTicks = Int64((shiftSeconds / videoBase).rounded())
         var videoOrdinal = 0
         var previousDTS = ffNoPTS
         var starts: [Int: [Int64]] = [:]
@@ -671,7 +685,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
                 offset = max(0, Int64((Double(presentation) * base * scale).rounded()) - start)
                 hint = Int64((Double(max(item.pointee.duration, 0)) * base * scale).rounded())
             } else {
-                let ticks = Int64((layout.shiftSeconds / base).rounded())
+                let ticks = Int64((shiftSeconds / base).rounded())
                 let presentation = (item.pointee.pts == ffNoPTS ? item.pointee.dts : item.pointee.pts) + ticks
                 start = Int64((Double(presentation) * base * scale).rounded())
                 hint = audioFrameSamples(par)
@@ -735,6 +749,10 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         }
         guard !runs.isEmpty else { throw RemuxError.unreadable }
         let fragment = MP4Writer.fragment(sequence: index + 1, runs: runs)
+        if index == 0, let video = runs.first(where: { $0.trackID == 1 }) {
+            let head = video.samples.prefix(6).map { "\($0.duration)/\($0.offset)/\($0.sync ? "K" : "-")" }.joined(separator: " ")
+            note("video: ritardo \(videoStream.pointee.codecpar?.pointee.video_delay ?? -1), spostamento \(Int(shiftSeconds * 1000)) ms, primi campioni (durata/offset/chiave) \(head)")
+        }
         if index == 0 {
             let summary = runs.map { "traccia \($0.trackID): \($0.samples.count) campioni da \($0.baseDecodeTime)" }.joined(separator: "; ")
             note("pezzo 0: \(summary), \(fragment.count) byte")
