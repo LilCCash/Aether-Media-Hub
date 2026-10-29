@@ -480,6 +480,91 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         return profile > 0 ? profile : nil
     }
 
+    // MARK: MP4 sample entries
+
+    private func trackScale(_ par: UnsafeMutablePointer<AVCodecParameters>, isVideo: Bool) -> UInt32 {
+        if isVideo { return 90000 }
+        return par.pointee.sample_rate > 0 ? UInt32(par.pointee.sample_rate) : 48000
+    }
+
+    /// Samples in one audio frame, which is the length of every audio sample in the pieces.
+    private func audioFrameSamples(_ par: UnsafeMutablePointer<AVCodecParameters>) -> Int64 {
+        switch par.pointee.codec_id {
+        case AV_CODEC_ID_AAC: return par.pointee.frame_size > 0 ? Int64(par.pointee.frame_size) : 1024
+        case AV_CODEC_ID_AC3, AV_CODEC_ID_EAC3: return 1536
+        case AV_CODEC_ID_MP3: return par.pointee.sample_rate < 32000 ? 576 : 1152
+        default: return par.pointee.frame_size > 0 ? Int64(par.pointee.frame_size) : 1024
+        }
+    }
+
+    private func videoEntry(_ par: UnsafeMutablePointer<AVCodecParameters>) -> Data? {
+        let fourcc: String
+        let config: String
+        switch par.pointee.codec_id {
+        case AV_CODEC_ID_H264: fourcc = "avc1"; config = "avcC"
+        case AV_CODEC_ID_HEVC: fourcc = "hvc1"; config = "hvcC"
+        default: return nil
+        }
+        let extra = bytes(of: par)
+        guard !extra.isEmpty else { return nil }
+        var body = Data(count: 6)
+        body.append(MP4Writer.u16(1))
+        body.append(Data(count: 16))
+        body.append(MP4Writer.u16(Int(par.pointee.width)))
+        body.append(MP4Writer.u16(Int(par.pointee.height)))
+        body.append(MP4Writer.u32(0x00480000))
+        body.append(MP4Writer.u32(0x00480000))
+        body.append(MP4Writer.u32(0))
+        body.append(MP4Writer.u16(1))
+        body.append(Data(count: 32))
+        body.append(MP4Writer.u16(0x0018))
+        body.append(MP4Writer.u16(0xFFFF))
+        body.append(MP4Writer.box(config, Data(extra)))
+        let primaries = Int(par.pointee.color_primaries.rawValue)
+        let transfer = Int(par.pointee.color_trc.rawValue)
+        let matrix = Int(par.pointee.color_space.rawValue)
+        if primaries > 0 && primaries != 2 {
+            var colr = Data("nclx".utf8)
+            colr.append(MP4Writer.u16(primaries))
+            colr.append(MP4Writer.u16(transfer))
+            colr.append(MP4Writer.u16(matrix))
+            colr.append(par.pointee.color_range == AVCOL_RANGE_JPEG ? UInt8(0x80) : UInt8(0x00))
+            body.append(MP4Writer.box("colr", colr))
+        }
+        return MP4Writer.box(fourcc, body)
+    }
+
+    private func audioEntry(_ par: UnsafeMutablePointer<AVCodecParameters>, firstPacket: Data?) -> Data? {
+        let channels = max(1, Int(par.pointee.ch_layout.nb_channels))
+        let rate = par.pointee.sample_rate > 0 ? Int(par.pointee.sample_rate) : 48000
+        var body = Data(count: 6)
+        body.append(MP4Writer.u16(1))
+        body.append(Data(count: 8))
+        body.append(MP4Writer.u16(channels))
+        body.append(MP4Writer.u16(16))
+        body.append(MP4Writer.u16(0))
+        body.append(MP4Writer.u16(0))
+        body.append(MP4Writer.u32(UInt32(min(rate, 65535)) << 16))
+        switch par.pointee.codec_id {
+        case AV_CODEC_ID_AAC:
+            body.append(AudioConfigBoxes.esds(objectType: 0x40, config: bytes(of: par)))
+            return MP4Writer.box("mp4a", body)
+        case AV_CODEC_ID_MP3:
+            body.append(AudioConfigBoxes.esds(objectType: 0x6B, config: []))
+            return MP4Writer.box("mp4a", body)
+        case AV_CODEC_ID_AC3:
+            guard let packet = firstPacket, let box = AudioConfigBoxes.dac3(packet) else { return nil }
+            body.append(box)
+            return MP4Writer.box("ac-3", body)
+        case AV_CODEC_ID_EAC3:
+            guard let packet = firstPacket, let box = AudioConfigBoxes.dec3(packet) else { return nil }
+            body.append(box)
+            return MP4Writer.box("ec-3", body)
+        default:
+            return nil
+        }
+    }
+
     // MARK: Making a piece
 
     /// Muxes one segment. Also keeps the init segment (the part of the output before the first fragment) and the first fragment.
@@ -551,120 +636,102 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
 
 
 
-        // The muxer.
-        var created: UnsafeMutablePointer<AVFormatContext>?
-        status = avformat_alloc_output_context2(&created, nil, "mp4", nil)
-        guard status >= 0, let oc = created else { throw fail("creazione del muxer", status) }
-        var muxerPB = false
-        defer {
-            if muxerPB, oc.pointee.pb != nil {
-                var scrap: UnsafeMutablePointer<UInt8>?
-                _ = avio_close_dyn_buf(oc.pointee.pb, &scrap)
-                av_free(scrap)
-                oc.pointee.pb = nil
-            }
-            avformat_free_context(oc)
-        }
-        status = avio_open_dyn_buf(&oc.pointee.pb)
-        guard status >= 0 else { throw fail("buffer del muxer", status) }
-        muxerPB = true
-
-        for inputIndex in muxedInputs {
-            guard let source = ic.pointee.streams[inputIndex], let sourcePar = source.pointee.codecpar,
-                  let target = avformat_new_stream(oc, nil), let targetPar = target.pointee.codecpar else { throw RemuxError.unreadable }
-            status = avcodec_parameters_copy(targetPar, sourcePar)
-            if status < 0 { throw fail("copia dei parametri", status) }
-            targetPar.pointee.codec_tag = 0
-            if targetPar.pointee.codec_id == AV_CODEC_ID_HEVC { targetPar.pointee.codec_tag = ffTag("hvc1") }
-            if targetPar.pointee.codec_type == AVMEDIA_TYPE_AUDIO && targetPar.pointee.frame_size == 0 {
-                switch targetPar.pointee.codec_id {
-                case AV_CODEC_ID_AAC: targetPar.pointee.frame_size = 1024
-                case AV_CODEC_ID_AC3, AV_CODEC_ID_EAC3: targetPar.pointee.frame_size = 1536
-                case AV_CODEC_ID_MP3: targetPar.pointee.frame_size = 1152
-                default: break
-                }
-            }
-            if targetPar.pointee.codec_type == AVMEDIA_TYPE_VIDEO, layout.plan.video.dolbyVisionProfile == 7 {
-                // The second layer of a profile 7 file is not decodable by Apple's players: the base layer plays as HDR10 and the
-                // Dolby Vision record is left out, or the player would look for what it cannot read.
-                av_packet_side_data_remove(targetPar.pointee.coded_side_data, &targetPar.pointee.nb_coded_side_data, AV_PKT_DATA_DOVI_CONF)
-            }
-            target.pointee.time_base = source.pointee.time_base
-            if let language = av_dict_get(source.pointee.metadata, "language", nil, 0) {
-                av_dict_set(&target.pointee.metadata, "language", language.pointee.value, 0)
-            }
-        }
-        var options: OpaquePointer?
-        av_dict_set(&options, "movflags", "frag_custom+empty_moov+delay_moov+default_base_moof+skip_trailer", 0)
-        // No edit lists: the fragments carry the real decode times, and an edit list that offsets one track by the picture's reordering
-        // delay would put the sound late.
-        av_dict_set(&options, "use_editlist", "0", 0)
-        oc.pointee.avoid_negative_ts = 0       // AVFMT_AVOID_NEG_TS_DISABLED: times are already consistent across pieces
-        status = avformat_write_header(oc, &options)
-        av_dict_free(&options)
-        if status < 0 { throw fail("intestazione mp4", status) }
-
-        var outputIndexOf: [Int: Int] = [:]
-        for (position, inputIndex) in muxedInputs.enumerated() { outputIndexOf[inputIndex] = position }
-
-        // Decode times for the video: the i-th smallest presentation time, all presentation times moved later by `shift`.
+        // The samples of every track, in its own time scale (video 90 kHz, audio its sample rate).
         let videoBase = av_q2d(videoStream.pointee.time_base)
         let shiftTicks = Int64((layout.shiftSeconds / videoBase).rounded())
         let sortedPTS = kept.filter { Int($0.pointee.stream_index) == layout.videoIndex }.map { $0.pointee.pts }.sorted()
         var videoOrdinal = 0
         var previousDTS = ffNoPTS
-        var firstDecodeTimes: [Int: Int64] = [:]
+        var starts: [Int: [Int64]] = [:]
+        var offsets: [Int: [Int64]] = [:]
+        var payloads: [Int: [Data]] = [:]
+        var syncs: [Int: [Bool]] = [:]
+        var lastHint: [Int: Int64] = [:]
+        var firstPacket: [Int: Data] = [:]
         for item in kept {
             let inputIndex = Int(item.pointee.stream_index)
-            guard let source = ic.pointee.streams[inputIndex], let outputIndex = outputIndexOf[inputIndex],
-                  let target = oc.pointee.streams[outputIndex] else { continue }
-            if inputIndex == layout.videoIndex {
+            guard muxedInputs.contains(inputIndex), let source = ic.pointee.streams[inputIndex], let par = source.pointee.codecpar,
+                  let raw = item.pointee.data, item.pointee.size > 0 else { continue }
+            let base = av_q2d(source.pointee.time_base)
+            let isVideo = inputIndex == layout.videoIndex
+            let scale = Double(trackScale(par, isVideo: isVideo))
+            let data = Data(bytes: raw, count: Int(item.pointee.size))
+            var start: Int64
+            var offset: Int64 = 0
+            var hint: Int64
+            if isVideo {
                 var dts = sortedPTS[videoOrdinal]
                 videoOrdinal += 1
                 if dts - item.pointee.pts > shiftTicks { dts = item.pointee.pts + shiftTicks }
                 if previousDTS != ffNoPTS && dts <= previousDTS { dts = previousDTS + 1 }
                 previousDTS = dts
-                item.pointee.pts += shiftTicks
-                item.pointee.dts = dts
+                let presentation = item.pointee.pts + shiftTicks
+                start = Int64((Double(dts) * base * scale).rounded())
+                offset = max(0, Int64((Double(presentation) * base * scale).rounded()) - start)
+                hint = Int64((Double(max(item.pointee.duration, 0)) * base * scale).rounded())
             } else {
-                let ticks = Int64((layout.shiftSeconds / av_q2d(source.pointee.time_base)).rounded())
-                if item.pointee.pts == ffNoPTS { item.pointee.pts = item.pointee.dts }
-                item.pointee.pts += ticks
-                item.pointee.dts = item.pointee.pts
+                let ticks = Int64((layout.shiftSeconds / base).rounded())
+                let presentation = (item.pointee.pts == ffNoPTS ? item.pointee.dts : item.pointee.pts) + ticks
+                start = Int64((Double(presentation) * base * scale).rounded())
+                hint = audioFrameSamples(par)
+                if firstPacket[inputIndex] == nil { firstPacket[inputIndex] = data }
             }
-            item.pointee.stream_index = Int32(outputIndex)
-            av_packet_rescale_ts(item, source.pointee.time_base, target.pointee.time_base)
-            if let known = firstDecodeTimes[outputIndex] {
-                if item.pointee.dts < known { firstDecodeTimes[outputIndex] = item.pointee.dts }
-            } else {
-                firstDecodeTimes[outputIndex] = item.pointee.dts
-            }
-            status = av_interleaved_write_frame(oc, item)
-            if status < 0 { note("pacchetto: flusso \(inputIndex) pts \(item.pointee.pts) dts \(item.pointee.dts)")
-            throw fail("scrittura di un pacchetto", status) }
+            starts[inputIndex, default: []].append(start)
+            offsets[inputIndex, default: []].append(offset)
+            payloads[inputIndex, default: []].append(data)
+            syncs[inputIndex, default: []].append(isVideo ? (item.pointee.flags & ffKeyFlag != 0) : true)
+            lastHint[inputIndex] = hint
         }
-        status = av_write_trailer(oc)
-        if status < 0 { throw fail("chiusura del pezzo", status) }
 
-        var raw: UnsafeMutablePointer<UInt8>?
-        let size = avio_close_dyn_buf(oc.pointee.pb, &raw)
-        oc.pointee.pb = nil
-        muxerPB = false
-        defer { av_free(raw) }
-        guard size > 0, let memory = raw else { throw RemuxError.unreadable }
-        let muxed = Data(bytes: memory, count: Int(size))
-        guard var parts = MP4Fragment.split(muxed) else { throw RemuxError.unreadable }
+        if index == 0 && initData == nil {
+            var tracks: [MP4Writer.Track] = []
+            for (position, input) in layout.copied.enumerated() {
+                guard let source = ic.pointee.streams[input], let par = source.pointee.codecpar else { throw RemuxError.unreadable }
+                if input == layout.videoIndex {
+                    guard let entry = videoEntry(par) else { throw RemuxError.unreadable }
+                    tracks.append(MP4Writer.Track(id: UInt32(position + 1), kind: .video, timescale: trackScale(par, isVideo: true),
+                                                  width: Int(par.pointee.width), height: Int(par.pointee.height), entry: entry))
+                } else {
+                    guard let entry = audioEntry(par, firstPacket: firstPacket[input]) else {
+                        note("audio: configurazione non ricavabile per il codec \(String(cString: avcodec_get_name(par.pointee.codec_id)))")
+                        throw RemuxError.unreadable
+                    }
+                    tracks.append(MP4Writer.Track(id: UInt32(position + 1), kind: .audio, timescale: trackScale(par, isVideo: false),
+                                                  width: 0, height: 0, entry: entry))
+                }
+            }
+            initData = MP4Writer.initSegment(tracks)
+        }
 
-        // Put the real decode times back: track IDs are the output stream positions plus one.
-        var times: [UInt32: UInt64] = [:]
-        for (outputIndex, first) in firstDecodeTimes { times[UInt32(outputIndex + 1)] = UInt64(max(0, first)) }
-        guard MP4Fragment.setDecodeTimes(in: &parts.fragment, times) else { throw RemuxError.unreadable }
+        var runs: [MP4Writer.Run] = []
+        for (position, input) in layout.copied.enumerated() {
+            guard let s = starts[input], !s.isEmpty, let data = payloads[input], let flags = syncs[input], let shifts = offsets[input],
+                  let source = ic.pointee.streams[input], let par = source.pointee.codecpar else { continue }
+            let isVideo = input == layout.videoIndex
+            var samples: [MP4Writer.Sample] = []
+            for i in 0..<s.count {
+                var duration: Int64
+                if isVideo {
+                    if i + 1 < s.count {
+                        duration = s[i + 1] - s[i]
+                    } else {
+                        let last = lastHint[input] ?? 0
+                        duration = last > 0 ? last : (samples.last.map { Int64($0.duration) } ?? 3750)
+                    }
+                } else {
+                    duration = audioFrameSamples(par)
+                }
+                duration = max(1, duration)
+                samples.append(MP4Writer.Sample(data: data[i], duration: UInt32(truncatingIfNeeded: duration), sync: flags[i],
+                                                offset: Int32(truncatingIfNeeded: shifts[i])))
+            }
+            runs.append(MP4Writer.Run(trackID: UInt32(position + 1), baseDecodeTime: UInt64(max(0, s[0])), samples: samples))
+        }
+        guard !runs.isEmpty else { throw RemuxError.unreadable }
+        let fragment = MP4Writer.fragment(sequence: index + 1, runs: runs)
+        if index == 0 { firstFragment = fragment }
+        return fragment
 
-        // Only the first piece is made to declare every track; a later piece may lack one (an audio track that has ended), so its
-        // `moov` must never become the initialization segment even when it happens to be requested first.
-        if index == 0 && initData == nil { initData = parts.initPart }
-        if index == 0 { firstFragment = parts.fragment }
-        return parts.fragment
     }
 
     // MARK: Cleanup
