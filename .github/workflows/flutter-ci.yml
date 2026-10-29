@@ -1,9 +1,9 @@
 name: Flutter CI
 
-# Checks of the Flutter app (analysis, formatting, tests). Lives with the app in flutter_app/ on the aether-flutter-comp branch.
+# Checks of the Flutter app (analysis, formatting, tests). Lives with the app in flutter_app/ on the aether-flutter-ios branch.
 on:
   push:
-    branches: ['aether-flutter-comp']
+    branches: ['aether-flutter-ios']
     paths: ['flutter_app/**', '.github/workflows/flutter-ci.yml']
   pull_request:
     paths: ['flutter_app/**']
