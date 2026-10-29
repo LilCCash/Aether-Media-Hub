@@ -88,11 +88,6 @@ class ThemeExtrasPage extends ConsumerWidget {
         SettingsGroup(
           title: 'Tema chiaro e condivisione',
           children: [
-            const PrefChoice<String>('themeMode', 'Tema', _mode, {
-              'dark': 'Scuro',
-              'light': 'Chiaro',
-              'auto': 'Come il telefono',
-            }),
             NavRow(
               icon: Icons.ios_share_rounded,
               title: 'Copia il mio tema',
@@ -251,3 +246,20 @@ class HiddenContentSettingsPage extends StatelessWidget {
 }
 
 bool _hideTalk(AppSettings s) => s.hideTalkShows;
+
+/// The theme on top of the look page, like iOS Settings: the choice dark / light / automatic.
+class ThemeQuickSettings extends StatelessWidget {
+  const ThemeQuickSettings({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SettingsGroup(
+    title: 'Tema',
+    children: [
+      PrefChoice<String>('themeMode', 'Aspetto dell’app', _mode, {
+        'dark': 'Scuro',
+        'light': 'Chiaro',
+        'auto': 'Automatico',
+      }),
+    ],
+  );
+}
