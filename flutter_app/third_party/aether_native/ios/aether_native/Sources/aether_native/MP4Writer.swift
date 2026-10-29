@@ -63,7 +63,7 @@ enum MP4Writer {
     // MARK: Init segment
 
     static func initSegment(_ tracks: [Track]) -> Data {
-        let ftyp = box("ftyp", join([Data("isom".utf8), u32(1), Data("isom".utf8), Data("iso6".utf8), Data("mp41".utf8)]))
+        let ftyp = box("ftyp", join([Data("iso5".utf8), u32(512), Data("iso5".utf8), Data("iso6".utf8), Data("mp41".utf8)]))
         let mvhd = full("mvhd", version: 0, flags: 0, join([
             u32(0), u32(0), u32(1000), u32(0), u32(0x00010000), u16(0x0100), u16(0), u32(0), u32(0), matrix,
             Data(count: 24), u32(UInt32(tracks.count + 1)),
@@ -76,7 +76,7 @@ enum MP4Writer {
 
     private static func trak(_ t: Track) -> Data {
         let audio = t.kind == .audio
-        let tkhd = full("tkhd", version: 0, flags: 7, join([
+        let tkhd = full("tkhd", version: 0, flags: 3, join([
             u32(0), u32(0), u32(t.id), u32(0), u32(0), u32(0), u32(0), u16(0), u16(0), u16(audio ? 0x0100 : 0), u16(0), matrix,
             u32(UInt32(max(0, t.width)) << 16), u32(UInt32(max(0, t.height)) << 16),
         ]))
@@ -106,7 +106,12 @@ enum MP4Writer {
         func build(_ offsets: [Int32]) -> Data {
             var trafs: [Data] = []
             for (position, run) in sorted.enumerated() {
-                let tfhd = full("tfhd", version: 0, flags: 0x020000, u32(run.trackID))
+                // Defaults as FFmpeg writes them (default base is the moof, default duration, size and flags): the samples repeat
+                // all of it in the run, but the system player is happiest with the same shape that every HLS packager gives it.
+                let first = run.samples.first
+                let tfhd = full("tfhd", version: 0, flags: 0x020038, join([
+                    u32(run.trackID), u32(first?.duration ?? 0), u32(UInt32(first?.data.count ?? 0)), u32(0x01010000),
+                ]))
                 let tfdt = full("tfdt", version: 1, flags: 0, u64(run.baseDecodeTime))
                 var entries = Data()
                 for s in run.samples {
@@ -115,7 +120,7 @@ enum MP4Writer {
                     entries.append(u32(s.sync ? 0x02000000 : 0x01010000))
                     entries.append(u32(UInt32(bitPattern: s.offset)))
                 }
-                let trun = full("trun", version: 1, flags: 0x000F01, u32(UInt32(run.samples.count)) + u32(UInt32(bitPattern: offsets[position])) + entries)
+                let trun = full("trun", version: 0, flags: 0x000F01, u32(UInt32(run.samples.count)) + u32(UInt32(bitPattern: offsets[position])) + entries)
                 trafs.append(box("traf", join([tfhd, tfdt, trun])))
             }
             return box("moof", full("mfhd", version: 0, flags: 0, u32(UInt32(sequence))) + join(trafs))
@@ -153,7 +158,7 @@ struct BitReader {
 /// The codec configuration boxes that the Matroska file does not carry ready-made.
 enum AudioConfigBoxes {
     /// `esds` for AAC (object type 0x40, the AudioSpecificConfig) and MP3 (0x6B, none).
-    static func esds(objectType: Int, config: [UInt8]) -> Data {
+    static func esds(objectType: Int, config: [UInt8], trackID: Int = 1) -> Data {
         func descriptor(_ tag: UInt8, _ payload: Data) -> Data {
             var d = Data([tag, 0x80, 0x80, 0x80, UInt8(payload.count)])
             d.append(payload)
@@ -163,7 +168,7 @@ enum AudioConfigBoxes {
         decoder.append(MP4Writer.u32(0))
         decoder.append(MP4Writer.u32(0))
         if !config.isEmpty { decoder.append(descriptor(0x05, Data(config))) }
-        var stream = MP4Writer.u16(0)
+        var stream = MP4Writer.u16(trackID)
         stream.append(0)
         stream.append(descriptor(0x04, decoder))
         stream.append(descriptor(0x06, Data([0x02])))

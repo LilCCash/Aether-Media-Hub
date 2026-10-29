@@ -520,6 +520,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         body.append(MP4Writer.u16(0x0018))
         body.append(MP4Writer.u16(0xFFFF))
         body.append(MP4Writer.box(config, Data(extra)))
+        body.append(MP4Writer.box("pasp", MP4Writer.u32(1) + MP4Writer.u32(1)))
         let primaries = Int(par.pointee.color_primaries.rawValue)
         let transfer = Int(par.pointee.color_trc.rawValue)
         let matrix = Int(par.pointee.color_space.rawValue)
@@ -534,7 +535,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         return MP4Writer.box(fourcc, body)
     }
 
-    private func audioEntry(_ par: UnsafeMutablePointer<AVCodecParameters>, firstPacket: Data?) -> Data? {
+    private func audioEntry(_ par: UnsafeMutablePointer<AVCodecParameters>, trackID: Int, firstPacket: Data?) -> Data? {
         let channels = max(1, Int(par.pointee.ch_layout.nb_channels))
         let rate = par.pointee.sample_rate > 0 ? Int(par.pointee.sample_rate) : 48000
         var body = Data(count: 6)
@@ -547,10 +548,10 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         body.append(MP4Writer.u32(UInt32(min(rate, 65535)) << 16))
         switch par.pointee.codec_id {
         case AV_CODEC_ID_AAC:
-            body.append(AudioConfigBoxes.esds(objectType: 0x40, config: bytes(of: par)))
+            body.append(AudioConfigBoxes.esds(objectType: 0x40, config: bytes(of: par), trackID: trackID))
             return MP4Writer.box("mp4a", body)
         case AV_CODEC_ID_MP3:
-            body.append(AudioConfigBoxes.esds(objectType: 0x6B, config: []))
+            body.append(AudioConfigBoxes.esds(objectType: 0x6B, config: [], trackID: trackID))
             return MP4Writer.box("mp4a", body)
         case AV_CODEC_ID_AC3:
             guard let packet = firstPacket, let box = AudioConfigBoxes.dac3(packet) else { return nil }
@@ -692,7 +693,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
                     tracks.append(MP4Writer.Track(id: UInt32(position + 1), kind: .video, timescale: trackScale(par, isVideo: true),
                                                   width: Int(par.pointee.width), height: Int(par.pointee.height), entry: entry))
                 } else {
-                    guard let entry = audioEntry(par, firstPacket: firstPacket[input]) else {
+                    guard let entry = audioEntry(par, trackID: position + 1, firstPacket: firstPacket[input]) else {
                         note("audio: configurazione non ricavabile per il codec \(String(cString: avcodec_get_name(par.pointee.codec_id)))")
                         throw RemuxError.unreadable
                     }
@@ -701,6 +702,11 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
                 }
             }
             initData = MP4Writer.initSegment(tracks)
+            let names = layout.copied.compactMap { input -> String? in
+                guard let source = ic.pointee.streams[input], let par = source.pointee.codecpar else { return nil }
+                return String(cString: avcodec_get_name(par.pointee.codec_id))
+            }
+            note("flussi copiati: \(names.joined(separator: ", ")); init \(initData?.count ?? 0) byte")
         }
 
         var runs: [MP4Writer.Run] = []
@@ -729,6 +735,10 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         }
         guard !runs.isEmpty else { throw RemuxError.unreadable }
         let fragment = MP4Writer.fragment(sequence: index + 1, runs: runs)
+        if index == 0 {
+            let summary = runs.map { "traccia \($0.trackID): \($0.samples.count) campioni da \($0.baseDecodeTime)" }.joined(separator: "; ")
+            note("pezzo 0: \(summary), \(fragment.count) byte")
+        }
         if index == 0 { firstFragment = fragment }
         return fragment
 
