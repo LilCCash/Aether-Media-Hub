@@ -178,11 +178,19 @@ class AvPlayerEngine implements PlaybackEngine {
         ? VideoPlayerController.file(
             File(source.uri),
             viewType: VideoViewType.platformView,
+            // Without this the plugin pauses the video when the app goes to the background, which is also when Picture in Picture opens.
+            videoPlayerOptions: VideoPlayerOptions(
+              allowBackgroundPlayback: true,
+            ),
           )
         : VideoPlayerController.networkUrl(
             uri,
             httpHeaders: headers,
             viewType: VideoViewType.platformView,
+            // Without this the plugin pauses the video when the app goes to the background, which is also when Picture in Picture opens.
+            videoPlayerOptions: VideoPlayerOptions(
+              allowBackgroundPlayback: true,
+            ),
           );
     _c = c;
     _tick = Timer.periodic(const Duration(milliseconds: 250), (_) => _poll());

@@ -465,11 +465,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         state == AppLifecycleState.inactive) {
       _session.saveProgressNow();
     }
+    // iPhone, system player with Picture in Picture armed: leaving the app is what opens the floating window, so it must keep playing.
+    final pipTakesOver =
+        Platform.isIOS &&
+        _engine is AvPlayerEngine &&
+        ref.read(settingsProvider).autoPip;
     if (state == AppLifecycleState.paused &&
-        !ref.read(settingsProvider).backgroundAudio) {
+        !ref.read(settingsProvider).backgroundAudio &&
+        !pipTakesOver) {
       // Give the activity a moment to report Picture in Picture before deciding the video must stop.
       Future<void>.delayed(const Duration(milliseconds: 400), () {
-        if (mounted && !_inPip) _engine.pause();
+        if (mounted && !_inPip && !PipController.instance.isOpen) {
+          _engine.pause();
+        }
       });
     }
   }
