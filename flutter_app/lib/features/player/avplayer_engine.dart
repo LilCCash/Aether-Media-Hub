@@ -199,6 +199,12 @@ class AvPlayerEngine implements PlaybackEngine {
       unawaited(c.dispose());
       throw StateError('AVPlayer non carica la lista HLS (oltre 45 s).');
     }
+    await Future.wait([
+      c.setVolume(_volume),
+      if (_rate != 1.0) c.setPlaybackSpeed(_rate),
+    ]);
+    // Set to the right place before it replaces the old one, so the position never goes back to zero (that would bring up the logo).
+    if (source.start > Duration.zero) await c.seekTo(source.start);
     _tick?.cancel();
     _c = c;
     _tick = Timer.periodic(const Duration(milliseconds: 250), (_) => _poll());
@@ -208,11 +214,6 @@ class AvPlayerEngine implements PlaybackEngine {
       Timer(const Duration(milliseconds: 600), () => unawaited(old.dispose()));
     }
     AppLog.instance.add('player', 'AVPlayer: pronto');
-    await Future.wait([
-      c.setVolume(_volume),
-      if (_rate != 1.0) c.setPlaybackSpeed(_rate),
-    ]);
-    if (source.start > Duration.zero) await c.seekTo(source.start);
     await c.play();
     _tracks.add(_trackList);
     _poll();
