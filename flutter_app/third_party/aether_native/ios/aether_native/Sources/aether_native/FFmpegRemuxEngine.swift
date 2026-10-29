@@ -484,6 +484,12 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
 
     /// Muxes one segment. Also keeps the init segment (the part of the output before the first fragment) and the first fragment.
     @discardableResult
+    /// An FFmpeg error with a line in the log saying where it happened (the code alone says nothing).
+    private func fail(_ what: String, _ code: Int32) -> RemuxError {
+        note("pezzo: errore \(code) in \(what)")
+        return ffError(code)
+    }
+
     private func produce(segment index: Int) throws -> Data {
         guard let ic = context, let layout = layout else { throw RemuxError.closed }
         guard index >= 0, index < layout.segments.count else { throw RemuxError.segmentOutOfRange(index) }
@@ -494,7 +500,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         // Read the packets of this piece.
         guard let videoStream = ic.pointee.streams[layout.videoIndex] else { throw RemuxError.unreadable }
         var status = av_seek_frame(ic, Int32(layout.videoIndex), layout.startTimestamps[index], ffSeekBackward)
-        if status < 0 { throw ffError(status) }
+        if status < 0 { throw fail("posizionamento", status) }
         var scratch = av_packet_alloc()
         defer { av_packet_free(&scratch) }
         guard let packet = scratch else { throw RemuxError.unreadable }
@@ -511,7 +517,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             let result = av_read_frame(ic, packet)
             if result < 0 {
                 if result == ffEOF { break }
-                throw ffError(result)
+                throw fail("lettura", result)
             }
             defer { av_packet_unref(packet) }
             let inputIndex = Int(packet.pointee.stream_index)
@@ -548,7 +554,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         // The muxer.
         var created: UnsafeMutablePointer<AVFormatContext>?
         status = avformat_alloc_output_context2(&created, nil, "mp4", nil)
-        guard status >= 0, let oc = created else { throw ffError(status) }
+        guard status >= 0, let oc = created else { throw fail("creazione del muxer", status) }
         var muxerPB = false
         defer {
             if muxerPB, oc.pointee.pb != nil {
@@ -560,14 +566,14 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             avformat_free_context(oc)
         }
         status = avio_open_dyn_buf(&oc.pointee.pb)
-        guard status >= 0 else { throw ffError(status) }
+        guard status >= 0 else { throw fail("buffer del muxer", status) }
         muxerPB = true
 
         for inputIndex in muxedInputs {
             guard let source = ic.pointee.streams[inputIndex], let sourcePar = source.pointee.codecpar,
                   let target = avformat_new_stream(oc, nil), let targetPar = target.pointee.codecpar else { throw RemuxError.unreadable }
             status = avcodec_parameters_copy(targetPar, sourcePar)
-            if status < 0 { throw ffError(status) }
+            if status < 0 { throw fail("copia dei parametri", status) }
             targetPar.pointee.codec_tag = 0
             if targetPar.pointee.codec_id == AV_CODEC_ID_HEVC { targetPar.pointee.codec_tag = ffTag("hvc1") }
             if targetPar.pointee.codec_type == AVMEDIA_TYPE_AUDIO && targetPar.pointee.frame_size == 0 {
@@ -596,7 +602,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         oc.pointee.avoid_negative_ts = 0       // AVFMT_AVOID_NEG_TS_DISABLED: times are already consistent across pieces
         status = avformat_write_header(oc, &options)
         av_dict_free(&options)
-        if status < 0 { throw ffError(status) }
+        if status < 0 { throw fail("intestazione mp4", status) }
 
         var outputIndexOf: [Int: Int] = [:]
         for (position, inputIndex) in muxedInputs.enumerated() { outputIndexOf[inputIndex] = position }
@@ -634,10 +640,11 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
                 firstDecodeTimes[outputIndex] = item.pointee.dts
             }
             status = av_interleaved_write_frame(oc, item)
-            if status < 0 { throw ffError(status) }
+            if status < 0 { note("pacchetto: flusso \(inputIndex) pts \(item.pointee.pts) dts \(item.pointee.dts)")
+            throw fail("scrittura di un pacchetto", status) }
         }
         status = av_write_trailer(oc)
-        if status < 0 { throw ffError(status) }
+        if status < 0 { throw fail("chiusura del pezzo", status) }
 
         var raw: UnsafeMutablePointer<UInt8>?
         let size = avio_close_dyn_buf(oc.pointee.pb, &raw)
