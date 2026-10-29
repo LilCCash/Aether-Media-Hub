@@ -313,10 +313,12 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         // the demuxer learns where the keyframes are and the real length, then go back to the start.
         var scannedDuration = 0.0
         if entryCount < 2 && totalBytes > 32 << 20 {
-            if var scan = av_packet_alloc() {
+            var scratch = av_packet_alloc()
+            defer { av_packet_free(&scratch) }
+            if let scan = scratch {
                 let scanBase = av_q2d(videoStream.pointee.time_base)
                 while true {
-                    if input.isCancelled || isClosed { av_packet_free(&scan); throw RemuxError.closed }
+                    if input.isCancelled || isClosed { throw RemuxError.closed }
                     if av_read_frame(ic, scan) < 0 { break }
                     if Int(scan.pointee.stream_index) == videoIndex, scan.pointee.pts != ffNoPTS {
                         let end = Double(scan.pointee.pts + max(scan.pointee.duration, 0)) * scanBase
@@ -324,7 +326,6 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
                     }
                     av_packet_unref(scan)
                 }
-                av_packet_free(&scan)
             }
             _ = av_seek_frame(ic, Int32(videoIndex), 0, ffSeekBackward)
             entryCount = Int(avformat_index_get_entries_count(videoStream))
