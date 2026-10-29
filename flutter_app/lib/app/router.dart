@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../core/model/meta.dart';
 import '../features/addons/addons_screen.dart';
+import '../features/calendar/calendar_screen.dart';
+import '../features/stats/stats_screen.dart';
 import '../features/detail/detail_screen.dart';
 import '../features/discover/discover_screen.dart';
 import '../features/downloads/downloads_screen.dart';
@@ -18,6 +20,7 @@ import '../features/search/search_screen.dart';
 import '../features/settings/settings_screens.dart';
 import '../features/shell/shell.dart';
 import '../features/theater/theater_screen.dart';
+import 'hooks.dart' show locationForLink;
 import 'providers.dart';
 import '../data/prefs_ext.dart';
 import 'transitions.dart';
@@ -47,6 +50,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       // `stremio://…/manifest.json` and `aether://addon?url=…` open the addon page with the preview of that address.
       final u = state.uri;
+      if (u.scheme == 'aether') {
+        final loc = locationForLink(u);
+        if (loc != null) return loc;
+      }
       if (u.scheme == 'stremio' || u.scheme == 'aether') {
         return '/addons?install=${Uri.encodeQueryComponent(u.toString())}';
       }
@@ -132,6 +139,22 @@ final routerProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           kind: slideKind,
           child: AddonsScreen(installUrl: state.uri.queryParameters['install']),
+        ),
+      ),
+      GoRoute(
+        path: '/calendar',
+        pageBuilder: (_, state) => AetherPage(
+          key: state.pageKey,
+          kind: slideKind,
+          child: const CalendarScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/stats',
+        pageBuilder: (_, state) => AetherPage(
+          key: state.pageKey,
+          kind: slideKind,
+          child: const StatsScreen(),
         ),
       ),
       GoRoute(

@@ -24,6 +24,54 @@ extension PrefsExt on AppSettings {
     return copyWith(ext: m);
   }
 
+  // ── Player: next episode, credits, sources, picture ──
+  bool get skipCredits => _b('skipCredits', true);
+  bool get autoNextAtCredits => _b('autoNextAtCredits', false);
+  int get creditsSec => _i('creditsSec', 90, 20, 300);
+  bool get nextPreview => _b('nextPreview', true);
+  bool get autoSwitchSource => _b('autoSwitchSource', true);
+  bool get nowPlaying => _b('nowPlaying', true);
+  bool get remuxMkv => _b('remuxMkv', false);
+  String get toneMapping => _s('toneMapping', 'auto', {
+    'auto',
+    'bt.2390',
+    'hable',
+    'mobius',
+    'reinhard',
+    'spline',
+    'clip',
+  });
+  bool get hdrComputePeak => _b('hdrComputePeak', true);
+  int get targetPeak => _i('targetPeak', 0, 0, 1000);
+
+  // ── Content: calendar and notifications ──
+  bool get notifyNewEpisodes => _b('notifyNewEpisodes', false);
+  int get notifyLeadMin => _i('notifyLeadMin', 0, 0, 1440);
+  bool get notifyWatchlist => _b('notifyWatchlist', true);
+  int get calendarDays => _i('calendarDays', 30, 7, 90);
+
+  // ── Downloads ──
+  bool get backgroundDownloads => _b('backgroundDownloads', true);
+
+  // ── Look ──
+  /// `dark`, `light` (experimental: the dark design is inverted) or `auto` (the system's choice).
+  String get themeMode => _s('themeMode', 'dark', {'dark', 'light', 'auto'});
+  bool get animatedBackdrop => _b('animatedBackdrop', false);
+  bool get alternatePosters => _b('alternatePosters', true);
+  Map<String, String> get posterOverrides => {
+    for (final e in (asMap(ext['posterOverrides']) ?? const {}).entries)
+      if (asString(e.value) != null) e.key: asString(e.value)!,
+  };
+
+  // ── Title page ──
+  bool get modSameActors => _b('modSameActors', true);
+
+  // ── Trakt / Simkl ──
+  bool get traktScrobble => _b('traktScrobble', true);
+  bool get traktSyncHistory => _b('traktSyncHistory', true);
+  bool get traktSyncWatchlist => _b('traktSyncWatchlist', true);
+  bool get simklSync => _b('simklSync', true);
+
   // ── Sources ──
   /// `byAddon`: addons in the order set in the Addon page, best first inside each; `byQuality`: one list, best first.
   String get streamOrdering =>

@@ -42,6 +42,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
     s.addonClient.minCacheSeconds = state.catalogRefreshMin * 60;
     WatchProgress.threshold = state.watchedThreshold;
     s.downloads.maxConcurrent = state.maxDownloads;
+    s.downloads.backgroundNative = state.backgroundDownloads;
     s.downloads.allowCellular = state.downloadOverCellular;
     await s.settingsRepo.save(state);
   }
@@ -458,6 +459,44 @@ String? _imdbOf(String id) {
   return RegExp(r'^tt[0-9]{6,10}$').hasMatch(base) ? base : null;
 }
 
+/// Titles with the same leading actors: the most popular entries in the filmographies of the first three of the cast, without the
+/// title itself. [key] is `tmdbId:actor,actor,actor`.
+final sameActorsProvider = FutureProvider.autoDispose
+    .family<List<SimilarTitle>, String>((ref, key) async {
+      final parts = key.split(':');
+      final self = int.tryParse(parts.first);
+      final actors = parts.last
+          .split(',')
+          .map(int.tryParse)
+          .whereType<int>()
+          .toList();
+      if (actors.isEmpty) return const [];
+      final services = ref.watch(servicesProvider);
+      final lang = ref.read(settingsProvider).language;
+      final lists = await Future.wait([
+        for (final a in actors)
+          services.tmdb
+              .filmography(a, language: lang == 'it' ? 'it-IT' : 'en-US')
+              .then((v) => v, onError: (_) => const <PersonCredit>[]),
+      ]);
+      final seen = <int>{if (self != null) self};
+      final all = <PersonCredit>[
+        for (final l in lists)
+          for (final c in l)
+            if (c.poster != null && seen.add(c.tmdbId)) c,
+      ]..sort((a, b) => b.popularity.compareTo(a.popularity));
+      return [
+        for (final c in all.take(24))
+          SimilarTitle(
+            tmdbId: c.tmdbId,
+            title: c.title,
+            isMovie: c.isMovie,
+            year: c.year,
+            poster: c.poster,
+          ),
+      ];
+    });
+
 /// Ratings from several services (MDBList) for a title; empty when there is no key or no answer.
 final ratingsProvider = FutureProvider.autoDispose
     .family<List<MdbRating>, String>((ref, metaId) async {
@@ -556,4 +595,20 @@ final logoProvider =
         );
       }
       return url;
+    });
+
+/// Alternative posters of a title (TMDB), for the «Cambia locandina» sheet.
+final alternatePostersProvider = FutureProvider.autoDispose
+    .family<List<String>, String>((ref, metaId) async {
+      final imdb = _imdbOf(metaId);
+      if (imdb == null) return const [];
+      final lang = ref.read(settingsProvider).language;
+      try {
+        return await ref
+            .read(servicesProvider)
+            .tmdb
+            .posters(imdb, language: lang);
+      } on Object {
+        return const [];
+      }
     });

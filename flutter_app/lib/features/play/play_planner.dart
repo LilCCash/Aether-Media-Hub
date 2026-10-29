@@ -147,9 +147,22 @@ class PlayPlanner {
       externalSubtitles: subtitlesFor(stream, addonSubtitles),
       alternatives: alternatives,
       onNext: video == null ? null : () => nextEpisode(meta, video, stream),
+      onPrevious: video == null
+          ? null
+          : () => previousEpisode(meta, video, stream),
+      onEpisode: video == null ? null : (v) => argsForEpisode(meta, v, stream),
+      episodes: video == null ? const [] : orderedEpisodes(meta),
       prepare: prepare,
     );
   }
+
+  /// The episodes of a title in watching order: regular seasons, then the specials.
+  static List<Video> orderedEpisodes(MetaItem meta) =>
+      meta.videos.where((v) => v.isEpisode && v.season != 0).toList()..sort(
+        (a, b) => a.season != b.season
+            ? a.season!.compareTo(b.season!)
+            : a.episode!.compareTo(b.episode!),
+      );
 
   /// The episode after [current] (same season, then the next season), with its best source that plays without asking
   /// anything: a direct link, or a torrent already in TorBox's cache. Null when there is none.
@@ -158,15 +171,31 @@ class PlayPlanner {
     Video current,
     AddonStream playedWith,
   ) async {
-    final ordered =
-        meta.videos.where((v) => v.isEpisode && v.season != 0).toList()..sort(
-          (a, b) => a.season != b.season
-              ? a.season!.compareTo(b.season!)
-              : a.episode!.compareTo(b.episode!),
-        );
+    final ordered = orderedEpisodes(meta);
     final index = ordered.indexWhere((v) => v.id == current.id);
     if (index < 0 || index + 1 >= ordered.length) return null;
-    final next = ordered[index + 1];
+    return argsForEpisode(meta, ordered[index + 1], playedWith);
+  }
+
+  /// The episode before [current], prepared the same way.
+  Future<PlayerArgs?> previousEpisode(
+    MetaItem meta,
+    Video current,
+    AddonStream playedWith,
+  ) async {
+    final ordered = orderedEpisodes(meta);
+    final index = ordered.indexWhere((v) => v.id == current.id);
+    if (index <= 0) return null;
+    return argsForEpisode(meta, ordered[index - 1], playedWith);
+  }
+
+  /// Any episode of the title: the addons are asked for its sources, the best one that plays without asking anything is used
+  /// (the release group of the one playing first). Null when none does.
+  Future<PlayerArgs?> argsForEpisode(
+    MetaItem meta,
+    Video next,
+    AddonStream playedWith,
+  ) async {
     final addons = services.addons.providers('stream', meta.type, next.id);
     final streams = <AddonStream>[];
     for (final a in addons) {

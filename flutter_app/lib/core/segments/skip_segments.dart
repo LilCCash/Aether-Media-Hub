@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 import '../metadata/service_http.dart';
 import '../util/lenient.dart';
 
-enum SkipKind { intro, recap }
+enum SkipKind { intro, recap, credits }
 
 /// A stretch of an episode the viewer can jump over.
 class SkipSegment {
@@ -14,11 +14,14 @@ class SkipSegment {
 }
 
 class EpisodeSkipSegments {
-  const EpisodeSkipSegments({this.intro, this.recap});
+  const EpisodeSkipSegments({this.intro, this.recap, this.credits});
   final SkipSegment? intro;
   final SkipSegment? recap;
+
+  /// Where the end credits start, when the service knows (it is also what the «next episode» card waits for).
+  final SkipSegment? credits;
   static const none = EpisodeSkipSegments();
-  bool get isEmpty => intro == null && recap == null;
+  bool get isEmpty => intro == null && recap == null && credits == null;
 
   static const lead = 1.0;
   static const tail = 1.0;
@@ -98,6 +101,10 @@ class IntroDbClient {
     return EpisodeSkipSegments(
       intro: make(SkipKind.intro, m?['intro']),
       recap: make(SkipKind.recap, m?['recap']),
+      credits: make(
+        SkipKind.credits,
+        m?['outro'] ?? m?['credits'] ?? m?['end_credits'],
+      ),
     );
   }
 }

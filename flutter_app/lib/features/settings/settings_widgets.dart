@@ -45,6 +45,17 @@ const kGroupStyles = <String, (IconData, Color)>{
   'Sezioni della Home': (Icons.home_rounded, Color(0xFFFF8A5B)),
   'Scopri': (Icons.explore_rounded, Color(0xFF4CD6A0)),
   'Lingue': (Icons.translate_rounded, Color(0xFF5CC8FF)),
+  'Prossimo episodio e titoli di coda': (
+    Icons.skip_next_rounded,
+    Color(0xFF4FD1C5),
+  ),
+  'Tema chiaro e condivisione': (Icons.light_mode_rounded, Color(0xFFFFC857)),
+  'Sfondi animati e locandine': (Icons.animation_rounded, Color(0xFFFF6FB5)),
+  'Calendario e notifiche': (
+    Icons.notifications_active_rounded,
+    Color(0xFFFF8A5B),
+  ),
+  'Fonti e schermata di blocco': (Icons.lock_clock_rounded, Color(0xFF5CC8FF)),
   'Lingue di riserva': (Icons.language_rounded, Color(0xFF7C8CFF)),
   'Sottotitoli': (Icons.subtitles_rounded, Color(0xFFFFC857)),
   'Stile dei sottotitoli': (Icons.format_color_text_rounded, Color(0xFFFF6FB5)),

@@ -10,6 +10,7 @@ import '../../data/stores.dart';
 import '../../design/glass.dart';
 import '../../design/tokens.dart';
 import 'settings_extra.dart';
+import 'settings_sync.dart';
 import 'settings_widgets.dart';
 
 typedef VerifyResult = ({bool ok, String message});
@@ -97,7 +98,9 @@ class ServicesPage extends ConsumerWidget {
             PrefSwitch('modFinancials', 'Incassi e budget', _fin),
             PrefSwitch('modCollection', 'Saga / collezione', _coll),
             PrefSwitch('modKeywords', 'Parole chiave', _kw),
+            PrefSwitch('modSameActors', 'Con gli stessi attori', _sameActors),
             PrefSwitch('modSimilar', 'Simili e consigliati', _similar),
+            PrefSwitch('modSameActors', 'Con gli stessi attori', _sameActors),
           ],
         ),
         ServiceTile(
@@ -172,6 +175,8 @@ class ServicesPage extends ConsumerWidget {
                 : (ok: true, message: 'fanart.tv accetta la chiave.');
           },
         ),
+        const SyncServiceTile(trakt: true),
+        const SyncServiceTile(trakt: false),
         SettingsGroup(
           title: 'IntroDB (nessuna chiave)',
           icon: Icons.fast_forward_rounded,
@@ -200,6 +205,7 @@ class ServicesPage extends ConsumerWidget {
   static bool _coll(AppSettings s) => s.modCollection;
   static bool _kw(AppSettings s) => s.modKeywords;
   static bool _similar(AppSettings s) => s.modSimilar;
+  static bool _sameActors(AppSettings s) => s.modSameActors;
   static const _ratings = {
     'imdb': 'IMDb',
     'tmdb': 'TMDB',

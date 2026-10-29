@@ -499,6 +499,47 @@ class TmdbClient {
     return image(asNonEmptyString(logos.first['file_path']), size: 'w500');
   }
 
+  /// The title's posters from TMDB (the viewer's language first, then English, then textless ones), best rated first.
+  Future<List<String>> posters(
+    String imdbId, {
+    String language = 'it',
+    CancelToken? cancel,
+  }) async {
+    final found = await findByImdb(imdbId, cancel: cancel);
+    if (found == null) return const [];
+    final wanted = language.length >= 2
+        ? language.substring(0, 2).toLowerCase()
+        : language;
+    final r = await _get(
+      '${found.isMovie ? 'movie' : 'tv'}/${found.id}/images',
+      {'include_image_language': '$wanted,en,null'},
+      cancel: cancel,
+    );
+    final list = [
+      for (final e in asList(r?['posters']))
+        if (asMap(e) != null &&
+            asNonEmptyString(asMap(e)!['file_path']) != null)
+          asMap(e)!,
+    ];
+    int tier(Map<String, Object?> l) {
+      final lang = asString(l['iso_639_1']);
+      return lang == wanted ? 0 : (lang == 'en' ? 1 : (lang == null ? 2 : 3));
+    }
+
+    list.sort((a, b) {
+      final t = tier(a).compareTo(tier(b));
+      return t != 0
+          ? t
+          : (asDouble(b['vote_average']) ?? 0).compareTo(
+              asDouble(a['vote_average']) ?? 0,
+            );
+    });
+    return [
+      for (final p in list.take(24))
+        ?image(asNonEmptyString(p['file_path']), size: 'w500'),
+    ];
+  }
+
   /// How many episodes of a season have aired, so a season download stops at the real last one.
   Future<int?> airedEpisodes(
     String imdbId,

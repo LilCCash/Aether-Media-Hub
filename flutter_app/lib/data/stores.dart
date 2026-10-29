@@ -70,7 +70,20 @@ class MemorySecretStore implements SecretStore {
 }
 
 /// The services the user can connect with their own key.
-enum ServiceKey { torbox, realdebrid, tmdb, tvdb, tvdbPin, mdblist, fanart }
+enum ServiceKey {
+  torbox,
+  realdebrid,
+  tmdb,
+  tvdb,
+  tvdbPin,
+  mdblist,
+  fanart,
+  traktClient,
+  traktSecret,
+  traktToken,
+  simklClient,
+  simklToken,
+}
 
 extension ServiceKeyStorage on SecretStore {
   Future<String?> serviceKey(ServiceKey k) => read('service.${k.name}');

@@ -26,6 +26,8 @@ import 'package:pip_kit/pip_kit.dart';
 
 import 'avplayer_engine.dart';
 import 'cast_sheet.dart';
+import '../../design/light_theme.dart';
+import 'now_playing.dart';
 import 'google_cast_section.dart';
 import 'media_kit_engine.dart';
 import 'playback_engine.dart';
@@ -54,6 +56,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   late PlaybackEngine _engine;
   late PlayerSession _session;
   bool _fellBack = false;
+  bool _creditsDismissed = false;
+  bool _creditsAuto = false;
+  DateTime? _sleepEnd;
+  DateTime _npAt = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _hideTimer;
   Timer? _nextTimer;
   bool _controls = true;
@@ -86,6 +92,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _session.start();
     _loadSegments();
     _armPip();
+    _wireNowPlaying();
     if (Platform.isAndroid) {
       _pipChannel
           .invokeMethod<void>('setAuto', {
@@ -95,6 +102,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     final sleep = ref.read(settingsProvider).sleepTimerMin;
     if (sleep > 0) {
+      _sleepEnd = DateTime.now().add(Duration(minutes: sleep));
       _sleepTimer = Timer(Duration(minutes: sleep), () {
         if (!mounted) return;
         _engine.pause();
@@ -211,11 +219,125 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     if (_session.nextRequested && _nextTimer == null) _startNextCountdown();
+    final n = _session.notice;
+    if (n != null) {
+      _session.notice = null;
+      _hint(n, ms: 3500);
+    }
+    _updateNowPlaying();
     setState(() {});
   }
 
+  /// The lock screen: title, position and the buttons, refreshed about once a second.
+  void _updateNowPlaying() {
+    if (!Platform.isIOS || !ref.read(settingsProvider).nowPlaying) return;
+    final now = DateTime.now();
+    if (now.difference(_npAt).inMilliseconds < 1000) return;
+    _npAt = now;
+    final a = _session.args;
+    NowPlaying.update(
+      title: a.title,
+      subtitle: a.isEpisode
+          ? 'S${a.season} · E${a.episode}${a.episodeTitle == null ? '' : ' · ${a.episodeTitle}'}'
+          : null,
+      artwork: a.poster,
+      durationSec: _session.duration.inMilliseconds / 1000,
+      positionSec: _session.position.inMilliseconds / 1000,
+      rate: _session.speed,
+      playing: _session.playing,
+      hasPrevious: _hasPrevious,
+      hasNext: _hasNext,
+    );
+  }
+
+  bool get _hasPrevious {
+    final a = widget.args;
+    final i = a.episodes.indexWhere((v) => v.id == a.videoId);
+    return a.onPrevious != null && i > 0;
+  }
+
+  bool get _hasNext =>
+      widget.args.onNext != null && widget.args.nextVideo != null;
+
+  void _wireNowPlaying() {
+    if (!Platform.isIOS) return;
+    NowPlaying.listen((name, a) {
+      if (!mounted) return;
+      switch (name) {
+        case 'play':
+          _engine.play();
+        case 'pause':
+          _engine.pause();
+        case 'toggle':
+          _session.togglePlay();
+        case 'forward':
+          _session.seekBy(
+            Duration(seconds: ref.read(settingsProvider).skipForwardSec),
+          );
+        case 'back':
+          _session.seekBy(
+            Duration(seconds: -ref.read(settingsProvider).skipBackSec),
+          );
+        case 'seek':
+          final p = (a['position'] as num?)?.toDouble();
+          if (p != null)
+            _session.seekTo(Duration(milliseconds: (p * 1000).round()));
+        case 'next':
+          _goNext();
+        case 'previous':
+          _goPrevious();
+      }
+    });
+  }
+
+  Future<void> _goTo(
+    Future<PlayerArgs?> Function()? prepare,
+    String waiting,
+    String missing,
+  ) async {
+    if (prepare == null) return;
+    _hint(waiting, ms: 6000);
+    final next = await prepare();
+    if (!mounted) return;
+    if (next == null) {
+      _hint(missing, ms: 3500);
+      return;
+    }
+    await _session.saveProgressNow();
+    if (!mounted) return;
+    context.pushReplacement('/player', extra: next);
+  }
+
+  Future<void> _goPrevious() => _goTo(
+    widget.args.onPrevious,
+    'Cerco l’episodio precedente…',
+    'Nessuna fonte pronta per l’episodio precedente.',
+  );
+
+  Future<void> _openEpisodes() async {
+    final a = widget.args;
+    if (a.onEpisode == null || a.episodes.isEmpty) return;
+    await _openPanel(
+      (ctx) => EpisodesPanel(
+        episodes: a.episodes,
+        currentId: a.videoId,
+        watched: ref.read(servicesProvider).library.isWatched,
+        onPick: (v) {
+          Navigator.of(ctx).pop();
+          _goTo(
+            () => a.onEpisode!(v),
+            'Cerco una fonte per ${v.label}…',
+            'Nessuna fonte pronta per quell’episodio.',
+          );
+        },
+      ),
+    );
+  }
+
   void _startNextCountdown() {
-    _nextCountdown = ref.read(settingsProvider).nextCountdownSec;
+    setState(
+      () => _nextCountdown = ref.read(settingsProvider).nextCountdownSec,
+    );
     _nextTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return t.cancel();
       setState(() => _nextCountdown--);
@@ -228,13 +350,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _goNext() async {
     _nextTimer?.cancel();
-    final next = await widget.args.onNext?.call();
-    if (!mounted) return;
-    if (next == null) {
-      setState(() => _nextCountdown = 0);
-      return;
-    }
-    context.pushReplacement('/player', extra: next);
+    setState(() => _nextCountdown = 0);
+    await _goTo(
+      widget.args.onNext,
+      'Cerco l’episodio successivo…',
+      'Nessuna fonte pronta per l’episodio successivo.',
+    );
   }
 
   /// On iPhone an MP4, MOV or HLS file goes to the system player (the only one that can show Picture in Picture), like in the iOS
@@ -255,6 +376,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       settings: ref.read(settingsProvider),
       subtitleLoader: services.subtitleLoader,
       preflight: checkSource,
+      sync: services.sync,
     );
     _session.addListener(_onSession);
   }
@@ -325,7 +447,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _session.removeListener(_onSession);
     _session.dispose();
     _engine.dispose();
-    if (Platform.isIOS) unawaited(PipController.instance.disarm());
+    if (Platform.isIOS) {
+      unawaited(PipController.instance.disarm());
+      unawaited(NowPlaying.clear());
+    }
     _keepAwake(false);
     _brightnessCall((b) => b.resetApplicationScreenBrightness());
     AppOrientation.restore();
@@ -350,11 +475,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_controls) _scheduleHide();
   }
 
-  void _hint(String text) {
+  void _hint(String text, {int ms = 700}) {
     setState(() => _seekHint = text);
     _hintTimer?.cancel();
     _hintTimer = Timer(
-      const Duration(milliseconds: 700),
+      Duration(milliseconds: ms),
       () => mounted ? setState(() => _seekHint = null) : null,
     );
   }
@@ -408,7 +533,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _setSleep(int? minutes) {
     _sleepTimer?.cancel();
     _sleepTimer = null;
-    if (minutes == null) return;
+    _sleepEnd = minutes == null
+        ? null
+        : DateTime.now().add(Duration(minutes: minutes));
+    if (minutes == null) {
+      setState(() {});
+      return;
+    }
     _sleepTimer = Timer(Duration(minutes: minutes), () {
       if (!mounted) return;
       _engine.pause();
@@ -477,6 +608,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 s.cycleAspect();
               case 'sources':
                 _openPanel((_) => SourcesPanel(session: s));
+              case 'episodes':
+                _openEpisodes();
               case 'import':
                 _importSubtitle();
               case 'info':
@@ -506,6 +639,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     : 'Adatta allo schermo',
               ),
             ),
+            if (s.args.onEpisode != null && s.args.episodes.isNotEmpty)
+              const PopupMenuItem(
+                value: 'episodes',
+                child: _MenuRow(Icons.format_list_numbered_rounded, 'Episodi'),
+              ),
             if (s.args.alternatives.isNotEmpty)
               const PopupMenuItem(
                 value: 'sources',
@@ -544,7 +682,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      LightCancel(child: _buildPlayer(context));
+
+  Widget _buildPlayer(BuildContext context) {
     final s = _session;
     final settings = ref.watch(settingsProvider);
     ref.listen(settingsProvider, (_, next) => _session.applyStyleOptions(next));
@@ -559,6 +700,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       duration: s.duration.inMilliseconds / 1000,
     );
     final total = s.duration.inMilliseconds.toDouble();
+    // End credits: the «next episode» card appears in the last seconds (or where the service says the credits start).
+    final nextV = s.args.nextVideo;
+    final creditsAt =
+        _segments?.credits?.start ??
+        (total > 0 ? total / 1000 - settings.creditsSec : double.infinity);
+    final inCredits =
+        nextV != null &&
+        s.args.onNext != null &&
+        settings.skipCredits &&
+        total > 0 &&
+        !_creditsDismissed &&
+        _nextCountdown == 0 &&
+        s.position.inMilliseconds / 1000 >= creditsAt &&
+        total - s.position.inMilliseconds > 2000;
+    if (inCredits &&
+        settings.autoNextAtCredits &&
+        _nextTimer == null &&
+        !_creditsAuto) {
+      _creditsAuto = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _startNextCountdown();
+      });
+    }
+    final sleepLeft = _sleepEnd?.difference(DateTime.now());
     final pos = (_dragSeekMs ?? s.position.inMilliseconds.toDouble())
         .clamp(0, total <= 0 ? 1 : total)
         .toDouble();
@@ -755,6 +920,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
               ),
+            if (inCredits && !_inPip && !s.locked)
+              Positioned(
+                right: 24,
+                bottom: showControls ? 120 : 56,
+                child: SafeArea(
+                  child: NextEpisodeCard(
+                    video: nextV,
+                    preview: settings.nextPreview,
+                    onNow: _goNext,
+                    onStay: () => setState(() => _creditsDismissed = true),
+                  ),
+                ),
+              ),
             // Controls
             AnimatedOpacity(
               opacity: showControls ? 1 : 0,
@@ -816,6 +994,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                           fontWeight: FontWeight.w800,
                                         ),
                                       ),
+                                      if (sleepLeft != null &&
+                                          sleepLeft > Duration.zero)
+                                        Text(
+                                          'Si spegne tra ${sleepLeft.inMinutes + 1} min',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AetherTokens.textSecondary,
+                                          ),
+                                        ),
                                       if (s.args.isEpisode)
                                         Text(
                                           'S${s.args.season} · E${s.args.episode}${s.args.episodeTitle == null ? '' : ' · ${s.args.episodeTitle}'}',
@@ -876,6 +1063,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                 );
                                 _scheduleHide();
                               },
+                              onPrevious: _hasPrevious ? _goPrevious : null,
+                              onNextEpisode: _hasNext ? _goNext : null,
                             ),
                             const Spacer(),
                             Row(
@@ -1145,7 +1334,11 @@ class _CenterControls extends StatelessWidget {
     required this.onBack,
     required this.onToggle,
     required this.onForward,
+    this.onPrevious,
+    this.onNextEpisode,
   });
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNextEpisode;
   final bool playing;
   final int backSec;
   final int forwardSec;
@@ -1153,7 +1346,12 @@ class _CenterControls extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onForward;
 
-  Widget _skip(IconData icon, String tip, VoidCallback tap) => Semantics(
+  Widget _skip(
+    IconData icon,
+    String tip,
+    VoidCallback tap, {
+    bool small = false,
+  }) => Semantics(
     button: true,
     label: tip,
     excludeSemantics: true,
@@ -1163,9 +1361,9 @@ class _CenterControls extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: tap,
         child: SizedBox(
-          width: 64,
-          height: 64,
-          child: Icon(icon, size: 34, color: Colors.white),
+          width: small ? 44 : 64,
+          height: small ? 44 : 64,
+          child: Icon(icon, size: small ? 26 : 34, color: Colors.white),
         ),
       ),
     ),
@@ -1182,6 +1380,15 @@ class _CenterControls extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (onPrevious != null) ...[
+              _skip(
+                Icons.skip_previous_rounded,
+                'Episodio precedente',
+                onPrevious!,
+                small: true,
+              ),
+              const SizedBox(width: 4),
+            ],
             _skip(
               backSec == 10 ? Icons.replay_10_rounded : Icons.replay_rounded,
               'Indietro di $backSec secondi',
@@ -1243,6 +1450,15 @@ class _CenterControls extends StatelessWidget {
               'Avanti di $forwardSec secondi',
               onForward,
             ),
+            if (onNextEpisode != null) ...[
+              const SizedBox(width: 4),
+              _skip(
+                Icons.skip_next_rounded,
+                'Episodio successivo',
+                onNextEpisode!,
+                small: true,
+              ),
+            ],
           ],
         ),
       ),

@@ -1,3 +1,6 @@
+import '../../design/widgets.dart';
+import '../../core/model/meta.dart' show Video;
+
 import 'package:flutter/material.dart';
 
 import '../../design/glass.dart';
@@ -579,4 +582,160 @@ class InfoPanel extends StatelessWidget {
       ),
     ],
   );
+}
+
+/// The episodes of the title, season by season: the one playing is marked, the watched ones are dimmed; a tap plays that one.
+class EpisodesPanel extends StatelessWidget {
+  const EpisodesPanel({
+    super.key,
+    required this.episodes,
+    required this.currentId,
+    required this.watched,
+    required this.onPick,
+  });
+  final List<Video> episodes;
+  final String currentId;
+  final bool Function(String videoId) watched;
+  final ValueChanged<Video> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final seasons = <int>{for (final v in episodes) v.season ?? 0}.toList()
+      ..sort();
+    final currentSeason = episodes
+        .where((v) => v.id == currentId)
+        .map((v) => v.season)
+        .firstOrNull;
+    return _PanelFrame(
+      title: 'Episodi',
+      children: [
+        for (final season in seasons)
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              initiallyExpanded: season == currentSeason,
+              iconColor: Colors.white,
+              collapsedIconColor: Colors.white,
+              textColor: Colors.white,
+              collapsedTextColor: Colors.white,
+              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+              title: Text(
+                'Stagione $season',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+              children: [
+                for (final v in episodes.where(
+                  (e) => (e.season ?? 0) == season,
+                ))
+                  Opacity(
+                    opacity: watched(v.id) && v.id != currentId ? 0.55 : 1,
+                    child: _Choice(
+                      label: '${v.episode}. ${v.title}',
+                      selected: v.id == currentId,
+                      onTap: () => onPick(v),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// «Prossimo episodio» in the credits: a small card with the next episode's picture and title, and the two buttons.
+class NextEpisodeCard extends StatelessWidget {
+  const NextEpisodeCard({
+    super.key,
+    required this.video,
+    required this.preview,
+    required this.onNow,
+    required this.onStay,
+  });
+  final Video? video;
+  final bool preview;
+  final VoidCallback onNow;
+  final VoidCallback onStay;
+
+  @override
+  Widget build(BuildContext context) {
+    final v = video;
+    if (v == null) return const SizedBox.shrink();
+    return GlassSurface(
+      strong: true,
+      radius: 18,
+      padding: const EdgeInsets.all(10),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 330),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (preview && v.thumbnail != null) ...[
+              SizedBox(
+                width: 108,
+                height: 62,
+                child: PosterImage(
+                  url: v.thumbnail,
+                  title: v.title,
+                  radius: 10,
+                  cacheWidth: 360,
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'PROSSIMO EPISODIO',
+                    style: TextStyle(
+                      fontSize: 10,
+                      letterSpacing: 0.6,
+                      fontWeight: FontWeight.w800,
+                      color: AetherTokens.textTertiary,
+                    ),
+                  ),
+                  Text(
+                    v.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: onNow,
+                        child: const Text(
+                          'Guarda ora',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      GestureDetector(
+                        onTap: onStay,
+                        child: const Text(
+                          'Resta',
+                          style: TextStyle(color: AetherTokens.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

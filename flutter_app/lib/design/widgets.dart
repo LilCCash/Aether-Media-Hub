@@ -9,12 +9,16 @@ import '../app/transitions.dart';
 import '../core/model/meta.dart';
 import 'glass.dart';
 import 'image_cache.dart';
+import 'light_theme.dart';
 import 'tokens.dart';
 
 /// A poster (or 16:9 card) with a graceful placeholder: initials on a gradient when there is no picture or it fails.
 class PosterImage extends StatelessWidget {
   /// Widget tests switch pictures off (no platform cache is available there).
   static bool disableNetwork = false;
+
+  /// Posters the viewer swapped for another one (original address → chosen address); set from the settings.
+  static Map<String, String> overrides = const {};
 
   const PosterImage({
     super.key,
@@ -80,16 +84,21 @@ class PosterImage extends StatelessWidget {
       ),
       child: url == null || url!.isEmpty || disableNetwork
           ? placeholder()
-          : CachedNetworkImage(
-              cacheManager: AetherImageCache.manager,
-              imageUrl: cacheWidth > 600 ? sharper(url!) : url!,
-              fit: fit,
-              alignment: alignment,
-              filterQuality: FilterQuality.high,
-              fadeInDuration: AetherTokens.medium,
-              placeholder: (_, __) => placeholder(),
-              errorWidget: (_, __, ___) => placeholder(),
-              memCacheWidth: cacheWidth,
+          : LightCancel(
+              child: CachedNetworkImage(
+                cacheManager: AetherImageCache.manager,
+                imageUrl: () {
+                  final u = overrides[url!] ?? url!;
+                  return cacheWidth > 600 ? sharper(u) : u;
+                }(),
+                fit: fit,
+                alignment: alignment,
+                filterQuality: FilterQuality.high,
+                fadeInDuration: AetherTokens.medium,
+                placeholder: (_, __) => placeholder(),
+                errorWidget: (_, __, ___) => placeholder(),
+                memCacheWidth: cacheWidth,
+              ),
             ),
     );
   }
@@ -729,4 +738,62 @@ class LogoImage extends StatelessWidget {
       errorWidget: (_, __, ___) => fallback ?? const SizedBox.shrink(),
     ),
   );
+}
+
+/// A slow zoom and drift over a picture (Ken Burns), for the artwork of a title page.
+class KenBurns extends StatefulWidget {
+  const KenBurns({super.key, required this.child, this.enabled = true});
+  final Widget child;
+  final bool enabled;
+
+  @override
+  State<KenBurns> createState() => _KenBurnsState();
+}
+
+class _KenBurnsState extends State<KenBurns>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 22),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.enabled) _c.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(KenBurns old) {
+    super.didUpdateWidget(old);
+    if (widget.enabled && !_c.isAnimating) _c.repeat(reverse: true);
+    if (!widget.enabled && _c.isAnimating) _c.stop();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _c,
+        child: widget.child,
+        builder: (_, child) {
+          final t = Curves.easeInOut.transform(_c.value);
+          return Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..translateByDouble(-14 * t, -8 * t, 0, 1)
+              ..scaleByDouble(1.04 + 0.08 * t, 1.04 + 0.08 * t, 1, 1),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
 }

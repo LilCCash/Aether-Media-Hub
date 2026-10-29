@@ -25,6 +25,7 @@ import '../../design/glass.dart';
 import '../../design/tokens.dart';
 import '../../design/widgets.dart';
 import '../home/home_screen.dart';
+import 'settings_more.dart';
 import 'settings_widgets.dart';
 
 /// "Altro": the doorway to addons, downloads and the settings.
@@ -71,6 +72,20 @@ class MoreScreen extends ConsumerWidget {
                   title: 'Download',
                   subtitle: 'File per guardare senza rete',
                   onTap: () => context.push('/downloads'),
+                ),
+                HubRow(
+                  icon: Icons.event_rounded,
+                  color: const Color(0xFFFFB454),
+                  title: 'Calendario',
+                  subtitle: 'Le prossime uscite delle tue serie',
+                  onTap: () => context.push('/calendar'),
+                ),
+                HubRow(
+                  icon: Icons.insights_rounded,
+                  color: const Color(0xFFFF6B8B),
+                  title: 'Statistiche',
+                  subtitle: 'Quanto e cosa hai guardato',
+                  onTap: () => context.push('/stats'),
                 ),
               ],
             ),
@@ -269,6 +284,10 @@ Widget _topicPage(String page) {
           _only({'Stili pronti', 'Transizioni'}, const LookPage()),
           const _AppearancePage(),
           _only({
+            'Tema chiaro e condivisione',
+            'Sfondi animati e locandine',
+          }, const ThemeExtrasPage()),
+          _only({
             'Interfaccia',
             'Colori',
             'Sfondo',
@@ -290,6 +309,8 @@ Widget _topicPage(String page) {
           _only({
             'Controlli e gesti',
             'Ripresa e fine episodio',
+            'Prossimo episodio e titoli di coda',
+            'Fonti e schermata di blocco',
             'Immagine (motore libmpv)',
             'In sottofondo',
           }, const PlayerAdvancedPage()),
@@ -303,6 +324,7 @@ Widget _topicPage(String page) {
         parts: [
           _only({'Scopri'}, const MetadataPage()),
           _only({'Cataloghi e lingua'}, const _ContentPage()),
+          _only({'Calendario e notifiche'}, const CalendarSettingsPage()),
           _only({'Cataloghi e cache'}, const MetadataPage()),
         ],
       );

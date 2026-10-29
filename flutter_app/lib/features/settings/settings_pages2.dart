@@ -23,6 +23,8 @@ const _badgeKinds = {
 };
 
 /// Settings ▸ Sorgenti: how the list of sources is ordered, filtered and drawn.
+bool _bg(AppSettings s) => s.backgroundDownloads;
+
 class SourcesPage extends ConsumerWidget {
   const SourcesPage({super.key});
 
@@ -203,6 +205,12 @@ class DownloadsSettingsPage extends ConsumerWidget {
               divisions: 4,
               integer: true,
               format: _int,
+            ),
+            const PrefSwitch(
+              'backgroundDownloads',
+              'Scarica anche con l’app chiusa (iOS)',
+              _bg,
+              subtitle: 'Il sistema porta avanti i download in background',
             ),
             const PrefSwitch(
               'downloadOverCellular',
@@ -408,6 +416,56 @@ class PlayerAdvancedPage extends ConsumerWidget {
           ],
         ),
         SettingsGroup(
+          title: 'Prossimo episodio e titoli di coda',
+          footer: 'I titoli di coda si riconoscono dai dati di IntroDB quando ci sono, altrimenti dagli ultimi secondi del video.',
+          children: const [
+            PrefSwitch(
+              'skipCredits',
+              'Scheda «Prossimo episodio» nei titoli di coda',
+              _skipCredits,
+              subtitle: 'Con l’anteprima dell’episodio, «Guarda ora» e «Resta»',
+            ),
+            PrefSwitch(
+              'nextPreview',
+              'Anteprima con l’immagine dell’episodio',
+              _nextPreview,
+            ),
+            PrefSwitch(
+              'autoNextAtCredits',
+              'Passa da solo al prossimo episodio all’inizio dei titoli',
+              _autoNextCredits,
+              subtitle: 'Parte il conto alla rovescia; si può annullare',
+            ),
+            PrefSlider(
+              'creditsSec',
+              'Titoli di coda: ultimi secondi',
+              _creditsSec,
+              min: 20,
+              max: 300,
+              divisions: 28,
+              integer: true,
+              format: _sec,
+            ),
+          ],
+        ),
+        SettingsGroup(
+          title: 'Fonti e schermata di blocco',
+          children: const [
+            PrefSwitch(
+              'autoSwitchSource',
+              'Cambia fonte da sola se non parte',
+              _autoSwitch,
+              subtitle: 'Prova fino a tre fonti alternative',
+            ),
+            PrefSwitch(
+              'nowPlaying',
+              'Controlli nella schermata di blocco (iPhone)',
+              _nowPlaying,
+              subtitle: 'Titolo, avanzamento, play/pausa, ±10 s e episodio successivo',
+            ),
+          ],
+        ),
+        SettingsGroup(
           title: 'Lingue di riserva',
           children: [
             const PrefChoice<String>(
@@ -435,6 +493,35 @@ class PlayerAdvancedPage extends ConsumerWidget {
           children: [
             const PrefSwitch('hwDecoding', 'Decodifica hardware', _hw),
             const PrefSwitch('deband', 'Riduci le bande di colore', _db),
+            const PrefChoice<String>(
+              'toneMapping',
+              'HDR su schermo SDR: tone mapping',
+              _tone,
+              {
+                'auto': 'Automatico',
+                'bt.2390': 'BT.2390 (fedele)',
+                'hable': 'Hable (filmico)',
+                'mobius': 'Mobius (morbido)',
+                'reinhard': 'Reinhard',
+                'spline': 'Spline',
+                'clip': 'Taglia i picchi',
+              },
+            ),
+            const PrefSwitch(
+              'hdrComputePeak',
+              'Misura il picco di luce scena per scena',
+              _hdrPeak,
+            ),
+            const PrefSlider(
+              'targetPeak',
+              'Luminosità dello schermo (nit, 0 = automatica)',
+              _targetPeak,
+              min: 0,
+              max: 1000,
+              divisions: 20,
+              integer: true,
+              format: _nit,
+            ),
             const PrefSlider(
               'imgBrightness',
               'Luminosità',
@@ -519,6 +606,16 @@ class PlayerAdvancedPage extends ConsumerWidget {
   static double _sleep(AppSettings s) => s.sleepTimerMin.toDouble();
   static String _fa(AppSettings s) => s.fallbackAudio;
   static String _fs(AppSettings s) => s.fallbackSubtitle;
+  static bool _skipCredits(AppSettings s) => s.skipCredits;
+  static bool _nextPreview(AppSettings s) => s.nextPreview;
+  static bool _autoNextCredits(AppSettings s) => s.autoNextAtCredits;
+  static double _creditsSec(AppSettings s) => s.creditsSec.toDouble();
+  static bool _autoSwitch(AppSettings s) => s.autoSwitchSource;
+  static bool _nowPlaying(AppSettings s) => s.nowPlaying;
+  static String _tone(AppSettings s) => s.toneMapping;
+  static bool _hdrPeak(AppSettings s) => s.hdrComputePeak;
+  static double _targetPeak(AppSettings s) => s.targetPeak.toDouble();
+  static String _nit(double v) => v == 0 ? 'automatica' : '${v.round()} nit';
   static bool _hw(AppSettings s) => s.hwDecoding;
   static bool _db(AppSettings s) => s.deband;
   static double _ib(AppSettings s) => s.imgBrightness.toDouble();

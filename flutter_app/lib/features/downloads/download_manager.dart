@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter/foundation.dart';
 
 import '../../core/addons/network_policy.dart';
@@ -138,6 +139,91 @@ class DownloadManager extends ChangeNotifier {
   final Map<String, CancelToken> _tokens = {};
 
   set policy(NetworkPolicy p) => _policy = p;
+
+  /// iOS: let the system run the transfer (a background URLSession), so it goes on with the app closed.
+  bool backgroundNative = false;
+  static const _bg = MethodChannel('aether/bgdownload');
+  final Map<String, Completer<Map<Object?, Object?>>> _nativeWaiters = {};
+  bool _nativeListening = false;
+  DateTime _lastNative = DateTime.fromMillisecondsSinceEpoch(0);
+
+  void _listenNative() {
+    if (_nativeListening) return;
+    _nativeListening = true;
+    _bg.setMethodCallHandler((call) async {
+      final a = Map<Object?, Object?>.from(call.arguments as Map);
+      final id = a['id'] as String;
+      if (call.method == 'progress') {
+        for (final i in _items.where((i) => i.id == id)) {
+          i.received = asInt(a['received']) ?? i.received;
+          i.total = asInt(a['total']) ?? i.total;
+        }
+        if (DateTime.now().difference(_lastNative).inMilliseconds > 400) {
+          _lastNative = DateTime.now();
+          notifyListeners();
+        }
+      } else if (call.method == 'finished') {
+        final w = _nativeWaiters[id];
+        if (w != null && !w.isCompleted) {
+          w.complete(Map<Object?, Object?>.from(a['info'] as Map));
+        }
+      }
+    });
+  }
+
+  Future<void> _viaNative(DownloadItem item, CancelToken token) async {
+    _listenNative();
+    final done = Completer<Map<Object?, Object?>>();
+    _nativeWaiters[item.id] = done;
+    token.whenCancel.then((_) async {
+      try {
+        await _bg.invokeMethod<void>('cancel', {'id': item.id});
+      } on Object {
+        // The transfer is gone with the process anyway.
+      }
+      if (!done.isCompleted) {
+        done.completeError(
+          DioException.requestCancelled(
+            requestOptions: RequestOptions(path: item.url),
+            reason: 'pause',
+          ),
+        );
+      }
+    });
+    final pending = await _bg.invokeMethod<Map<Object?, Object?>>('pending');
+    final earlier = pending?[item.id];
+    if (earlier is Map) {
+      done.complete(Map<Object?, Object?>.from(earlier));
+    } else {
+      await _bg.invokeMethod<void>('start', {
+        'id': item.id,
+        'url': item.url,
+        'dest': pathOf(item),
+        'headers': {
+          if (!item.headers.keys.any((k) => k.toLowerCase() == 'user-agent'))
+            'User-Agent': 'Aether/1.0',
+          ...item.headers,
+        },
+      });
+    }
+    try {
+      final r = await done.future;
+      await _bg.invokeMethod<void>('ack', {'id': item.id});
+      if (r['ok'] == true) {
+        final size = asInt(r['size']) ?? item.received;
+        item.received = size;
+        item.total = size;
+        item.status = DownloadStatus.done;
+        return;
+      }
+      if (r['network'] == true) {
+        throw const HttpException('Download interrotto dal server.');
+      }
+      throw _HttpFailure(asInt(r['status']) ?? 0, asString(r['snippet']));
+    } finally {
+      _nativeWaiters.remove(item.id);
+    }
+  }
 
   /// How many transfers run at once; the others wait as «in coda».
   int maxConcurrent = 2;
@@ -365,6 +451,10 @@ class DownloadManager extends ChangeNotifier {
     IOSink? sink;
     try {
       await directory.create(recursive: true);
+      if (backgroundNative && Platform.isIOS) {
+        await _viaNative(item, token);
+        return;
+      }
       final part = File(_partPath(item));
       var offset = await part.exists() ? await part.length() : 0;
       final response = await _dio.get<ResponseBody>(

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
 
+import '../../core/model/meta.dart' show Video;
 import '../../core/subtitles/subtitle_loader.dart';
+import '../../data/sync_service.dart';
 import '../../core/subtitles/subtitle_parser.dart';
 import '../../core/util/app_log.dart';
 import '../../data/library_repository.dart';
@@ -52,6 +54,9 @@ class PlayerArgs {
     this.externalSubtitles = const [],
     this.alternatives = const [],
     this.onNext,
+    this.onPrevious,
+    this.onEpisode,
+    this.episodes = const [],
     this.saveProgress = true,
     this.prepare,
   });
@@ -73,6 +78,9 @@ class PlayerArgs {
     externalSubtitles: externalSubtitles,
     alternatives: alternatives,
     onNext: onNext,
+    onPrevious: onPrevious,
+    onEpisode: onEpisode,
+    episodes: episodes,
     saveProgress: saveProgress,
   );
 
@@ -90,7 +98,22 @@ class PlayerArgs {
 
   /// Prepares the next episode (null when there is none).
   final Future<PlayerArgs?> Function()? onNext;
+
+  /// Prepares the episode before this one (null when there is none).
+  final Future<PlayerArgs?> Function()? onPrevious;
+
+  /// Prepares any episode of the title (the episode list of the player).
+  final Future<PlayerArgs?> Function(Video)? onEpisode;
+
+  /// The episodes of the title, in order (regular seasons first), for the list in the player.
+  final List<Video> episodes;
   final bool saveProgress;
+
+  /// The episode that follows this one, for the preview card.
+  Video? get nextVideo {
+    final i = episodes.indexWhere((v) => v.id == videoId);
+    return (i < 0 || i + 1 >= episodes.length) ? null : episodes[i + 1];
+  }
 
   bool get isEpisode => season != null && episode != null;
 }
@@ -120,6 +143,7 @@ class PlayerSession extends ChangeNotifier {
     required this.settings,
     required this.subtitleLoader,
     this.preflight,
+    this.sync,
     Duration progressInterval = const Duration(seconds: 5),
   }) : _progressInterval = progressInterval;
 
@@ -132,7 +156,37 @@ class PlayerSession extends ChangeNotifier {
 
   /// Looks at a source before it is opened and says why it cannot be played (null when it can).
   final Future<String?> Function(PlaybackSource)? preflight;
+
+  /// Trakt / Simkl: the playback is scrobbled and, when finished, reported.
+  final SyncService? sync;
+  bool _scrobbleStarted = false;
+
+  double get _percent => duration.inMilliseconds <= 0
+      ? 0
+      : (position.inMilliseconds * 100 / duration.inMilliseconds)
+            .clamp(0, 100)
+            .toDouble();
+
+  void _scrobble(String action) {
+    final s = sync;
+    if (s == null || !args.saveProgress || args.metaId.isEmpty) return;
+    unawaited(
+      s.scrobble(
+        action,
+        metaId: args.metaId,
+        type: args.type,
+        season: args.season,
+        episode: args.episode,
+        progress: _percent,
+      ),
+    );
+  }
+
   final Set<int> _triedAlternatives = {};
+  bool _everPlayed = false;
+
+  /// A short line for the viewer that the screen shows once (the source was changed by itself…).
+  String? notice;
 
   Future<String?> _check(PlaybackSource s) async =>
       (preflight == null || s.isLocalFile) ? null : preflight!(s);
@@ -224,6 +278,7 @@ class PlayerSession extends ChangeNotifier {
       ..add(
         engine.positionStream.listen((d) {
           position = d;
+          if (d > Duration.zero) _everPlayed = true;
           notifyListeners();
         }),
       )
@@ -238,6 +293,12 @@ class PlayerSession extends ChangeNotifier {
           final wasPlaying = playing;
           playing = v;
           if (wasPlaying && !v) unawaited(saveProgressNow());
+          if (v && !wasPlaying) {
+            _scrobble('start');
+            _scrobbleStarted = true;
+          } else if (!v && wasPlaying) {
+            _scrobble('pause');
+          }
           notifyListeners();
         }),
       )
@@ -289,6 +350,21 @@ class PlayerSession extends ChangeNotifier {
   void _onError(String message) {
     if (message.trim().isEmpty) return;
     AppLog.instance.add('player', 'Errore del motore: $message');
+    // A source that never started: the next one offered is tried by itself (up to three), as the iOS player does.
+    if (!_everPlayed &&
+        settings.autoSwitchSource &&
+        _triedAlternatives.length < 3) {
+      for (var i = 0; i < args.alternatives.length; i++) {
+        if (_triedAlternatives.add(i)) {
+          notice =
+              'Questa fonte non parte: provo «${args.alternatives[i].label}».';
+          error = null;
+          notifyListeners();
+          unawaited(switchSource(args.alternatives[i]));
+          return;
+        }
+      }
+    }
     error = _friendly(message);
     notifyListeners();
   }
@@ -348,6 +424,10 @@ class PlayerSession extends ChangeNotifier {
     final o = <String, String>{
       'hwdec': settings.hwDecoding ? 'auto-safe' : 'no',
       'deband': settings.deband ? 'yes' : 'no',
+      // HDR shown on a screen that is not HDR: how the highlights are folded in.
+      'tone-mapping': settings.toneMapping,
+      'hdr-compute-peak': settings.hdrComputePeak ? 'yes' : 'no',
+      if (settings.targetPeak > 0) 'target-peak': '${settings.targetPeak}',
       'brightness': '${settings.imgBrightness}',
       'contrast': '${settings.imgContrast}',
       'saturation': '${settings.imgSaturation}',
@@ -638,6 +718,16 @@ class PlayerSession extends ChangeNotifier {
         episode: args.episode,
       );
     }
+    if (sync != null && args.metaId.isNotEmpty) {
+      unawaited(
+        sync!.watched(
+          metaId: args.metaId,
+          type: args.type,
+          season: args.season,
+          episode: args.episode,
+        ),
+      );
+    }
     if (settings.autoplayNext && args.onNext != null) nextRequested = true;
     notifyListeners();
   }
@@ -649,6 +739,7 @@ class PlayerSession extends ChangeNotifier {
     for (final s in _subs) {
       s.cancel();
     }
+    if (_scrobbleStarted) _scrobble('stop');
     unawaited(saveProgressNow());
     super.dispose();
   }

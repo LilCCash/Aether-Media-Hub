@@ -27,6 +27,9 @@ import '../data/library_repository.dart';
 import '../data/prefs_ext.dart';
 import '../data/settings.dart';
 import '../data/stores.dart';
+import '../core/sync/simkl_client.dart';
+import '../core/sync/trakt_client.dart';
+import '../data/sync_service.dart';
 import '../features/downloads/download_manager.dart';
 import '../features/downloads/season_downloader.dart';
 
@@ -50,6 +53,7 @@ class AppServices {
     required this.badgeLoader,
     required this.subtitleLoader,
     required this.downloads,
+    required this.sync,
     required this.initialSettings,
   });
 
@@ -69,6 +73,7 @@ class AppServices {
   final BadgePackLoader badgeLoader;
   final SubtitleLoader subtitleLoader;
   final DownloadManager downloads;
+  final SyncService sync;
   final SeasonJobs seasonJobs = SeasonJobs();
   final AppSettings initialSettings;
 
@@ -145,6 +150,7 @@ class AppServices {
     client.cacheEnabled = settings.cacheMetadata;
     client.minCacheSeconds = settings.catalogRefreshMin * 60;
     downloads.maxConcurrent = settings.maxDownloads;
+    downloads.backgroundNative = settings.backgroundDownloads;
     downloads.allowCellular = settings.downloadOverCellular;
     downloads.networkAllowed = () async {
       if (downloads.allowCellular) return true;
@@ -157,7 +163,15 @@ class AppServices {
         return true;
       }
     };
+    final sync = SyncService(
+      trakt: TraktClient(secrets: secrets, dio: dio),
+      simkl: SimklClient(secrets: secrets, dio: dio),
+      library: library,
+      settings: () => settings,
+    );
+    library.onWatchlistAdded = sync.watchlistAdded;
     return AppServices(
+      sync: sync,
       store: store,
       secrets: secrets,
       addonClient: client,

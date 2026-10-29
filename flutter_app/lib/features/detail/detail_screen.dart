@@ -428,6 +428,16 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                   SliverToBoxAdapter(
                     child: _Facts(rows: factRows(rich, settings)),
                   ),
+                if (settings.modSameActors &&
+                    rich != null &&
+                    rich.tmdbId != null &&
+                    rich.cast.any((c) => c.tmdbId != null))
+                  SliverToBoxAdapter(
+                    child: _SameActors(
+                      keyString:
+                          '${rich.tmdbId}:${rich.cast.map((c) => c.tmdbId).whereType<int>().take(3).join(',')}',
+                    ),
+                  ),
                 if (settings.modSimilar &&
                     rich != null &&
                     rich.similarTitles.isNotEmpty)
@@ -513,6 +523,96 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
   }
 }
 
+/// «Cambia locandina»: the posters TMDB has for the title; the choice is remembered and shown everywhere the poster appears.
+Future<void> _pickPoster(BuildContext context, WidgetRef ref, MetaItem meta) {
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: AetherTokens.inkRaised,
+    isScrollControlled: true,
+    builder: (ctx) => Consumer(
+      builder: (ctx, ref, _) {
+        final async = ref.watch(alternatePostersProvider(meta.id));
+        final original = meta.poster ?? '';
+        void choose(String? url) {
+          final map = {...ref.read(settingsProvider).posterOverrides};
+          if (url == null) {
+            map.remove(original);
+          } else {
+            map[original] = url;
+          }
+          ref
+              .read(settingsProvider.notifier)
+              .update(
+                (x) => x.withExt('posterOverrides', map.isEmpty ? null : map),
+              );
+          PosterImage.overrides = map;
+          Navigator.of(ctx).pop();
+        }
+
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(ctx).height * 0.6,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Cambia locandina',
+                          style: Theme.of(ctx).textTheme.titleLarge,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => choose(null),
+                        child: const Text('Originale'),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: async.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (_, __) =>
+                        const Center(child: Text('Non disponibili')),
+                    data: (list) => list.isEmpty
+                        ? const Center(
+                            child: Text('Nessuna locandina alternativa'),
+                          )
+                        : GridView.builder(
+                            padding: const EdgeInsets.all(16),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3,
+                                  mainAxisSpacing: 10,
+                                  crossAxisSpacing: 10,
+                                  childAspectRatio: 2 / 3,
+                                ),
+                            itemCount: list.length,
+                            itemBuilder: (_, i) => GestureDetector(
+                              onTap: () => choose(list[i]),
+                              child: PosterImage(
+                                url: list[i],
+                                title: meta.name,
+                                radius: 10,
+                                cacheWidth: 300,
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
 class _Hero extends ConsumerWidget {
   const _Hero({required this.meta, required this.tint});
   final MetaItem meta;
@@ -549,14 +649,34 @@ class _Hero extends ConsumerWidget {
               stops: const [0, 0.55, 1],
             ).createShader(rect),
             blendMode: BlendMode.dstIn,
-            child: PosterImage(
-              url: meta.poster ?? meta.background,
-              title: meta.name,
-              radius: 0,
-              alignment: Alignment.topCenter,
-              cacheWidth: 1600,
+            child: KenBurns(
+              enabled: ref.watch(
+                settingsProvider.select(
+                  (s) => s.animatedBackdrop && !look.reduceEffects,
+                ),
+              ),
+              child: PosterImage(
+                url: meta.poster ?? meta.background,
+                title: meta.name,
+                radius: 0,
+                alignment: Alignment.topCenter,
+                cacheWidth: 1600,
+              ),
             ),
           ),
+          if (ref.watch(settingsProvider.select((s) => s.alternatePosters)) &&
+              meta.id.startsWith('tt'))
+            Positioned(
+              right: AetherTokens.pageMargin,
+              top: 56,
+              child: SafeArea(
+                child: GlassButton(
+                  icon: Icons.photo_library_rounded,
+                  tooltip: 'Cambia locandina',
+                  onPressed: () => _pickPoster(context, ref, meta),
+                ),
+              ),
+            ),
           // The title's own logo (fanart.tv) sits at the foot of the artwork, in place of the plain title.
           if (logo != null)
             Positioned(
@@ -1204,8 +1324,9 @@ class _MoneyCards extends StatelessWidget {
 
 /// «Titoli simili»: the posters of similar and recommended titles; a tap opens that title.
 class _SimilarRow extends ConsumerWidget {
-  const _SimilarRow({required this.titles});
+  const _SimilarRow({required this.titles, this.heading = 'Titoli simili'});
   final List<SimilarTitle> titles;
+  final String heading;
 
   Future<void> _open(
     BuildContext context,
@@ -1233,7 +1354,7 @@ class _SimilarRow extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(title: 'Titoli simili'),
+        SectionHeader(title: heading),
         SizedBox(
           height: 262,
           child: ListView.separated(
@@ -1286,5 +1407,18 @@ class _SimilarRow extends ConsumerWidget {
         ),
       ],
     );
+  }
+}
+
+/// «Con gli stessi attori»: the poster row of [sameActorsProvider].
+class _SameActors extends ConsumerWidget {
+  const _SameActors({required this.keyString});
+  final String keyString;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final titles = ref.watch(sameActorsProvider(keyString)).value;
+    if (titles == null || titles.isEmpty) return const SizedBox.shrink();
+    return _SimilarRow(titles: titles, heading: 'Con gli stessi attori');
   }
 }

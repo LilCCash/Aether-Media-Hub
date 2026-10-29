@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import '../core/model/meta.dart';
@@ -141,10 +142,14 @@ class LibraryRepository {
     return added;
   }
 
+  /// Called when a title is added to the watchlist (Trakt and Simkl are told).
+  Future<void> Function(MetaItem)? onWatchlistAdded;
+
   Future<bool> toggleWatchlist(MetaItem meta) async {
     final added = !_watchlist.containsKey(meta.id);
     added ? _watchlist[meta.id] = meta.preview : _watchlist.remove(meta.id);
     await _save();
+    if (added) unawaited(onWatchlistAdded?.call(meta) ?? Future<void>.value());
     return added;
   }
 
