@@ -385,7 +385,9 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         var profile: String?
         if let name = avcodec_profile_name(par.pointee.codec_id, par.pointee.profile) { profile = String(cString: name) }
         var depth: Int?
-        if par.pointee.bits_per_raw_sample > 0 {
+        // Some files carry a nonsense value here (a 1080p H.264 reported as "1080 bit"): only 8…16 are believed, else the pixel format
+        // says it, else it is unknown (and not refused).
+        if (8...16).contains(Int(par.pointee.bits_per_raw_sample)) {
             depth = Int(par.pointee.bits_per_raw_sample)
         } else if kind == .video, par.pointee.format >= 0, let descriptor = av_pix_fmt_desc_get(AVPixelFormat(par.pointee.format)) {
             depth = Int(descriptor.pointee.comp.0.depth)
