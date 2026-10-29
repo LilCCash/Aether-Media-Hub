@@ -1,17 +1,17 @@
 name: Flutter Build · Android APK
 
 # Builds only the Android APK of the Flutter app. Start it by hand from the Actions tab (it asks which branch to build; the
-# default is the Flutter branch), or put [build-android] in a commit message on aether-flutter-comp.
+# default is the Flutter branch), or put [build-android] in a commit message on aether-flutter-android.
 on:
   push:
-    branches: ['aether-flutter-comp']
+    branches: ['aether-flutter-android']
     paths: ['flutter_app/**', '.github/workflows/flutter-build-android.yml']
   workflow_dispatch:
     inputs:
       ref:
         description: 'Branch, tag or commit to build'
         type: string
-        default: 'aether-flutter-comp'
+        default: 'aether-flutter-android'
 
 concurrency:
   group: flutter-build-android-${{ github.ref }}

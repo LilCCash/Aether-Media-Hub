@@ -6,10 +6,10 @@ name: CI
 on:
   push:
     # The Flutter branch has its own workflows (Flutter CI, Flutter Build): the iOS app's CI is not run for it.
-    branches: ['**', '!aether-flutter-comp']
+    branches: ['**', '!aether-flutter-comp', '!aether-flutter-ios', '!aether-flutter-android']
     paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE']
   pull_request:
-    branches-ignore: ['aether-flutter-comp']
+    branches-ignore: ['aether-flutter-comp', 'aether-flutter-ios', 'aether-flutter-android']
     paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE']
   workflow_dispatch:
     inputs:
