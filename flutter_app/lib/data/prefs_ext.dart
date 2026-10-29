@@ -116,6 +116,11 @@ extension PrefsExt on AppSettings {
   /// iPhone: MP4, MOV and HLS play on the system player (Picture in Picture); off keeps everything on libmpv.
   bool get nativePlayer => _b('nativePlayer', true);
 
+  /// iPhone: which player opens a video. `av` always uses the system player (picture in picture, AirPlay) and converts whatever it
+  /// cannot read; `mpv` always uses libmpv; `auto` uses the system player for MP4, MOV and HLS and libmpv for the rest.
+  String get playerEngine =>
+      _s('playerEngine', nativePlayer ? 'auto' : 'mpv', {'auto', 'av', 'mpv'});
+
   /// How dense the tab bar's glass is: 0 clear, 1 tinted. Low by default, so the page shows through it.
   double get dockOpacity => _d('dockOpacity', 0.12, 0, 1);
   double get watchedThreshold => _d('watchedThreshold', 0.9, 0.5, 0.99);

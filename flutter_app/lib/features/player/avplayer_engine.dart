@@ -38,23 +38,23 @@ class AvPlayerEngine implements PlaybackEngine {
   List<String> languages = const [];
   EngineTracks _trackList = const EngineTracks();
 
-  static bool canOpen(PlaybackSource source, {bool remux = false}) {
-    if (!Platform.isIOS) return false;
-    if (remux &&
-        !source.isLocalFile &&
-        RemuxBridge.isMatroska(source.uri) &&
-        (Uri.tryParse(source.uri)?.scheme.startsWith('http') ?? false)) {
-      return true;
-    }
+  /// Files the system player reads as they are.
+  static bool isNative(PlaybackSource source) {
     final u = Uri.tryParse(source.uri);
     final path = (u?.path ?? source.uri).toLowerCase();
-    final isWeb = u != null && u.scheme.startsWith('http');
-    final ok =
-        path.endsWith('.mp4') ||
+    return path.endsWith('.mp4') ||
         path.endsWith('.m4v') ||
         path.endsWith('.mov') ||
         path.endsWith('.m3u8');
-    return ok && (isWeb || source.isLocalFile);
+  }
+
+  /// [always]: the viewer chose the system player, so everything that comes from the network is converted to HLS first.
+  static bool canOpen(PlaybackSource source, {bool always = false}) {
+    if (!Platform.isIOS) return false;
+    final isWeb =
+        (Uri.tryParse(source.uri)?.scheme.startsWith('http')) ?? false;
+    if (isNative(source)) return isWeb || source.isLocalFile;
+    return always && isWeb && !source.isLocalFile;
   }
 
   @override
@@ -132,8 +132,8 @@ class AvPlayerEngine implements PlaybackEngine {
     _source = source;
     var uri = Uri.parse(source.uri);
     var headers = source.headers;
-    if (!source.isLocalFile && RemuxBridge.isMatroska(source.uri)) {
-      // MKV: the phone converts it to HLS and AVPlayer plays that (so picture in picture and AirPlay work).
+    if (!source.isLocalFile && !isNative(source)) {
+      // MKV and the rest: the phone converts it to HLS and AVPlayer plays that (so picture in picture and AirPlay work).
       try {
         final l = await RemuxBridge.open(
           source.uri,

@@ -397,8 +397,7 @@ const _languages = {
   'jpn': 'Giapponese',
 };
 
-bool _nativePlayer(AppSettings s) => s.nativePlayer;
-bool _remuxMkv(AppSettings s) => s.remuxMkv;
+String _engineMode(AppSettings s) => s.playerEngine;
 
 class _PlaybackPage extends ConsumerWidget {
   const _PlaybackPage();
@@ -495,17 +494,24 @@ class _PlaybackPage extends ConsumerWidget {
               },
               onChanged: (v) => n.update((x) => x.copyWith(playbackSpeed: v)),
             ),
-            const PrefSwitch(
-              'nativePlayer',
-              'Player di sistema per MP4 e HLS (iPhone)',
-              _nativePlayer,
-              subtitle: 'Serve al Picture in Picture e ad AirPlay. AVI e gli altri formati restano su libmpv.',
+            const PrefChoice<String>(
+              'playerEngine',
+              'Player video (iPhone)',
+              _engineMode,
+              {
+                'auto': 'Automatico',
+                'av': 'Player di sistema (AVPlayer)',
+                'mpv': 'libmpv',
+              },
             ),
-            const PrefSwitch(
-              'remuxMkv',
-              'Converti gli MKV per il player di sistema (iPhone)',
-              _remuxMkv,
-              subtitle: 'Il telefono converte al volo l’MKV in HLS: così funzionano Picture in Picture, AirPlay e Cast anche con gli MKV.',
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Text(
+                'Player di sistema: serve a Picture in Picture e ad AirPlay; converte al volo ogni file che non legge (MKV…). '
+                'libmpv: apre tutto così com’è, ma senza Picture in Picture né video su AirPlay. '
+                'Automatico: sistema per MP4, MOV e HLS, libmpv per il resto.',
+                style: TextStyle(fontSize: 12, color: Colors.white54),
+              ),
             ),
             SwitchRow(
               title: 'Pulsante «Salta intro»',

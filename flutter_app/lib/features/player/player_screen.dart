@@ -390,16 +390,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// On iPhone an MP4, MOV or HLS file goes to the system player (the only one that can show Picture in Picture), like in the iOS
   /// app; everything else, and every other platform, stays on libmpv.
-  PlaybackEngine _pickEngine() =>
-      Platform.isIOS &&
-          ref.read(settingsProvider).nativePlayer &&
-          AvPlayerEngine.canOpen(
-            widget.args.source,
-            remux: ref.read(settingsProvider).remuxMkv,
-          )
-      ? (AvPlayerEngine()
-          ..languages = [ref.read(settingsProvider).audioLanguage])
-      : MediaKitEngine();
+  PlaybackEngine _pickEngine() {
+    final mode = ref.read(settingsProvider).playerEngine;
+    if (Platform.isIOS &&
+        mode != 'mpv' &&
+        AvPlayerEngine.canOpen(widget.args.source, always: mode == 'av')) {
+      return AvPlayerEngine()
+        ..languages = [ref.read(settingsProvider).audioLanguage];
+    }
+    return MediaKitEngine();
+  }
 
   void _makeSession() {
     final services = ref.read(servicesProvider);
@@ -418,6 +418,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// The system player could not open the file: libmpv takes over, once, from the same place.
   void _fallBackToMpv() {
     _fellBack = true;
+    final why = _session.error;
+    if (ref.read(settingsProvider).playerEngine == 'av') {
+      _hint(
+        'Il player di sistema non ha aperto il file${why == null ? '' : ' ($why)'}: uso libmpv.',
+        ms: 5000,
+      );
+    }
     final at = _session.position;
     _session.removeListener(_onSession);
     _session.dispose();
