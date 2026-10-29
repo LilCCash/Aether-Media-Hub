@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../app/services.dart';
 import '../core/util/lenient.dart';
 import 'settings.dart';
+import 'swift_backup.dart';
 import 'stores.dart';
 
 /// Export / import of the viewer's data as one JSON document. Service keys and addon addresses (which can carry the viewer's own
@@ -42,6 +43,7 @@ class BackupService {
   Future<RestoreSummary> restore(
     String text, {
     required Future<void> Function(AppSettings) applySettings,
+    AppSettings base = const AppSettings(),
   }) async {
     final Object? decoded;
     try {
@@ -51,13 +53,21 @@ class BackupService {
         'Il testo non è un backup di Aether (JSON non valido).',
       );
     }
-    final doc = asMap(decoded);
+    var doc = asMap(decoded);
+    // The iPhone app written in Swift has its own backup format: it is read as well.
+    if (doc != null && SwiftBackup.isSwift(doc))
+      doc = SwiftBackup.toFlutter(doc);
     if (doc == null || asString(doc['format']) != format) {
       throw const FormatException('Questo non è un backup di Aether.');
     }
     var settingsRestored = false;
     if (doc['settings'] != null) {
       await applySettings(AppSettings.fromJson(doc['settings']));
+      settingsRestored = true;
+    } else if (doc['swiftSettings'] != null) {
+      await applySettings(
+        SwiftBackup.applySettings(base, doc['swiftSettings']),
+      );
       settingsRestored = true;
     }
     final before =
@@ -82,15 +92,35 @@ class BackupService {
         }
       }
     }
-    final addonAddresses = asStringList(doc['addons']);
     var addons = 0;
     final problems = <String>[];
-    for (final address in addonAddresses) {
+    for (final entry in asList(doc['addons'])) {
+      // This app writes the addresses as text; the Swift app's backup gives address, name and whether it is on.
+      final map = asMap(entry);
+      final address = map == null
+          ? asString(entry)
+          : asNonEmptyString(map['url']);
+      final label = map == null ? null : asNonEmptyString(map['name']);
+      if (address == null || address.isEmpty) {
+        problems.add(
+          '${label ?? 'addon'}: senza indirizzo nel backup, da reinstallare',
+        );
+        continue;
+      }
       try {
-        await services.addons.install(await services.addons.preview(address));
+        final installed = await services.addons.install(
+          await services.addons.preview(address),
+        );
+        if (map != null) {
+          final over = asNonEmptyString(map['nameOverride']);
+          if (over != null) await services.addons.rename(installed.id, over);
+          if (asBool(map['enabled'], fallback: true) == false) {
+            await services.addons.setEnabled(installed.id, false);
+          }
+        }
         addons++;
       } on Object catch (e) {
-        problems.add('${Uri.tryParse(address)?.host ?? 'addon'}: $e');
+        problems.add('${label ?? Uri.tryParse(address)?.host ?? 'addon'}: $e');
       }
     }
     return RestoreSummary(

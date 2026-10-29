@@ -1226,6 +1226,7 @@ class _DataPageState extends ConsumerState<_DataPage> {
                   final text = await File(path).readAsString();
                   final r = await BackupService(services).restore(
                     text,
+                    base: ref.read(settingsProvider),
                     applySettings: (s) =>
                         ref.read(settingsProvider.notifier).update((_) => s),
                   );
@@ -1258,6 +1259,7 @@ class _DataPageState extends ConsumerState<_DataPage> {
                 try {
                   final r = await BackupService(services).restore(
                     data!.text!,
+                    base: ref.read(settingsProvider),
                     applySettings: (s) =>
                         ref.read(settingsProvider.notifier).update((_) => s),
                   );
