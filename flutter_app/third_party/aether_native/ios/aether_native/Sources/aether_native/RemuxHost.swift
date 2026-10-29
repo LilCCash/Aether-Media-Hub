@@ -85,7 +85,9 @@ final class RemuxHost {
             guard mine == epoch else { throw CancellationError() }
             guard let total = resource.length, total > 0 else { throw RelayError.upstreamNoRanges }
             log("sorgente raggiunta, \(total / 1_048_576) MB")
-            guard let engine = RemuxHost.makeEngine(fetcher, total, audio) else { throw RemuxHostError.unavailable }
+            guard let engine = RemuxHost.makeEngine(fetcher, total, audio, { [weak self] text in
+                Task { @MainActor in self?.log(text) }
+            }) else { throw RemuxHostError.unavailable }
             let made = RemuxSource(engine: engine)
             source = made
             let prepared = try await made.prepare()
@@ -111,9 +113,10 @@ final class RemuxHost {
         }
     }
 
-    private static func makeEngine(_ fetcher: RelayRangeFetcher, _ total: Int64, _ audio: RemuxAudioChoice) -> RemuxEngine? {
+    private static func makeEngine(_ fetcher: RelayRangeFetcher, _ total: Int64, _ audio: RemuxAudioChoice,
+                                   _ note: @escaping (String) -> Void) -> RemuxEngine? {
         #if canImport(Libavformat) && canImport(Libavcodec) && canImport(Libavutil)
-        return FFmpegRemuxEngine(fetcher: fetcher, totalBytes: total, audio: audio)
+        return FFmpegRemuxEngine(fetcher: fetcher, totalBytes: total, audio: audio, note: note)
         #else
         return nil
         #endif

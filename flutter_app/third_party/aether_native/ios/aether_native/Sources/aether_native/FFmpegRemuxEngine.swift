@@ -40,11 +40,14 @@ private final class RangeInput {
     private var cancelled = false
     private var currentFetch: Task<Void, Never>?
     private(set) var failure: Error?
+    private let note: (String) -> Void
+    private var windows = 0
 
-    init(fetcher: RelayRangeFetcher, total: Int64, windowSize: Int64 = 4 << 20) {
+    init(fetcher: RelayRangeFetcher, total: Int64, windowSize: Int64 = 4 << 20, note: @escaping (String) -> Void = { _ in }) {
         self.fetcher = fetcher
         self.total = total
         self.windowSize = windowSize
+        self.note = note
     }
 
     var isCancelled: Bool {
@@ -95,13 +98,28 @@ private final class RangeInput {
         guard position < total, count > 0 else { return ffEOF }
         if position < windowStart || position >= windowStart + Int64(window.count) {
             let end = min(position + windowSize, total) - 1
-            switch fetchBlocking(position...end) {
+            var outcome = fetchBlocking(position...end)
+            // A window that fails is asked again (twice) before the file is given up on: a debrid link can refuse one request and
+            // accept the next.
+            var attempt = 1
+            while case .failure(let error) = outcome, attempt < 3, !isCancelled {
+                note("finestra a \(position >> 20) MB: errore (\(RelayError.mapping(error))), riprovo")
+                Thread.sleep(forTimeInterval: 0.6 * Double(attempt))
+                attempt += 1
+                outcome = fetchBlocking(position...end)
+            }
+            switch outcome {
             case .success(let data):
+                windows += 1
+                if windows <= 6 || data.count != Int(end - position + 1) {
+                    note("finestra a \(position >> 20) MB: \(data.count / 1024) KB (chiesti \((end - position + 1) / 1024))")
+                }
                 guard !data.isEmpty else { return ffEOF }
                 window = data
                 windowStart = position
             case .failure(let error):
                 failure = error
+                note("finestra a \(position >> 20) MB: persa (\(RelayError.mapping(error)))")
                 return isCancelled ? ffExit : ffEOF - 1
             }
         }
@@ -186,8 +204,12 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
 
     private let audioChoice: RemuxAudioChoice
 
-    init(fetcher: RelayRangeFetcher, totalBytes: Int64, minimumSegment: Double = 6, audio: RemuxAudioChoice = .standard) {
-        self.input = RangeInput(fetcher: fetcher, total: totalBytes)
+    private let note: (String) -> Void
+
+    init(fetcher: RelayRangeFetcher, totalBytes: Int64, minimumSegment: Double = 6, audio: RemuxAudioChoice = .standard,
+         note: @escaping (String) -> Void = { _ in }) {
+        self.note = note
+        self.input = RangeInput(fetcher: fetcher, total: totalBytes, note: note)
         self.totalBytes = totalBytes
         self.minimumSegment = minimumSegment
         self.audioChoice = audio
@@ -309,6 +331,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         // Keyframes: Matroska loads its Cues index on the first seek.
         _ = av_seek_frame(ic, Int32(videoIndex), 0, ffSeekBackward)
         var entryCount = Int(avformat_index_get_entries_count(videoStream))
+        note("indice: \(entryCount) fotogrammi chiave, durata dichiarata \(ic.pointee.duration > 0 ? Int(ic.pointee.duration / 1_000_000) : 0) s")
         // A file with no Cues (and often no Duration) would become ONE piece holding the whole film: read it once from end to end, so
         // the demuxer learns where the keyframes are and the real length, then go back to the start.
         var scannedDuration = 0.0
@@ -329,6 +352,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             }
             _ = av_seek_frame(ic, Int32(videoIndex), 0, ffSeekBackward)
             entryCount = Int(avformat_index_get_entries_count(videoStream))
+            note("lettura completa: \(entryCount) fotogrammi chiave, \(Int(scannedDuration)) s")
         }
         let timeBase = av_q2d(videoStream.pointee.time_base)
         var keyframes: [(timestamp: Int64, time: Double)] = []
