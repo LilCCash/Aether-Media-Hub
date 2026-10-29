@@ -727,8 +727,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   @override
-  Widget build(BuildContext context) =>
-      LightCancel(child: _buildPlayer(context));
+  Widget build(BuildContext context) {
+    final player = LightCancel(child: _buildPlayer(context));
+    // Over the system player's native view the controls are flat: a blur behind them would show grey patches of the picture.
+    return _engine is AvPlayerEngine
+        ? AetherLook.flat(context, player)
+        : player;
+  }
 
   Widget _buildPlayer(BuildContext context) {
     final s = _session;
