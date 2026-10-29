@@ -30,13 +30,17 @@ private func ffTag(_ text: String) -> UInt32 {
 /// A part of the file downloaded ahead of time, in parallel with the rest.
 private final class PinnedWindow: @unchecked Sendable {
     let start: Int64
+    let length: Int64
     private let ready = DispatchSemaphore(value: 0)
     private let lock = NSLock()
     private var data: Data?
     private var finished = false
     private var task: Task<Void, Never>?
 
-    init(start: Int64) { self.start = start }
+    init(start: Int64, length: Int64) {
+        self.start = start
+        self.length = length
+    }
 
     func begin(_ fetcher: RelayRangeFetcher, _ range: ClosedRange<Int64>) {
         let job = Task { [self] in
@@ -97,18 +101,49 @@ private final class RangeInput {
         self.windowSize = windowSize
         self.note = note
         guard total > 0 else { return }
-        let head = PinnedWindow(start: 0)
-        head.begin(fetcher, 0...(min(windowSize, total) - 1))
+        // The head covers what the demuxer reads to learn the streams (about 5 MB), the tail holds the Cues index.
+        let headLength = min(headSize, total)
+        let head = PinnedWindow(start: 0, length: headLength)
+        head.begin(fetcher, 0...(headLength - 1))
         pinned.append(head)
-        if total > 2 * windowSize {
-            let tail = PinnedWindow(start: total - windowSize)
+        if total > headSize + windowSize {
+            let tail = PinnedWindow(start: total - windowSize, length: windowSize)
             tail.begin(fetcher, (total - windowSize)...(total - 1))
             pinned.append(tail)
         }
     }
 
+    private let headSize: Int64 = 8 << 20
+    /// How many windows after the one being read are already on their way (a piece of film is read from start to end).
+    private let aheadDepth: Int64 = 3
+    private var ahead: [Int64: PinnedWindow] = [:]
+
+    /// Keeps the next windows coming while the current one is read, and drops the ones the reading has left behind.
+    private func scheduleAhead() {
+        let end = windowStart + Int64(window.count)
+        lock.lock()
+        let stale = ahead.filter { $0.key + $0.value.length <= windowStart || $0.key > end + aheadDepth * windowSize }
+        for key in stale.keys { ahead[key] = nil }
+        var next = end
+        for _ in 0..<aheadDepth {
+            guard next < total, !cancelled else { break }
+            if ahead[next] == nil {
+                let length = min(windowSize, total - next)
+                let part = PinnedWindow(start: next, length: length)
+                part.begin(fetcher, next...(next + length - 1))
+                ahead[next] = part
+            }
+            next += windowSize
+        }
+        lock.unlock()
+        for part in stale.values { part.cancel() }
+    }
+
     private func pinnedWindow(for position: Int64) -> (start: Int64, data: Data)? {
-        for part in pinned where position >= part.start && position < part.start + windowSize {
+        lock.lock()
+        let candidates = pinned + Array(ahead.values)
+        lock.unlock()
+        for part in candidates where position >= part.start && position < part.start + part.length {
             guard let data = part.wait(), position < part.start + Int64(data.count) else { continue }
             return (part.start, data)
         }
@@ -125,9 +160,10 @@ private final class RangeInput {
         lock.lock()
         cancelled = true
         let task = currentFetch
+        let following = Array(ahead.values)
         lock.unlock()
         task?.cancel()
-        for part in pinned { part.cancel() }
+        for part in pinned + following { part.cancel() }
     }
 
     private final class Outcome: @unchecked Sendable {
@@ -193,6 +229,7 @@ private final class RangeInput {
                     return isCancelled ? ffExit : ffEOF - 1
                 }
             }
+            scheduleAhead()
         }
         let offset = Int(position - windowStart)
         let available = window.count - offset
@@ -313,9 +350,20 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     func mediaSegment(_ index: Int) async throws -> Data {
         return try await run {
             if index == 0, let cached = self.firstFragment { return cached }
-            return try self.produce(segment: index)
+            // A piece asked for again (a jump back, the player starting over) is not made twice.
+            if let kept = self.recent.first(where: { $0.index == index }) { return kept.data }
+            let made = try self.produce(segment: index)
+            self.recent.append((index, made))
+            var size = self.recent.reduce(0) { $0 + $1.data.count }
+            while size > 64 << 20, self.recent.count > 1 {
+                size -= self.recent.removeFirst().data.count
+            }
+            return made
         }
     }
+
+    // Only touched on `queue`: the last pieces made, up to 64 MB.
+    private var recent: [(index: Int, data: Data)] = []
 
     func close() {
         stateLock.lock()

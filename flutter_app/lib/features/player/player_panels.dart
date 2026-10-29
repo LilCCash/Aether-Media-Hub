@@ -273,6 +273,7 @@ List<Widget> _addonGroups(BuildContext context, PlayerSession s) {
       if (b == preferred) return 1;
       return a.compareTo(b);
     });
+  final missing = !byLang.containsKey(preferred);
   const head = TextStyle(
     fontSize: 11,
     color: AetherTokens.textTertiary,
@@ -283,6 +284,14 @@ List<Widget> _addonGroups(BuildContext context, PlayerSession s) {
       padding: EdgeInsets.fromLTRB(16, 10, 16, 2),
       child: Text('Da addon', style: head),
     ),
+    if (missing)
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+        child: Text(
+          'Gli addon non hanno sottotitoli in $preferred per questo titolo.',
+          style: head,
+        ),
+      ),
     for (final lang in langs)
       Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
