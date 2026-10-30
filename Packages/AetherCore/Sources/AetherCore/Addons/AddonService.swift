@@ -35,6 +35,16 @@ public struct MetaResolution: Sendable {
 public struct CatalogResult: Sendable {
     public var items: [MetaItem]
     public var isStale: Bool
+    /// How many items the addon sent, and the ones a filter took out (a page is "the same page" by what the addon sent).
+    public var rawCount: Int
+    public var hiddenIDs: [String]
+
+    public init(items: [MetaItem], isStale: Bool, rawCount: Int? = nil, hiddenIDs: [String] = []) {
+        self.items = items
+        self.isStale = isStale
+        self.rawCount = rawCount ?? items.count
+        self.hiddenIDs = hiddenIDs
+    }
 }
 
 /// High level façade used by view-models: plans requests from manifests, runs them concurrently with
@@ -46,6 +56,8 @@ public final class AddonService: Sendable {
     public let requestTimeout: TimeInterval
     /// What the viewer asked to hide from the catalogs.
     public let itemFilter = CatalogItemFilter()
+    /// Told about the titles shown.
+    public let observer = CatalogObserver()
 
     public init(registry: AddonRegistry, client: AddonClient, maxConcurrentRequests: Int = 6,
                 requestTimeout: TimeInterval = 15) {
@@ -113,7 +125,8 @@ public final class AddonService: Sendable {
 
     // MARK: Catalog
 
-    public func catalog(_ ref: CatalogRef, extra: [ExtraValue] = [], mode: AddonClient.LoadMode = .normal) async throws -> CatalogResult {
+    public func catalog(_ ref: CatalogRef, extra: [ExtraValue] = [], mode: AddonClient.LoadMode = .normal,
+                        scope: ContentScope? = nil) async throws -> CatalogResult {
         let all = await registry.handles()
         guard let handle = all.first(where: { $0.id == ref.addonID }) else { throw AddonError.notFound }
         let path = ResourcePath(resource: ResourceName.catalog, type: ref.catalog.type, id: ref.catalog.id, extra: extra)
@@ -123,7 +136,11 @@ public final class AddonService: Sendable {
         let response = try await perform(handle, path: path, mode: mode)
         switch response.payload {
         case .metas(let items), .metasDetailed(let items):
-            return CatalogResult(items: itemFilter.apply(items), isStale: response.isStale)
+            let shown = scope.map { itemFilter.apply(items, scope: $0) } ?? items
+            let kept = Set(shown.map { $0.id })
+            let hidden = shown.count == items.count ? [] : items.map { $0.id }.filter { !kept.contains($0) }
+            observer.notify(shown)
+            return CatalogResult(items: shown, isStale: response.isStale, rawCount: items.count, hiddenIDs: hidden)
         default:
             throw AddonError.malformedResponse("tipo di risposta inatteso")
         }

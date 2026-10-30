@@ -14,16 +14,23 @@ final class TalkShowFilterTests: XCTestCase {
         XCTAssertFalse(TalkShowFilter.isTalkShow(item("e", [])))
     }
 
-    func testTheFilterHidesOnlyWhenSwitchedOn() {
+    func testEachPlaceIsChosenOnItsOwn() {
         let items = [item("a", ["Talk-Show"]), item("b", ["Drama"])]
         let filter = CatalogItemFilter()
-        XCTAssertEqual(filter.apply(items).count, 2)
-        filter.hideTalkShows = true
-        XCTAssertEqual(filter.apply(items).map { $0.id }, ["b"])
+        XCTAssertEqual(filter.apply(items, scope: .home).count, 2)
+        filter.setHidden([.home, .search])
+        XCTAssertEqual(filter.apply(items, scope: .home).map { $0.id }, ["b"])
+        XCTAssertEqual(filter.apply(items, scope: .search).map { $0.id }, ["b"])
+        XCTAssertEqual(filter.apply(items, scope: .discover).count, 2)
     }
 
-    func testTheSettingSurvivesAnOldBackupWithoutIt() throws {
-        let decoded = try JSONDecoder().decode(ContentSettings.self, from: Data("{}".utf8))
-        XCTAssertFalse(decoded.hideTalkShows)
+    func testTheSettingsNameTheScopesOnlyWhenSwitchedOn() throws {
+        var content = try JSONDecoder().decode(ContentSettings.self, from: Data("{}".utf8))
+        XCTAssertFalse(content.hideTalkShows)
+        XCTAssertTrue(content.hiddenTalkScopes.isEmpty)
+        content.hideTalkShows = true
+        XCTAssertEqual(content.hiddenTalkScopes, Set(ContentScope.allCases))
+        content.talkSimilar = false
+        XCTAssertFalse(content.hiddenTalkScopes.contains(.similar))
     }
 }

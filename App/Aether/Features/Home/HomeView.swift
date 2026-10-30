@@ -62,7 +62,7 @@ struct HomeView: View {
                 DetailView(route: route)
             }
             .refreshable { await model.reload(env: env, mode: .reload) }
-            .task(id: ReloadKey(revision: addons.revision, token: network.reconnectToken, talkShows: settings.value.content.hideTalkShows)) {
+            .task(id: ReloadKey(revision: addons.revision, token: network.reconnectToken, talkShows: settings.value.content.hiddenTalkScopes)) {
                 await model.reload(env: env, mode: .normal)
             }
             .sheet(isPresented: $showingInstall) {
@@ -74,7 +74,7 @@ struct HomeView: View {
     private struct ReloadKey: Equatable {
         var revision: Int
         var token: Int
-        var talkShows: Bool
+        var talkShows: Set<ContentScope>
     }
 
     @ViewBuilder
@@ -189,7 +189,7 @@ final class HomeViewModel: ObservableObject {
         let preferred = refs.filter { $0.type == ContentType.movie || $0.type == ContentType.series }
         for ref in (preferred.isEmpty ? refs : preferred).prefix(3) {
             if Task.isCancelled { return }
-            if let result = try? await env.service.catalog(ref, mode: mode) {
+            if let result = try? await env.service.catalog(ref, mode: mode, scope: .home) {
                 let candidates = result.items.filter { $0.background != nil || $0.poster != nil }.prefix(6)
                 if !candidates.isEmpty {
                     heroItems = Array(candidates)
@@ -244,7 +244,7 @@ final class CatalogRowModel: ObservableObject {
         }
         state = .loading
         do {
-            let result = try await env.service.catalog(ref, mode: force ? .reload : .normal)
+            let result = try await env.service.catalog(ref, mode: force ? .reload : .normal, scope: .home)
             state = .loaded(result.items)
         } catch {
             if error is CancellationError { state = .idle; return }

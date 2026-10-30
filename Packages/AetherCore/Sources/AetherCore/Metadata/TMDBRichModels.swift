@@ -65,7 +65,8 @@ struct TMDBSimilarItem: Decodable {
     var posterPath: String?
     var voteAverage: Double?
     var date: String?
-    private enum CodingKeys: String, CodingKey { case id, title, name, poster_path, vote_average, release_date, first_air_date }
+    var genreIDs: [Int]
+    private enum CodingKeys: String, CodingKey { case id, title, name, poster_path, vote_average, release_date, first_air_date, genre_ids }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = c.flexInt(.id)
@@ -73,6 +74,7 @@ struct TMDBSimilarItem: Decodable {
         posterPath = c.flexString(.poster_path)
         voteAverage = c.flexString(.vote_average).flatMap { Double($0) }
         date = c.flexString(.release_date) ?? c.flexString(.first_air_date)
+        genreIDs = (try? c.decodeIfPresent([Int].self, forKey: .genre_ids)) ?? []
     }
 }
 

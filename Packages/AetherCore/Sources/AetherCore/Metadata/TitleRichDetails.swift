@@ -43,6 +43,8 @@ public struct TitleRichDetails: Codable, Equatable, Sendable {
         public var posterURL: String?
         public var year: String?
         public var rating: Double?
+        /// TMDB's genre codes, when it gave them (lets the app hide talk shows).
+        public var genreIDs: [Int]?
     }
 
     /// One line of the facts table.
@@ -300,7 +302,7 @@ public struct TitleRichDetails: Codable, Equatable, Sendable {
                 guard let id = item.id, let title = item.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else { return nil }
                 return Similar(tmdbID: id, title: title, posterURL: image(configuration.posterSizes, 342, item.posterPath),
                                year: MetadataEnricher.year(from: item.date),
-                               rating: item.voteAverage.flatMap { $0 > 0 ? $0 : nil })
+                               rating: item.voteAverage.flatMap { $0 > 0 ? $0 : nil }, genreIDs: item.genreIDs)
             }.prefix(20).map { $0 },
             status: details.status, releaseDate: details.releaseDate, lastAirDate: details.lastAirDate,
             runtimeMinutes: runtime.flatMap { $0 > 0 ? $0 : nil },

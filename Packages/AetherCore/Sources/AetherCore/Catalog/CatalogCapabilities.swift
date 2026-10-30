@@ -498,7 +498,7 @@ public final class PlannedSearch: Sendable {
     private static func execute(_ entry: SearchPlanEntry, plan: SearchPlan, service: AddonService,
                                 limit: Int) async -> PlannedSearchUpdate {
         do {
-            let result = try await service.catalog(entry.ref, extra: entry.extra)
+            let result = try await service.catalog(entry.ref, extra: entry.extra, scope: .search)
             let outcome = plan.filter(result.items)
             let items = Array(outcome.kept.prefix(max(0, limit)))
             let row = SearchRow(ref: entry.ref, items: items, error: nil, isStale: result.isStale)

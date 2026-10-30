@@ -82,7 +82,8 @@ struct PersonFilmographyView: View {
 
     private func load() async {
         let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
-        credits = await env.metadata.filmography(personID: route.personID, language: language)
+        credits = await env.metadata.filmography(personID: route.personID, language: language,
+                                                   hideTalkShows: env.settings.value.content.hiddenTalkScopes.contains(.cast))
         isLoading = false
     }
 

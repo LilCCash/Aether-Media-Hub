@@ -525,6 +525,22 @@ public struct ContentSettings: Codable, Equatable, Sendable {
     public var hideAdultCatalogs: Bool = true
     /// Hides talk shows from the catalogs (Home and Discover), judging by the genres the addons declare.
     public var hideTalkShows: Bool = false
+    /// Where the talk shows are hidden when `hideTalkShows` is on (each place on its own).
+    public var talkHome: Bool = true
+    public var talkDiscover: Bool = true
+    public var talkSearch: Bool = true
+    public var talkCast: Bool = true
+    public var talkSimilar: Bool = true
+    public var hiddenTalkScopes: Set<ContentScope> {
+        guard hideTalkShows else { return [] }
+        var scopes = Set<ContentScope>()
+        if talkHome { scopes.insert(.home) }
+        if talkDiscover { scopes.insert(.discover) }
+        if talkSearch { scopes.insert(.search) }
+        if talkCast { scopes.insert(.cast) }
+        if talkSimilar { scopes.insert(.similar) }
+        return scopes
+    }
     public var searchRemote: Bool = true
     public var searchLocal: Bool = true
     public var saveSearchHistory: Bool = true
@@ -546,7 +562,7 @@ public struct ContentSettings: Codable, Equatable, Sendable {
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case preferredLanguage, catalogRefreshMinutes, hideAdultCatalogs, hideTalkShows, searchRemote, searchLocal
+        case preferredLanguage, catalogRefreshMinutes, hideAdultCatalogs, hideTalkShows, talkHome, talkDiscover, talkSearch, talkCast, talkSimilar, searchRemote, searchLocal
         case saveSearchHistory, searchSort, discoverTypes
         case catalogLayout, streamDisplay, titleModules, ratings
     }
@@ -557,6 +573,11 @@ public struct ContentSettings: Codable, Equatable, Sendable {
         catalogRefreshMinutes = min(1440, max(1, c.value(.catalogRefreshMinutes, default: 10)))
         hideAdultCatalogs = c.value(.hideAdultCatalogs, default: true)
         hideTalkShows = c.value(.hideTalkShows, default: false)
+        talkHome = c.value(.talkHome, default: true)
+        talkDiscover = c.value(.talkDiscover, default: true)
+        talkSearch = c.value(.talkSearch, default: true)
+        talkCast = c.value(.talkCast, default: true)
+        talkSimilar = c.value(.talkSimilar, default: true)
         searchRemote = c.value(.searchRemote, default: true)
         searchLocal = c.value(.searchLocal, default: true)
         saveSearchHistory = c.value(.saveSearchHistory, default: true)

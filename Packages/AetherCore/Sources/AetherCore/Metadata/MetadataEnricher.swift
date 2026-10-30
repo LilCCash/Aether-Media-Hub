@@ -321,11 +321,11 @@ public actor MetadataEnricher {
 
     /// What a person appeared in (the best known first, with the character played), from TMDB.
     /// Empty when there is no key, the service does not answer or the person is unknown. Never throws.
-    public func filmography(personID: Int, language: String) async -> [PersonCredit] {
+    public func filmography(personID: Int, language: String, hideTalkShows: Bool = true) async -> [PersonCredit] {
         guard let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb) else { return [] }
         do {
             let credits = try await tmdb.personCredits(id: personID, language: language)
-            return PersonCredit.make(from: credits)
+            return PersonCredit.make(from: credits, hideTalkShows: hideTalkShows)
         } catch let error as MetadataError {
             note(error, service: .tmdb)
             return []

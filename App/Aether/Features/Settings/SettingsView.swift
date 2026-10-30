@@ -7,7 +7,7 @@ struct MoreView: View {
     @EnvironmentObject private var router: AppRouter
     @State private var path = NavigationPath()
 
-    enum Destination: Hashable { case addons, casting, settings, about }
+    enum Destination: Hashable { case addons, stats, casting, settings, about }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -18,6 +18,10 @@ struct MoreView: View {
                                  detail: addons.addons.isEmpty ? "Nessuno" : "\(addons.enabledAddons.count) attivi")
                     }
                     .accessibilityIdentifier("more.addons")
+                    NavigationLink(value: Destination.stats) {
+                        rowLabel("Statistiche", "chart.bar.fill", .orange, detail: nil)
+                    }
+                    .accessibilityIdentifier("more.stats")
                     NavigationLink(value: Destination.casting) {
                         rowLabel("Casting", "tv.and.mediabox.fill", .teal, detail: casting.statusSummary)
                     }
@@ -38,6 +42,7 @@ struct MoreView: View {
             .navigationDestination(for: Destination.self) { destination in
                 switch destination {
                 case .addons: AddonsView()
+                case .stats: StatsView()
                 case .casting: CastView()
                 case .settings: SettingsRootView()
                 case .about: AboutView()
@@ -79,7 +84,6 @@ struct SettingsRootView: View {
                 link("Servizi", "key.fill", .purple) { ServicesSettingsView() }
             }
             Section {
-                link("Statistiche", "chart.bar.fill", .indigo) { StatsView() }
                 link("Archiviazione", "internaldrive.fill", .brown) { StorageSettingsView() }
                 link("Account e dati", "person.crop.circle.fill", .blue) { AccountDataSettingsView() }
                 link("Avanzate", "wrench.and.screwdriver.fill", .gray) { AdvancedSettingsView() }
@@ -424,6 +428,13 @@ struct ContentSettingsView: View {
                 }
                 Toggle("Nascondi i cataloghi per adulti", isOn: settings.binding(\.content.hideAdultCatalogs))
                 Toggle("Nascondi i talk show", isOn: settings.binding(\.content.hideTalkShows))
+                if settings.value.content.hideTalkShows {
+                    Toggle("Nella Home", isOn: settings.binding(\.content.talkHome))
+                    Toggle("In Scopri", isOn: settings.binding(\.content.talkDiscover))
+                    Toggle("Nella ricerca", isOn: settings.binding(\.content.talkSearch))
+                    Toggle("Nelle filmografie degli attori", isOn: settings.binding(\.content.talkCast))
+                    Toggle("Nei titoli simili", isOn: settings.binding(\.content.talkSimilar))
+                }
             }
             Section(header: Text("Aggiornamento"), footer: Text("Per quanto tempo un catalogo resta valido prima di essere riscaricato (a meno che l'addon non indichi un valore proprio). Tira verso il basso per forzare l'aggiornamento.")) {
                 Picker("Aggiorna i cataloghi ogni", selection: settings.binding(\.content.catalogRefreshMinutes)) {

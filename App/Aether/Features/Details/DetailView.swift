@@ -709,10 +709,16 @@ struct DetailView: View {
             if (rich.budget != nil || rich.revenue != nil) && modules.financials { TitleFinancialsSection(budget: rich.budget, revenue: rich.revenue) }
             let rows = rich.detailRows()
             if !rows.isEmpty && modules.facts { TitleFactsSection(rows: rows) }
-            if !rich.similar.isEmpty && modules.similar { TitleSimilarSection(titles: rich.similar, open: openSimilar) }
+            if !rich.similar.isEmpty && modules.similar { TitleSimilarSection(titles: similarTitles(rich), open: openSimilar) }
         } else if model.suggestsTMDBKey {
             TMDBKeyHint()
         }
+    }
+
+    /// The similar titles, without the talk shows when the viewer asked for that here.
+    private func similarTitles(_ rich: TitleRichDetails) -> [TitleRichDetails.Similar] {
+        guard settings.value.content.hiddenTalkScopes.contains(.similar) else { return rich.similar }
+        return rich.similar.filter { !($0.genreIDs ?? []).contains(TalkShowFilter.tmdbGenre) }
     }
 
     /// A similar title is known to TMDB by its own id; the catalog knows it by its IMDb id, which has to be asked for first.

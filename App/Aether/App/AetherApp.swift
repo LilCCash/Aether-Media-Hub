@@ -140,8 +140,18 @@ struct RootView: View {
                 router.handle(url: url)
             }
         }
-        .onReceive(library.$watchlist.combineLatest(library.$favorites).debounce(for: .seconds(2), scheduler: DispatchQueue.main)) { watchlist, favorites in
-            SpotlightIndexer.reindex(watchlist + favorites)
+        // «Cerca in Aether» under the results of the system search: the words the viewer typed open the Search tab.
+        .onContinueUserActivity(CSQueryContinuationActionType) { activity in
+            if let query = activity.userInfo?[CSSearchQueryString] as? String, !query.isEmpty {
+                router.pendingSearch = query
+                router.tab = .search
+            }
+        }
+        .onReceive(library.$watchlist.combineLatest(library.$favorites)) { watchlist, favorites in
+            SpotlightIndexer.setLibrary(watchlist + favorites)
+        }
+        .onReceive(library.$history) { history in
+            SpotlightIndexer.record(history.map { $0.asMeta })
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { env.persistForBackground() }

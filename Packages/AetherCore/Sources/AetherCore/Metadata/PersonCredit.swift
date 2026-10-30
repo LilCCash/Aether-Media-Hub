@@ -15,14 +15,16 @@ public struct PersonCredit: Equatable, Sendable, Identifiable {
     /// The catalog type of the title ("movie" or "series").
     public var metaType: String { return isMovie ? "movie" : "series" }
 
-    /// Talk shows, news and reality programmes list people "as themselves": they are left out, like entries without a poster or a role.
-    static let excludedGenres: Set<Int> = [10767, 10763, 10764]
+    /// News and reality programmes list people "as themselves": they are always left out, like entries without a poster or a role.
+    static let excludedGenres: Set<Int> = [10763, 10764]
 
-    static func make(from credits: TMDBPersonCredits, limit: Int = 80) -> [PersonCredit] {
+    /// Talk shows too are left out when `hideTalkShows` is on (the viewer's choice for the filmographies).
+    static func make(from credits: TMDBPersonCredits, limit: Int = 80, hideTalkShows: Bool = true) -> [PersonCredit] {
+        let excluded = hideTalkShows ? excludedGenres.union([TalkShowFilter.tmdbGenre]) : excludedGenres
         let usable = credits.cast.filter { entry in
             guard entry.id != nil, let title = entry.title, !title.isEmpty, entry.posterPath != nil else { return false }
             guard let role = entry.character?.trimmingCharacters(in: .whitespacesAndNewlines), !role.isEmpty else { return false }
-            return Set(entry.genreIDs).isDisjoint(with: excludedGenres)
+            return Set(entry.genreIDs).isDisjoint(with: excluded)
         }
         let ordered = usable.sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
         var seen = Set<String>()

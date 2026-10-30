@@ -451,7 +451,7 @@ struct DiscoverView: View {
     }
 
     private var loadKey: String {
-        return "\(addons.revision)-\(network.reconnectToken)-\(settings.value.content.hideAdultCatalogs)-\(settings.value.content.hideTalkShows)"
+        return "\(addons.revision)-\(network.reconnectToken)-\(settings.value.content.hideAdultCatalogs)-\(settings.value.content.hiddenTalkScopes.hashValue)"
     }
 
     var body: some View {

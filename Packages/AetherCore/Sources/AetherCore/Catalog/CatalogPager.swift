@@ -57,20 +57,22 @@ public actor CatalogPager {
         }
 
         do {
-            let result = try await service.catalog(ref, extra: requestExtra, mode: mode)
+            let result = try await service.catalog(ref, extra: requestExtra, mode: mode, scope: .discover)
             // `reset` may have run while awaiting: discard the stale answer.
             guard myGeneration == generation else {
                 return CatalogPage(newItems: [], hasMore: true, isStale: false)
             }
             loading = false
-            rawCount += result.items.count
+            rawCount += result.rawCount
             var fresh: [MetaItem] = []
             for item in result.items where seenIDs.insert(item.id).inserted {
                 fresh.append(item)
             }
+            var hiddenFresh = 0
+            for id in result.hiddenIDs where seenIDs.insert(id).inserted { hiddenFresh += 1 }
             items.append(contentsOf: fresh)
             let canPage = ref.catalog.supportsSkip
-            if result.items.isEmpty || fresh.isEmpty || !canPage {
+            if result.rawCount == 0 || (fresh.isEmpty && hiddenFresh == 0) || !canPage {
                 exhausted = true
             }
             return CatalogPage(newItems: fresh, hasMore: !exhausted, isStale: result.isStale)
