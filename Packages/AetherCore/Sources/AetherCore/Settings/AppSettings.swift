@@ -163,6 +163,8 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var amoled: Bool = false
     /// The coloured washes of the background (also in the cinematic mode); off = a calm plain background.
     public var showHalos: Bool = true
+    /// A title opened from the app is a card that comes up over the screen (swipe down to close); off, it fills the screen.
+    public var detailAsCard: Bool = true
     public var posterSize: PosterSize = .medium
     public var density: CatalogDensity = .comfortable
     public var animationsEnabled: Bool = true
@@ -186,7 +188,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case customBackgroundHex, backdropIntensity, showPosterRatings, dynamicCinematic, cinematicMood, cinematicMotion, amoled, showHalos
+        case customBackgroundHex, backdropIntensity, showPosterRatings, dynamicCinematic, cinematicMood, cinematicMotion, amoled, showHalos, detailAsCard
         case theme, accent, customAccentHex, posterSize, density, animationsEnabled, reduceVisualEffects, homeSections
         case heroStyle, heroAutoScroll, palette, backdrop, cardChrome, cornerStyle, titleFont
         case greetingEnabled, greetingName, unlockedSecrets
@@ -216,6 +218,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         cinematicMotion = c.value(.cinematicMotion, default: true)
         amoled = c.value(.amoled, default: false)
         showHalos = c.value(.showHalos, default: true)
+        detailAsCard = c.value(.detailAsCard, default: true)
         posterSize = c.value(.posterSize, default: .medium)
         density = c.value(.density, default: .comfortable)
         animationsEnabled = c.value(.animationsEnabled, default: true)

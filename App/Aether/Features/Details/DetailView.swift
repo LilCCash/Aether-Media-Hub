@@ -251,9 +251,22 @@ struct DetailView: View {
 
     // MARK: Header
 
+    /// The backdrop; without one, the poster stretched wide would show only a cropped strip of it, so it is blurred into a colour wash.
+    @ViewBuilder
+    private var headerArtwork: some View {
+        if let background = model.meta.background {
+            RemoteImage(urlString: background, width: 900, placeholderSeed: model.meta.name)
+        } else {
+            RemoteImage(urlString: model.meta.poster, width: 400, placeholderSeed: model.meta.name)
+                .blur(radius: 36)
+                .saturation(1.2)
+                .opacity(0.85)
+        }
+    }
+
     private var header: some View {
         ZStack(alignment: .bottomLeading) {
-            RemoteImage(urlString: model.meta.background ?? model.meta.poster, width: 900, placeholderSeed: model.meta.name)
+            headerArtwork
                 .frame(maxWidth: .infinity)
                 .frame(height: style.cinematic ? 470 : 330)
                 .scaleEffect(style.cinematic && style.motion && !reduceMotion && zoomed ? 1.2 : 1)

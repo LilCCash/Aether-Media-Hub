@@ -170,6 +170,7 @@ struct AppearanceSettingsView: View {
             Section(header: Text("Effetti"), footer: Text("Con gli effetti ridotti il vetro liquido viene sostituito da superfici opache e lo sfondo diventa uniforme. Aether rispetta anche «Riduci trasparenza» e «Riduci movimento» di iOS.")) {
                 Toggle("Animazioni", isOn: settings.binding(\.appearance.animationsEnabled))
                 Toggle("Riduci gli effetti visivi", isOn: settings.binding(\.appearance.reduceVisualEffects))
+                Toggle("Titoli come scheda a comparsa (scorri in basso per chiudere)", isOn: settings.binding(\.appearance.detailAsCard))
                     .accessibilityIdentifier("settings.reduceEffects")
             }
         }

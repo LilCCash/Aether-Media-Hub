@@ -136,8 +136,8 @@ struct RootView: View {
         }
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
             if let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
-               let url = SpotlightIndexer.url(forIdentifier: identifier) {
-                router.handle(url: url)
+               let route = SpotlightIndexer.route(forIdentifier: identifier) {
+                router.detail = route
             }
         }
         // «Cerca in Aether» under the results of the system search: the words the viewer typed open the Search tab.
@@ -160,8 +160,19 @@ struct RootView: View {
         // While Theater Mode is open it presents the player itself (one full-screen cover cannot present another from the same view).
         .landscapePlayer(Binding(get: { router.theater ? nil : router.player }, set: { router.player = $0 }))
         .fullScreenCover(isPresented: $router.theater) { TheaterView() }
-        .sheet(item: $router.detail) { route in
+        .sheet(item: Binding(get: { settings.value.appearance.detailAsCard ? router.detail : nil }, set: { router.detail = $0 })) { route in
             NavigationStack { DetailView(route: route) }
+        }
+        .fullScreenCover(item: Binding(get: { settings.value.appearance.detailAsCard ? nil : router.detail }, set: { router.detail = $0 })) { route in
+            NavigationStack {
+                DetailView(route: route)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button { router.detail = nil } label: { Image(systemName: "xmark") }
+                                .accessibilityLabel("Chiudi")
+                        }
+                    }
+            }
         }
     }
 }

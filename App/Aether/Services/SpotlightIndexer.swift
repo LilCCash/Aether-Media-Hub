@@ -10,6 +10,7 @@ struct SpotlightTitle: Codable, Hashable {
     var name: String
     var info: String?
     var poster: String?
+    var background: String?
 }
 
 /// Puts titles in the system search so they can be found from the Home screen: the library (watchlist, favourites), what was watched, and the
@@ -48,9 +49,13 @@ enum SpotlightIndexer {
                     seen[index].poster = poster
                     changed = true
                 }
+                if seen[index].background == nil, let background = item.background {
+                    seen[index].background = background
+                    changed = true
+                }
                 continue
             }
-            seen.append(SpotlightTitle(id: item.id, type: item.type, name: item.name, info: item.releaseInfo, poster: item.poster))
+            seen.append(SpotlightTitle(id: item.id, type: item.type, name: item.name, info: item.releaseInfo, poster: item.poster, background: item.background))
             changed = true
         }
         guard changed else { return }
@@ -60,7 +65,7 @@ enum SpotlightIndexer {
     }
 
     static func setLibrary(_ entries: [LibraryEntry]) {
-        library = entries.filter { !$0.isRemoved }.map { SpotlightTitle(id: $0.id, type: $0.type, name: $0.name, info: $0.releaseInfo, poster: $0.poster) }
+        library = entries.filter { !$0.isRemoved }.map { SpotlightTitle(id: $0.id, type: $0.type, name: $0.name, info: $0.releaseInfo, poster: $0.poster, background: $0.background) }
         schedule()
     }
 
@@ -119,10 +124,12 @@ enum SpotlightIndexer {
         }
     }
 
-    /// The link `AppRouter` understands for an indexed title.
-    static func url(forIdentifier identifier: String) -> URL? {
+    /// The title page for an indexed title, with what is known about it already (name, poster, backdrop) so it does not open empty.
+    static func route(forIdentifier identifier: String) -> MetaRoute? {
         let parts = identifier.split(separator: "/", maxSplits: 1).map(String.init)
-        guard parts.count == 2, let id = parts[1].addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return nil }
-        return URL(string: "aether://detail/\(parts[0])/\(id)")
+        guard parts.count == 2 else { return nil }
+        let known = (library + seen).first { $0.id == parts[1] }
+        let preview = known.map { MetaItem(id: $0.id, type: parts[0], name: $0.name, poster: $0.poster, background: $0.background, releaseInfo: $0.info) }
+        return MetaRoute(type: parts[0], id: parts[1], preview: preview)
     }
 }
