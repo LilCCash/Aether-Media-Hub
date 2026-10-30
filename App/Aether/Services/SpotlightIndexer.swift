@@ -124,12 +124,12 @@ enum SpotlightIndexer {
         }
     }
 
-    /// The title page for an indexed title, with what is known about it already (name, poster, backdrop) so it does not open empty.
+    /// The title page for an indexed title, with what is known about it already (name, poster) so it does not open empty. The stored backdrop is not used: until the real page arrives the poster, blurred, fills the header.
     static func route(forIdentifier identifier: String) -> MetaRoute? {
         let parts = identifier.split(separator: "/", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return nil }
         let known = (library + seen).first { $0.id == parts[1] }
-        let preview = known.map { MetaItem(id: $0.id, type: parts[0], name: $0.name, poster: $0.poster, background: $0.background, releaseInfo: $0.info) }
+        let preview = known.map { MetaItem(id: $0.id, type: parts[0], name: $0.name, poster: $0.poster, releaseInfo: $0.info) }
         return MetaRoute(type: parts[0], id: parts[1], preview: preview)
     }
 }
