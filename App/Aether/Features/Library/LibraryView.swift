@@ -41,7 +41,7 @@ struct LibraryView: View {
                 }
             }
             .navigationTitle("Libreria")
-            .navigationDestination(for: MetaRoute.self) { DetailView(route: $0) }
+            .navigationDestination(for: MetaRoute.self) { DetailView(route: $0).zoomDestination(id: $0.id) }
             .searchable(text: $filter, prompt: "Filtra nella sezione")
             .toolbar {
                 if section == .history && !library.history.isEmpty {
@@ -95,7 +95,7 @@ struct LibraryView: View {
             } else {
                 List {
                     ForEach(items) { item in
-                        NavigationLink(value: MetaRoute(meta: item.asMeta)) { HistoryRow(item: item) }
+                        TitleLink(route: MetaRoute(meta: item.asMeta)) { HistoryRow(item: item) }
                             .swipeActions {
                                 Button(role: .destructive) { Task { await env.libraryStore.removeHistory(id: item.id) } } label: {
                                     Label("Elimina", systemImage: "trash")
@@ -120,7 +120,7 @@ struct LibraryView: View {
                 ScrollView {
                     let width = CGFloat(settings.value.appearance.posterSize.rowWidth)
                     AdaptiveCardGrid(items: entries, minColumns: 3, preferredWidth: width, spacing: 12, rowSpacing: 20) { entry, cardWidth in
-                        NavigationLink(value: MetaRoute(meta: entry.asMeta)) {
+                        TitleLink(route: MetaRoute(meta: entry.asMeta)) {
                             PosterCard(meta: entry.asMeta, width: cardWidth)
                         }
                         .buttonStyle(.plain)

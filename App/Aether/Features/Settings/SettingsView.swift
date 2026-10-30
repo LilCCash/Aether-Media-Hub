@@ -171,6 +171,7 @@ struct AppearanceSettingsView: View {
                 Toggle("Animazioni", isOn: settings.binding(\.appearance.animationsEnabled))
                 Toggle("Riduci gli effetti visivi", isOn: settings.binding(\.appearance.reduceVisualEffects))
                 Toggle("Titoli come scheda a comparsa (scorri in basso per chiudere)", isOn: settings.binding(\.appearance.detailAsCard))
+                Toggle("Zoom dalla locandina (iOS 18 o più recente)", isOn: settings.binding(\.appearance.zoomTransition))
                     .accessibilityIdentifier("settings.reduceEffects")
             }
         }

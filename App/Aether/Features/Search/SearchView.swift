@@ -461,7 +461,7 @@ struct SearchView: View {
                 }
             }
             .navigationTitle("Cerca")
-            .navigationDestination(for: MetaRoute.self) { DetailView(route: $0) }
+            .navigationDestination(for: MetaRoute.self) { DetailView(route: $0).zoomDestination(id: $0.id) }
             .searchable(text: $model.query, placement: .navigationBarDrawer(displayMode: .always), prompt: model.searchPrompt)
             .autocorrectionDisabled()
             .onSubmit(of: .search) {

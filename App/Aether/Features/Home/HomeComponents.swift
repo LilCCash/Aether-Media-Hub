@@ -107,7 +107,7 @@ struct HeroCard: View {
     @Environment(\.aetherStyle) private var style
 
     var body: some View {
-        NavigationLink(value: MetaRoute(meta: meta)) {
+        TitleLink(route: MetaRoute(meta: meta)) {
             ZStack(alignment: .bottomLeading) {
                 RemoteImage(urlString: meta.background ?? meta.poster, width: 900, placeholderSeed: meta.name)
                     .frame(maxWidth: .infinity)
@@ -138,7 +138,7 @@ struct HeroFullBleedCard: View {
     static let fadeHeight: CGFloat = 70
 
     var body: some View {
-        NavigationLink(value: MetaRoute(meta: meta)) {
+        TitleLink(route: MetaRoute(meta: meta)) {
             ZStack(alignment: .bottomLeading) {
                 RemoteImage(urlString: meta.background ?? meta.poster, width: 1200, placeholderSeed: meta.name)
                     .frame(maxWidth: .infinity)

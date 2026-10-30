@@ -165,6 +165,8 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var showHalos: Bool = true
     /// A title opened from the app is a card that comes up over the screen (swipe down to close); off, it fills the screen.
     public var detailAsCard: Bool = true
+    /// The title page grows out of the poster that was tapped (iOS 18 and later).
+    public var zoomTransition: Bool = false
     public var posterSize: PosterSize = .medium
     public var density: CatalogDensity = .comfortable
     public var animationsEnabled: Bool = true
@@ -188,7 +190,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case customBackgroundHex, backdropIntensity, showPosterRatings, dynamicCinematic, cinematicMood, cinematicMotion, amoled, showHalos, detailAsCard
+        case customBackgroundHex, backdropIntensity, showPosterRatings, dynamicCinematic, cinematicMood, cinematicMotion, amoled, showHalos, detailAsCard, zoomTransition
         case theme, accent, customAccentHex, posterSize, density, animationsEnabled, reduceVisualEffects, homeSections
         case heroStyle, heroAutoScroll, palette, backdrop, cardChrome, cornerStyle, titleFont
         case greetingEnabled, greetingName, unlockedSecrets
@@ -219,6 +221,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         amoled = c.value(.amoled, default: false)
         showHalos = c.value(.showHalos, default: true)
         detailAsCard = c.value(.detailAsCard, default: true)
+        zoomTransition = c.value(.zoomTransition, default: false)
         posterSize = c.value(.posterSize, default: .medium)
         density = c.value(.density, default: .comfortable)
         animationsEnabled = c.value(.animationsEnabled, default: true)

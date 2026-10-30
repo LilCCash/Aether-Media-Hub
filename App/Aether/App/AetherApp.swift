@@ -100,6 +100,7 @@ struct RootView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var library: LibraryModel
     @Environment(\.scenePhase) private var scenePhase
+    @Namespace private var titleZoom
 
     var body: some View {
         TabView(selection: $router.tab) {
@@ -120,6 +121,7 @@ struct RootView: View {
                 .tag(AppTab.more)
         }
         .tint(settings.accentColor)
+        .environment(\.zoomNamespace, titleZoom)
         .preferredColorScheme(settings.colorScheme)
         .onAppear { InterfaceStyle.apply(settings.colorScheme) }
         .onChange(of: settings.colorScheme) { _, scheme in InterfaceStyle.apply(scheme) }
@@ -166,11 +168,12 @@ struct RootView: View {
         .landscapePlayer(Binding(get: { router.theater ? nil : router.player }, set: { router.player = $0 }))
         .fullScreenCover(isPresented: $router.theater) { TheaterView() }
         .sheet(item: Binding(get: { settings.value.appearance.detailAsCard ? router.detail : nil }, set: { router.detail = $0 })) { route in
-            NavigationStack { DetailView(route: route) }
+            NavigationStack { DetailView(route: route).zoomDestination(id: route.id) }
         }
         .fullScreenCover(item: Binding(get: { settings.value.appearance.detailAsCard ? nil : router.detail }, set: { router.detail = $0 })) { route in
             NavigationStack {
                 DetailView(route: route)
+                    .zoomDestination(id: route.id)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Button { router.detail = nil } label: { Image(systemName: "xmark") }

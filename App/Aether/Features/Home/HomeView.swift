@@ -60,6 +60,7 @@ struct HomeView: View {
             }
             .navigationDestination(for: MetaRoute.self) { route in
                 DetailView(route: route)
+                    .zoomDestination(id: route.id)
             }
             .refreshable { await model.reload(env: env, mode: .reload) }
             .task(id: ReloadKey(revision: addons.revision, token: network.reconnectToken, talkShows: settings.value.content.hiddenTalkScopes)) {
@@ -335,7 +336,7 @@ struct PosterRowView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(alignment: .top, spacing: settings.value.appearance.density == .compact ? 8 : 14) {
                 ForEach(Array(items.prefix(60).enumerated()), id: \.offset) { offset, item in
-                    NavigationLink(value: MetaRoute(meta: item)) {
+                    TitleLink(route: MetaRoute(meta: item)) {
                         if isLandscape {
                             MetaLandscapeCard(meta: item, width: width, isInWatchlist: watchlistIDs.contains(item.id))
                         } else {

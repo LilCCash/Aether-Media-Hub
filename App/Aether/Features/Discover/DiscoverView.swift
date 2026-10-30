@@ -466,7 +466,7 @@ struct DiscoverView: View {
                 }
             }
             .navigationTitle("Scopri")
-            .navigationDestination(for: MetaRoute.self) { DetailView(route: $0) }
+            .navigationDestination(for: MetaRoute.self) { DetailView(route: $0).zoomDestination(id: $0.id) }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     if model.hasLoaded && !model.capabilities.availableTypes.isEmpty {
@@ -655,7 +655,7 @@ struct DiscoverView: View {
                     .font(.footnote).foregroundStyle(Color.aetherSecondary).padding(.top, 6)
             }
             AdaptiveCardGrid(items: state.items, minColumns: 3, preferredWidth: width, spacing: spacing, rowSpacing: spacing + 6) { item, cardWidth in
-                NavigationLink(value: MetaRoute(meta: item)) {
+                TitleLink(route: MetaRoute(meta: item)) {
                     PosterCard(meta: item, width: cardWidth, isInWatchlist: library.watchlistIDs.contains(item.id))
                 }
                 .buttonStyle(.plain)
