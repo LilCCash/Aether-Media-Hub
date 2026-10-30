@@ -130,7 +130,12 @@ struct RootView: View {
                 case "app.aether.search": router.tab = .search
                 case "app.aether.library": router.tab = .library
                 case "app.aether.downloads": router.tab = .more
-                default: break
+                default:
+                    // «Cerca in Aether» from Siri or Spotlight: the words come after the prefix.
+                    if type.hasPrefix("search:") {
+                        router.pendingSearch = String(type.dropFirst("search:".count))
+                        router.tab = .search
+                    }
                 }
             }
         }
