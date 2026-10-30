@@ -77,6 +77,19 @@ targets:
         UIBackgroundModes: [audio]
         ITSAppUsesNonExemptEncryption: false
         UIApplicationSupportsIndirectInputEvents: true
+        UIApplicationShortcutItems:
+          - UIApplicationShortcutItemType: app.aether.continue
+            UIApplicationShortcutItemTitle: Continua a guardare
+            UIApplicationShortcutItemIconSymbolName: play.circle.fill
+          - UIApplicationShortcutItemType: app.aether.search
+            UIApplicationShortcutItemTitle: Cerca
+            UIApplicationShortcutItemIconSymbolName: magnifyingglass
+          - UIApplicationShortcutItemType: app.aether.library
+            UIApplicationShortcutItemTitle: Libreria
+            UIApplicationShortcutItemIconSymbolName: books.vertical.fill
+          - UIApplicationShortcutItemType: app.aether.downloads
+            UIApplicationShortcutItemTitle: Altro e download
+            UIApplicationShortcutItemIconSymbolName: arrow.down.circle.fill
         CFBundleURLTypes:
           - CFBundleURLName: app.aether.links
             CFBundleTypeRole: Editor

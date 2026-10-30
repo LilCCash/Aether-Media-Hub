@@ -62,7 +62,7 @@ struct HomeView: View {
                 DetailView(route: route)
             }
             .refreshable { await model.reload(env: env, mode: .reload) }
-            .task(id: ReloadKey(revision: addons.revision, token: network.reconnectToken)) {
+            .task(id: ReloadKey(revision: addons.revision, token: network.reconnectToken, talkShows: settings.value.content.hideTalkShows)) {
                 await model.reload(env: env, mode: .normal)
             }
             .sheet(isPresented: $showingInstall) {
@@ -74,6 +74,7 @@ struct HomeView: View {
     private struct ReloadKey: Equatable {
         var revision: Int
         var token: Int
+        var talkShows: Bool
     }
 
     @ViewBuilder

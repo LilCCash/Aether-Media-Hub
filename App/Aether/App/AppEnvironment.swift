@@ -78,6 +78,7 @@ final class AppEnvironment: ObservableObject {
         registry = AddonRegistry(store: JSONFileStore<AddonRegistryState>(url: paths.addonsFile),
                                  secrets: secrets, client: addonClient, policyProvider: policyProvider)
         service = AddonService(registry: registry, client: addonClient)
+        service.itemFilter.hideTalkShows = settings.value.content.hideTalkShows
         searchService = SearchService(service: service)
         libraryStore = LibraryStore(store: JSONFileStore<LibraryState>(url: paths.libraryFile),
                                     policy: settings.value.libraryPolicy)
@@ -139,6 +140,9 @@ final class AppEnvironment: ObservableObject {
     }
 
     private func settingsDidChange(new: AppSettings, old: AppSettings) {
+        if new.content.hideTalkShows != old.content.hideTalkShows {
+            service.itemFilter.hideTalkShows = new.content.hideTalkShows
+        }
         if new.libraryPolicy != old.libraryPolicy {
             let policy = new.libraryPolicy
             Task { await libraryStore.setPolicy(policy) }

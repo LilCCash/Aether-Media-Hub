@@ -79,6 +79,7 @@ struct SettingsRootView: View {
                 link("Servizi", "key.fill", .purple) { ServicesSettingsView() }
             }
             Section {
+                link("Statistiche", "chart.bar.fill", .indigo) { StatsView() }
                 link("Archiviazione", "internaldrive.fill", .brown) { StorageSettingsView() }
                 link("Account e dati", "person.crop.circle.fill", .blue) { AccountDataSettingsView() }
                 link("Avanzate", "wrench.and.screwdriver.fill", .gray) { AdvancedSettingsView() }
@@ -422,6 +423,7 @@ struct ContentSettingsView: View {
                     LabeledContent("Gestisci gli addon", value: "\(addons.enabledAddons.count)/\(addons.addons.count)")
                 }
                 Toggle("Nascondi i cataloghi per adulti", isOn: settings.binding(\.content.hideAdultCatalogs))
+                Toggle("Nascondi i talk show", isOn: settings.binding(\.content.hideTalkShows))
             }
             Section(header: Text("Aggiornamento"), footer: Text("Per quanto tempo un catalogo resta valido prima di essere riscaricato (a meno che l'addon non indichi un valore proprio). Tira verso il basso per forzare l'aggiornamento.")) {
                 Picker("Aggiorna i cataloghi ogni", selection: settings.binding(\.content.catalogRefreshMinutes)) {

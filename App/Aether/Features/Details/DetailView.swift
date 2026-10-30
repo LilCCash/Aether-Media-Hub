@@ -167,6 +167,8 @@ struct DetailView: View {
     @State private var revealed = false
     @StateObject private var model: DetailViewModel
     @State private var picker: StreamPickerRequest?
+    @State private var posterPicker = false
+    @ObservedObject private var posterOverrides = PosterOverrides.shared
     @State private var descriptionExpanded = false
     @State private var openedSimilar: MetaRoute?
     @State private var openedPerson: PersonRoute?
@@ -212,6 +214,11 @@ struct DetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { posterPicker = true } label: {
+                    Image(systemName: "photo.on.rectangle")
+                }
+                .accessibilityLabel("Locandine alternative")
+                .accessibilityIdentifier("detail.posters")
                 Button { library.toggleFavorite(model.meta) } label: {
                     Image(systemName: library.favoriteIDs.contains(model.meta.id) ? "heart.fill" : "heart")
                 }
@@ -225,6 +232,7 @@ struct DetailView: View {
             CinematicMood.shared.color = await CinematicMood.color(fromURL: model.meta.background ?? model.meta.poster)
         }
         .onDisappear { CinematicMood.shared.color = CinematicMood.shared.homeColor }
+        .sheet(isPresented: $posterPicker) { PosterPickerSheet(meta: model.meta) }
         .sheet(item: $picker) { request in
             StreamPickerSheet(request: request)
         }
@@ -265,7 +273,7 @@ struct DetailView: View {
                                    startPoint: .top, endPoint: .bottom)
                 )
             HStack(alignment: .bottom, spacing: 14) {
-                RemoteImage(urlString: model.meta.poster, width: 220, placeholderSeed: model.meta.name)
+                RemoteImage(urlString: posterOverrides.url(for: model.meta.id) ?? model.meta.poster, width: 220, placeholderSeed: model.meta.name)
                     .frame(width: 104, height: 104 / CGFloat(model.meta.posterShape.aspectRatio))
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .shadow(color: .black.opacity(0.35), radius: 12, y: 6)

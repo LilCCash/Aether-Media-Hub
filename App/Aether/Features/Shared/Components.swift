@@ -116,13 +116,14 @@ struct PosterCard: View {
     var isInWatchlist: Bool = false
     var progress: Double? = nil
     @Environment(\.aetherStyle) private var style
+    @ObservedObject private var posterOverrides = PosterOverrides.shared
 
     private var height: CGFloat { width / CGFloat(meta.posterShape.aspectRatio) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .topLeading) {
-                RemoteImage(urlString: meta.poster ?? meta.background, width: width, placeholderSeed: meta.name)
+                RemoteImage(urlString: posterOverrides.url(for: meta.id) ?? meta.poster ?? meta.background, width: width, placeholderSeed: meta.name)
                     .frame(width: width, height: height)
                     .clipShape(RoundedRectangle(cornerRadius: style.posterRadius, style: .continuous))
                     .aetherCardChrome(cornerRadius: style.posterRadius)

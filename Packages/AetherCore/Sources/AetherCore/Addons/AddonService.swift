@@ -44,6 +44,8 @@ public final class AddonService: Sendable {
     public let client: AddonClient
     public let limiter: ConcurrencyLimiter
     public let requestTimeout: TimeInterval
+    /// What the viewer asked to hide from the catalogs.
+    public let itemFilter = CatalogItemFilter()
 
     public init(registry: AddonRegistry, client: AddonClient, maxConcurrentRequests: Int = 6,
                 requestTimeout: TimeInterval = 15) {
@@ -121,7 +123,7 @@ public final class AddonService: Sendable {
         let response = try await perform(handle, path: path, mode: mode)
         switch response.payload {
         case .metas(let items), .metasDetailed(let items):
-            return CatalogResult(items: items, isStale: response.isStale)
+            return CatalogResult(items: itemFilter.apply(items), isStale: response.isStale)
         default:
             throw AddonError.malformedResponse("tipo di risposta inatteso")
         }

@@ -147,7 +147,7 @@ struct AetherBackdrop: View {
             RadialGradient(colors: [secondary.opacity(soft), .clear], center: .bottom, startRadius: 20, endRadius: 360)
         case .flow:
             if isMoving {
-                TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { context in
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
                     flow(at: context.date.timeIntervalSinceReferenceDate)
                 }
             } else {
@@ -156,17 +156,20 @@ struct AetherBackdrop: View {
         }
     }
 
+    /// Three washes that sweep across the screen (a full loop takes about 20 seconds), strong enough to be seen at a glance; never above
+    /// `AppPalette.maxWashOpacity`, the opacity every palette is checked for text contrast at.
     private func flow(at t: Double) -> some View {
-        ZStack {
-            RadialGradient(colors: [primary.opacity(strong), .clear],
-                           center: UnitPoint(x: 0.85 + 0.12 * sin(t / 8), y: 0.05 + 0.08 * cos(t / 6)),
-                           startRadius: 20, endRadius: 420)
-            RadialGradient(colors: [secondary.opacity(soft), .clear],
-                           center: UnitPoint(x: 0.10 + 0.14 * cos(t / 10), y: 0.95 - 0.10 * sin(t / 7)),
-                           startRadius: 20, endRadius: 380)
-            RadialGradient(colors: [primary.opacity(soft * 0.6), .clear],
-                           center: UnitPoint(x: 0.5 + 0.30 * sin(t / 12), y: 0.5 + 0.25 * cos(t / 9)),
-                           startRadius: 10, endRadius: 300)
+        let cap = AppPalette.maxWashOpacity
+        return ZStack {
+            RadialGradient(colors: [primary.opacity(min(strong * 1.35, cap)), .clear],
+                           center: UnitPoint(x: 0.75 + 0.30 * sin(t / 3.2), y: 0.12 + 0.20 * cos(t / 2.6)),
+                           startRadius: 20, endRadius: 520)
+            RadialGradient(colors: [secondary.opacity(min(soft * 1.9, cap)), .clear],
+                           center: UnitPoint(x: 0.20 + 0.32 * cos(t / 3.8), y: 0.85 - 0.25 * sin(t / 2.9)),
+                           startRadius: 20, endRadius: 480)
+            RadialGradient(colors: [primary.opacity(min(soft * 1.4, cap)), .clear],
+                           center: UnitPoint(x: 0.5 + 0.45 * sin(t / 4.6), y: 0.5 + 0.40 * cos(t / 3.4)),
+                           startRadius: 10, endRadius: 400)
         }
     }
 }

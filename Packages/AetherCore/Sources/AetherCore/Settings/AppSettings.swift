@@ -523,6 +523,8 @@ public struct ContentSettings: Codable, Equatable, Sendable {
     /// Minutes a catalog response is considered fresh (overrides the default, never an addon's explicit `cacheMaxAge`).
     public var catalogRefreshMinutes: Int = 10
     public var hideAdultCatalogs: Bool = true
+    /// Hides talk shows from the catalogs (Home and Discover), judging by the genres the addons declare.
+    public var hideTalkShows: Bool = false
     public var searchRemote: Bool = true
     public var searchLocal: Bool = true
     public var saveSearchHistory: Bool = true
@@ -544,7 +546,7 @@ public struct ContentSettings: Codable, Equatable, Sendable {
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case preferredLanguage, catalogRefreshMinutes, hideAdultCatalogs, searchRemote, searchLocal
+        case preferredLanguage, catalogRefreshMinutes, hideAdultCatalogs, hideTalkShows, searchRemote, searchLocal
         case saveSearchHistory, searchSort, discoverTypes
         case catalogLayout, streamDisplay, titleModules, ratings
     }
@@ -554,6 +556,7 @@ public struct ContentSettings: Codable, Equatable, Sendable {
         preferredLanguage = c.value(.preferredLanguage, default: "system")
         catalogRefreshMinutes = min(1440, max(1, c.value(.catalogRefreshMinutes, default: 10)))
         hideAdultCatalogs = c.value(.hideAdultCatalogs, default: true)
+        hideTalkShows = c.value(.hideTalkShows, default: false)
         searchRemote = c.value(.searchRemote, default: true)
         searchLocal = c.value(.searchLocal, default: true)
         saveSearchHistory = c.value(.saveSearchHistory, default: true)

@@ -128,6 +128,28 @@ public actor MetadataEnricher {
         return result.isEmpty ? nil : result
     }
 
+    /// The posters TMDB has for a title, as image addresses (empty when TMDB is not set up or does not know the title).
+    public func posterAlternatives(for meta: MetaItem, language: String) async -> [String] {
+        guard let kind = MetadataEnricher.kind(forType: meta.type), let client = tmdb, client.isConfigured, !isPaused(.tmdb) else { return [] }
+        let ids = ExternalIDs.fromMetaID(meta.id).filling(from: meta.externalIDs)
+        if ids.isEmpty { return [] }
+        do {
+            let id = try await resolveTMDBID(client, kind: kind, ids: ids)
+            let paths = try await client.posterPaths(kind: kind, id: id, language: language)
+            let configuration = await imageConfiguration(client)
+            var seen = Set<String>()
+            var result: [String] = []
+            for path in paths {
+                if let url = MetadataEnricher.imageURL(configuration, sizes: configuration.posterSizes, minimum: 500, path: path), seen.insert(url).inserted {
+                    result.append(url)
+                }
+            }
+            return result
+        } catch {
+            return []
+        }
+    }
+
     // MARK: TMDB
 
     private func loadTMDB(_ client: TMDBClient, kind: TMDBClient.Kind, ids: ExternalIDs, language: String,

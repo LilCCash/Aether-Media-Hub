@@ -247,3 +247,19 @@ struct TMDBErrorBody: Decodable {
         statusMessage = c.flexString(.status_message)
     }
 }
+
+/// The posters TMDB has for a title (file paths, best rated first as TMDB lists them).
+struct TMDBImageList: Decodable {
+    var posters: [String]
+
+    private struct File: Decodable {
+        var file_path: String?
+    }
+
+    private enum CodingKeys: String, CodingKey { case posters }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        posters = c.lossyArray(File.self, forKey: .posters).compactMap { $0.file_path }
+    }
+}

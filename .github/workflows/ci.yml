@@ -50,6 +50,10 @@ jobs:
     name: App (build, unit tests, UI tests)
     runs-on: macos-latest
     timeout-minutes: 90
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+      HOMEBREW_NO_ANALYTICS: '1'
     steps:
       - uses: actions/checkout@v4
 
@@ -59,6 +63,14 @@ jobs:
           swift --version
           node --version
           xcrun simctl list runtimes
+
+      # The Swift packages (MPVKit and GoogleCast are large binaries) are kept between runs instead of being downloaded again.
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: ~/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('project.yml', 'Packages/AetherCore/Package.swift') }}
+          restore-keys: spm-${{ runner.os }}-
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -85,6 +97,8 @@ jobs:
           set -o pipefail
           xcodebuild build-for-testing \
             -project Aether.xcodeproj -scheme Aether \
+            -clonedSourcePackagesDirPath "$HOME/SourcePackages" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="-" 2>&1 | tee "$RUNNER_TEMP/build.log"

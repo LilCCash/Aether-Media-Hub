@@ -52,7 +52,7 @@ struct DiscoverSettingsView: View {
     }
 
     private var loadKey: String {
-        return "\(addons.revision)-\(settings.value.content.hideAdultCatalogs)"
+        return "\(addons.revision)-\(settings.value.content.hideAdultCatalogs)-\(settings.value.content.hideTalkShows)"
     }
 
     var body: some View {

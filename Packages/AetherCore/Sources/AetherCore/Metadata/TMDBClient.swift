@@ -74,6 +74,13 @@ public struct TMDBClient: Sendable {
         ])
     }
 
+    /// The poster files TMDB has for a title: in the viewer's language, in English and the ones without text.
+    func posterPaths(kind: Kind, id: Int, language: String) async throws -> [String] {
+        let languages = [String(language.prefix(2)), "en", "null"].joined(separator: ",")
+        let body: TMDBImageList = try await get("/\(kind.rawValue)/\(id)/images", query: [("include_image_language", languages)])
+        return body.posters
+    }
+
     func externalIDs(kind: Kind, id: Int) async throws -> TMDBExternalIDs {
         return try await get("/\(kind.rawValue)/\(id)/external_ids", query: [])
     }
