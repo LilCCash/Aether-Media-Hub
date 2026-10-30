@@ -475,6 +475,10 @@ struct SearchView: View {
             .onChange(of: router.pendingSearch) { _, new in
                 if let new = new { model.query = new; router.pendingSearch = nil }
             }
+            // Opened by Siri or Spotlight with the app closed: the words were left before this screen existed.
+            .onAppear {
+                if let pending = router.pendingSearch { model.query = pending; router.pendingSearch = nil }
+            }
             .onChange(of: settings.value.content.searchSort) { _, newValue in
                 model.filters.sort = newValue
             }
