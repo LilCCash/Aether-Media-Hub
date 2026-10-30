@@ -1,4 +1,5 @@
 import CoreSpotlight
+import UIKit
 import UniformTypeIdentifiers
 import AetherCore
 
@@ -8,6 +9,7 @@ struct SpotlightTitle: Codable, Hashable {
     var type: String
     var name: String
     var info: String?
+    var poster: String?
 }
 
 /// Puts titles in the system search so they can be found from the Home screen: the library (watchlist, favourites), what was watched, and the
@@ -24,13 +26,31 @@ enum SpotlightIndexer {
     }()
     private static var library: [SpotlightTitle] = []
     private static var pending: Task<Void, Never>?
+    /// Posters that could not be fetched: not asked for again until the app is reopened.
+    private static var failedPosters = Set<String>()
+    private static let posterDirectory: URL = {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("spotlight-posters", isDirectory: true)
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        return base
+    }()
+
+    private static func posterFile(_ id: String) -> URL {
+        let name = id.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? String($0) : "_" }.joined()
+        return posterDirectory.appendingPathComponent(name + ".jpg")
+    }
 
     /// Titles the app showed (catalogs, search, what was watched): kept, up to a limit, and indexed a few seconds later.
     static func record(_ items: [MetaItem]) {
-        var known = Set(seen.map { $0.id })
         var changed = false
-        for item in items where !item.name.isEmpty && (item.type == "movie" || item.type == "series") && known.insert(item.id).inserted {
-            seen.append(SpotlightTitle(id: item.id, type: item.type, name: item.name, info: item.releaseInfo))
+        for item in items where !item.name.isEmpty && (item.type == "movie" || item.type == "series") {
+            if let index = seen.firstIndex(where: { $0.id == item.id }) {
+                if seen[index].poster == nil, let poster = item.poster {
+                    seen[index].poster = poster
+                    changed = true
+                }
+                continue
+            }
+            seen.append(SpotlightTitle(id: item.id, type: item.type, name: item.name, info: item.releaseInfo, poster: item.poster))
             changed = true
         }
         guard changed else { return }
@@ -40,7 +60,7 @@ enum SpotlightIndexer {
     }
 
     static func setLibrary(_ entries: [LibraryEntry]) {
-        library = entries.filter { !$0.isRemoved }.map { SpotlightTitle(id: $0.id, type: $0.type, name: $0.name, info: $0.releaseInfo) }
+        library = entries.filter { !$0.isRemoved }.map { SpotlightTitle(id: $0.id, type: $0.type, name: $0.name, info: $0.releaseInfo, poster: $0.poster) }
         schedule()
     }
 
@@ -62,11 +82,40 @@ enum SpotlightIndexer {
             // Spotlight matches words: "Spider-Man" must also be found as "Spiderman" or "Spider Man".
             attributes.keywords = Array(Set([title.name, title.name.replacingOccurrences(of: "-", with: ""),
                                              title.name.replacingOccurrences(of: "-", with: " ")]))
+            let file = posterFile(title.id)
+            if FileManager.default.fileExists(atPath: file.path) { attributes.thumbnailURL = file }
             items.append(CSSearchableItem(uniqueIdentifier: "\(title.type)/\(title.id)", domainIdentifier: domain, attributeSet: attributes))
         }
+        fetchMissingPosters(for: library + seen.reversed())
         let index = CSSearchableIndex.default()
         index.deleteSearchableItems(withDomainIdentifiers: [domain]) { _ in
             if !items.isEmpty { index.indexSearchableItems(items) { _ in } }
+        }
+    }
+
+    /// Downloads the posters the index does not have yet (small JPEGs, a few at a time); when some arrive the index is made again with them.
+    private static func fetchMissingPosters(for titles: [SpotlightTitle]) {
+        var jobs: [(id: String, remote: URL, file: URL)] = []
+        for title in titles where jobs.count < 40 {
+            let file = posterFile(title.id)
+            guard !FileManager.default.fileExists(atPath: file.path), !failedPosters.contains(title.id),
+                  let address = PosterOverrides.shared.url(for: title.id) ?? title.poster, let remote = URL(string: address) else { continue }
+            jobs.append((title.id, remote, file))
+        }
+        guard !jobs.isEmpty else { return }
+        let work = jobs
+        Task.detached(priority: .utility) {
+            var arrived = false
+            for job in work {
+                if let (data, _) = try? await URLSession.shared.data(from: job.remote), let image = UIImage(data: data),
+                   let small = image.preparingThumbnail(of: CGSize(width: 200, height: 300)), let jpeg = small.jpegData(compressionQuality: 0.7),
+                   (try? jpeg.write(to: job.file)) != nil {
+                    arrived = true
+                } else {
+                    await MainActor.run { _ = failedPosters.insert(job.id) }
+                }
+            }
+            if arrived { await MainActor.run { schedule() } }
         }
     }
 
