@@ -81,6 +81,12 @@ public struct TMDBClient: Sendable {
         return body.posters
     }
 
+    /// The title's pictures (posters and logos) in the viewer's language, English and the ones without text.
+    func imageList(kind: Kind, id: Int, language: String) async throws -> TMDBImageList {
+        let languages = [String(language.prefix(2)), "en", "null"].joined(separator: ",")
+        return try await get("/\(kind.rawValue)/\(id)/images", query: [("include_image_language", languages)])
+    }
+
     func externalIDs(kind: Kind, id: Int) async throws -> TMDBExternalIDs {
         return try await get("/\(kind.rawValue)/\(id)/external_ids", query: [])
     }

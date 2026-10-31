@@ -37,6 +37,11 @@ struct HomeView: View {
                 CinematicMood.shared.homeColor = color
                 CinematicMood.shared.color = color
             }
+            // The logos of what the Home shows (featured, continue watching, next up) are fetched now, so a tap finds them ready.
+            .task(id: (model.heroItems.map { $0.id } + library.continueWatching.map { $0.id } + library.nextUpSeeds.map { $0.id }).joined(separator: ",")) {
+                let metas = model.heroItems + library.continueWatching.map { $0.asMeta } + library.nextUpSeeds.map { $0.asMeta }
+                FanartLogoStore.shared.prefetch(metas, env: env)
+            }
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {

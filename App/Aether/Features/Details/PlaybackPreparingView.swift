@@ -29,7 +29,7 @@ struct PlaybackPreparingView: View {
                         .resizable().scaledToFit()
                         .frame(maxWidth: 420, maxHeight: 190)
                         .accessibilityLabel(meta.name)
-                } else if lookupDone || !env.fanart.isConfigured {
+                } else if lookupDone {
                     titleText
                 } else {
                     Color.clear.frame(height: 60)
@@ -82,7 +82,12 @@ struct PlaybackPreparingView: View {
     }
 
     private func loadLogo() async {
-        guard logo == nil, env.fanart.isConfigured, !FanartLogoStore.shared.isKnownMissing(meta.id) else { lookupDone = true; return }
+        guard logo == nil, !FanartLogoStore.shared.isKnownMissing(meta.id) else { lookupDone = true; return }
+        // The title shows if the logo is slow; the logo takes its place when it arrives.
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            lookupDone = true
+        }
         logo = await FanartLogoStore.shared.load(meta: meta, env: env)
         lookupDone = true
     }

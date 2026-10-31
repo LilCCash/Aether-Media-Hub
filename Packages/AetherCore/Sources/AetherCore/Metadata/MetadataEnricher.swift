@@ -128,6 +128,37 @@ public actor MetadataEnricher {
         return result.isEmpty ? nil : result
     }
 
+    /// The title's own transparent logo from TMDB (the viewer's language first, then English), for when fanart.tv has none or there is no
+    /// fanart.tv key. Nil when TMDB is not set up or knows no logo.
+    public func logoURL(for meta: MetaItem, language: String) async -> URL? {
+        guard let kind = MetadataEnricher.kind(forType: meta.type), let client = tmdb, client.isConfigured, !isPaused(.tmdb) else { return nil }
+        let ids = ExternalIDs.fromMetaID(meta.id).filling(from: meta.externalIDs)
+        if ids.isEmpty { return nil }
+        do {
+            let id = try await resolveTMDBID(client, kind: kind, ids: ids)
+            let list = try await client.imageList(kind: kind, id: id, language: language)
+            guard let best = MetadataEnricher.bestLogo(list.logos, language: language) else { return nil }
+            let configuration = await imageConfiguration(client)
+            return MetadataEnricher.imageURL(configuration, sizes: configuration.logoSizes, minimum: 500, path: best.filePath).flatMap { URL(string: $0) }
+        } catch {
+            return nil
+        }
+    }
+
+    /// The TheTVDB code of a series, asked of TMDB (fanart.tv knows series by it; the catalogs seldom give it).
+    public func tvdbID(for meta: MetaItem) async -> Int? {
+        guard let kind = MetadataEnricher.kind(forType: meta.type), kind == .tv, let client = tmdb, client.isConfigured, !isPaused(.tmdb) else { return nil }
+        let ids = ExternalIDs.fromMetaID(meta.id).filling(from: meta.externalIDs)
+        if ids.isEmpty { return nil }
+        if let known = ids.tvdb { return known }
+        do {
+            let id = try await resolveTMDBID(client, kind: kind, ids: ids)
+            return try await client.externalIDs(kind: kind, id: id).tvdbID
+        } catch {
+            return nil
+        }
+    }
+
     /// The posters TMDB has for a title, as image addresses (empty when TMDB is not set up or does not know the title).
     public func posterAlternatives(for meta: MetaItem, language: String) async -> [String] {
         guard let kind = MetadataEnricher.kind(forType: meta.type), let client = tmdb, client.isConfigured, !isPaused(.tmdb) else { return [] }
