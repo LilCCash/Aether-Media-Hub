@@ -54,6 +54,8 @@ targets:
         INFOPLIST_FILE: App/Aether/Resources/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         PRODUCT_NAME: Aether
+        # The alternate icons the viewer can choose in Settings (each one is an app icon set in the asset catalog).
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIconLight AppIconDark AppIconCinema AppIconHalloween AppIconNatale AppIconWestern AppIconSciFi AppIconGiallo"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
     info:
       path: App/Aether/Resources/Info.plist

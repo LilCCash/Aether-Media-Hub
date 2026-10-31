@@ -118,6 +118,13 @@ struct AppearanceSettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                NavigationLink {
+                    AppIconSettingsView()
+                } label: {
+                    Label("Icona dell'app", systemImage: "app.badge.fill")
+                }
+            }
             Section(header: Text("Tema")) {
                 Picker("Tema", selection: settings.binding(\.appearance.theme)) {
                     ForEach(ThemeMode.allCases, id: \.self) { Text($0.title).tag($0) }
