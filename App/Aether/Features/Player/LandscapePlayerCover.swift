@@ -125,11 +125,13 @@ private struct PlayerPresenter: UIViewRepresentable {
         private var controller: LandscapeHostingController?
         private var sessionActive = false
         private var presenting = false
+        private weak var router: AppRouter?
         private var task: Task<Void, Never>?
         private var watching: AnyCancellable?
 
         /// Closing the player clears the router's request: take the page down at once, whatever SwiftUI re-evaluates.
         func watch(_ router: AppRouter) {
+            self.router = router
             guard watching == nil else { return }
             let close: (AppRouter) -> Void = { [weak self] router in
                 guard router.player == nil, router.launch == nil, let self = self, let controller = self.controller else { return }
@@ -214,8 +216,15 @@ private struct PlayerPresenter: UIViewRepresentable {
                 }
                 try? await Task.sleep(nanoseconds: 100_000_000)
             }
+            // It never came up: leave everything as it was before the tap, so another tap works (no need to restart the app). The source
+            // that is being prepared then opens the way it did before the black page existed.
             controller = nil
             sessionActive = false
+            if let router = router {
+                router.launch = nil
+                if router.player != nil { router.player = nil }
+            }
+            OrientationController.restore()
         }
 
         private static func owner(of view: UIView?) -> UIViewController? {
