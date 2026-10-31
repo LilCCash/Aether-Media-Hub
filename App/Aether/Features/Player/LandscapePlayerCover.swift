@@ -21,12 +21,25 @@ final class LandscapeHostingController: UIHostingController<AnyView> {
     static func dismissCurrent() {
         let controller = current
         current = nil
-        controller?.dismiss(animated: false)
+        controller?.dismissThenTurnBack()
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         LandscapeHostingController.current = self
+    }
+
+    /// Takes the page down and only then gives the screen back to the orientation of the app: asked before, the request is refused
+    /// (this page, still on top, only allows landscape) and the app stays sideways. Asked once more a moment later, for the slow cases.
+    @MainActor
+    func dismissThenTurnBack() {
+        dismiss(animated: false) {
+            OrientationController.restore()
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                OrientationController.restore()
+            }
+        }
     }
     override var prefersHomeIndicatorAutoHidden: Bool { return true }
 }
@@ -137,7 +150,7 @@ private struct PlayerPresenter: UIViewRepresentable {
                 guard router.player == nil, router.launch == nil, let self = self, let controller = self.controller else { return }
                 self.controller = nil
                 self.sessionActive = false
-                controller.dismiss(animated: false)
+                controller.dismissThenTurnBack()
             }
             // `$player` and `$launch` publish just before the value changes: look again on the next turn.
             let players = router.$player.map { _ in Void() }
@@ -158,7 +171,7 @@ private struct PlayerPresenter: UIViewRepresentable {
                 presenting = false
                 if let controller = controller {
                     self.controller = nil
-                    controller.dismiss(animated: false)
+                    controller.dismissThenTurnBack()
                 }
                 return
             }
