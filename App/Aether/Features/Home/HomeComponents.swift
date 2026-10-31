@@ -9,6 +9,8 @@ import AetherCore
 struct HeroCarousel: View {
     let items: [MetaItem]
     var style: HeroStyle = .card
+    /// Told when another film comes to the front (by swiping or by itself), so the Home can take its colours.
+    var onPage: ((MetaItem) -> Void)? = nil
     @EnvironmentObject private var settings: SettingsStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var position: Int? = 0
@@ -53,6 +55,9 @@ struct HeroCarousel: View {
                 if Task.isCancelled { return }
                 withAnimation { position = (index + 1) % items.count }
             }
+        }
+        .onChange(of: index) { _, new in
+            if items.indices.contains(new) { onPage?(items[new]) }
         }
         .accessibilityIdentifier("home.hero")
     }

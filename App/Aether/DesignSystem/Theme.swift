@@ -69,13 +69,13 @@ struct AetherBackdrop: View {
     @ObservedObject private var mood = CinematicMood.shared
 
     private var primary: Color {
-        if style.mood, let color = mood.color { return color }
+        if style.mood, let color = mood.shown { return color }
         if let washes = style.palette.washes { return Color(hex: washes.primary) }
         return settings.accentColor
     }
 
     private var secondary: Color {
-        if style.mood, let color = mood.color { return color.opacity(0.8) }
+        if style.mood, let color = mood.shown { return color.opacity(0.8) }
         if let washes = style.palette.washes { return Color(hex: washes.secondary) }
         return .cyan
     }
@@ -106,11 +106,10 @@ struct AetherBackdrop: View {
             if !settings.reduceEffects && settings.value.appearance.showHalos {
                 washes
             }
-            if style.cinematic && style.mood, let color = mood.color {
+            if style.cinematic && style.mood, let color = mood.shown {
                 moodGradient(color)
             }
         }
-        .animation(style.motion ? .easeInOut(duration: 1.1) : nil, value: mood.color)
         .ignoresSafeArea()
     }
 
@@ -178,12 +177,65 @@ struct AetherBackdrop: View {
 @MainActor
 final class CinematicMood: ObservableObject {
     static let shared = CinematicMood()
-    @Published var color: Color?
+    /// The colour the film on screen asks for. The backdrop does not jump to it: it reads `shown`, which moves there gradually.
+    @Published var color: Color? {
+        didSet { retarget() }
+    }
+    /// The colour on screen right now: a blend from the previous film's colour to the new one, a little more each frame.
+    @Published private(set) var shown: Color?
     /// The colour of the Home's featured film: what the other screens go back to when a title page closes.
     var homeColor: Color?
 
+    private struct Components { var red: Double; var green: Double; var blue: Double }
+    private var from = Components(red: 0, green: 0, blue: 0)
+    private var to = Components(red: 0, green: 0, blue: 0)
+    private var startedAt = Date()
+    private var timer: Timer?
+    private static let duration: TimeInterval = 1.6
+
+    private static func components(_ color: Color) -> Components {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return Components(red: Double(red), green: Double(green), blue: Double(blue))
+    }
+
+    private func retarget() {
+        timer?.invalidate()
+        timer = nil
+        guard let color = color else {
+            shown = nil
+            return
+        }
+        // The first colour (nothing was shown), or motion turned off: no blending.
+        guard let current = shown, !UIAccessibility.isReduceMotionEnabled else {
+            shown = color
+            return
+        }
+        from = CinematicMood.components(current)
+        to = CinematicMood.components(color)
+        startedAt = Date()
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.step() }
+        }
+    }
+
+    private func step() {
+        let progress = min(1, Date().timeIntervalSince(startedAt) / CinematicMood.duration)
+        let eased = progress * progress * (3 - 2 * progress)
+        shown = Color(red: from.red + (to.red - from.red) * eased,
+                      green: from.green + (to.green - from.green) * eased,
+                      blue: from.blue + (to.blue - from.blue) * eased)
+        if progress >= 1 {
+            timer?.invalidate()
+            timer = nil
+        }
+    }
+
+    private static var cache: [String: Color] = [:]
+
     /// A lively, not-too-light average of the picture (the backdrop reads well over it).
     static func color(fromURL string: String?) async -> Color? {
+        if let string, let known = cache[string] { return known }
         guard let string, let url = URL(string: string),
               let (data, _) = try? await URLSession.shared.data(from: url),
               let image = CIImage(data: data) else { return nil }
@@ -195,6 +247,8 @@ final class CinematicMood: ObservableObject {
         var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
         UIColor(red: CGFloat(pixel[0]) / 255, green: CGFloat(pixel[1]) / 255, blue: CGFloat(pixel[2]) / 255, alpha: 1)
             .getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
-        return Color(hue: Double(hue), saturation: Double(min(1, max(saturation, 0.45))), brightness: Double(min(0.9, max(brightness, 0.55))))
+        let result = Color(hue: Double(hue), saturation: Double(min(1, max(saturation, 0.45))), brightness: Double(min(0.9, max(brightness, 0.55))))
+        cache[string] = result
+        return result
     }
 }

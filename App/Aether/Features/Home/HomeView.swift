@@ -12,6 +12,8 @@ struct HomeView: View {
     @State private var showingInstall = false
     @State private var showingCast = false
     @Environment(\.aetherStyle) private var style
+    /// The film at the front of the featured carousel: the Home takes the colours of this one.
+    @State private var heroPageID: String?
 
     var body: some View {
         NavigationStack {
@@ -23,13 +25,15 @@ struct HomeView: View {
                 CastSheet()
             }
             // Cinematic: the Home takes the colours of the featured film.
-            .task(id: (style.mood ? model.heroItems.first?.id : nil) ?? "") {
-                guard style.mood, let hero = model.heroItems.first else {
+            .task(id: (style.mood ? (heroPageID ?? model.heroItems.first?.id) : nil) ?? "") {
+                let wanted = heroPageID ?? model.heroItems.first?.id
+                guard style.mood, let hero = model.heroItems.first(where: { $0.id == wanted }) ?? model.heroItems.first else {
                     CinematicMood.shared.homeColor = nil
                     CinematicMood.shared.color = nil
                     return
                 }
                 let color = await CinematicMood.color(fromURL: hero.background ?? hero.poster)
+                if Task.isCancelled { return }
                 CinematicMood.shared.homeColor = color
                 CinematicMood.shared.color = color
             }
@@ -133,7 +137,7 @@ struct HomeView: View {
         switch id {
         case HomeSectionConfig.hero:
             if !model.heroItems.isEmpty {
-                HeroCarousel(items: model.heroItems, style: appearance.heroStyle)
+                HeroCarousel(items: model.heroItems, style: appearance.heroStyle, onPage: { heroPageID = $0.id })
             }
         case HomeSectionConfig.continueWatching:
             if !library.continueWatching.isEmpty {
