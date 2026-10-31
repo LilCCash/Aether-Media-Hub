@@ -124,7 +124,13 @@ final class StreamPickerModel: ObservableObject {
     @Published private(set) var cacheStatuses: [String: DebridCacheStatus] = [:]
     @Published private(set) var checkingHashes: Set<String> = []
     @Published private(set) var cacheCheckFailure: DebridError?
-    @Published private(set) var resolution: DebridRowResolution?
+    @Published private(set) var resolution: DebridRowResolution? {
+        didSet { launch?.resolution = resolution }
+    }
+    /// The black page of the player that stands in for it while the source is prepared (nil in Theater Mode, which has its own).
+    private var launch: PlayerLaunch?
+    private weak var launchRouter: AppRouter?
+    var usesLaunchPage: Bool { return launch != nil }
     @Published private(set) var rowFailure: DebridRowFailure?
     /// A torrent that is not in TorBox's cache and waits for the user's yes before anything is added to the account.
     @Published var pendingDownload: RankedStream?
@@ -425,12 +431,19 @@ final class StreamPickerModel: ObservableObject {
             }
             return
         }
+        beginLaunch(env: env, dismiss: dismiss)
         if let url = StreamResolver.playbackURL(for: item.stream, streamingServer: env.streamPreferences().streamingServer) {
             if let blocked = await env.validateMediaURL(url) {
+                endLaunch()
+                OrientationController.restore()
+                await settleCover()
                 blockedMessage = blocked.message
                 return
             }
         } else {
+            endLaunch()
+            OrientationController.restore()
+            await settleCover()
             blockedMessage = "Questa sorgente non può essere riprodotta."
             return
         }
@@ -444,6 +457,11 @@ final class StreamPickerModel: ObservableObject {
         let alternatives = playable.filter { $0.id != item.id }
         let player = PlayerRequest(meta: request.meta, video: request.video, source: .stream(item.stream), alternatives: alternatives)
         handingOver = true
+        if env.router.launch != nil {
+            // The black page is already up over the list: the player takes its place there, and the list leaves when the player closes.
+            env.router.play(player)
+            return
+        }
         dismiss()
         // Present after the sheet is gone to avoid overlapping presentations.
         try? await Task.sleep(nanoseconds: 350_000_000)
@@ -484,7 +502,31 @@ final class StreamPickerModel: ObservableObject {
         resolutionTask = nil
         resolutionToken = UUID()
         resolution = nil
+        endLaunch()
         OrientationController.restore()
+    }
+
+    /// Puts the player's black page (logo, progress) on screen at once, over the list, turning the screen only once. Not in Theater Mode.
+    private func beginLaunch(env: AppEnvironment, dismiss: @escaping () -> Void) {
+        guard !env.router.theater else { return }
+        endLaunch()
+        let page = PlayerLaunch(meta: request.meta) { [weak self] in self?.cancelResolution() }
+        page.resolution = resolution
+        launch = page
+        launchRouter = env.router
+        env.router.launch = page
+        env.router.afterPlayer = dismiss
+    }
+
+    /// Takes the page down (the source could not be played, or the wait was cancelled).
+    private func endLaunch() {
+        guard let router = launchRouter else { launch = nil; return }
+        if router.launch === launch, router.player == nil {
+            router.launch = nil
+            router.afterPlayer = nil
+        }
+        launch = nil
+        launchRouter = nil
     }
 
     private func startResolution(_ item: RankedStream, mode: DebridMode, file: DebridFileCandidate?,
@@ -496,6 +538,7 @@ final class StreamPickerModel: ObservableObject {
         rowFailure = nil
         resolution = DebridRowResolution(itemID: item.id, mode: mode, progress: nil,
                                          providerTitle: env.debrid.selectedProvider.title)
+        beginLaunch(env: env, dismiss: dismiss)
         resolutionTask = Task {
             await self.runResolution(item, mode: mode, file: file, token: token, env: env, dismiss: dismiss)
         }
@@ -564,7 +607,10 @@ final class StreamPickerModel: ObservableObject {
     private func finishResolution(_ token: UUID, restoreOrientation: Bool = true) {
         guard token == resolutionToken else { return }
         resolution = nil
-        if restoreOrientation { OrientationController.restore() }
+        if restoreOrientation {
+            endLaunch()
+            OrientationController.restore()
+        }
     }
 
     private func handle(_ error: DebridError, item: RankedStream, mode: DebridMode, file: DebridFileCandidate?,
@@ -716,7 +762,7 @@ struct StreamPickerSheet: View {
             Text(DebridUserText.downloadConfirmationMessage)
         }
         // The page of the player opens at once while TorBox is contacted: the film's logo (with a fanart.tv key) or its title.
-        .fullScreenCover(isPresented: Binding(get: { model.resolution != nil }, set: { if !$0 { model.cancelResolution() } })) {
+        .fullScreenCover(isPresented: Binding(get: { model.resolution != nil && !model.usesLaunchPage }, set: { if !$0 { model.cancelResolution() } })) {
             PlaybackPreparingView(meta: request.meta, resolution: model.resolution) { model.cancelResolution() }
                 .environmentObject(env)
         }

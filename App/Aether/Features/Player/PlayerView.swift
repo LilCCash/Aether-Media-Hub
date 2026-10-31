@@ -15,6 +15,9 @@ struct PlayerView: View {
     @AppStorage(TheaterPrefs.palette) private var theaterPalette = 0
     @StateObject private var volume = SystemVolume()
     @State private var controlsVisible = true
+    /// «Salta intro», «Salta riassunto» and the next-episode card: they leave a second after the controls do.
+    @State private var extrasVisible = true
+    @State private var extrasTask: Task<Void, Never>?
     @State private var isLocked = false
     @State private var showUnlockHint = false
     @State private var hideTask: Task<Void, Never>?
@@ -254,6 +257,20 @@ struct PlayerView: View {
             }
             .animation(animationsAllowed ? .easeInOut(duration: 0.2) : nil, value: controlsVisible)
             .animation(animationsAllowed ? .easeInOut(duration: 0.25) : nil, value: panel)
+            .onChange(of: controlsVisible) { _, _ in syncExtras(after: 1) }
+            // A skip button that appears while the controls are hidden shows for a few seconds, then goes.
+            .onChange(of: model.activeSkipSegment?.kind) { _, kind in
+                guard kind != nil else { return }
+                extrasVisible = true
+                if !controlsVisible { syncExtras(after: 6) }
+            }
+            // The black launch page stays over the player until the picture runs (or fails, so the message can be read).
+            .onChange(of: model.snapshot.isPlaying) { _, playing in
+                if playing, router.launch != nil { router.launch = nil }
+            }
+            .onChange(of: model.failure != nil) { _, failed in
+                if failed, router.launch != nil { router.launch = nil }
+            }
             // The "interactive" glass shimmer restarts every time the playhead moves (four times a second) and swallowed taps.
             .environment(\.aetherGlassInteractive, false)
             .environment(\.playerAccent, fromTheater ? accent : nil)
@@ -314,6 +331,19 @@ struct PlayerView: View {
     }
 
     // MARK: Controls visibility
+
+    /// The extra buttons follow the controls: shown with them, and gone a moment (`delay` seconds) after the controls go.
+    private func syncExtras(after delay: Double) {
+        extrasTask?.cancel()
+        if controlsVisible {
+            extrasVisible = true
+            return
+        }
+        extrasTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            if !Task.isCancelled { extrasVisible = false }
+        }
+    }
 
     private func showControls() {
         pendingHideTask?.cancel()
@@ -871,6 +901,9 @@ struct PlayerView: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, controlsVisible ? 120 : 30)
+            .opacity(extrasVisible ? 1 : 0)
+            .allowsHitTesting(extrasVisible)
+            .animation(.easeOut(duration: 0.3), value: extrasVisible)
             .transition(.opacity)
         }
 
@@ -884,6 +917,9 @@ struct PlayerView: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, controlsVisible ? 120 : 30)
+            .opacity(extrasVisible ? 1 : 0)
+            .allowsHitTesting(extrasVisible)
+            .animation(.easeOut(duration: 0.3), value: extrasVisible)
         }
 
         if let session = casting.session {

@@ -165,7 +165,7 @@ struct RootView: View {
             env.relay.appPhaseChanged(phase)
         }
         // While Theater Mode is open it presents the player itself (one full-screen cover cannot present another from the same view).
-        .landscapePlayer(Binding(get: { router.theater ? nil : router.player }, set: { router.player = $0 }))
+        .landscapePlayer(Binding(get: { router.theater ? nil : router.player }, set: { router.player = $0 }), showsLaunch: !router.theater)
         .fullScreenCover(isPresented: $router.theater) { TheaterView() }
         .sheet(item: Binding(get: { settings.value.appearance.detailAsCard ? router.detail : nil }, set: { router.detail = $0 })) { route in
             NavigationStack { DetailView(route: route).zoomDestination(id: route.id) }

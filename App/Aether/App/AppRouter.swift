@@ -41,11 +41,44 @@ struct PlayerRequest: Identifiable {
     var alternatives: [RankedStream]
 }
 
+/// The black page with the film's logo that stands in for the player from the tap on a source until the picture starts. It lives in
+/// the player's own landscape container, so the screen turns once and nothing flashes in between.
+@MainActor
+final class PlayerLaunch: ObservableObject, Identifiable {
+    let id = UUID()
+    let meta: MetaItem
+    @Published var resolution: DebridRowResolution?
+    /// Stops waiting for the link (the viewer pressed «Annulla»).
+    let cancel: () -> Void
+
+    init(meta: MetaItem, cancel: @escaping () -> Void) {
+        self.meta = meta
+        self.cancel = cancel
+    }
+}
+
 /// Single place for cross-screen navigation: tab selection, deep links, the player, addon-install prompts.
 @MainActor
 final class AppRouter: ObservableObject {
     @Published var tab: AppTab = .home
-    @Published var player: PlayerRequest?
+    @Published var player: PlayerRequest? {
+        didSet {
+            guard player == nil else { return }
+            launch = nil
+            // The source list stays under the player while it plays: when the player closes, it goes away too.
+            if let done = afterPlayer {
+                afterPlayer = nil
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 250_000_000)
+                    done()
+                }
+            }
+        }
+    }
+    /// The page shown while the source is prepared; nil once the picture runs.
+    @Published var launch: PlayerLaunch?
+    /// What to do once the player closes (closing the source list that is still under it).
+    var afterPlayer: (() -> Void)?
     /// Theater Mode (the landscape cinema browser) is open.
     @Published var theater = false
     @Published var detail: MetaRoute?

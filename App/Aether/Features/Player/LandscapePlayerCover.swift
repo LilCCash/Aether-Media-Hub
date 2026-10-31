@@ -35,6 +35,8 @@ final class LandscapeHostingController: UIHostingController<AnyView> {
 /// `fullScreenCover(item:)` for the player, both over the app and over Theater Mode.
 struct LandscapePlayerCover: ViewModifier {
     @Binding var item: PlayerRequest?
+    /// The main screen also shows the page that stands in for the player while a source is prepared (Theater Mode has its own).
+    var showsLaunch = false
     @EnvironmentObject private var env: AppEnvironment
     @Environment(\.aetherStyle) private var style
     @Environment(\.imageLoader) private var loader
@@ -42,8 +44,9 @@ struct LandscapePlayerCover: ViewModifier {
     func body(content: Content) -> some View {
         content.background(
             PlayerPresenter(item: item,
-                            makeRoot: { request in
-                                AnyView(PlayerView(request: request, env: env)
+                            launch: showsLaunch ? env.router.launch : nil,
+                            makeRoot: {
+                                AnyView(PlayerStage(env: env)
                                     .environmentObject(env)
                                     .environmentObject(env.settings)
                                     .environmentObject(env.router)
@@ -64,9 +67,42 @@ struct LandscapePlayerCover: ViewModifier {
     }
 }
 
+/// What the player's container shows: the black launch page (logo, progress) while a source is prepared, the player under it, and the
+/// launch page fading away once the picture runs.
+struct PlayerStage: View {
+    let env: AppEnvironment
+    @EnvironmentObject private var router: AppRouter
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            if let request = router.player {
+                PlayerView(request: request, env: env).id(request.id)
+            }
+            if let launch = router.launch {
+                LaunchPage(launch: launch)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.35), value: router.launch?.id)
+    }
+}
+
+private struct LaunchPage: View {
+    @ObservedObject var launch: PlayerLaunch
+    @EnvironmentObject private var router: AppRouter
+
+    var body: some View {
+        PlaybackPreparingView(meta: launch.meta, resolution: launch.resolution) {
+            if router.player != nil { router.player = nil } else { launch.cancel() }
+        }
+    }
+}
+
 private struct PlayerPresenter: UIViewRepresentable {
     let item: PlayerRequest?
-    let makeRoot: (PlayerRequest) -> AnyView
+    let launch: PlayerLaunch?
+    let makeRoot: () -> AnyView
     let router: AppRouter
     let dismissed: () -> Void
 
@@ -81,53 +117,67 @@ private struct PlayerPresenter: UIViewRepresentable {
 
     func updateUIView(_ view: UIView, context: Context) {
         context.coordinator.watch(router)
-        context.coordinator.sync(item: item, view: view, makeRoot: makeRoot)
+        context.coordinator.sync(item: item, launch: launch, view: view, makeRoot: makeRoot)
     }
 
     @MainActor
     final class Coordinator {
         private var controller: LandscapeHostingController?
-        private var presentedID: UUID?
+        private var sessionActive = false
         private var task: Task<Void, Never>?
         private var watching: AnyCancellable?
 
         /// Closing the player clears the router's request: take the page down at once, whatever SwiftUI re-evaluates.
         func watch(_ router: AppRouter) {
             guard watching == nil else { return }
-            watching = router.$player.receive(on: DispatchQueue.main).sink { [weak self] request in
-                guard request == nil, let self = self, let controller = self.controller else { return }
+            let close: (AppRouter) -> Void = { [weak self] router in
+                guard router.player == nil, router.launch == nil, let self = self, let controller = self.controller else { return }
                 self.controller = nil
-                self.presentedID = nil
+                self.sessionActive = false
                 controller.dismiss(animated: false)
             }
+            // `$player` and `$launch` publish just before the value changes: look again on the next turn.
+            let players = router.$player.map { _ in Void() }
+            let launches = router.$launch.map { _ in Void() }
+            watching = Publishers.Merge(players, launches)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak router] in
+                    guard let router = router else { return }
+                    close(router)
+                }
         }
 
-        func sync(item: PlayerRequest?, view: UIView, makeRoot: @escaping (PlayerRequest) -> AnyView) {
-            guard let item = item else {
+        func sync(item: PlayerRequest?, launch: PlayerLaunch?, view: UIView, makeRoot: @escaping () -> AnyView) {
+            guard item != nil || launch != nil else {
                 task?.cancel()
                 task = nil
-                presentedID = nil
+                sessionActive = false
                 if let controller = controller {
                     self.controller = nil
                     controller.dismiss(animated: false)
                 }
                 return
             }
-            guard presentedID != item.id else { return }
-            presentedID = item.id
+            // One container for the whole run: the launch page, then the player in the same place.
+            guard !sessionActive else { return }
+            sessionActive = true
+            let immediate = launch != nil
             task?.cancel()
             task = Task { [weak self, weak view] in
-                await self?.present(item, from: view, makeRoot: makeRoot)
+                await self?.present(immediate: immediate, from: view, makeRoot: makeRoot)
             }
         }
 
-        private func present(_ item: PlayerRequest, from view: UIView?, makeRoot: (PlayerRequest) -> AnyView) async {
+        private func present(immediate: Bool, from view: UIView?, makeRoot: () -> AnyView) async {
             guard let base = Coordinator.owner(of: view) else { return }
-            // Wait for a sheet or a full-screen page that is still leaving (the source list closes just before the player opens).
-            for _ in 0..<40 {
-                if Task.isCancelled { return }
-                if base.presentedViewController == nil && !base.isBeingPresented && !base.isBeingDismissed { break }
-                try? await Task.sleep(nanoseconds: 100_000_000)
+            // The player of a title opened without a launch page waits for a sheet that is still leaving; the launch page does not wait:
+            // it goes over whatever is on screen, at once.
+            if !immediate {
+                for _ in 0..<40 {
+                    if Task.isCancelled { return }
+                    if base.presentedViewController == nil && !base.isBeingPresented && !base.isBeingDismissed { break }
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
             }
             guard !Task.isCancelled else { return }
             if let old = controller {
@@ -137,7 +187,7 @@ private struct PlayerPresenter: UIViewRepresentable {
             var top: UIViewController = base
             while let next = top.presentedViewController, !next.isBeingDismissed { top = next }
             OrientationController.set(.landscape)
-            let host = LandscapeHostingController(rootView: makeRoot(item))
+            let host = LandscapeHostingController(rootView: makeRoot())
             host.modalPresentationStyle = .fullScreen
             host.view.backgroundColor = .black
             controller = host
@@ -157,7 +207,7 @@ private struct PlayerPresenter: UIViewRepresentable {
 
 extension View {
     /// The player over this screen, always opening sideways.
-    func landscapePlayer(_ item: Binding<PlayerRequest?>) -> some View {
-        return modifier(LandscapePlayerCover(item: item))
+    func landscapePlayer(_ item: Binding<PlayerRequest?>, showsLaunch: Bool = false) -> some View {
+        return modifier(LandscapePlayerCover(item: item, showsLaunch: showsLaunch))
     }
 }
