@@ -102,6 +102,7 @@ struct HomeLayoutSettingsView: View {
                  ? "L'immagine occupa tutta la larghezza e sfuma nella pagina, con il titolo in sovrimpressione."
                  : "Una scheda con gli angoli arrotondati e il titolo sopra l'immagine.")
                 .font(.caption).foregroundStyle(Color.aetherSecondary)
+            HeroPreview(style: settings.value.appearance.heroStyle)
         }
     }
 
@@ -124,6 +125,7 @@ struct HomeLayoutSettingsView: View {
                 .pickerStyle(.segmented)
                 .accessibilityIdentifier("settings.home.size.\(section.id)")
             }
+            HomeCardPreview(style: section.effectiveStyle ?? .poster, size: section.size ?? .medium)
         }
     }
 
