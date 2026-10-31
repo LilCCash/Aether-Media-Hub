@@ -262,7 +262,7 @@ final class SearchViewModel: ObservableObject {
     @Published private(set) var advancedResult: AdvancedSearchResult?
     @Published private(set) var advancedBusy = false
     /// La frase per cui l'utente ha premuto «Cerca» sulla tastiera (l'AI può aspettare questo gesto).
-    var submittedQuery = ""
+    @Published var submittedQuery = ""
 
     private var lastQuery = ""
     private var sortInitialised = false
@@ -377,7 +377,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     func runAdvanced(env: AppEnvironment) async {
-        let options = env.settings.value.advancedSearch
+        let options = env.settings.value.content.advancedSearch
         let text = normalisedQuery
         guard options.hasAnyLevel, text.count >= 3 else {
             advancedResult = nil
@@ -515,7 +515,7 @@ struct SearchView: View {
             }
             .task(id: model.runKey) { await model.run(env: env) }
             .task(id: AdvancedRunKey(query: model.normalisedQuery, submitted: model.submittedQuery == model.normalisedQuery,
-                                     options: settings.value.advancedSearch, tmdbKey: env.credentials.isConfigured(.tmdb))) {
+                                     options: settings.value.content.advancedSearch, tmdbKey: env.credentials.isConfigured(.tmdb))) {
                 await model.runAdvanced(env: env)
             }
             .task(id: prepareKey) { await model.prepare(env: env) }
@@ -733,7 +733,7 @@ struct SearchView: View {
 
     @ViewBuilder
     private var advancedSection: some View {
-        let options = settings.value.advancedSearch
+        let options = settings.value.content.advancedSearch
         if options.hasAnyLevel {
             if model.advancedBusy {
                 HStack(spacing: 8) {

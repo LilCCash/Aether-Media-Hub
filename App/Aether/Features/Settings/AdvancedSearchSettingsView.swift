@@ -14,7 +14,7 @@ struct AdvancedSearchSettingsView: View {
         case failed(String)
     }
 
-    private var advanced: AdvancedSearchSettings { settings.value.advancedSearch }
+    private var advanced: AdvancedSearchSettings { settings.value.content.advancedSearch }
     private var provider: AISearchProvider { advanced.provider }
 
     var body: some View {
@@ -42,7 +42,7 @@ struct AdvancedSearchSettingsView: View {
 
     private var generalSection: some View {
         Section {
-            Toggle("Attiva la ricerca avanzata", isOn: settings.binding(\.advancedSearch.enabled))
+            Toggle("Attiva la ricerca avanzata", isOn: settings.binding(\.content.advancedSearch.enabled))
                 .accessibilityIdentifier("advsearch.enabled")
             LabeledContent("Chiave TMDB") {
                 Text(env.credentials.isConfigured(.tmdb) ? "Presente" : "Mancante")
@@ -57,15 +57,15 @@ struct AdvancedSearchSettingsView: View {
 
     private var levelsSection: some View {
         Section {
-            Toggle(isOn: settings.binding(\.advancedSearch.keywordSearch)) {
+            Toggle(isOn: settings.binding(\.content.advancedSearch.keywordSearch)) {
                 levelLabel("1 · Parole chiave", "Cerca anche per tema («slasher», «heist», «viaggi nel tempo») usando le parole chiave di TMDB. Gratis, nessun servizio in più.")
             }
             .accessibilityIdentifier("advsearch.keyword")
-            Toggle(isOn: settings.binding(\.advancedSearch.naturalParser)) {
+            Toggle(isOn: settings.binding(\.content.advancedSearch.naturalParser)) {
                 levelLabel("2 · Frasi in italiano (parser)", "Capisce in locale generi, anni, decenni, paesi e ordinamento («ultimi anni», «anni 80», «italiani», «migliori»). Gratis, senza AI e senza inviare la frase a nessuno tranne TMDB.")
             }
             .accessibilityIdentifier("advsearch.parser")
-            Toggle(isOn: settings.binding(\.advancedSearch.aiEnabled)) {
+            Toggle(isOn: settings.binding(\.content.advancedSearch.aiEnabled)) {
                 levelLabel("3 · Intelligenza artificiale", "Capisce frasi libere che il parser non conosce. Usa Apple Intelligence sul dispositivo e/o un modello in rete con la tua chiave.")
             }
             .accessibilityIdentifier("advsearch.ai")
@@ -109,13 +109,13 @@ struct AdvancedSearchSettingsView: View {
 
     private var appleSection: some View {
         Section {
-            Toggle("Usa Apple Intelligence", isOn: settings.binding(\.advancedSearch.useAppleIntelligence))
+            Toggle("Usa Apple Intelligence", isOn: settings.binding(\.content.advancedSearch.useAppleIntelligence))
                 .accessibilityIdentifier("advsearch.apple")
             Label(appleStatus.text, systemImage: appleStatus.isAvailable ? "apple.intelligence" : "exclamationmark.triangle")
                 .foregroundStyle(appleStatus.isAvailable ? Color.green : Color.orange)
                 .font(.footnote)
             if advanced.useAppleIntelligence {
-                Toggle("Se non risponde, usa il modello in rete", isOn: settings.binding(\.advancedSearch.fallbackToProvider))
+                Toggle("Se non risponde, usa il modello in rete", isOn: settings.binding(\.content.advancedSearch.fallbackToProvider))
             }
         } header: {
             Text("Apple Intelligence (sul dispositivo)")
@@ -129,7 +129,7 @@ struct AdvancedSearchSettingsView: View {
     private var providerSection: some View {
         Group {
             Section {
-                Picker("Servizio", selection: settings.binding(\.advancedSearch.provider)) {
+                Picker("Servizio", selection: settings.binding(\.content.advancedSearch.provider)) {
                     ForEach(AISearchProvider.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .accessibilityIdentifier("advsearch.provider")
@@ -140,12 +140,12 @@ struct AdvancedSearchSettingsView: View {
                 if !provider.suggestedModels.isEmpty {
                     Menu("Modelli consigliati") {
                         ForEach(provider.suggestedModels, id: \.self) { name in
-                            Button(name) { settings.value.advancedSearch.setModel(name, for: provider) }
+                            Button(name) { settings.value.content.advancedSearch.setModel(name, for: provider) }
                         }
                     }
                 }
                 if provider == .custom {
-                    TextField("Indirizzo (https://…/v1)", text: settings.binding(\.advancedSearch.customBaseURL))
+                    TextField("Indirizzo (https://…/v1)", text: settings.binding(\.content.advancedSearch.customBaseURL))
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
@@ -180,8 +180,8 @@ struct AdvancedSearchSettingsView: View {
     }
 
     private var modelBinding: Binding<String> {
-        Binding(get: { settings.value.advancedSearch.model(for: provider) },
-                set: { settings.value.advancedSearch.setModel($0, for: provider) })
+        Binding(get: { settings.value.content.advancedSearch.model(for: provider) },
+                set: { settings.value.content.advancedSearch.setModel($0, for: provider) })
     }
 
     private var providerFooter: String {
@@ -197,7 +197,7 @@ struct AdvancedSearchSettingsView: View {
     private func runTest() async {
         testState = .running
         let year = Calendar.current.component(.year, from: Date())
-        if let error = await env.advancedSearch.ai.test(settings: settings.value.advancedSearch, year: year) {
+        if let error = await env.advancedSearch.ai.test(settings: settings.value.content.advancedSearch, year: year) {
             testState = .failed(error.message)
         } else {
             testState = .ok
@@ -208,13 +208,13 @@ struct AdvancedSearchSettingsView: View {
 
     private var whenSection: some View {
         Section {
-            Picker("Interroga l'AI", selection: settings.binding(\.advancedSearch.aiTrigger)) {
+            Picker("Interroga l'AI", selection: settings.binding(\.content.advancedSearch.aiTrigger)) {
                 ForEach(AISearchTrigger.allCases, id: \.self) { Text($0.title).tag($0) }
             }
-            Picker("Intervento dell'AI", selection: settings.binding(\.advancedSearch.aiMode)) {
+            Picker("Intervento dell'AI", selection: settings.binding(\.content.advancedSearch.aiMode)) {
                 ForEach(AISearchMode.allCases, id: \.self) { Text($0.title).tag($0) }
             }
-            Stepper("Attesa massima: \(advanced.aiTimeout) s", value: settings.binding(\.advancedSearch.aiTimeout), in: 5...60, step: 5)
+            Stepper("Attesa massima: \(advanced.aiTimeout) s", value: settings.binding(\.content.advancedSearch.aiTimeout), in: 5...60, step: 5)
         } header: {
             Text("Quando usare l'AI")
         } footer: {
@@ -226,15 +226,15 @@ struct AdvancedSearchSettingsView: View {
 
     private var resultsSection: some View {
         Section {
-            Picker("Cerca tra", selection: settings.binding(\.advancedSearch.resultKind)) {
+            Picker("Cerca tra", selection: settings.binding(\.content.advancedSearch.resultKind)) {
                 ForEach(AdvancedResultKind.allCases, id: \.self) { Text($0.title).tag($0) }
             }
-            Stepper("Risultati: \(advanced.maxResults)", value: settings.binding(\.advancedSearch.maxResults), in: 5...40, step: 5)
-            Stepper("Voti minimi per «migliori»: \(advanced.minVotes)", value: settings.binding(\.advancedSearch.minVotes), in: 0...5000, step: 100)
-            Toggle("Mostra come ho letto la frase", isOn: settings.binding(\.advancedSearch.showInterpretation))
-            Toggle("Mostra chi l'ha interpretata", isOn: settings.binding(\.advancedSearch.showSource))
-            Toggle("Includi contenuti per adulti", isOn: settings.binding(\.advancedSearch.includeAdult))
-            Toggle("Ricorda le frasi già interpretate", isOn: settings.binding(\.advancedSearch.rememberInterpretations))
+            Stepper("Risultati: \(advanced.maxResults)", value: settings.binding(\.content.advancedSearch.maxResults), in: 5...40, step: 5)
+            Stepper("Voti minimi per «migliori»: \(advanced.minVotes)", value: settings.binding(\.content.advancedSearch.minVotes), in: 0...5000, step: 100)
+            Toggle("Mostra come ho letto la frase", isOn: settings.binding(\.content.advancedSearch.showInterpretation))
+            Toggle("Mostra chi l'ha interpretata", isOn: settings.binding(\.content.advancedSearch.showSource))
+            Toggle("Includi contenuti per adulti", isOn: settings.binding(\.content.advancedSearch.includeAdult))
+            Toggle("Ricorda le frasi già interpretate", isOn: settings.binding(\.content.advancedSearch.rememberInterpretations))
             Button("Svuota le frasi ricordate", role: .destructive) { env.advancedSearch.clearCache() }
         } header: {
             Text("Risultati")

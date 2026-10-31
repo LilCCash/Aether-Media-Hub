@@ -28,6 +28,18 @@ final class AdvancedSearchEngine: @unchecked Sendable {
         lock.unlock()
     }
 
+    private func cached(_ key: String) -> SearchIntent? {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache[key]
+    }
+
+    private func store(_ intent: SearchIntent, for key: String) {
+        lock.lock()
+        cache[key] = intent
+        lock.unlock()
+    }
+
     /// - Parameter submitted: l'utente ha premuto «Cerca» (serve per l'AI quando è impostata su «premendo Cerca»).
     func search(_ query: String, settings: AdvancedSearchSettings, language: String, submitted: Bool) async -> AdvancedSearchResult {
         guard settings.hasAnyLevel else { return AdvancedSearchResult(intent: nil, items: [], notes: []) }
@@ -69,10 +81,7 @@ final class AdvancedSearchEngine: @unchecked Sendable {
     private func askAI(_ query: String, settings: AdvancedSearchSettings, year: Int) async -> (intent: SearchIntent?, notes: [String]) {
         let key = "\(query.lowercased())|\(settings.useAppleIntelligence)|\(settings.provider.rawValue)|\(settings.model(for: settings.provider))"
         if settings.rememberInterpretations {
-            lock.lock()
-            let hit = cache[key]
-            lock.unlock()
-            if let hit = hit { return (hit, []) }
+            if let hit = cached(key) { return (hit, []) }
         }
         var notes: [String] = []
         var found: SearchIntent?
@@ -95,9 +104,7 @@ final class AdvancedSearchEngine: @unchecked Sendable {
             }
         }
         if let found = found, settings.rememberInterpretations {
-            lock.lock()
-            cache[key] = found
-            lock.unlock()
+            store(found, for: key)
         }
         return (found, notes)
     }
