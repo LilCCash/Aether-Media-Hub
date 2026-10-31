@@ -124,6 +124,7 @@ private struct PlayerPresenter: UIViewRepresentable {
     final class Coordinator {
         private var controller: LandscapeHostingController?
         private var sessionActive = false
+        private var presenting = false
         private var task: Task<Void, Never>?
         private var watching: AnyCancellable?
 
@@ -152,14 +153,20 @@ private struct PlayerPresenter: UIViewRepresentable {
                 task?.cancel()
                 task = nil
                 sessionActive = false
+                presenting = false
                 if let controller = controller {
                     self.controller = nil
                     controller.dismiss(animated: false)
                 }
                 return
             }
-            // One container for the whole run: the launch page, then the player in the same place.
-            guard !sessionActive else { return }
+            // One container for the whole run: the launch page, then the player in the same place. One that is up (or on its way up) is
+            // kept; one that never made it onto the screen is tried again.
+            if sessionActive {
+                if presenting || controller?.presentingViewController != nil { return }
+                controller = nil
+                sessionActive = false
+            }
             sessionActive = true
             let immediate = launch != nil
             task?.cancel()
@@ -169,9 +176,14 @@ private struct PlayerPresenter: UIViewRepresentable {
         }
 
         private func present(immediate: Bool, from view: UIView?, makeRoot: () -> AnyView) async {
-            guard let base = Coordinator.owner(of: view) else { return }
-            // The player of a title opened without a launch page waits for a sheet that is still leaving; the launch page does not wait:
-            // it goes over whatever is on screen, at once.
+            presenting = true
+            defer { presenting = false }
+            guard let base = Coordinator.owner(of: view) else {
+                sessionActive = false
+                return
+            }
+            // The player of a title opened without a launch page waits for a sheet that is still leaving; the launch page does not wait
+            // for the list to be gone: it goes over it, at once.
             if !immediate {
                 for _ in 0..<40 {
                     if Task.isCancelled { return }
@@ -184,14 +196,26 @@ private struct PlayerPresenter: UIViewRepresentable {
                 controller = nil
                 old.dismiss(animated: false)
             }
-            var top: UIViewController = base
-            while let next = top.presentedViewController, !next.isBeingDismissed { top = next }
             OrientationController.set(.landscape)
             let host = LandscapeHostingController(rootView: makeRoot())
             host.modalPresentationStyle = .fullScreen
             host.view.backgroundColor = .black
-            controller = host
-            top.present(host, animated: false)
+            // A source tapped the instant the list opens finds the list still sliding in: iOS refuses a page presented over a page that is
+            // moving. Look again every tenth of a second (up to two seconds) until it is still, and check that the page really came up.
+            for _ in 0..<20 {
+                if Task.isCancelled { return }
+                var top: UIViewController = base
+                while let next = top.presentedViewController, !next.isBeingDismissed { top = next }
+                let moving = top.isBeingPresented || top.isBeingDismissed || top.transitionCoordinator != nil
+                if !moving {
+                    controller = host
+                    top.present(host, animated: false)
+                    if host.presentingViewController != nil { return }
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            controller = nil
+            sessionActive = false
         }
 
         private static func owner(of view: UIView?) -> UIViewController? {
