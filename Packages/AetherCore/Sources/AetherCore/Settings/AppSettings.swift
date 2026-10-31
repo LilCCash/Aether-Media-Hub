@@ -165,6 +165,8 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var showHalos: Bool = true
     /// A title opened from the app is a card that comes up over the screen (swipe down to close); off, it fills the screen.
     public var detailAsCard: Bool = true
+    /// Seconds between two films of the featured carousel when it turns by itself (3 to 20).
+    public var heroInterval: Double = 7
     /// The title page grows out of the poster that was tapped (iOS 18 and later).
     public var zoomTransition: Bool = false
     public var posterSize: PosterSize = .medium
@@ -190,7 +192,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case customBackgroundHex, backdropIntensity, showPosterRatings, dynamicCinematic, cinematicMood, cinematicMotion, amoled, showHalos, detailAsCard, zoomTransition
+        case customBackgroundHex, backdropIntensity, showPosterRatings, dynamicCinematic, cinematicMood, cinematicMotion, amoled, showHalos, detailAsCard, zoomTransition, heroInterval
         case theme, accent, customAccentHex, posterSize, density, animationsEnabled, reduceVisualEffects, homeSections
         case heroStyle, heroAutoScroll, palette, backdrop, cardChrome, cornerStyle, titleFont
         case greetingEnabled, greetingName, unlockedSecrets
@@ -222,6 +224,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         showHalos = c.value(.showHalos, default: true)
         detailAsCard = c.value(.detailAsCard, default: true)
         zoomTransition = c.value(.zoomTransition, default: false)
+        heroInterval = min(20, max(3, c.value(.heroInterval, default: 7.0)))
         posterSize = c.value(.posterSize, default: .medium)
         density = c.value(.density, default: .comfortable)
         animationsEnabled = c.value(.animationsEnabled, default: true)

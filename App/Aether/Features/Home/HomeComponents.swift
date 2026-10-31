@@ -18,6 +18,7 @@ struct HeroCarousel: View {
     private var index: Int { min(max(position ?? 0, 0), max(items.count - 1, 0)) }
     private var pageHeight: CGFloat { style == .fullBleed ? HeroFullBleedCard.height : 430 }
     private var turnsPages: Bool { settings.animationsEnabled && settings.value.appearance.heroAutoScroll && !reduceMotion }
+    private var interval: Double { min(20, max(3, settings.value.appearance.heroInterval)) }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -47,11 +48,11 @@ struct HeroCarousel: View {
                 .accessibilityHidden(true)
             }
         }
-        .task(id: "\(items.count)-\(turnsPages)") {
+        .task(id: "\(items.count)-\(turnsPages)-\(interval)") {
             position = 0
             guard items.count > 1, turnsPages else { return }
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 7_000_000_000)
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
                 if Task.isCancelled { return }
                 withAnimation { position = (index + 1) % items.count }
             }

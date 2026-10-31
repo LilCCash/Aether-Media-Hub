@@ -98,6 +98,14 @@ struct HomeLayoutSettingsView: View {
             .accessibilityIdentifier("settings.home.heroStyle")
             Toggle("Scorrimento automatico", isOn: settings.binding(\.appearance.heroAutoScroll))
                 .accessibilityIdentifier("settings.home.heroAutoScroll")
+            if settings.value.appearance.heroAutoScroll {
+                VStack(alignment: .leading, spacing: 4) {
+                    LabeledContent("Intervallo tra un film e l'altro", value: "\(Int(settings.value.appearance.heroInterval)) s")
+                    Slider(value: settings.binding(\.appearance.heroInterval), in: 3...20, step: 1)
+                        .accessibilityLabel("Intervallo di scorrimento in secondi")
+                        .accessibilityIdentifier("settings.home.heroInterval")
+                }
+            }
             Text(settings.value.appearance.heroStyle == .fullBleed
                  ? "L'immagine occupa tutta la larghezza e sfuma nella pagina, con il titolo in sovrimpressione."
                  : "Una scheda con gli angoli arrotondati e il titolo sopra l'immagine.")
