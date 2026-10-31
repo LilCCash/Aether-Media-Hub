@@ -3,7 +3,7 @@ name: CI
 # Cost note: on a private repository GitHub bills macOS runner minutes at 10x. The UI tests take ~15 minutes, so they
 # run only on main and on manual runs ("Run workflow"); every other push builds the app and runs the unit tests (~4 min).
 # Documentation-only changes do not start the workflow.
-# A commit message with [skip ci] starts neither this workflow nor the IPA build (used to gather changes before one build).
+# A commit message with [skip ci] starts neither this workflow nor the IPA build (handy to gather several changes before one build).
 on:
   push:
     branches: ['**']
