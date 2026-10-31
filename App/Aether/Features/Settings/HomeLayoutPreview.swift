@@ -39,23 +39,32 @@ struct HomeCardPreview: View {
         }
     }
 
+    /// The sketch's own height (the cards are wider than the screen: only the height decides the layout, the width is cut at the row's edges).
+    private var sketchHeight: CGFloat {
+        if style == .compact { return 47 }
+        let width = HomeCardMetrics.width(style: style, size: size)
+        return width / HomeCardMetrics.aspectRatio(style: style) + 32
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Anteprima").font(.caption).foregroundStyle(Color.aetherSecondary)
-            Group {
-                if style == .compact {
-                    compactRow
-                } else {
-                    let width = HomeCardMetrics.width(style: style, size: size)
-                    HStack(alignment: .top, spacing: 12) {
-                        ForEach(0..<3, id: \.self) { tile($0, width: width) }
+            Color.clear
+                .frame(height: sketchHeight)
+                .overlay(alignment: .topLeading) {
+                    if style == .compact {
+                        compactRow
+                    } else {
+                        let width = HomeCardMetrics.width(style: style, size: size)
+                        HStack(alignment: .top, spacing: 12) {
+                            ForEach(0..<3, id: \.self) { tile($0, width: width) }
+                        }
+                        .fixedSize()
                     }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .clipped()
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: style)
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: size)
+                .clipped()
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: style)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: size)
         }
         .padding(.top, 4)
         .accessibilityHidden(true)

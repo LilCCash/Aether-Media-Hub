@@ -221,6 +221,8 @@ final class StreamPickerModel: ObservableObject {
 
     func start(env: AppEnvironment, onAutoSelect: @escaping (RankedStream) -> Void) {
         self.env = env
+        // The list shows again under the player (it closes itself afterwards): it must not start over and pick a source again.
+        guard !handingOver else { return }
         FanartLogoStore.shared.prefetch(meta: request.meta, env: env)
         task?.cancel()
         availabilityTask?.cancel()
@@ -516,10 +518,13 @@ final class StreamPickerModel: ObservableObject {
         launchRouter = env.router
         env.router.launch = page
         env.router.afterPlayer = dismiss
+        // The black page goes over this list: the list «disappears» for SwiftUI, but nothing was left, so its onDisappear must not cancel.
+        handingOver = true
     }
 
     /// Takes the page down (the source could not be played, or the wait was cancelled).
     private func endLaunch() {
+        if launch != nil { handingOver = false }
         guard let router = launchRouter else { launch = nil; return }
         if router.launch === launch, router.player == nil {
             router.launch = nil
