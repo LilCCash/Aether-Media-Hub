@@ -63,6 +63,7 @@ final class AppRouter: ObservableObject {
     @Published var tab: AppTab = .home
     @Published var player: PlayerRequest? {
         didSet {
+            note(player == nil ? "Lettore: chiuso" : "Lettore: richiesta di apertura")
             guard player == nil else { return }
             launch = nil
             // The source list stays under the player while it plays: when the player closes, it goes away too.
@@ -77,6 +78,8 @@ final class AppRouter: ObservableObject {
     }
     /// The page shown while the source is prepared; nil once the picture runs.
     @Published var launch: PlayerLaunch?
+    /// A line for the diagnostic log about how the player was opened and closed (set by the app).
+    var note: (String) -> Void = { _ in }
     /// What to do once the player closes (closing the source list that is still under it).
     var afterPlayer: (() -> Void)?
     /// Theater Mode (the landscape cinema browser) is open.

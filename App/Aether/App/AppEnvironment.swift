@@ -88,6 +88,8 @@ final class AppEnvironment: ObservableObject {
         addons = AddonStore(registry: registry)
         library = LibraryModel(store: libraryStore)
         router = AppRouter()
+        let log = diagnostics
+        router.note = { text in log.logDetached(.info, "player", text) }
         downloads = DownloadManager(paths: paths, snapshot: snapshot, diagnostics: diagnostics)
         let relayService = RelayService(settings: settings, diagnostics: diagnostics)
         relay = relayService

@@ -510,7 +510,7 @@ final class StreamPickerModel: ObservableObject {
 
     /// Puts the player's black page (logo, progress) on screen at once, over the list, turning the screen only once. Not in Theater Mode.
     private func beginLaunch(env: AppEnvironment, dismiss: @escaping () -> Void) {
-        guard !env.router.theater else { return }
+        guard !env.router.theater, env.settings.value.playback.instantLaunchPage else { return }
         endLaunch()
         let page = PlayerLaunch(meta: request.meta) { [weak self] in self?.cancelResolution() }
         page.resolution = resolution
@@ -518,13 +518,17 @@ final class StreamPickerModel: ObservableObject {
         launchRouter = env.router
         env.router.launch = page
         env.router.afterPlayer = dismiss
+        env.diagnostics.logDetached(.info, "player", "Apertura: pagina nera messa su schermo")
         // The black page goes over this list: the list «disappears» for SwiftUI, but nothing was left, so its onDisappear must not cancel.
         handingOver = true
     }
 
     /// Takes the page down (the source could not be played, or the wait was cancelled).
     private func endLaunch() {
-        if launch != nil { handingOver = false }
+        if launch != nil {
+            handingOver = false
+            launchRouter?.note("Apertura: pagina nera tolta (preparazione finita male o annullata)")
+        }
         guard let router = launchRouter else { launch = nil; return }
         if router.launch === launch, router.player == nil {
             router.launch = nil

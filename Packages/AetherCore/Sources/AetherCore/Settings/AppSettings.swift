@@ -465,6 +465,9 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var convertMatroskaForAVPlayer: Bool = false
     public var controlsAutoHideSeconds: Int = 4
     public var landscapeOnly: Bool = true
+    /// The black page with the film's logo opens at once, over the source list, and stays until the picture runs. Off: the older way (the list
+    /// closes first, then the player opens).
+    public var instantLaunchPage: Bool = true
     public var gesturesEnabled: Bool = true
     public var watchedThreshold: Double = 0.9
     public var video: VideoOutputSettings = VideoOutputSettings()
@@ -487,7 +490,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         case engine, autoResume, resumeRewindSeconds, skipBackSeconds, skipForwardSeconds, autoplayNextEpisode
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
-        case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly
+        case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly, instantLaunchPage
         case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering, convertMatroskaForAVPlayer
     }
 
@@ -514,6 +517,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         convertMatroskaForAVPlayer = c.value(.convertMatroskaForAVPlayer, default: false)
         controlsAutoHideSeconds = min(15, max(2, c.value(.controlsAutoHideSeconds, default: 4)))
         landscapeOnly = c.value(.landscapeOnly, default: true)
+        instantLaunchPage = c.value(.instantLaunchPage, default: true)
         gesturesEnabled = c.value(.gesturesEnabled, default: true)
         watchedThreshold = min(0.99, max(0.5, c.value(.watchedThreshold, default: 0.9)))
         video = c.value(.video, default: VideoOutputSettings())

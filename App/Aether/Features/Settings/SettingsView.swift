@@ -260,6 +260,7 @@ struct PlaybackSettingsView: View {
                 }
                 .disabled(!settings.value.playback.holdToSpeed)
                 Toggle("Riproduci sempre in orizzontale", isOn: settings.binding(\.playback.landscapeOnly))
+                Toggle("Pagina nera con logo subito all'apertura", isOn: settings.binding(\.playback.instantLaunchPage))
             }
             Section(header: Text("Episodi")) {
                 Toggle("Riproduci automaticamente il prossimo episodio", isOn: settings.binding(\.playback.autoplayNextEpisode))

@@ -229,7 +229,7 @@ private struct PlayerPresenter: UIViewRepresentable {
             host.view.backgroundColor = .black
             // A source tapped the instant the list opens finds the list still sliding in: iOS refuses a page presented over a page that is
             // moving. Look again every tenth of a second (up to two seconds) until it is still, and check that the page really came up.
-            for _ in 0..<20 {
+            for attempt in 0..<20 {
                 if Task.isCancelled { return }
                 var top: UIViewController = base
                 while let next = top.presentedViewController, !next.isBeingDismissed { top = next }
@@ -237,10 +237,14 @@ private struct PlayerPresenter: UIViewRepresentable {
                 if !moving {
                     controller = host
                     top.present(host, animated: false)
-                    if host.presentingViewController != nil { return }
+                    if host.presentingViewController != nil {
+                        router?.note("Apertura: pagina del lettore presentata (tentativo \(attempt + 1))")
+                        return
+                    }
                 }
                 try? await Task.sleep(nanoseconds: 100_000_000)
             }
+            router?.note("Apertura: la pagina del lettore non è comparsa, riporto tutto com'era")
             // It never came up: leave everything as it was before the tap, so another tap works (no need to restart the app). The source
             // that is being prepared then opens the way it did before the black page existed.
             controller = nil
