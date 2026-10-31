@@ -39,6 +39,18 @@ final class AdvancedSearchTests: XCTestCase {
         XCTAssertEqual(out.leftovers, ["inception"])
     }
 
+    func testSimilarTo() {
+        let a = parser.parse("film simili a Toy Story")
+        XCTAssertEqual(a.intent.similarTo, "Toy Story")
+        XCTAssertEqual(a.intent.kind, .movie)
+        let b = parser.parse("film tipo Scary Movie")
+        XCTAssertEqual(b.intent.similarTo, "Scary Movie")
+        let c = parser.parse("serie come Lost")
+        XCTAssertEqual(c.intent.similarTo, "Lost")
+        XCTAssertEqual(c.intent.kind, .series)
+        XCTAssertNil(parser.parse("come eravamo").intent.similarTo)
+    }
+
     func testAIResponseParsing() {
         let text = "```json\n{\"kind\":\"movie\",\"genres\":[\"comedy\",\"Horror\"],\"keywords\":[\"Parody\"],\"year_from\":2018,\"sort\":\"rating\",\"countries\":[\"it\"]}\n```"
         let intent = AIIntentCodec.parse(text)

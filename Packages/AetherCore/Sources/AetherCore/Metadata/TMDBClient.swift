@@ -140,6 +140,19 @@ public struct TMDBClient: Sendable {
         return body.results
     }
 
+    /// Titoli consigliati e simili a uno dato (`recommendations` poi `similar`, senza doppioni).
+    func related(kind: Kind, id: Int, language: String) async throws -> [TMDBDiscoverItem] {
+        let query = [("language", language), ("page", "1")]
+        let recommended: TMDBDiscoverResponse = try await get("/\(kind.rawValue)/\(id)/recommendations", query: query)
+        let similar: TMDBDiscoverResponse? = try? await get("/\(kind.rawValue)/\(id)/similar", query: query)
+        var seen = Set(recommended.results.compactMap { $0.id })
+        var all = recommended.results
+        for item in similar?.results ?? [] {
+            if let itemID = item.id, seen.insert(itemID).inserted { all.append(item) }
+        }
+        return all
+    }
+
     // MARK: Transport
 
     private func get<T: Decodable>(_ path: String, query: [(String, String)]) async throws -> T {

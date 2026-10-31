@@ -27,6 +27,22 @@ public struct AdvancedSearchService: Sendable {
         let kinds = Self.kinds(for: intent, settings: settings)
         guard !kinds.isEmpty else { return AdvancedSearchOutcome() }
 
+        // «Simili a …»: si cerca il titolo di partenza e si prendono i consigliati di TMDB.
+        if let reference = intent.similarTo {
+            var found: [(TMDBClient.Kind, TMDBDiscoverItem)] = []
+            for kind in kinds {
+                guard let match = (try? await tmdb.searchTitles(kind: kind, text: reference, language: language))?.first,
+                      let id = match.id else { continue }
+                let list = (try? await tmdb.related(kind: kind, id: id, language: language)) ?? []
+                found = list.filter { $0.id != id }.map { (kind, $0) }
+                notes.append("Titolo di partenza: «\(match.title ?? reference)»" + (match.date.map { " (\($0.prefix(4)))" } ?? "") + ".")
+                break
+            }
+            if found.isEmpty && notes.isEmpty { notes.append("Non ho trovato «\(reference)» su TMDB.") }
+            let items = await Self.items(from: found, tmdb: tmdb, limit: settings.maxResults)
+            return AdvancedSearchOutcome(items: items, notes: notes)
+        }
+
         // Un titolo preciso: ricerca per nome.
         if let title = intent.title, intent.genres.isEmpty {
             var found: [(TMDBClient.Kind, TMDBDiscoverItem)] = []
@@ -47,9 +63,15 @@ public struct AdvancedSearchService: Sendable {
         if !words.isEmpty && ids.isEmpty { notes.append("Nessuna parola chiave TMDB corrisponde a «\(words.joined(separator: ", "))»: ho usato solo gli altri filtri.") }
 
         var found = await fetch(kinds: kinds, intent: intent, keywordIDs: ids, settings: settings, language: language, notes: &notes)
-        if found.isEmpty && !ids.isEmpty {
-            found = await fetch(kinds: kinds, intent: intent, keywordIDs: [], settings: settings, language: language, notes: &notes)
-            if !found.isEmpty { notes.append("Con le parole chiave non c'erano risultati: ho tolto le parole chiave.") }
+        // Le parole chiave restringono molto: se i titoli sono pochi, si completa con quelli degli altri filtri.
+        if !ids.isEmpty && found.count < settings.maxResults {
+            let more = await fetch(kinds: kinds, intent: intent, keywordIDs: [], settings: settings, language: language, notes: &notes)
+            var seen = Set(found.compactMap { (entry: (TMDBClient.Kind, TMDBDiscoverItem)) -> String? in entry.1.id.map { "\(entry.0.rawValue)-\($0)" } })
+            for entry in more {
+                guard let id = entry.1.id, seen.insert("\(entry.0.rawValue)-\(id)").inserted else { continue }
+                found.append(entry)
+            }
+            if more.count > 0 { notes.append("Prima i titoli con la parola chiave, poi altri dello stesso genere.") }
         }
         let items = await Self.items(from: found, tmdb: tmdb, limit: settings.maxResults)
         return AdvancedSearchOutcome(items: items, notes: notes)

@@ -60,6 +60,13 @@ public struct NaturalQueryParser: Sendable {
     // MARK: Interpretazione
 
     public func parse(_ raw: String) -> Output {
+        if let similar = similarRequest(in: raw) {
+            var intent = SearchIntent()
+            intent.source = .parser
+            intent.similarTo = similar.title
+            intent.kind = similar.kind
+            return Output(intent: intent, leftovers: [])
+        }
         let lowered = raw.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "it_IT"))
             .replacingOccurrences(of: "’", with: "'")
         var intent = SearchIntent()
@@ -179,6 +186,30 @@ public struct NaturalQueryParser: Sendable {
     }
 
     // MARK: Helpers
+
+    /// «film simili a Toy Story», «film tipo Scary Movie», «serie come Lost».
+    private func similarRequest(in raw: String) -> (title: String, kind: IntentKind?)? {
+        let prefix = "^\\s*(film|serie tv|serie|telefilm|titoli)?\\s*"
+        let patterns: [(String, Bool)] = [
+            (prefix + "(?:simil[ei]\\s+(?:alle|alla|allo|all'|agli|ai|al|ad|a)\\s*|tipo\\s+|(?:sullo\\s+)?stile\\s+di\\s+|che\\s+ricordano\\s+|che\\s+assomigliano\\s+a\\s+)(.+?)\\s*$", false),
+            (prefix + "come\\s+(.+?)\\s*$", true),
+        ]
+        for (pattern, needsPrefix) in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+                  let match = regex.firstMatch(in: raw, options: [], range: NSRange(raw.startIndex..., in: raw)),
+                  match.numberOfRanges > 2, let titleRange = Range(match.range(at: 2), in: raw) else { continue }
+            var kindWord: String?
+            if let range = Range(match.range(at: 1), in: raw) { kindWord = raw[range].lowercased() }
+            if needsPrefix && kindWord == nil { continue }
+            let title = raw[titleRange].trimmingCharacters(in: CharacterSet(charactersIn: " .,;:!?\"“”«»"))
+            guard title.count >= 2, title.split(separator: " ").count <= 8 else { continue }
+            var kind: IntentKind?
+            if kindWord == "film" { kind = .movie }
+            if let word = kindWord, word.hasPrefix("serie") || word == "telefilm" { kind = .series }
+            return (title, kind)
+        }
+        return nil
+    }
 
     private func tokens(_ text: String) -> [String] {
         let separators = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "'-")).inverted

@@ -99,6 +99,8 @@ public struct SearchIntent: Equatable, Sendable {
     public var maxRuntime: Int?
     /// Il titolo cercato, se la frase ne contiene uno preciso.
     public var title: String?
+    /// «Film simili a Toy Story»: il titolo di partenza.
+    public var similarTo: String?
     public var source: Source = .parser
 
     public enum Source: String, Sendable { case keyword, parser, apple, ai }
@@ -108,12 +110,16 @@ public struct SearchIntent: Equatable, Sendable {
     /// Vero se il testo ha prodotto almeno un filtro utile.
     public var hasFilters: Bool {
         return !genres.isEmpty || !keywords.isEmpty || yearFrom != nil || yearTo != nil || minRating != nil
-            || !countries.isEmpty || maxRuntime != nil || kind != nil
+            || !countries.isEmpty || maxRuntime != nil || kind != nil || similarTo != nil
     }
 
     /// La frase letta dall'app, in italiano, per mostrarla all'utente.
     public var summary: String {
         var parts: [String] = []
+        if let similar = similarTo {
+            let label = kind == .series ? "serie" : (kind == .movie ? "film" : "titoli")
+            return "\(label) simili a «\(similar)»"
+        }
         if let kind = kind { parts.append(kind == .movie ? "film" : "serie") }
         if !genres.isEmpty { parts.append(genres.map { $0.italianName }.joined(separator: " + ")) }
         if !keywords.isEmpty { parts.append("«" + keywords.joined(separator: ", ") + "»") }

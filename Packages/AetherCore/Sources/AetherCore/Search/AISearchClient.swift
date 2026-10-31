@@ -35,7 +35,8 @@ public enum AIIntentCodec {
         "min_rating" (0-10); \
         "countries" (array of ISO 3166-1 codes); \
         "max_runtime" (minutes); \
-        "title" (only if the user names one specific title). \
+        "title" (only if the user names one specific title); \
+        "similar_to" (the reference title when the user asks for titles similar to / in the style of a specific film or series, e.g. "film simili a Toy Story" gives "Toy Story"). \
         The current year is \(year): "recent years" means the last 5 years. Never explain, never add text outside the JSON.
         """
     }
@@ -71,6 +72,7 @@ public enum AIIntentCodec {
         intent.countries = (object["countries"] as? [Any] ?? []).compactMap { $0 as? String }
             .map { $0.uppercased() }.filter { $0.count == 2 }
         if let runtime = integer(object["max_runtime"]), runtime > 20, runtime < 400 { intent.maxRuntime = runtime }
+        if let similar = (object["similar_to"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !similar.isEmpty { intent.similarTo = similar }
         if let title = (object["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty { intent.title = title }
         return intent.hasFilters || intent.title != nil ? intent : nil
     }
