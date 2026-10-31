@@ -80,6 +80,7 @@ struct SettingsRootView: View {
                 link("Theater Mode", "film.stack.fill", .yellow) { TheaterSettingsView() }
                 link("Riproduzione", "play.rectangle.fill", .orange) { PlaybackSettingsView() }
                 link("Contenuti e scoperta", "square.grid.2x2.fill", .green) { ContentSettingsView() }
+                link("Ricerca avanzata", "sparkle.magnifyingglass", .mint) { AdvancedSearchSettingsView() }
                 link("Casting", "tv.and.mediabox.fill", .teal) { CastingSettingsView() }
                 link("Servizi", "key.fill", .purple) { ServicesSettingsView() }
             }

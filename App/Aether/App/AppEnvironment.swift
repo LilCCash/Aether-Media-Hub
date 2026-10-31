@@ -36,6 +36,8 @@ final class AppEnvironment: ObservableObject {
     let fanart: FanartClient
     /// Ratings from IMDb, Rotten Tomatoes, Metacritic… via the viewer's own MDBList key.
     let mdblist: MDBListClient
+    /// Ricerca avanzata: parole chiave, frasi in italiano, Apple Intelligence e modelli AI con la chiave dell'utente.
+    let advancedSearch: AdvancedSearchEngine
     /// Debrid providers: connection status, cache checks and torrent resolution into playable links (user-supplied keys).
     let debrid: DebridService
     /// "Salta intro" / "Salta riassunto": the timing of an episode's intro and recap, from IntroDB (no key, nothing stored on disk).
@@ -106,6 +108,9 @@ final class AppEnvironment: ObservableObject {
             cache: responseCache)
         fanart = FanartClient(http: http, credentials: serviceKeys.provider(for: .fanart))
         mdblist = MDBListClient(http: http, credentials: serviceKeys.provider(for: .mdblist))
+        advancedSearch = AdvancedSearchEngine(
+            tmdb: TMDBClient(http: http, credentials: serviceKeys.provider(for: .tmdb), baseURL: tmdbBase),
+            ai: AISearchClient(http: http, key: { (provider: AISearchProvider) -> String? in serviceKeys.provider(for: ServiceKind.ai(provider))() }))
         // The UI tests point TorBox at their fixture server (a loopback address); a normal launch always uses api.torbox.app.
         let torboxBase = hooks.torboxServerURL.flatMap { DebridService.fixtureAPIBase(from: $0) } ?? TorBoxClient.productionBaseURL
         debrid = DebridService(credentials: serviceKeys, http: http, baseURL: torboxBase, log: diagnostics)

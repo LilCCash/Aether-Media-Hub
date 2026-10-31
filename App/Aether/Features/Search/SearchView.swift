@@ -234,6 +234,13 @@ struct SearchRunKey: Equatable {
     var capabilitiesStamp: Int
 }
 
+struct AdvancedRunKey: Equatable {
+    let query: String
+    let submitted: Bool
+    let options: AdvancedSearchSettings
+    let tmdbKey: Bool
+}
+
 // MARK: - View model
 
 @MainActor
@@ -251,6 +258,11 @@ final class SearchViewModel: ObservableObject {
     /// The plan of the last search: tells which filters went to the addons and which only Aether applies.
     @Published private(set) var plan: SearchPlan?
     @Published private(set) var remoteSearchEnabled = true
+    /// Ricerca avanzata (parole chiave / frasi / AI): risultato dell'ultima frase.
+    @Published private(set) var advancedResult: AdvancedSearchResult?
+    @Published private(set) var advancedBusy = false
+    /// La frase per cui l'utente ha premuto «Cerca» sulla tastiera (l'AI può aspettare questo gesto).
+    var submittedQuery = ""
 
     private var lastQuery = ""
     private var sortInitialised = false
@@ -364,6 +376,36 @@ final class SearchViewModel: ObservableObject {
         }
     }
 
+    func runAdvanced(env: AppEnvironment) async {
+        let options = env.settings.value.advancedSearch
+        let text = normalisedQuery
+        guard options.hasAnyLevel, text.count >= 3 else {
+            advancedResult = nil
+            advancedBusy = false
+            return
+        }
+        try? await Task.sleep(nanoseconds: 450_000_000)
+        if Task.isCancelled { return }
+        advancedBusy = true
+        let language = SearchViewModel.tmdbLanguage(env.settings.value.content.preferredLanguage)
+        let result = await env.advancedSearch.search(text, settings: options, language: language, submitted: submittedQuery == text)
+        if Task.isCancelled { return }
+        advancedResult = result
+        advancedBusy = false
+    }
+
+    static func tmdbLanguage(_ preferred: String) -> String {
+        let code = preferred == "system" ? (Locale.current.language.languageCode?.identifier ?? "it") : preferred
+        switch code {
+        case "it": return "it-IT"
+        case "en": return "en-US"
+        case "fr": return "fr-FR"
+        case "es": return "es-ES"
+        case "de": return "de-DE"
+        default: return code
+        }
+    }
+
     func run(env: AppEnvironment) async {
         let normalised = normalisedQuery
         guard normalised.count >= 2 else {
@@ -466,11 +508,16 @@ struct SearchView: View {
             .autocorrectionDisabled()
             .onSubmit(of: .search) {
                 let text = model.query
+                model.submittedQuery = model.normalisedQuery
                 // «Salva le ricerche recenti» (Impostazioni ▸ Contenuti) and the history switch of Privacy both stop the recording.
                 guard env.settings.value.content.saveSearchHistory, env.settings.value.privacy.recordHistory else { return }
                 Task { await env.libraryStore.addSearch(text) }
             }
             .task(id: model.runKey) { await model.run(env: env) }
+            .task(id: AdvancedRunKey(query: model.normalisedQuery, submitted: model.submittedQuery == model.normalisedQuery,
+                                     options: settings.value.advancedSearch, tmdbKey: env.credentials.isConfigured(.tmdb))) {
+                await model.runAdvanced(env: env)
+            }
             .task(id: prepareKey) { await model.prepare(env: env) }
             .onChange(of: router.pendingSearch) { _, new in
                 if let new = new { model.query = new; router.pendingSearch = nil }
@@ -646,6 +693,7 @@ struct SearchView: View {
                 .padding(.horizontal, Theme.pageMargin)
                 .accessibilityIdentifier("search.hidden")
         }
+        advancedSection
         if !presentation.library.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 SectionHeader(title: "Nella tua libreria")
@@ -665,7 +713,7 @@ struct SearchView: View {
                 }
             }
         }
-        if !model.isSearching && model.hasSearched && presentation.visibleCount == 0 {
+        if !model.isSearching && model.hasSearched && presentation.visibleCount == 0 && (model.advancedResult?.items.isEmpty ?? true) && !model.advancedBusy {
             if presentation.filteredOutCount > 0 {
                 EmptyStateView(systemImage: "line.3.horizontal.decrease.circle",
                                title: "Nessun risultato con questi filtri",
@@ -681,6 +729,52 @@ struct SearchView: View {
             InlineErrorView(message: "\(result.addonName) · \(result.title): \(result.error?.message ?? "errore")")
         }
         footnotes
+    }
+
+    @ViewBuilder
+    private var advancedSection: some View {
+        let options = settings.value.advancedSearch
+        if options.hasAnyLevel {
+            if model.advancedBusy {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Interpreto la ricerca…").font(.footnote).foregroundStyle(Color.aetherSecondary)
+                }
+                .padding(.horizontal, Theme.pageMargin)
+            }
+            if let result = model.advancedResult {
+                if !result.items.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionHeader(title: "Ricerca avanzata", subtitle: advancedSubtitle(result.intent, options))
+                        PosterRowView(items: result.items, watchlistIDs: library.watchlistIDs)
+                    }
+                    .accessibilityIdentifier("search.advanced")
+                }
+                if !result.notes.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(result.notes, id: \.self) { note in
+                            Text(note).font(.footnote).foregroundStyle(Color.aetherSecondary)
+                        }
+                    }
+                    .padding(.horizontal, Theme.pageMargin)
+                }
+            }
+        }
+    }
+
+    private func advancedSubtitle(_ intent: SearchIntent?, _ options: AdvancedSearchSettings) -> String? {
+        guard let intent = intent else { return nil }
+        var parts: [String] = []
+        if options.showInterpretation { parts.append(intent.summary) }
+        if options.showSource {
+            switch intent.source {
+            case .keyword: parts.append("parole chiave")
+            case .parser: parts.append("parser locale")
+            case .apple: parts.append("Apple Intelligence")
+            case .ai: parts.append(options.provider.title)
+            }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " — ")
     }
 
     /// How the filters were applied: what went to the addons and what only Aether checked.

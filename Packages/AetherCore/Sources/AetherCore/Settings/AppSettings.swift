@@ -571,13 +571,15 @@ public struct ContentSettings: Codable, Equatable, Sendable {
     public var titleModules = TitleModulesSettings()
     /// Ratings from MDBList: on/off and which services.
     public var ratings = RatingsSettings()
+    /// Ricerca avanzata: parole chiave, frasi e intelligenza artificiale.
+    public var advancedSearch = AdvancedSearchSettings()
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case preferredLanguage, catalogRefreshMinutes, hideAdultCatalogs, hideTalkShows, talkHome, talkDiscover, talkSearch, talkCast, talkSimilar, searchRemote, searchLocal
         case saveSearchHistory, searchSort, discoverTypes
-        case catalogLayout, streamDisplay, titleModules, ratings
+        case catalogLayout, streamDisplay, titleModules, ratings, advancedSearch
     }
 
     public init(from decoder: Decoder) throws {
@@ -600,6 +602,7 @@ public struct ContentSettings: Codable, Equatable, Sendable {
         streamDisplay = c.value(.streamDisplay, default: StreamDisplaySettings())
         titleModules = c.value(.titleModules, default: TitleModulesSettings())
         ratings = c.value(.ratings, default: RatingsSettings())
+        advancedSearch = c.value(.advancedSearch, default: AdvancedSearchSettings())
     }
 }
 

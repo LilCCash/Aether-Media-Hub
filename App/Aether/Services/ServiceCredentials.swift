@@ -4,6 +4,7 @@ import AetherCore
 /// The optional third-party services Aether can talk to with the user's own account / key.
 enum ServiceKind: String, CaseIterable, Identifiable {
     case torbox, realdebrid, tmdb, tvdb, fanart, mdblist
+    case aiAnthropic, aiOpenAI, aiGoogle, aiOpenRouter, aiCustom
 
     var id: String { rawValue }
 
@@ -15,6 +16,11 @@ enum ServiceKind: String, CaseIterable, Identifiable {
         case .tvdb: return "TheTVDB"
         case .fanart: return "fanart.tv"
         case .mdblist: return "MDBList"
+        case .aiAnthropic: return "Claude (Anthropic)"
+        case .aiOpenAI: return "OpenAI"
+        case .aiGoogle: return "Gemini (Google)"
+        case .aiOpenRouter: return "OpenRouter"
+        case .aiCustom: return "Server compatibile OpenAI"
         }
     }
 
@@ -27,6 +33,19 @@ enum ServiceKind: String, CaseIterable, Identifiable {
 
 /// Keychain-backed keys for the optional services. Only *whether* a key exists is published; the key itself is read on
 /// demand by whatever client needs it and is never stored in settings, logs or the UI state.
+extension ServiceKind {
+    /// La chiave del modello AI scelto.
+    static func ai(_ provider: AISearchProvider) -> ServiceKind {
+        switch provider {
+        case .anthropic: return .aiAnthropic
+        case .openai: return .aiOpenAI
+        case .google: return .aiGoogle
+        case .openrouter: return .aiOpenRouter
+        case .custom: return .aiCustom
+        }
+    }
+}
+
 @MainActor
 final class ServiceCredentials: ObservableObject {
     @Published private(set) var configured: Set<ServiceKind> = []

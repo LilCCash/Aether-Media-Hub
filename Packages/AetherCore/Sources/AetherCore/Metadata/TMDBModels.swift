@@ -265,3 +265,58 @@ struct TMDBImageList: Decodable {
         logos = c.lossyArray(TMDBLogo.self, forKey: .logos)
     }
 }
+
+// MARK: - Discover / keywords (ricerca avanzata)
+
+struct TMDBKeywordResponse: Decodable {
+    var results: [Int] = []
+    private enum CodingKeys: String, CodingKey { case results }
+    private struct Entry: Decodable {
+        var id: Int?
+        private enum CodingKeys: String, CodingKey { case id }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = c.flexInt(.id)
+        }
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        results = c.lossyArray(Entry.self, forKey: .results).compactMap { $0.id }
+    }
+}
+
+struct TMDBDiscoverItem: Decodable {
+    var id: Int?
+    var title: String?
+    var overview: String?
+    var posterPath: String?
+    var backdropPath: String?
+    var date: String?
+    var voteAverage: Double?
+    var genreIDs: [Int] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, name, overview, poster_path, backdrop_path, release_date, first_air_date, vote_average, genre_ids
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.flexInt(.id)
+        title = c.flexString(.title) ?? c.flexString(.name)
+        overview = c.flexString(.overview).flatMap { $0.isEmpty ? nil : $0 }
+        posterPath = c.flexString(.poster_path)
+        backdropPath = c.flexString(.backdrop_path)
+        date = c.flexString(.release_date) ?? c.flexString(.first_air_date)
+        voteAverage = c.flexString(.vote_average).flatMap { Double($0) }
+        genreIDs = c.lossyArray(FlexInt.self, forKey: .genre_ids).compactMap { $0.value }
+    }
+}
+
+struct TMDBDiscoverResponse: Decodable {
+    var results: [TMDBDiscoverItem] = []
+    private enum CodingKeys: String, CodingKey { case results }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        results = c.lossyArray(TMDBDiscoverItem.self, forKey: .results)
+    }
+}

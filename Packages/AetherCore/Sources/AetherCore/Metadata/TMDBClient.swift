@@ -121,6 +121,25 @@ public struct TMDBClient: Sendable {
         }
     }
 
+    // MARK: Discover (ricerca avanzata)
+
+    /// «search/keyword»: la prima parola chiave TMDB che corrisponde al testo.
+    func keywordIDs(matching text: String, limit: Int = 2) async throws -> [Int] {
+        let body: TMDBKeywordResponse = try await get("/search/keyword", query: [("query", text), ("page", "1")])
+        return Array(body.results.prefix(limit))
+    }
+
+    func discover(kind: Kind, query: [(String, String)]) async throws -> [TMDBDiscoverItem] {
+        let body: TMDBDiscoverResponse = try await get("/discover/\(kind.rawValue)", query: query)
+        return body.results
+    }
+
+    /// «search/{kind}»: per quando la frase contiene un titolo preciso.
+    func searchTitles(kind: Kind, text: String, language: String) async throws -> [TMDBDiscoverItem] {
+        let body: TMDBDiscoverResponse = try await get("/search/\(kind.rawValue)", query: [("query", text), ("language", language), ("page", "1")])
+        return body.results
+    }
+
     // MARK: Transport
 
     private func get<T: Decodable>(_ path: String, query: [(String, String)]) async throws -> T {
