@@ -115,6 +115,8 @@ final class StreamPickerModel: ObservableObject {
     @Published private(set) var isLoading = true
     @Published private(set) var pendingAddons: [String] = []
     @Published var addonFilter: String?
+    /// What the viewer typed in the search field: every word has to be in the source's name, quality, language, file name or addon.
+    @Published var searchText = ""
     @Published var blockedMessage: String?
     @Published var infoMessage: String?
 
@@ -176,8 +178,20 @@ final class StreamPickerModel: ObservableObject {
     }
 
     func filtered(_ list: [RankedStream]) -> [RankedStream] {
-        guard let filter = addonFilter else { return list }
-        return list.filter { $0.stream.addonName == filter }
+        var result = list
+        if let filter = addonFilter { result = result.filter { $0.stream.addonName == filter } }
+        let words = StreamPickerModel.fold(searchText).split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        guard !words.isEmpty else { return result }
+        return result.filter { item in
+            let fields: [String?] = [item.stream.name, item.stream.details, item.stream.behaviorHints.filename, item.stream.addonName,
+                                     item.info.formatLabel, item.info.container]
+            let text = StreamPickerModel.fold((fields.compactMap { $0 } + item.info.badges + item.info.languages).joined(separator: " "))
+            return words.allSatisfy { text.contains($0) }
+        }
+    }
+
+    private static func fold(_ text: String) -> String {
+        return text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
     }
 
     var debridConfigured: Bool { return env?.debrid.isConfigured ?? false }
@@ -663,6 +677,8 @@ struct StreamPickerSheet: View {
             .listStyle(.insetGrouped)
             .navigationTitle("Scegli la sorgente")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $model.searchText, placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: "Cerca tra le sorgenti (nome, qualità, lingua…)")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Chiudi") { dismiss() }
