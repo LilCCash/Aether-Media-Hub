@@ -51,6 +51,14 @@ public struct InstalledAddon: Codable, Hashable, Identifiable, Sendable {
     public func isCatalogVisible(_ catalog: ManifestCatalog) -> Bool {
         return !hiddenCatalogs.contains(catalog.key)
     }
+
+    /// La chiave con cui si spegne un catalogo solo nella ricerca (a parte Home e Scopri).
+    public static func searchKey(_ catalog: ManifestCatalog) -> String { return "search:" + catalog.key }
+
+    /// Vero se il catalogo può rispondere alle ricerche (l'utente può escluderlo da Addon ▸ Cataloghi).
+    public func isCatalogSearchable(_ catalog: ManifestCatalog) -> Bool {
+        return !hiddenCatalogs.contains(InstalledAddon.searchKey(catalog))
+    }
 }
 
 /// Everything the request layer needs to talk to one addon.

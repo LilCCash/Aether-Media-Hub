@@ -50,7 +50,7 @@ public enum RequestPlanner {
         for handle in handles {
             for catalog in handle.addon.manifest.catalogs {
                 if let type = type, catalog.type != type { continue }
-                if catalog.isExtraSupported(probe) {
+                if catalog.isExtraSupported(probe) && handle.addon.isCatalogSearchable(catalog) {
                     result.append(CatalogRef(addonID: handle.addon.id, addonName: handle.addon.displayName, catalog: catalog))
                 }
             }

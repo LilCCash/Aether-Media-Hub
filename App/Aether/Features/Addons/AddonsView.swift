@@ -438,18 +438,30 @@ struct AddonDetailView: View {
                         if addon.manifest.behaviorHints.configurable { Label("Configurabile", systemImage: "slider.horizontal.3").font(.footnote) }
                     }
                     if !addon.manifest.catalogs.isEmpty {
-                        Section(header: Text("Cataloghi"), footer: Text("Disattiva un catalogo per nasconderlo da Home e Scopri. Le ricerche lo useranno comunque se supporta la ricerca.")) {
+                        Section(header: Text("Cataloghi"), footer: Text("Disattiva un catalogo per nasconderlo da Home e Scopri. I moduli di ricerca (quelli che chiedono un filtro) non compaiono mai in Home e Scopri: per loro l'interruttore decide se partecipano alla ricerca.")) {
                             ForEach(addon.manifest.catalogs, id: \.key) { catalog in
-                                Toggle(isOn: Binding(
-                                    get: { addon.isCatalogVisible(catalog) },
-                                    set: { value in Task { await addons.setCatalogVisible(value, catalogKey: catalog.key, id: addon.id) } })) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(catalog.name)
-                                        Text("\(RequestPlanner.friendlyTypeName(catalog.type))\(catalog.supportsSearch ? " · ricerca" : "")\(catalog.isPlainFeed ? "" : " · richiede filtri")")
-                                            .font(.caption).foregroundStyle(Color.aetherSecondary)
+                                if !catalog.isPlainFeed && catalog.supportsSearch {
+                                    Toggle(isOn: Binding(
+                                        get: { addon.isCatalogSearchable(catalog) },
+                                        set: { value in Task { await addons.setCatalogVisible(value, catalogKey: InstalledAddon.searchKey(catalog), id: addon.id) } })) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(catalog.name)
+                                            Text("\(RequestPlanner.friendlyTypeName(catalog.type)) · usato nella ricerca")
+                                                .font(.caption).foregroundStyle(Color.aetherSecondary)
+                                        }
                                     }
+                                } else {
+                                    Toggle(isOn: Binding(
+                                        get: { addon.isCatalogVisible(catalog) },
+                                        set: { value in Task { await addons.setCatalogVisible(value, catalogKey: catalog.key, id: addon.id) } })) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(catalog.name)
+                                            Text("\(RequestPlanner.friendlyTypeName(catalog.type))\(catalog.supportsSearch ? " · ricerca" : "")\(catalog.isPlainFeed ? "" : " · richiede filtri")")
+                                                .font(.caption).foregroundStyle(Color.aetherSecondary)
+                                        }
+                                    }
+                                    .disabled(!catalog.isPlainFeed)
                                 }
-                                .disabled(!catalog.isPlainFeed)
                             }
                         }
                     }
