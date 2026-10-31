@@ -223,6 +223,20 @@ private struct PlayerPresenter: UIViewRepresentable {
                 controller = nil
                 old.dismiss(animated: false)
             }
+            if !immediate {
+                // Without the launch page: exactly as the player always opened (it waited for the list to be gone, then came up over what
+                // was left).
+                var top: UIViewController = base
+                while let next = top.presentedViewController, !next.isBeingDismissed { top = next }
+                OrientationController.set(.landscape)
+                let host = LandscapeHostingController(rootView: makeRoot())
+                host.modalPresentationStyle = .fullScreen
+                host.view.backgroundColor = .black
+                controller = host
+                top.present(host, animated: false)
+                router?.note("Apertura: pagina del lettore presentata (senza pagina nera)")
+                return
+            }
             OrientationController.set(.landscape)
             let host = LandscapeHostingController(rootView: makeRoot())
             host.modalPresentationStyle = .fullScreen
