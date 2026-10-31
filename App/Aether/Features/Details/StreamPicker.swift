@@ -598,8 +598,13 @@ final class StreamPickerModel: ObservableObject {
     }
 
     /// A dialog asked for while the full-screen page is still leaving is dropped by iOS: wait for it to be gone.
+    /// The black player page leaves and the screen turns back first (up to about two seconds); a dialog asked for while that happens is dropped.
     private func settleCover() async {
-        try? await Task.sleep(nanoseconds: 450_000_000)
+        for _ in 0..<20 {
+            if !LandscapeHostingController.isShowing { break }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        try? await Task.sleep(nanoseconds: 700_000_000)
     }
 
     private func receive(_ progress: DebridProgress, sequence: Int, token: UUID) {

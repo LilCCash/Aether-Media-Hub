@@ -29,6 +29,18 @@ final class LandscapeHostingController: UIHostingController<AnyView> {
         LandscapeHostingController.current = self
     }
 
+    /// True while a player page (or the black launch page) is on screen anywhere in the presented chain.
+    @MainActor
+    static var isShowing: Bool {
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return false }
+        var controller = scene.keyWindow?.rootViewController
+        while let current = controller {
+            if current is LandscapeHostingController { return true }
+            controller = current.presentedViewController
+        }
+        return false
+    }
+
     /// Takes the page down and only then gives the screen back to the orientation of the app: asked before, the request is refused
     /// (this page, still on top, only allows landscape) and the app stays sideways. Asked once more a moment later, for the slow cases.
     @MainActor
