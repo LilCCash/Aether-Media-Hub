@@ -649,8 +649,6 @@ class _StreamRow extends StatelessWidget {
       if (!hide.contains('language'))
         for (final l in info.languages)
           Pill(style: st, l, color: AetherTokens.success),
-      if (info.sizeLabel != null && !hide.contains('size'))
-        Pill(style: st, info.sizeLabel!),
       if (info.format != null && !hide.contains('format'))
         Pill(style: st, info.format!),
       if (info.release != null) Pill(style: st, info.release!),
@@ -731,6 +729,8 @@ class _StreamRow extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (info.sizeLabel != null && !hide.contains('size'))
+                  _SizeBadge(label: info.sizeLabel!, bytes: info.sizeBytes!),
                 PopupMenuButton<String>(
                   tooltip: 'Altre azioni',
                   icon: const Icon(Icons.more_vert_rounded),
@@ -741,6 +741,38 @@ class _StreamRow extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The weight of the file, large and coloured by how heavy it is (it decides how long a source takes to start and how much data it uses).
+class _SizeBadge extends StatelessWidget {
+  const _SizeBadge({required this.label, required this.bytes});
+  final String label;
+  final int bytes;
+
+  @override
+  Widget build(BuildContext context) {
+    final gb = bytes / 1073741824;
+    final color = gb < 4
+        ? AetherTokens.success
+        : (gb < 12 ? const Color(0xFF7FB2FF) : AetherTokens.warning);
+    return Container(
+      margin: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 0.8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          color: color,
         ),
       ),
     );

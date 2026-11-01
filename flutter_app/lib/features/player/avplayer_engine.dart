@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../core/subtitles/subtitle_parser.dart';
 import '../../core/util/app_log.dart';
 import 'playback_engine.dart';
 import 'remux_bridge.dart';
@@ -128,8 +129,9 @@ class AvPlayerEngine implements PlaybackEngine {
 
   @override
   Future<void> open(PlaybackSource source) async {
-    _tick?.cancel();
-    await _c?.dispose();
+    // On a reopen (another audio track, a change of route) the last picture stays on screen, paused, until the new one is ready.
+    final old = _c;
+    if (old != null) unawaited(old.pause());
     _completed = false;
     _lastError = null;
     _source = source;
@@ -153,7 +155,9 @@ class AvPlayerEngine implements PlaybackEngine {
         lease = l;
         uri = l.url;
         headers = const {};
-        _trackList = EngineTracks(audio: l.audio);
+        _trackList = EngineTracks(audio: l.audio, subtitles: l.subtitles);
+        // The subtitle lines of the file come as its pieces are made; the app draws them (the system player is not asked to).
+        _cueSub ??= RemuxBridge.cues.listen(_addCues);
         // On the phone the file is served on 127.0.0.1 (no network permission needed); when the output moves to an AirPlay
         // receiver it is served again on the Wi-Fi address, from the same place.
         _route ??= RemuxBridge.airplay.listen((on) {
@@ -192,17 +196,27 @@ class AvPlayerEngine implements PlaybackEngine {
               allowBackgroundPlayback: true,
             ),
           );
-    _c = c;
-    _tick = Timer.periodic(const Duration(milliseconds: 250), (_) => _poll());
     try {
       await c.initialize().timeout(const Duration(seconds: 45));
     } on TimeoutException {
+      unawaited(c.dispose());
       throw StateError('AVPlayer non carica la lista HLS (oltre 45 s).');
     }
-    AppLog.instance.add('player', 'AVPlayer: pronto');
-    await c.setVolume(_volume);
-    await c.setPlaybackSpeed(_rate);
+    await Future.wait([
+      c.setVolume(_volume),
+      if (_rate != 1.0) c.setPlaybackSpeed(_rate),
+    ]);
+    // Set to the right place before it replaces the old one, so the position never goes back to zero (that would bring up the logo).
     if (source.start > Duration.zero) await c.seekTo(source.start);
+    _tick?.cancel();
+    _c = c;
+    _tick = Timer.periodic(const Duration(milliseconds: 250), (_) => _poll());
+    // The picture is redrawn on the new controller first; the old one goes away once the new view is on screen.
+    _swap.value++;
+    if (old != null) {
+      Timer(const Duration(milliseconds: 600), () => unawaited(old.dispose()));
+    }
+    AppLog.instance.add('player', 'AVPlayer: pronto');
     await c.play();
     _tracks.add(_trackList);
     _poll();
@@ -245,6 +259,30 @@ class AvPlayerEngine implements PlaybackEngine {
 
   int? _audioIndex;
 
+  StreamSubscription<List<RemuxCueItem>>? _cueSub;
+  final Map<String, List<SubtitleCue>> _cueStore = {};
+  final Set<String> _cueSeen = {};
+
+  void _addCues(List<RemuxCueItem> items) {
+    final touched = <String>{};
+    for (final i in items) {
+      if (!_cueSeen.add('${i.track}|${i.start.inMilliseconds}|${i.text}')) {
+        continue;
+      }
+      (_cueStore[i.track] ??= []).add(SubtitleCue(i.start, i.end, i.text));
+      touched.add(i.track);
+    }
+    for (final t in touched) {
+      _cueStore[t]!.sort((a, b) => a.start.compareTo(b.start));
+    }
+  }
+
+  /// The lines of a subtitle track of the file read so far (sorted), or null when this track has none.
+  List<SubtitleCue>? cuesFor(TrackInfo track) => _cueStore[track.id];
+
+  /// Counts the controller swaps, so the picture is built again on the new one.
+  final _swap = ValueNotifier<int>(0);
+
   Future<void> _reopenHere() async {
     final src = _source;
     if (src == null) return;
@@ -280,25 +318,30 @@ class AvPlayerEngine implements PlaybackEngine {
 
   @override
   Widget buildVideo(BuildContext context, {required BoxFit fit}) {
-    final c = _c;
-    if (c == null) return const SizedBox.expand();
-    return ValueListenableBuilder<VideoPlayerValue>(
-      valueListenable: c,
-      builder: (context, v, _) {
-        if (!v.isInitialized || v.size == Size.zero) {
-          return const SizedBox.expand();
-        }
-        return ClipRect(
-          child: SizedBox.expand(
-            child: FittedBox(
-              fit: fit,
-              child: SizedBox(
-                width: v.size.width,
-                height: v.size.height,
-                child: VideoPlayer(c),
+    return ValueListenableBuilder<int>(
+      valueListenable: _swap,
+      builder: (context, _, _) {
+        final c = _c;
+        if (c == null) return const SizedBox.expand();
+        return ValueListenableBuilder<VideoPlayerValue>(
+          valueListenable: c,
+          builder: (context, v, _) {
+            if (!v.isInitialized || v.size == Size.zero) {
+              return const SizedBox.expand();
+            }
+            return ClipRect(
+              child: SizedBox.expand(
+                child: FittedBox(
+                  fit: fit,
+                  child: SizedBox(
+                    width: v.size.width,
+                    height: v.size.height,
+                    child: VideoPlayer(c, key: ObjectKey(c)),
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -308,6 +351,7 @@ class AvPlayerEngine implements PlaybackEngine {
   Future<void> dispose() async {
     _tick?.cancel();
     await _route?.cancel();
+    await _cueSub?.cancel();
     await _c?.dispose();
     if (lease != null) await RemuxBridge.close();
     for (final s in [

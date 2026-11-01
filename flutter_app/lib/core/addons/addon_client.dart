@@ -141,10 +141,11 @@ class AddonClient {
     String videoId, {
     String? addonName,
     CancelToken? cancel,
+    Map<String, String> extra = const {},
   }) async {
     final json = asMap(
       await _getJson(
-        resourceUri(base, 'subtitles', type, videoId),
+        resourceUri(base, 'subtitles', type, videoId, extra: extra),
         cancel: cancel,
       ),
     );

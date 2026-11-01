@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/orientation.dart';
 import '../../app/providers.dart';
 import '../../design/glass.dart';
+import '../../design/loader.dart';
 import 'playback_engine.dart';
 import 'player_screen.dart';
 import 'player_session.dart';
@@ -32,7 +33,6 @@ class _PreparingPlayerState extends ConsumerState<PreparingPlayer>
     with HidesDock<PreparingPlayer> {
   PlayerArgs? _ready;
   String _message = 'Contatto il servizio…';
-  double? _fraction;
   String? _error;
   CancelToken _cancel = CancelToken();
 
@@ -54,12 +54,9 @@ class _PreparingPlayerState extends ConsumerState<PreparingPlayer>
     setState(() => _error = null);
     _cancel = CancelToken();
     final control = PrepareControl(
-      status: (m, [f]) {
+      status: (m, [_]) {
         if (mounted) {
-          setState(() {
-            _message = m;
-            _fraction = f;
-          });
+          setState(() => _message = m);
         }
       },
       confirm: (title, message, yes) async =>
@@ -142,11 +139,8 @@ class _PreparingPlayerState extends ConsumerState<PreparingPlayer>
                     ),
                   const SizedBox(height: 22),
                   if (_error == null) ...[
-                    SizedBox(
-                      width: 220,
-                      child: LinearProgressIndicator(value: _fraction),
-                    ),
-                    const SizedBox(height: 12),
+                    const AetherLoader(),
+                    const SizedBox(height: 14),
                     Text(_message),
                   ] else ...[
                     Text(_error!, textAlign: TextAlign.center),
