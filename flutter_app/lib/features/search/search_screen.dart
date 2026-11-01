@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/catalog/result_filters.dart';
 import '../../core/model/meta.dart';
-import '../../core/search/advanced_search_engine.dart';
-import '../../core/search/ai_search_client.dart';
 import '../../core/search/search_intent.dart';
 import '../../data/prefs_ext.dart';
 
