@@ -89,12 +89,21 @@ final class AdvancedSearchTests: XCTestCase {
         XCTAssertEqual(a.first?.note, "veloce ed economico")
         let openai = Data("{\"data\":[{\"id\":\"text-embedding-3-small\"},{\"id\":\"gpt-4o\"},{\"id\":\"gpt-4o-mini\"},{\"id\":\"whisper-1\"}]}".utf8)
         XCTAssertEqual(AIModelCatalog.parse(provider: .openai, data: openai).map { $0.id }, ["gpt-4o-mini", "gpt-4o"])
-        let google = Data("{\"models\":[{\"name\":\"models/gemini-2.0-flash\",\"supportedGenerationMethods\":[\"generateContent\"]},{\"name\":\"models/embedding-001\",\"supportedGenerationMethods\":[\"embedContent\"]}]}".utf8)
+        let google = Data("{\"models\":[{\"name\":\"models/gemini-2.0-flash\",\"supportedGenerationMethods\":[\"generateContent\"]},{\"name\":\"models/gemini-2.5-flash-image\",\"supportedGenerationMethods\":[\"generateContent\"]},{\"name\":\"models/embedding-001\",\"supportedGenerationMethods\":[\"embedContent\"]}]}".utf8)
         XCTAssertEqual(AIModelCatalog.parse(provider: .google, data: google).map { $0.id }, ["gemini-2.0-flash"])
         let router = Data("{\"data\":[{\"id\":\"a/b:free\",\"name\":\"B\"},{\"id\":\"c/d\",\"name\":\"D\",\"architecture\":{\"output_modalities\":[\"image\"]}}]}".utf8)
         let r = AIModelCatalog.parse(provider: .openrouter, data: router)
         XCTAssertEqual(r.map { $0.id }, ["a/b:free"])
         XCTAssertEqual(r.first?.note, "gratuito")
+    }
+
+    func testErrorMapping() {
+        let invalid = Data("{\"error\":{\"code\":400,\"message\":\"API key not valid. Please pass a valid API key.\"}}".utf8)
+        XCTAssertEqual(AISearchClient.error(status: 400, data: invalid), .invalidCredentials)
+        let missing = Data("{\"error\":{\"message\":\"models/x is not found\"}}".utf8)
+        XCTAssertEqual(AISearchClient.error(status: 404, data: missing), .server(404, "models/x is not found"))
+        XCTAssertEqual(AISearchClient.error(status: 429, data: Data()), .rateLimited)
+        XCTAssertTrue(AISearchError.server(404, "x").message.contains("404"))
     }
 
     func testListRequests() throws {

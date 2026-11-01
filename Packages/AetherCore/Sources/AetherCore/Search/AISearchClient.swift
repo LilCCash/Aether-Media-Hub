@@ -7,6 +7,8 @@ public enum AISearchError: Error, Equatable, Sendable {
     case badEndpoint
     case unavailable
     case unreadable
+    /// Il servizio ha risposto con un errore: codice HTTP e (se c'è) la spiegazione che dà lui.
+    case server(Int, String?)
 
     public var message: String {
         switch self {
@@ -14,7 +16,13 @@ public enum AISearchError: Error, Equatable, Sendable {
         case .invalidCredentials: return "Il servizio ha rifiutato la chiave: controllala."
         case .rateLimited: return "Troppe richieste o credito esaurito: riprova più tardi."
         case .badEndpoint: return "Indirizzo del server non valido (serve https)."
-        case .unavailable: return "Il modello non risponde. Controlla rete e nome del modello."
+        case .unavailable: return "Impossibile raggiungere il servizio: controlla la connessione."
+        case .server(let status, let detail):
+            switch status {
+            case 404: return "Modello non trovato per questa chiave (errore 404)\(detail.map { ": " + $0 } ?? ""). Scegline un altro dall'elenco."
+            case 400: return "Richiesta rifiutata (errore 400)\(detail.map { ": " + $0 } ?? ""). Prova un altro modello."
+            default: return "Il servizio ha risposto con un errore \(status)\(detail.map { ": " + $0 } ?? "")."
+            }
         case .unreadable: return "Il modello ha risposto in modo non comprensibile."
         }
     }
@@ -148,12 +156,7 @@ public struct AISearchClient: Sendable {
         } catch {
             throw AISearchError.unavailable
         }
-        switch response.statusCode {
-        case 200..<300: break
-        case 401, 403: throw AISearchError.invalidCredentials
-        case 402, 429: throw AISearchError.rateLimited
-        default: throw AISearchError.unavailable
-        }
+        if !(200..<300).contains(response.statusCode) { throw Self.error(status: response.statusCode, data: response.data) }
         guard let text = Self.answerText(provider: provider, data: response.data),
               let intent = AIIntentCodec.parse(text) else { throw AISearchError.unreadable }
         return intent
@@ -171,6 +174,22 @@ public struct AISearchClient: Sendable {
         }
     }
 
+    /// Traduce una risposta di errore (senza mai riportare la chiave) nel messaggio giusto.
+    static func error(status: Int, data: Data) -> AISearchError {
+        var detail: String?
+        if let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+           let error = object["error"] as? [String: Any], let text = error["message"] as? String {
+            detail = String(text.replacingOccurrences(of: "\n", with: " ").prefix(160))
+        }
+        let lower = (detail ?? "").lowercased()
+        if status == 401 { return .invalidCredentials }
+        // Google risponde 400 «API key not valid» invece di 401.
+        if status == 400 && (lower.contains("api key not valid") || lower.contains("api_key_invalid") || lower.contains("invalid api key")) { return .invalidCredentials }
+        if status == 403 && (lower.contains("api key") || lower.contains("permission")) && !lower.contains("location") { return .invalidCredentials }
+        if status == 402 || status == 429 { return .rateLimited }
+        return .server(status, detail)
+    }
+
     // MARK: Modelli disponibili
 
     /// I modelli che la chiave può usare (gratis: non consuma credito). Dipende dal piano dell'account.
@@ -184,12 +203,7 @@ public struct AISearchClient: Sendable {
         } catch {
             throw AISearchError.unavailable
         }
-        switch response.statusCode {
-        case 200..<300: break
-        case 401, 403: throw AISearchError.invalidCredentials
-        case 429: throw AISearchError.rateLimited
-        default: throw AISearchError.unavailable
-        }
+        if !(200..<300).contains(response.statusCode) { throw Self.error(status: response.statusCode, data: response.data) }
         let models = AIModelCatalog.parse(provider: provider, data: response.data)
         guard !models.isEmpty else { throw AISearchError.unreadable }
         return models
@@ -329,7 +343,9 @@ public enum AIModelCatalog {
                 guard let full = entry["name"] as? String else { continue }
                 let id = full.hasPrefix("models/") ? String(full.dropFirst(7)) : full
                 let methods = entry["supportedGenerationMethods"] as? [String] ?? []
-                guard methods.contains("generateContent"), id.lowercased().hasPrefix("gemini") else { continue }
+                let lower = id.lowercased()
+                let notText = ["image", "tts", "audio", "live", "embedding", "imagen", "veo", "robotics", "computer-use", "aqa", "learnlm", "vision"]
+                guard methods.contains("generateContent"), lower.hasPrefix("gemini"), !notText.contains(where: { lower.contains($0) }) else { continue }
                 models.append(AIModelInfo(id: id, name: (entry["displayName"] as? String) ?? id, note: note(for: id)))
             }
         case .openrouter:

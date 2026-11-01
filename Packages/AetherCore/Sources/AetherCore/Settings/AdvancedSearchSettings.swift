@@ -18,7 +18,7 @@ public enum AISearchProvider: String, Codable, CaseIterable, Sendable {
         switch self {
         case .anthropic: return "claude-haiku-5-5"
         case .openai: return "gpt-4o-mini"
-        case .google: return "gemini-2.0-flash"
+        case .google: return "gemini-2.5-flash"
         case .openrouter: return "openai/gpt-4o-mini"
         case .custom: return ""
         }
@@ -29,7 +29,7 @@ public enum AISearchProvider: String, Codable, CaseIterable, Sendable {
         switch self {
         case .anthropic: return ["claude-haiku-5-5", "claude-sonnet-5-5"]
         case .openai: return ["gpt-4o-mini", "gpt-4o"]
-        case .google: return ["gemini-2.0-flash", "gemini-1.5-flash"]
+        case .google: return ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
         case .openrouter: return ["openai/gpt-4o-mini", "anthropic/claude-haiku-5-5", "google/gemini-2.0-flash-001"]
         case .custom: return []
         }
