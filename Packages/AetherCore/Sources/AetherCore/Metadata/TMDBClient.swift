@@ -135,8 +135,10 @@ public struct TMDBClient: Sendable {
     }
 
     /// «search/{kind}»: per quando la frase contiene un titolo preciso.
-    func searchTitles(kind: Kind, text: String, language: String) async throws -> [TMDBDiscoverItem] {
-        let body: TMDBDiscoverResponse = try await get("/search/\(kind.rawValue)", query: [("query", text), ("language", language), ("page", "1")])
+    func searchTitles(kind: Kind, text: String, language: String, year: Int? = nil) async throws -> [TMDBDiscoverItem] {
+        var query = [("query", text), ("language", language), ("page", "1")]
+        if let year = year { query.append((kind == .movie ? "year" : "first_air_date_year", String(year))) }
+        let body: TMDBDiscoverResponse = try await get("/search/\(kind.rawValue)", query: query)
         return body.results
     }
 

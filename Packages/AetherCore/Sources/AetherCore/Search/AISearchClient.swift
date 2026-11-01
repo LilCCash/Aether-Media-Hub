@@ -22,23 +22,34 @@ public enum AISearchError: Error, Equatable, Sendable {
 
 /// Istruzioni e lettura della risposta, uguali per ogni modello (in rete o sul dispositivo).
 public enum AIIntentCodec {
-    public static func systemPrompt(year: Int) -> String {
+    public static func systemPrompt(year: Int, count: Int = 15, suggestTitles: Bool = true) -> String {
         let genres = IntentGenre.allCases.map { $0.rawValue }.joined(separator: ", ")
-        return """
-        You turn a movie/TV search request (usually in Italian) into filters for the TMDB discover API. \
+        var text = """
+        You are an expert on films and TV series helping a user find something to watch. The user writes in Italian. \
         Reply with ONE JSON object and nothing else, with these optional keys: \
         "kind" ("movie" or "series", omit for both); \
         "genres" (array, only from: \(genres)); \
-        "keywords" (array of 0-3 short English TMDB keywords such as "heist", "slasher", "parody", "time travel"); \
+        "keywords" (array of 0-3 short English TMDB keywords such as "heist", "slasher", "parody"); \
         "year_from" and "year_to" (integers); \
         "sort" ("popularity", "rating", "newest" or "oldest"); \
         "min_rating" (0-10); \
         "countries" (array of ISO 3166-1 codes); \
         "max_runtime" (minutes); \
-        "title" (only if the user names one specific title); \
-        "similar_to" (the reference title when the user asks for titles similar to / in the style of a specific film or series, e.g. "film simili a Toy Story" gives "Toy Story"). \
-        The current year is \(year): "recent years" means the last 5 years. Never explain, never add text outside the JSON.
+        "title" (only if the user names one specific title and wants that title itself); \
+        "similar_to" (the reference title when the user asks for titles similar to a specific film or series).
         """
+        if suggestTitles {
+            text += """
+             Add "titles": an array of up to \(count) real titles that best answer the request, most relevant first, \
+            each as {"title": ORIGINAL title, "year": release year, "type": "movie" or "series"}. \
+            Use your knowledge: Italian release titles often differ from the original ones \
+            (e.g. "Ghost Movie" is the Italian title of "A Haunted House" (2013)), so identify the real title first and \
+            then recommend titles with the same genre, tone and style, not just titles that share a word. \
+            Never invent titles; leave "titles" out if you are not sure.
+            """
+        }
+        text += " The current year is \(year): \"recent years\" means the last 5 years. Never explain, never add text outside the JSON."
+        return text
     }
 
     public static func userPrompt(_ query: String) -> String {
@@ -72,6 +83,19 @@ public enum AIIntentCodec {
         intent.countries = (object["countries"] as? [Any] ?? []).compactMap { $0 as? String }
             .map { $0.uppercased() }.filter { $0.count == 2 }
         if let runtime = integer(object["max_runtime"]), runtime > 20, runtime < 400 { intent.maxRuntime = runtime }
+        for entry in (object["titles"] as? [Any] ?? []) {
+            guard let dict = entry as? [String: Any],
+                  let name = (dict["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
+            let year = integer(dict["year"]).flatMap { (1880...2100).contains($0) ? $0 : nil }
+            var kind: IntentKind?
+            if let type = (dict["type"] as? String)?.lowercased() {
+                if type == "movie" || type == "film" { kind = .movie }
+                if type == "series" || type == "tv" || type == "show" { kind = .series }
+            }
+            let suggestion = SuggestedTitle(title: name, year: year, kind: kind)
+            if !intent.suggestions.contains(suggestion) { intent.suggestions.append(suggestion) }
+            if intent.suggestions.count >= 40 { break }
+        }
         if let similar = (object["similar_to"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !similar.isEmpty { intent.similarTo = similar }
         if let title = (object["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty { intent.title = title }
         return intent.hasFilters || intent.title != nil ? intent : nil
@@ -108,13 +132,13 @@ public struct AISearchClient: Sendable {
         return key(provider) != nil
     }
 
-    public func interpret(_ query: String, settings: AdvancedSearchSettings, year: Int) async throws -> SearchIntent {
+    public func interpret(_ query: String, settings: AdvancedSearchSettings, year: Int, model overrideModel: String? = nil) async throws -> SearchIntent {
         let provider = settings.provider
         let secret = key(provider)
         if secret == nil && !provider.keyIsOptional { throw AISearchError.notConfigured }
-        let model = settings.model(for: provider)
+        let model = overrideModel ?? settings.model(for: provider)
         guard !model.isEmpty else { throw AISearchError.notConfigured }
-        let system = AIIntentCodec.systemPrompt(year: year)
+        let system = AIIntentCodec.systemPrompt(year: year, count: settings.maxResults, suggestTitles: settings.aiSuggestsTitles)
         let user = AIIntentCodec.userPrompt(query)
         let request = try Self.request(provider: provider, model: model, key: secret, customBase: settings.customBaseURL,
                                        system: system, user: user, timeout: TimeInterval(settings.aiTimeout))
@@ -135,16 +159,67 @@ public struct AISearchClient: Sendable {
         return intent
     }
 
-    /// Prova la chiave con una frase breve (pulsante «Prova» delle impostazioni).
+    /// Prova il modello con una frase breve (pulsante «Prova il modello» delle impostazioni).
     public func test(settings: AdvancedSearchSettings, year: Int) async -> AISearchError? {
         do {
-            _ = try await interpret("commedie degli ultimi anni", settings: settings, year: year)
+            _ = try await interpret("film simili a Toy Story", settings: settings, year: year)
             return nil
         } catch let error as AISearchError {
             return error
         } catch {
             return .unavailable
         }
+    }
+
+    // MARK: Modelli disponibili
+
+    /// I modelli che la chiave può usare (gratis: non consuma credito). Dipende dal piano dell'account.
+    public func listModels(provider: AISearchProvider, customBase: String) async throws -> [AIModelInfo] {
+        let secret = key(provider)
+        if secret == nil && !provider.keyIsOptional && provider != .openrouter { throw AISearchError.notConfigured }
+        let request = try Self.listRequest(provider: provider, key: secret, customBase: customBase)
+        let response: HTTPResponse
+        do {
+            response = try await http.send(request)
+        } catch {
+            throw AISearchError.unavailable
+        }
+        switch response.statusCode {
+        case 200..<300: break
+        case 401, 403: throw AISearchError.invalidCredentials
+        case 429: throw AISearchError.rateLimited
+        default: throw AISearchError.unavailable
+        }
+        let models = AIModelCatalog.parse(provider: provider, data: response.data)
+        guard !models.isEmpty else { throw AISearchError.unreadable }
+        return models
+    }
+
+    static func listRequest(provider: AISearchProvider, key: String?, customBase: String) throws -> HTTPRequest {
+        var headers = ["Accept": "application/json"]
+        let url: URL
+        switch provider {
+        case .anthropic:
+            url = URL(string: "https://api.anthropic.com/v1/models?limit=1000")!
+            headers["x-api-key"] = key ?? ""
+            headers["anthropic-version"] = "2023-06-01"
+        case .openai:
+            url = URL(string: "https://api.openai.com/v1/models")!
+            headers["Authorization"] = "Bearer " + (key ?? "")
+        case .openrouter:
+            url = URL(string: "https://openrouter.ai/api/v1/models")!
+            if let key = key { headers["Authorization"] = "Bearer " + key }
+        case .google:
+            url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200")!
+            headers["x-goog-api-key"] = key ?? ""
+        case .custom:
+            let trimmed = customBase.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            guard let base = URL(string: trimmed), base.scheme?.lowercased() == "https", let host = base.host, !host.isEmpty,
+                  let built = URL(string: trimmed + "/models") else { throw AISearchError.badEndpoint }
+            url = built
+            if let key = key { headers["Authorization"] = "Bearer " + key }
+        }
+        return HTTPRequest(url: url, headers: headers, timeout: 20, maxBytes: HTTPLimits.resource)
     }
 
     // MARK: Richieste
@@ -159,7 +234,7 @@ public struct AISearchClient: Sendable {
             url = URL(string: "https://api.anthropic.com/v1/messages")!
             headers["x-api-key"] = key ?? ""
             headers["anthropic-version"] = "2023-06-01"
-            body = ["model": model, "max_tokens": 300, "system": system,
+            body = ["model": model, "max_tokens": 2000, "system": system,
                     "messages": [["role": "user", "content": user]]]
         case .openai:
             url = URL(string: "https://api.openai.com/v1/chat/completions")!
@@ -208,5 +283,80 @@ public struct AISearchClient: Sendable {
             let choices = object["choices"] as? [[String: Any]] ?? []
             return (choices.first?["message"] as? [String: Any])?["content"] as? String
         }
+    }
+}
+
+
+/// Un modello che la chiave può usare.
+public struct AIModelInfo: Equatable, Hashable, Identifiable, Sendable {
+    public var id: String
+    public var name: String
+    /// «Veloce ed economico», «gratuito»…
+    public var note: String?
+
+    public init(id: String, name: String, note: String? = nil) {
+        self.id = id
+        self.name = name
+        self.note = note
+    }
+}
+
+/// Legge e ordina l'elenco dei modelli di ogni servizio: tiene solo quelli che sanno chattare e mette per primi i piccoli e veloci.
+public enum AIModelCatalog {
+    private static let cheapMarkers = ["haiku", "mini", "nano", "flash", "lite", "small", "instant"]
+    private static let excludedOpenAI = ["embedding", "whisper", "tts", "dall-e", "image", "audio", "realtime", "transcribe",
+                                         "moderation", "davinci", "babbage", "search", "computer-use", "codex", "sora", "omni-moderation"]
+
+    public static func parse(provider: AISearchProvider, data: Data) -> [AIModelInfo] {
+        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [] }
+        var models: [AIModelInfo] = []
+        switch provider {
+        case .anthropic:
+            for entry in object["data"] as? [[String: Any]] ?? [] {
+                guard let id = entry["id"] as? String else { continue }
+                models.append(AIModelInfo(id: id, name: (entry["display_name"] as? String) ?? id, note: note(for: id)))
+            }
+        case .openai:
+            for entry in object["data"] as? [[String: Any]] ?? [] {
+                guard let id = entry["id"] as? String else { continue }
+                let lower = id.lowercased()
+                let isChat = lower.hasPrefix("gpt-") || lower.hasPrefix("chatgpt") || lower.hasPrefix("o1") || lower.hasPrefix("o3") || lower.hasPrefix("o4") || lower.hasPrefix("o5")
+                guard isChat, !excludedOpenAI.contains(where: { lower.contains($0) }) else { continue }
+                models.append(AIModelInfo(id: id, name: id, note: note(for: id)))
+            }
+        case .google:
+            for entry in object["models"] as? [[String: Any]] ?? [] {
+                guard let full = entry["name"] as? String else { continue }
+                let id = full.hasPrefix("models/") ? String(full.dropFirst(7)) : full
+                let methods = entry["supportedGenerationMethods"] as? [String] ?? []
+                guard methods.contains("generateContent"), id.lowercased().hasPrefix("gemini") else { continue }
+                models.append(AIModelInfo(id: id, name: (entry["displayName"] as? String) ?? id, note: note(for: id)))
+            }
+        case .openrouter:
+            for entry in object["data"] as? [[String: Any]] ?? [] {
+                guard let id = entry["id"] as? String else { continue }
+                if let architecture = entry["architecture"] as? [String: Any],
+                   let output = architecture["output_modalities"] as? [String], !output.contains("text") { continue }
+                let pricing = entry["pricing"] as? [String: Any]
+                let free = id.hasSuffix(":free") || ((pricing?["prompt"] as? String) == "0" && (pricing?["completion"] as? String) == "0")
+                models.append(AIModelInfo(id: id, name: (entry["name"] as? String) ?? id, note: free ? "gratuito" : note(for: id)))
+            }
+        case .custom:
+            for entry in object["data"] as? [[String: Any]] ?? [] {
+                guard let id = entry["id"] as? String else { continue }
+                models.append(AIModelInfo(id: id, name: id))
+            }
+        }
+        var seen = Set<String>()
+        let unique = models.filter { seen.insert($0.id).inserted }
+        // Prima i piccoli e veloci (bastano per questo compito), poi gli altri nell'ordine ricevuto.
+        let cheap = unique.filter { $0.note != nil }
+        let others = unique.filter { $0.note == nil }
+        return cheap + others
+    }
+
+    static func note(for id: String) -> String? {
+        let lower = id.lowercased()
+        return cheapMarkers.contains(where: { lower.contains($0) }) ? "veloce ed economico" : nil
     }
 }

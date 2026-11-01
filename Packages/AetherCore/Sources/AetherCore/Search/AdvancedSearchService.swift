@@ -27,6 +27,27 @@ public struct AdvancedSearchService: Sendable {
         let kinds = Self.kinds(for: intent, settings: settings)
         guard !kinds.isEmpty else { return AdvancedSearchOutcome() }
 
+        // I titoli proposti dall'AI vanno per primi; i filtri (se ci sono) completano la lista.
+        if !intent.suggestions.isEmpty {
+            let proposed = await resolve(intent.suggestions, kinds: kinds, language: language)
+            let suggested = await Self.items(from: proposed, tmdb: tmdb, limit: settings.maxResults)
+            if suggested.count < intent.suggestions.count {
+                notes.append("\(suggested.count) titoli su \(intent.suggestions.count) proposti dall'AI sono stati trovati su TMDB.")
+            }
+            var rest = intent
+            rest.suggestions = []
+            rest.similarTo = nil
+            rest.title = nil
+            guard rest.hasFilters, suggested.count < settings.maxResults else {
+                return AdvancedSearchOutcome(items: suggested, notes: notes)
+            }
+            let more = await run(intent: rest, extraKeywords: extraKeywords, settings: settings, language: language)
+            var seen = Set(suggested.map { $0.id })
+            var merged = suggested
+            for item in more.items where seen.insert(item.id).inserted && merged.count < settings.maxResults { merged.append(item) }
+            return AdvancedSearchOutcome(items: merged, notes: notes + more.notes)
+        }
+
         // «Simili a …»: si cerca il titolo di partenza e si prendono i consigliati di TMDB.
         if let reference = intent.similarTo {
             var found: [(TMDBClient.Kind, TMDBDiscoverItem)] = []
@@ -78,6 +99,33 @@ public struct AdvancedSearchService: Sendable {
     }
 
     // MARK: Passi
+
+    /// Ritrova su TMDB i titoli proposti dall'AI (nome originale e anno), nello stesso ordine.
+    private func resolve(_ suggestions: [SuggestedTitle], kinds: [TMDBClient.Kind], language: String) async -> [(TMDBClient.Kind, TMDBDiscoverItem)] {
+        let client = tmdb
+        return await withTaskGroup(of: (Int, (TMDBClient.Kind, TMDBDiscoverItem)?).self) { (group: inout TaskGroup<(Int, (TMDBClient.Kind, TMDBDiscoverItem)?)>) -> [(TMDBClient.Kind, TMDBDiscoverItem)] in
+            for (index, suggestion) in suggestions.enumerated() {
+                let order: [TMDBClient.Kind]
+                if let kind = suggestion.kind {
+                    order = [kind == .movie ? .movie : .tv]
+                } else {
+                    order = kinds
+                }
+                group.addTask {
+                    for kind in order {
+                        let list = (try? await client.searchTitles(kind: kind, text: suggestion.title, language: language, year: suggestion.year)) ?? []
+                        if let first = list.first { return (index, (kind, first)) }
+                    }
+                    return (index, nil)
+                }
+            }
+            var found: [(Int, (TMDBClient.Kind, TMDBDiscoverItem))] = []
+            for await (index, match) in group {
+                if let match = match { found.append((index, match)) }
+            }
+            return found.sorted { (a: (Int, (TMDBClient.Kind, TMDBDiscoverItem)), b: (Int, (TMDBClient.Kind, TMDBDiscoverItem))) -> Bool in a.0 < b.0 }.map { $0.1 }
+        }
+    }
 
     private func keywordIDs(_ words: [String]) async -> [Int] {
         guard !words.isEmpty else { return [] }

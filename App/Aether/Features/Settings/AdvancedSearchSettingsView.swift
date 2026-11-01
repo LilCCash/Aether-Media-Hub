@@ -8,6 +8,14 @@ struct AdvancedSearchSettingsView: View {
     @State private var sample = "film divertenti degli ultimi anni"
     @State private var testState: TestState = .idle
     @State private var appleStatus = AppleIntelligence.status
+    @State private var models: [AIModelInfo] = []
+    @State private var modelsState: ModelsState = .idle
+
+    private enum ModelsState: Equatable {
+        case idle, loading
+        case loaded(Int)
+        case failed(String)
+    }
 
     private enum TestState: Equatable {
         case idle, running, ok
@@ -24,8 +32,8 @@ struct AdvancedSearchSettingsView: View {
                 levelsSection
                 if advanced.naturalParser { parserTrySection }
                 if advanced.aiEnabled {
-                    appleSection
-                    providerSection
+                    engineSection
+                    if advanced.aiEngine != .appleOnly { providerSection }
                     whenSection
                 }
                 resultsSection
@@ -36,6 +44,8 @@ struct AdvancedSearchSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("settings.advancedSearch")
         .onAppear { appleStatus = AppleIntelligence.status }
+        .task(id: provider) { models = []; modelsState = .idle; await loadModels(auto: true) }
+        .onReceive(env.credentials.$configured) { _ in Task { await loadModels(auto: true) } }
     }
 
     // MARK: Generale
@@ -105,26 +115,34 @@ struct AdvancedSearchSettingsView: View {
         }
     }
 
-    // MARK: Apple Intelligence
+    // MARK: Motore
 
-    private var appleSection: some View {
+    private var engineSection: some View {
         Section {
-            Toggle("Usa Apple Intelligence", isOn: settings.binding(\.content.advancedSearch.useAppleIntelligence))
-                .accessibilityIdentifier("advsearch.apple")
-            Label(appleStatus.text, systemImage: appleStatus.isAvailable ? "apple.intelligence" : "exclamationmark.triangle")
+            Picker("Chi risponde", selection: settings.binding(\.content.advancedSearch.aiEngine)) {
+                ForEach(AIEngine.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            .accessibilityIdentifier("advsearch.engine")
+            Label(appleStatus.text, systemImage: appleStatus.isAvailable ? "checkmark.circle.fill" : "exclamationmark.triangle")
                 .foregroundStyle(appleStatus.isAvailable ? Color.green : Color.orange)
                 .font(.footnote)
-            if advanced.useAppleIntelligence {
-                Toggle("Se non risponde, usa il modello in rete", isOn: settings.binding(\.content.advancedSearch.fallbackToProvider))
+            Toggle(isOn: settings.binding(\.content.advancedSearch.aiSuggestsTitles)) {
+                levelLabel("L'AI propone i titoli", "Oltre a capire la frase, l'AI sceglie lei i titoli («film simili a Toy Story»): Aether li ritrova su TMDB. Senza questa opzione l'AI traduce solo la frase in filtri e parole chiave.")
             }
+            .accessibilityIdentifier("advsearch.suggest")
         } header: {
-            Text("Apple Intelligence (sul dispositivo)")
+            Text("Motore dell'intelligenza artificiale")
         } footer: {
-            Text("Il modello di Apple gira sull'iPhone: gratis, anche offline, e la frase non lascia il telefono. Richiede iOS 26 e un iPhone con Apple Intelligence attiva. Se è spenta o non basta, Aether passa al modello in rete (se lo hai configurato) o al solo parser.")
+            Text("Apple Intelligence gira sull'iPhone: gratis e privata, ma è un modello piccolo e non sempre conosce i titoli. Il modello in rete (con la tua chiave) è molto più preparato sui film: scegli «Solo modello in rete» per usarlo direttamente, senza passare da Apple Intelligence.")
         }
     }
 
     // MARK: Modello in rete
+
+    private var currentKind: ServiceKind { ServiceKind.ai(provider) }
+    private var keyPresent: Bool { env.credentials.isConfigured(currentKind) }
 
     private var providerSection: some View {
         Group {
@@ -133,17 +151,6 @@ struct AdvancedSearchSettingsView: View {
                     ForEach(AISearchProvider.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .accessibilityIdentifier("advsearch.provider")
-                TextField("Nome del modello", text: modelBinding)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("advsearch.model")
-                if !provider.suggestedModels.isEmpty {
-                    Menu("Modelli consigliati") {
-                        ForEach(provider.suggestedModels, id: \.self) { name in
-                            Button(name) { settings.value.content.advancedSearch.setModel(name, for: provider) }
-                        }
-                    }
-                }
                 if provider == .custom {
                     TextField("Indirizzo (https://…/v1)", text: settings.binding(\.content.advancedSearch.customBaseURL))
                         .textInputAutocapitalization(.never)
@@ -151,12 +158,36 @@ struct AdvancedSearchSettingsView: View {
                         .keyboardType(.URL)
                         .accessibilityIdentifier("advsearch.baseurl")
                 }
+                AIKeyGuide(provider: provider)
             } header: {
                 Text("Modello in rete")
-            } footer: {
-                Text(providerFooter)
             }
             AIKeySection(provider: provider, credentials: env.credentials)
+            Section {
+                Button {
+                    Task { await loadModels(auto: false) }
+                } label: {
+                    HStack {
+                        Text("Verifica la chiave")
+                        if modelsState == .loading { Spacer(); ProgressView() }
+                    }
+                }
+                .disabled(modelsState == .loading || (!keyPresent && !provider.keyIsOptional && provider != .openrouter))
+                .accessibilityIdentifier("advsearch.verify")
+                switch modelsState {
+                case .loaded(let count):
+                    Label(keyPresent ? "Chiave valida: \(count) modelli disponibili con il tuo piano." : "\(count) modelli disponibili.", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                case .failed(let message):
+                    Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                default:
+                    EmptyView()
+                }
+                modelRow
+            } header: {
+                Text("Chiave e modello")
+            } footer: {
+                Text("«Verifica la chiave» chiede al servizio l'elenco dei modelli: è gratuito, non consuma credito. L'elenco dipende dal piano dell'account collegato alla chiave. Se per questo servizio il modello è già scelto, resta quello finché non ne scegli un altro.")
+            }
             Section {
                 Button {
                     Task { await runTest() }
@@ -174,9 +205,34 @@ struct AdvancedSearchSettingsView: View {
                 default: EmptyView()
                 }
             } footer: {
-                Text("Invia al modello una frase di prova per controllare chiave e nome. Può consumare una frazione di centesimo di credito.")
+                Text("Invia al modello una vera richiesta di prova («film simili a Toy Story»): costa una frazione di centesimo.")
             }
         }
+    }
+
+    @ViewBuilder
+    private var modelRow: some View {
+        if !models.isEmpty {
+            NavigationLink {
+                AIModelPickerView(models: models, selection: modelBinding)
+            } label: {
+                LabeledContent("Modello", value: displayName(of: advanced.model(for: provider)))
+            }
+            .accessibilityIdentifier("advsearch.model")
+        } else if provider == .custom {
+            TextField("Nome del modello", text: modelBinding)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("advsearch.model")
+        } else {
+            LabeledContent("Modello", value: displayName(of: advanced.model(for: provider)))
+            Text("Salva e verifica la chiave per scegliere tra i modelli disponibili.")
+                .font(.footnote).foregroundStyle(Color.aetherSecondary)
+        }
+    }
+
+    private func displayName(of id: String) -> String {
+        return models.first(where: { $0.id == id })?.name ?? (id.isEmpty ? "Nessuno" : id)
     }
 
     private var modelBinding: Binding<String> {
@@ -184,13 +240,33 @@ struct AdvancedSearchSettingsView: View {
                 set: { settings.value.content.advancedSearch.setModel($0, for: provider) })
     }
 
-    private var providerFooter: String {
-        switch provider {
-        case .anthropic: return "Consigliato un modello piccolo e veloce come Claude Haiku: basta e costa poco. La chiave si crea su console.anthropic.com."
-        case .openai: return "Un modello «mini» basta. La chiave si crea su platform.openai.com."
-        case .google: return "Un modello «flash» basta. La chiave si crea su aistudio.google.com."
-        case .openrouter: return "OpenRouter dà accesso a molti modelli con una sola chiave (openrouter.ai). Il nome ha la forma «fornitore/modello»."
-        case .custom: return "Qualsiasi server con API compatibile OpenAI raggiungibile via https (la chiave è facoltativa). I server nella rete di casa non sono raggiungibili: Aether blocca gli indirizzi privati."
+    /// Legge i modelli che la chiave può usare. In automatico (cambio servizio, chiave appena salvata) non mostra errori.
+    private func loadModels(auto: Bool) async {
+        let current = provider
+        let canTry = keyPresent || provider.keyIsOptional || provider == .openrouter
+        guard canTry else {
+            if !auto { modelsState = .failed("Prima salva la chiave.") }
+            return
+        }
+        if auto && modelsState == .loading { return }
+        modelsState = .loading
+        do {
+            let list = try await env.advancedSearch.ai.listModels(provider: current, customBase: advanced.customBaseURL)
+            guard current == provider else { return }
+            models = list
+            modelsState = .loaded(list.count)
+            // Se il modello scelto non è più disponibile con questo piano, si propone il primo consigliato.
+            let chosen = advanced.model(for: current)
+            if !list.contains(where: { $0.id == chosen }) {
+                let preferred = list.first(where: { $0.id == current.defaultModel }) ?? list.first
+                if let preferred = preferred { settings.value.content.advancedSearch.setModel(preferred.id, for: current) }
+            }
+        } catch let error as AISearchError {
+            guard current == provider else { return }
+            models = []
+            modelsState = auto ? .idle : .failed(error.message)
+        } catch {
+            modelsState = auto ? .idle : .failed("Errore di rete.")
         }
     }
 
@@ -284,5 +360,95 @@ private struct AIKeySection: View {
         } footer: {
             Text("La chiave resta nel Portachiavi di questo iPhone (mai nei log). La frase che scrivi viene inviata a \(provider.title) solo quando l'AI interviene.")
         }
+    }
+}
+
+
+/// Come ottenere la chiave del servizio scelto, passo per passo.
+private struct AIKeyGuide: View {
+    let provider: AISearchProvider
+
+    private struct Guide {
+        let url: String
+        let linkTitle: String
+        let steps: [String]
+        let cost: String
+    }
+
+    private var guide: Guide {
+        switch provider {
+        case .anthropic:
+            return Guide(url: "https://console.anthropic.com/settings/keys", linkTitle: "console.anthropic.com",
+                         steps: ["Crea un account sulla console Anthropic (è diversa dall'app Claude).", "Apri Settings ▸ API keys ▸ Create Key e dai un nome alla chiave.", "Copia la chiave (inizia con «sk-ant-»): viene mostrata una volta sola.", "In Billing aggiungi del credito: l'API è a consumo."],
+                         cost: "L'abbonamento Claude Pro/Max non include l'API. Qui una ricerca costa frazioni di centesimo con un modello Haiku.")
+        case .openai:
+            return Guide(url: "https://platform.openai.com/api-keys", linkTitle: "platform.openai.com",
+                         steps: ["Accedi a platform.openai.com (è separato da ChatGPT).", "Apri API keys ▸ Create new secret key.", "Copia la chiave (inizia con «sk-»): viene mostrata una volta sola.", "In Billing aggiungi credito prepagato, altrimenti le richieste vengono rifiutate."],
+                         cost: "ChatGPT Plus non include l'API. Un modello «mini» costa pochissimo per richieste così corte.")
+        case .google:
+            return Guide(url: "https://aistudio.google.com/apikey", linkTitle: "aistudio.google.com",
+                         steps: ["Accedi a Google AI Studio con il tuo account Google.", "Apri «Get API key» ▸ Create API key.", "Copia la chiave e incollala qui sotto."],
+                         cost: "C'è un livello gratuito con limiti di richieste al giorno (variano nel tempo): per le ricerche di Aether basta di solito.")
+        case .openrouter:
+            return Guide(url: "https://openrouter.ai/keys", linkTitle: "openrouter.ai",
+                         steps: ["Crea un account su openrouter.ai.", "Apri Keys ▸ Create Key.", "Copia la chiave (inizia con «sk-or-»).", "Aggiungi credito da Credits, oppure scegli un modello gratuito (nome che finisce con «:free»)."],
+                         cost: "Una sola chiave dà accesso a molti modelli di fornitori diversi. L'elenco dei modelli si vede anche senza chiave.")
+        case .custom:
+            return Guide(url: "", linkTitle: "",
+                         steps: ["Inserisci l'indirizzo base del server compatibile OpenAI, ad esempio https://tuo-server/v1.", "Se il server richiede una chiave, incollala qui sotto; altrimenti lasciala vuota."],
+                         cost: "Il server deve essere raggiungibile via https da Internet: gli indirizzi della rete di casa sono bloccati.")
+        }
+    }
+
+    var body: some View {
+        DisclosureGroup("Come ottenere la chiave") {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(guide.steps.enumerated()), id: \.offset) { index, step in
+                    Text("\(index + 1). \(step)").font(.footnote)
+                }
+                if let url = URL(string: guide.url), !guide.url.isEmpty {
+                    Link(guide.linkTitle, destination: url).font(.footnote.weight(.semibold))
+                }
+                Text(guide.cost).font(.footnote).foregroundStyle(Color.aetherSecondary)
+            }
+            .padding(.vertical, 4)
+        }
+        .accessibilityIdentifier("advsearch.guide")
+    }
+}
+
+/// Elenco dei modelli disponibili con il piano della chiave, con ricerca.
+private struct AIModelPickerView: View {
+    let models: [AIModelInfo]
+    @Binding var selection: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    private var visible: [AIModelInfo] {
+        let text = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !text.isEmpty else { return models }
+        return models.filter { $0.id.lowercased().contains(text) || $0.name.lowercased().contains(text) }
+    }
+
+    var body: some View {
+        List(visible) { model in
+            Button {
+                selection = model.id
+                dismiss()
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.name).foregroundStyle(Color.primary)
+                        if model.name != model.id { Text(model.id).font(.caption).foregroundStyle(Color.aetherSecondary) }
+                        if let note = model.note { Text(note).font(.caption2).foregroundStyle(.green) }
+                    }
+                    Spacer()
+                    if model.id == selection { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
+                }
+            }
+        }
+        .searchable(text: $query)
+        .navigationTitle("Modello")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

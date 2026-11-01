@@ -72,6 +72,19 @@ public enum IntentGenre: String, Codable, CaseIterable, Sendable {
 
 public enum IntentKind: String, Codable, Sendable { case movie, series }
 
+/// Un titolo proposto dall'AI (nome originale e anno, per ritrovarlo su TMDB).
+public struct SuggestedTitle: Equatable, Sendable {
+    public var title: String
+    public var year: Int?
+    public var kind: IntentKind?
+
+    public init(title: String, year: Int? = nil, kind: IntentKind? = nil) {
+        self.title = title
+        self.year = year
+        self.kind = kind
+    }
+}
+
 public enum IntentSort: String, Codable, Sendable {
     case popularity, rating, newest, oldest
 
@@ -101,6 +114,8 @@ public struct SearchIntent: Equatable, Sendable {
     public var title: String?
     /// «Film simili a Toy Story»: il titolo di partenza.
     public var similarTo: String?
+    /// I titoli che l'AI consiglia, in ordine di pertinenza.
+    public var suggestions: [SuggestedTitle] = []
     public var source: Source = .parser
 
     public enum Source: String, Sendable { case keyword, parser, apple, ai }
@@ -110,15 +125,21 @@ public struct SearchIntent: Equatable, Sendable {
     /// Vero se il testo ha prodotto almeno un filtro utile.
     public var hasFilters: Bool {
         return !genres.isEmpty || !keywords.isEmpty || yearFrom != nil || yearTo != nil || minRating != nil
-            || !countries.isEmpty || maxRuntime != nil || kind != nil || similarTo != nil
+            || !countries.isEmpty || maxRuntime != nil || kind != nil || similarTo != nil || !suggestions.isEmpty
     }
 
     /// La frase letta dall'app, in italiano, per mostrarla all'utente.
     public var summary: String {
         var parts: [String] = []
+        if let similar = similarTo, !suggestions.isEmpty {
+            return "consigliati dall'AI, simili a «\(similar)»"
+        }
         if let similar = similarTo {
             let label = kind == .series ? "serie" : (kind == .movie ? "film" : "titoli")
             return "\(label) simili a «\(similar)»"
+        }
+        if !suggestions.isEmpty && genres.isEmpty && keywords.isEmpty && yearFrom == nil && yearTo == nil {
+            return "consigliati dall'AI"
         }
         if let kind = kind { parts.append(kind == .movie ? "film" : "serie") }
         if !genres.isEmpty { parts.append(genres.map { $0.italianName }.joined(separator: " + ")) }

@@ -52,7 +52,9 @@ final class AdvancedSearchEngine: @unchecked Sendable {
         var intent: SearchIntent? = (parsed?.intent.hasFilters ?? false) ? parsed?.intent : nil
 
         let aiAllowed = settings.aiEnabled && (submitted || settings.aiTrigger == .whileTyping)
-        let wantsAI = aiAllowed && (settings.aiMode == .always || intent == nil)
+        // «Simili a…»: il parser sa solo cercare il titolo; l'AI sa davvero quali titoli gli somigliano.
+        let aiKnowsSimilar = settings.aiSuggestsTitles && intent?.similarTo != nil
+        let wantsAI = aiAllowed && (settings.aiMode == .always || intent == nil || aiKnowsSimilar)
         if wantsAI {
             let outcome = await askAI(query, settings: settings, year: year)
             if let found = outcome.intent { intent = found }
@@ -79,22 +81,24 @@ final class AdvancedSearchEngine: @unchecked Sendable {
     // MARK: AI
 
     private func askAI(_ query: String, settings: AdvancedSearchSettings, year: Int) async -> (intent: SearchIntent?, notes: [String]) {
-        let key = "\(query.lowercased())|\(settings.useAppleIntelligence)|\(settings.provider.rawValue)|\(settings.model(for: settings.provider))"
+        let key = "\(query.lowercased())|\(settings.aiEngine.rawValue)|\(settings.aiSuggestsTitles)|\(settings.maxResults)|\(settings.provider.rawValue)|\(settings.model(for: settings.provider))"
         if settings.rememberInterpretations {
             if let hit = cached(key) { return (hit, []) }
         }
         var notes: [String] = []
         var found: SearchIntent?
-        if settings.useAppleIntelligence {
+        let triesApple = settings.aiEngine != .networkOnly
+        let triesNetwork = settings.aiEngine != .appleOnly
+        if triesApple {
             let status = AppleIntelligence.status
             if status.isAvailable {
-                found = await AppleIntelligence.interpret(query, year: year)
+                found = await AppleIntelligence.interpret(query, year: year, count: settings.maxResults, suggestTitles: settings.aiSuggestsTitles)
                 if found == nil { notes.append("Apple Intelligence non ha capito la frase.") }
             } else {
                 notes.append(status.text)
             }
         }
-        if found == nil && (!settings.useAppleIntelligence || settings.fallbackToProvider) {
+        if found == nil && triesNetwork {
             do {
                 found = try await ai.interpret(query, settings: settings, year: year)
             } catch let error as AISearchError {

@@ -43,12 +43,12 @@ enum AppleIntelligence {
     }
 
     /// Chiede al modello sul dispositivo di tradurre la frase in filtri. Nil se non disponibile o se la risposta non è leggibile.
-    static func interpret(_ query: String, year: Int) async -> SearchIntent? {
+    static func interpret(_ query: String, year: Int, count: Int, suggestTitles: Bool) async -> SearchIntent? {
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             guard status.isAvailable else { return nil }
             do {
-                let session = LanguageModelSession(instructions: AIIntentCodec.systemPrompt(year: year))
+                let session = LanguageModelSession(instructions: AIIntentCodec.systemPrompt(year: year, count: min(count, 10), suggestTitles: suggestTitles))
                 let response = try await session.respond(to: AIIntentCodec.userPrompt(query))
                 return AIIntentCodec.parse(response.content, source: .apple)
             } catch {

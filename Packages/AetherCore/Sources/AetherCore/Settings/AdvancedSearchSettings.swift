@@ -39,6 +39,24 @@ public enum AISearchProvider: String, Codable, CaseIterable, Sendable {
     public var keyIsOptional: Bool { return self == .custom }
 }
 
+/// Quale intelligenza artificiale risponde.
+public enum AIEngine: String, Codable, CaseIterable, Sendable {
+    /// Prima Apple Intelligence sul dispositivo; se non c'è o non basta, il modello in rete.
+    case appleThenNetwork
+    /// Solo Apple Intelligence sul dispositivo (gratis, privata).
+    case appleOnly
+    /// Solo il modello in rete scelto, con la tua chiave.
+    case networkOnly
+
+    public var title: String {
+        switch self {
+        case .appleThenNetwork: return "Apple Intelligence, poi modello in rete"
+        case .appleOnly: return "Solo Apple Intelligence (sul dispositivo)"
+        case .networkOnly: return "Solo modello in rete (con chiave)"
+        }
+    }
+}
+
 /// Quando interpellare l'intelligenza artificiale.
 public enum AISearchTrigger: String, Codable, CaseIterable, Sendable {
     /// Solo premendo «Cerca» sulla tastiera (una richiesta per ricerca).
@@ -93,15 +111,15 @@ public struct AdvancedSearchSettings: Codable, Equatable, Sendable {
     /// Livello 3: modello di intelligenza artificiale.
     public var aiEnabled: Bool = false
     // AI
-    /// Usa Apple Intelligence sul dispositivo (gratis, privata) prima di ogni altro modello.
-    public var useAppleIntelligence: Bool = true
-    /// Se Apple Intelligence non è disponibile o fallisce, passa al modello in rete.
-    public var fallbackToProvider: Bool = true
+    /// Chi risponde: Apple Intelligence sul dispositivo, il modello in rete, o prima l'uno poi l'altro.
+    public var aiEngine: AIEngine = .networkOnly
+    /// L'AI propone direttamente i titoli (non solo i filtri): «film simili a…», «consigliami…».
+    public var aiSuggestsTitles: Bool = true
     public var provider: AISearchProvider = .anthropic
     public var models: [String: String] = [:]
     public var customBaseURL: String = ""
     public var aiTrigger: AISearchTrigger = .onSubmit
-    public var aiMode: AISearchMode = .fallback
+    public var aiMode: AISearchMode = .always
     public var aiTimeout: Int = 15
     // Risultati
     public var resultKind: AdvancedResultKind = .both
@@ -128,7 +146,7 @@ public struct AdvancedSearchSettings: Codable, Equatable, Sendable {
     public var hasAnyLevel: Bool { return enabled && (keywordSearch || naturalParser || aiEnabled) }
 
     private enum CodingKeys: String, CodingKey {
-        case enabled, keywordSearch, naturalParser, aiEnabled, useAppleIntelligence, fallbackToProvider, provider, models
+        case enabled, keywordSearch, naturalParser, aiEnabled, aiEngine, aiSuggestsTitles, provider, models
         case customBaseURL, aiTrigger, aiMode, aiTimeout, resultKind, maxResults, minVotes, showInterpretation
         case showSource, includeAdult, rememberInterpretations
     }
@@ -139,13 +157,13 @@ public struct AdvancedSearchSettings: Codable, Equatable, Sendable {
         keywordSearch = c.value(.keywordSearch, default: true)
         naturalParser = c.value(.naturalParser, default: true)
         aiEnabled = c.value(.aiEnabled, default: false)
-        useAppleIntelligence = c.value(.useAppleIntelligence, default: true)
-        fallbackToProvider = c.value(.fallbackToProvider, default: true)
+        aiEngine = c.value(.aiEngine, default: .networkOnly)
+        aiSuggestsTitles = c.value(.aiSuggestsTitles, default: true)
         provider = c.value(.provider, default: .anthropic)
         models = c.value(.models, default: [:])
         customBaseURL = c.value(.customBaseURL, default: "")
         aiTrigger = c.value(.aiTrigger, default: .onSubmit)
-        aiMode = c.value(.aiMode, default: .fallback)
+        aiMode = c.value(.aiMode, default: .always)
         aiTimeout = min(60, max(5, c.value(.aiTimeout, default: 15)))
         resultKind = c.value(.resultKind, default: .both)
         maxResults = min(40, max(5, c.value(.maxResults, default: 20)))
