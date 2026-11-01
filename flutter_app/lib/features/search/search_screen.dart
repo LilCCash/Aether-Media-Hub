@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/catalog/result_filters.dart';
 import '../../core/model/meta.dart';
+import '../../core/search/advanced_search_engine.dart';
+import '../../core/search/ai_search_client.dart';
+import '../../core/search/search_intent.dart';
 import '../../data/prefs_ext.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +33,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   Timer? _debounce;
   String _query = '';
+
+  /// La frase per cui l'utente ha premuto «Cerca» sulla tastiera (l'AI può aspettare questo gesto).
+  String _submitted = '';
   List<String> _recent = [];
   ResultFilters _filters = ResultFilters.none;
 
@@ -98,7 +104,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   onTapOutside: (_) => FocusScope.of(context).unfocus(),
                   onChanged: _onChanged,
                   onSubmitted: (v) {
-                    setState(() => _query = v.trim());
+                    setState(() {
+                      _query = v.trim();
+                      _submitted = _query;
+                    });
                     if (v.trim().length >= 2 &&
                         ref.read(settingsProvider).saveSearchHistory) {
                       _remember(v.trim());
@@ -186,13 +195,99 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
+  /// I risultati della ricerca avanzata (se accesa): una riga in cima con i titoli e come è stata letta la frase.
+  ({List<Widget> widgets, bool hasItems}) _advanced() {
+    final cfg = ref.read(settingsProvider).advancedConfig;
+    ref.watch(settingsProvider.select((s) => s.advancedConfig));
+    if (!cfg.hasAnyLevel || _query.length < 3) {
+      return (widgets: const <Widget>[], hasItems: false);
+    }
+    final async = ref.watch(
+      advancedSearchProvider((
+        query: _query,
+        submitted: _submitted == _query,
+        config: cfg,
+      )),
+    );
+    final style = Theme.of(context).textTheme.bodySmall;
+    return async.when(
+      loading: () => (
+        widgets: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 10),
+                Text('Interpreto la ricerca…', style: style),
+              ],
+            ),
+          ),
+        ],
+        hasItems: false,
+      ),
+      error: (e, _) => (widgets: const <Widget>[], hasItems: false),
+      data: (r) {
+        final intent = r.intent;
+        final parts = <String>[
+          if (intent != null && cfg.showInterpretation) intent.summary,
+          if (intent != null && cfg.showSource)
+            switch (intent.source) {
+              IntentSource.keyword => 'parole chiave',
+              IntentSource.parser => 'parser locale',
+              IntentSource.ai => cfg.provider.title,
+            },
+        ];
+        return (
+          widgets: <Widget>[
+            if (r.items.isNotEmpty) ...[
+              SectionHeader(
+                title: 'Ricerca avanzata',
+                subtitle: parts.isEmpty ? null : parts.join(' — '),
+              ),
+              SizedBox(
+                height: AetherLook.of(context).rowHeight(232),
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AetherTokens.pageMargin,
+                  ),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: r.items.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, i) => PosterCard(
+                    item: r.items[i],
+                    onTap: () => openTitle(context, r.items[i]),
+                  ),
+                ),
+              ),
+            ],
+            if (r.notes.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: Text(r.notes.join('\n'), style: style),
+              ),
+          ],
+          hasItems: r.items.isNotEmpty,
+        );
+      },
+    );
+  }
+
   Widget _results() {
     final async = ref.watch(searchProvider(_query));
+    final adv = _advanced();
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => ErrorState(message: '$e'),
       data: (state) {
-        if (state.groups.isEmpty && !state.loading) {
+        if (state.groups.isEmpty &&
+            !state.loading &&
+            !adv.hasItems &&
+            adv.widgets.isEmpty) {
           return EmptyState(
             icon: Icons.search_off_rounded,
             title: 'Nessun risultato per «$_query»',
@@ -239,6 +334,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         return ListView(
           padding: const EdgeInsets.only(bottom: 120),
           children: [
+            ...adv.widgets,
             FilterBar(
               filters: _filters,
               types: {for (final g in state.groups) g.type}.toList()..sort(),

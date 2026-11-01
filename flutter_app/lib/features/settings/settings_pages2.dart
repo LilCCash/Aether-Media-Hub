@@ -829,6 +829,16 @@ class LookPage extends ConsumerWidget {
               'Scorrimento automatico',
               _heroAuto,
             ),
+            const PrefSlider(
+              'heroInterval',
+              'Intervallo di scorrimento',
+              _heroSeconds,
+              min: 3,
+              max: 20,
+              divisions: 17,
+              integer: true,
+              format: _secondsFmt,
+            ),
           ],
         ),
         SettingsGroup(
@@ -1113,3 +1123,6 @@ class _DiscoverGroup extends ConsumerWidget {
     );
   }
 }
+
+double _heroSeconds(AppSettings s) => s.heroInterval.toDouble();
+String _secondsFmt(double v) => '${v.round()} s';

@@ -1,3 +1,5 @@
+import '../core/search/advanced_search_engine.dart';
+import '../core/search/ai_search_client.dart';
 import '../core/util/lenient.dart';
 import 'settings.dart';
 
@@ -46,6 +48,26 @@ extension PrefsExt on AppSettings {
 
   // ── Content: calendar and notifications ──
   bool get hideTalkShows => _b('hideTalkShows', false);
+  bool get talkHome => _b('talkHome', true);
+  bool get talkDiscover => _b('talkDiscover', true);
+  bool get talkSearch => _b('talkSearch', true);
+  bool get talkCast => _b('talkCast', true);
+  bool get talkSimilar => _b('talkSimilar', true);
+
+  /// Whether talk shows are hidden in a place: `home`, `discover`, `search`, `cast` or `similar` (each place has its own switch).
+  bool hidesTalk(String scope) =>
+      hideTalkShows &&
+      switch (scope) {
+        'home' => talkHome,
+        'discover' => talkDiscover,
+        'search' => talkSearch,
+        'cast' => talkCast,
+        'similar' => talkSimilar,
+        _ => true,
+      };
+
+  /// Seconds between the slides of the featured carousel on Home.
+  int get heroInterval => _i('heroInterval', 7, 3, 20);
   bool get notifyNewEpisodes => _b('notifyNewEpisodes', false);
   int get notifyLeadMin => _i('notifyLeadMin', 0, 0, 1440);
   bool get notifyWatchlist => _b('notifyWatchlist', true);
@@ -73,6 +95,10 @@ extension PrefsExt on AppSettings {
   bool get traktSyncHistory => _b('traktSyncHistory', true);
   bool get traktSyncWatchlist => _b('traktSyncWatchlist', true);
   bool get simklSync => _b('simklSync', true);
+  bool get traktSyncOnLaunch => _b('traktSyncOnLaunch', true);
+  List<String> get traktHidden => asStringList(ext['traktHidden']);
+  int get traktItems => _i('traktItems', 20, 5, 50);
+  bool get traktLists => _b('traktLists', true);
 
   // ── Sources ──
   /// `byAddon`: addons in the order set in the Addon page, best first inside each; `byQuality`: one list, best first.
@@ -256,6 +282,72 @@ extension PrefsExt on AppSettings {
 
   // ── Diagnostics ──
   bool get keepLog => _b('keepLog', true);
+
+  // ── Ricerca avanzata ──
+  bool get advSearch => _b('advSearch', false);
+  bool get advKeyword => _b('advKeyword', true);
+  bool get advParser => _b('advParser', true);
+  bool get advAi => _b('advAi', false);
+  bool get advSuggest => _b('advSuggest', true);
+  AiProvider get advProvider =>
+      AiProvider.fromName(asString(ext['advProvider']));
+  String advModel(AiProvider p) {
+    final chosen = (asString(asMap(ext['advModels'])?[p.name]) ?? '').trim();
+    return chosen.isEmpty ? p.defaultModel : chosen;
+  }
+
+  String get advCustomBase => asString(ext['advCustomBase']) ?? '';
+  String get advTrigger => _s('advTrigger', 'submit', {'submit', 'typing'});
+  String get advMode => _s('advMode', 'always', {'always', 'fallback'});
+  int get advTimeout => _i('advTimeout', 15, 5, 60);
+  String get advKinds => _s('advKinds', 'both', {'both', 'movie', 'series'});
+  int get advMax => _i('advMax', 20, 5, 40);
+  int get advMinVotes => _i('advMinVotes', 300, 0, 5000);
+  bool get advShowInterpretation => _b('advShowInterpretation', true);
+  bool get advShowSource => _b('advShowSource', true);
+  bool get advAdult => _b('advAdult', false);
+  bool get advRemember => _b('advRemember', true);
+  bool get advLog => _b('advLog', true);
+
+  AppSettings withAdvModel(AiProvider p, String model) {
+    final m = {...?asMap(ext['advModels'])};
+    m[p.name] = model;
+    return withExt('advModels', m);
+  }
+
+  /// Le scelte di «Ricerca avanzata» in una forma pronta per il motore.
+  AdvancedConfig get advancedConfig {
+    final lang = switch (language) {
+      'en' => 'en-US',
+      'fr' => 'fr-FR',
+      'es' => 'es-ES',
+      'de' => 'de-DE',
+      _ => 'it-IT',
+    };
+    final p = advProvider;
+    return AdvancedConfig(
+      enabled: advSearch,
+      keywordSearch: advKeyword,
+      naturalParser: advParser,
+      aiEnabled: advAi,
+      aiSuggestsTitles: advSuggest,
+      provider: p,
+      model: advModel(p),
+      customBase: advCustomBase,
+      aiOnSubmit: advTrigger == 'submit',
+      aiAlways: advMode == 'always',
+      aiTimeout: advTimeout,
+      kinds: advKinds,
+      maxResults: advMax,
+      minVotes: advMinVotes,
+      showInterpretation: advShowInterpretation,
+      showSource: advShowSource,
+      includeAdult: advAdult,
+      rememberInterpretations: advRemember,
+      logTimings: advLog,
+      language: lang,
+    );
+  }
 
   String _hex(String k, String d) {
     final v = asString(ext[k]);

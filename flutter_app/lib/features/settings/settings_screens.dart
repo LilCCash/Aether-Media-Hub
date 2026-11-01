@@ -14,6 +14,8 @@ import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
 import 'about_eggs.dart';
 import "settings_extra.dart";
+import '../trakt/trakt_screen.dart';
+import 'advanced_search_page.dart';
 import 'settings_pages2.dart';
 import 'settings_services.dart';
 import '../../design/palettes.dart';
@@ -87,6 +89,13 @@ class MoreScreen extends ConsumerWidget {
                   title: 'Statistiche',
                   subtitle: 'Quanto e cosa hai guardato',
                   onTap: () => context.push('/stats'),
+                ),
+                HubRow(
+                  icon: Icons.playlist_play_rounded,
+                  color: const Color(0xFFED1C24),
+                  title: 'Trakt',
+                  subtitle: 'In tendenza, consigliati, liste, da riprendere',
+                  onTap: () => context.push('/trakt'),
                 ),
               ],
             ),
@@ -205,6 +214,13 @@ const _topicsMain = [
     Icons.grid_view_rounded,
     Color(0xFF4CD6A0),
     'Cataloghi, Scopri, ricerca, metadati',
+  ),
+  _Topic(
+    'advsearch',
+    'Ricerca avanzata',
+    Icons.auto_awesome_rounded,
+    Color(0xFF5BD6C3),
+    'Parole chiave, frasi e modelli AI',
   ),
   _Topic(
     'casting',
@@ -563,6 +579,8 @@ class SettingsPageScreen extends ConsumerWidget {
     return switch (page) {
       'root' => const SettingsRootScreen(),
       'services' => const ServicesPage(),
+      'advsearch' => const AdvancedSearchSettingsPage(),
+      'trakt' => const TraktCatalogSettingsPage(),
       'catalogs-edit' => const _CatalogsPage(),
       'advanced' || 'diagnostics' => const _DiagnosticsPage(),
       'about' => const _AboutPage(),
@@ -1681,7 +1699,7 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
               );
             }
             final hide = ref.watch(
-              settingsProvider.select((s) => s.hideTalkShows),
+              settingsProvider.select((s) => s.hidesTalk('cast')),
             );
             final credits = [
               for (final c in snap.data ?? const <PersonCredit>[])

@@ -60,8 +60,10 @@ class TraktClient {
   Future<String?> _client() async => SyncApp.hasTrakt
       ? SyncApp.traktClientId
       : await secrets.serviceKey(ServiceKey.traktClient);
+
+  /// Il segreto non serve all'app pubblica (codice sul sito di Trakt); c'è solo se l'utente usa una sua app.
   Future<String?> _secret() async => SyncApp.hasTrakt
-      ? SyncApp.traktClientSecret
+      ? (SyncApp.traktClientSecret.isEmpty ? null : SyncApp.traktClientSecret)
       : await secrets.serviceKey(ServiceKey.traktSecret);
 
   Future<Map<String, Object?>?> _tokens() async {
@@ -113,7 +115,7 @@ class TraktClient {
       deviceCode: dc,
       userCode: uc,
       verificationUrl:
-          asString(m['verification_url']) ?? 'https://trakt.tv/activate',
+          asString(m['verification_url']) ?? 'https://auth.trakt.tv/activate',
       interval: asInt(m['interval']) ?? 5,
       expiresIn: asInt(m['expires_in']) ?? 600,
     );
@@ -122,12 +124,16 @@ class TraktClient {
   Future<DevicePoll> pollDevice(String deviceCode) async {
     final id = await _client();
     final secret = await _secret();
-    if (id == null || secret == null) return DevicePoll.failed;
+    if (id == null) return DevicePoll.failed;
     final r = await _http.send(
       'trakt',
       base.replace(path: '/oauth/device/token'),
       method: 'POST',
-      data: {'code': deviceCode, 'client_id': id, 'client_secret': secret},
+      data: {
+        'code': deviceCode,
+        'client_id': id,
+        if (secret != null && secret.isNotEmpty) 'client_secret': secret,
+      },
       contentType: Headers.jsonContentType,
     );
     if (r == null) return DevicePoll.failed;
@@ -160,7 +166,7 @@ class TraktClient {
     if ((asInt(t['expires']) ?? 0) - now < 86400) {
       final secret = await _secret();
       final refresh = asString(t['refresh']);
-      if (secret != null && refresh != null) {
+      if (refresh != null) {
         final r = await _http.send(
           'trakt',
           base.replace(path: '/oauth/token'),
@@ -168,8 +174,8 @@ class TraktClient {
           data: {
             'refresh_token': refresh,
             'client_id': id,
-            'client_secret': secret,
-            'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob',
+            if (secret != null && secret.isNotEmpty) 'client_secret': secret,
+            'redirect_uri': 'http://localhost',
             'grant_type': 'refresh_token',
           },
           contentType: Headers.jsonContentType,
@@ -316,6 +322,99 @@ class TraktClient {
             'ids': {'imdb': imdb},
           },
         ],
+      },
+      contentType: Headers.jsonContentType,
+    );
+    return r != null && r.ok;
+  }
+
+  /// Una lettura di Trakt (cataloghi, liste): con [auth] serve l'account collegato. Null se non risponde o non è collegato.
+  Future<Object?> getJson(String path, {bool auth = false}) async {
+    Map<String, String>? h;
+    if (auth) {
+      h = await _auth();
+      if (h == null) return null;
+    } else {
+      final id = await _client();
+      if (id == null || id.isEmpty) return null;
+      h = {'trakt-api-version': '2', 'trakt-api-key': id};
+    }
+    final r = await _http.send(
+      'trakt',
+      base.replace(
+        path: path.split('?').first,
+        query: path.contains('?') ? path.split('?').last : null,
+      ),
+      headers: h,
+    );
+    return r != null && r.ok ? r.body : null;
+  }
+
+  Future<bool> removeFromWatchlist(String type, String imdb) async {
+    final h = await _auth();
+    if (h == null) return false;
+    final key = type == 'movie' ? 'movies' : 'shows';
+    final r = await _http.send(
+      'trakt',
+      base.replace(path: '/sync/watchlist/remove'),
+      method: 'POST',
+      headers: h,
+      data: {
+        key: [
+          {
+            'ids': {'imdb': imdb},
+          },
+        ],
+      },
+      contentType: Headers.jsonContentType,
+    );
+    return r != null && r.ok;
+  }
+
+  /// Segna come visti film ed episodi (`episodes`: IMDb della serie e `stagione:numero`).
+  Future<bool> addHistory({
+    List<String> movies = const [],
+    List<(String, int, int)> episodes = const [],
+  }) async {
+    if (movies.isEmpty && episodes.isEmpty) return true;
+    final h = await _auth();
+    if (h == null) return false;
+    final stamp = DateTime.now().toUtc().toIso8601String();
+    final byShow = <String, Map<int, List<int>>>{};
+    for (final (show, s, e) in episodes) {
+      byShow.putIfAbsent(show, () => {}).putIfAbsent(s, () => []).add(e);
+    }
+    final r = await _http.send(
+      'trakt',
+      base.replace(path: '/sync/history'),
+      method: 'POST',
+      headers: h,
+      data: {
+        if (movies.isNotEmpty)
+          'movies': [
+            for (final m in movies)
+              {
+                'ids': {'imdb': m},
+                'watched_at': stamp,
+              },
+          ],
+        if (byShow.isNotEmpty)
+          'shows': [
+            for (final e in byShow.entries)
+              {
+                'ids': {'imdb': e.key},
+                'seasons': [
+                  for (final s in e.value.entries)
+                    {
+                      'number': s.key,
+                      'episodes': [
+                        for (final n in s.value)
+                          {'number': n, 'watched_at': stamp},
+                      ],
+                    },
+                ],
+              },
+          ],
       },
       contentType: Headers.jsonContentType,
     );

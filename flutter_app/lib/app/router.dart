@@ -6,6 +6,7 @@ import '../core/model/meta.dart';
 import '../features/addons/addons_screen.dart';
 import '../features/calendar/calendar_screen.dart';
 import '../features/stats/stats_screen.dart';
+import '../features/trakt/trakt_screen.dart';
 import '../features/detail/detail_screen.dart';
 import '../features/discover/discover_screen.dart';
 import '../features/downloads/downloads_screen.dart';
@@ -147,6 +148,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           kind: slideKind,
           child: const CalendarScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/trakt',
+        pageBuilder: (_, state) => AetherPage(
+          key: state.pageKey,
+          kind: slideKind,
+          child: const TraktScreen(),
         ),
       ),
       GoRoute(

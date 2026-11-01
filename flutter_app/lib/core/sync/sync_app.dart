@@ -3,9 +3,10 @@
 /// `--dart-define=TRAKT_CLIENT_ID=… --dart-define=TRAKT_CLIENT_SECRET=… --dart-define=SIMKL_CLIENT_ID=…` or put them below.
 /// While they are empty the settings still ask for the viewer's own keys (the older, advanced way).
 class SyncApp {
+  /// L'app Aether registrata su Trakt: l'ID è pubblico e il collegamento con il codice non usa nessun segreto.
   static const traktClientId = String.fromEnvironment(
     'TRAKT_CLIENT_ID',
-    defaultValue: '',
+    defaultValue: 'anVbgfu810H1J949IJQlyAlzT7klUdxZbGVb0kEpGfc',
   );
   static const traktClientSecret = String.fromEnvironment(
     'TRAKT_CLIENT_SECRET',
@@ -16,7 +17,6 @@ class SyncApp {
     defaultValue: '',
   );
 
-  static bool get hasTrakt =>
-      traktClientId.isNotEmpty && traktClientSecret.isNotEmpty;
+  static bool get hasTrakt => traktClientId.isNotEmpty;
   static bool get hasSimkl => simklClientId.isNotEmpty;
 }

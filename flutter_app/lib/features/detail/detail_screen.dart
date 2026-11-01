@@ -1353,7 +1353,9 @@ class _SimilarRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hide = ref.watch(settingsProvider.select((s) => s.hideTalkShows));
+    final hide = ref.watch(
+      settingsProvider.select((s) => s.hidesTalk('similar')),
+    );
     final titles = hide
         ? [
             for (final t in this.titles)

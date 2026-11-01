@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -171,6 +172,8 @@ class AppServices {
       settings: () => settings,
     );
     library.onWatchlistAdded = sync.watchlistAdded;
+    library.onWatchlistRemoved = sync.watchlistRemoved;
+    unawaited(sync.autoSync());
     return AppServices(
       sync: sync,
       store: store,

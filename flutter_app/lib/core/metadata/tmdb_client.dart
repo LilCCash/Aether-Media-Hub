@@ -212,6 +212,10 @@ class TmdbClient {
     }
   }
 
+  /// Una richiesta libera all'API (ricerca avanzata: discover, parole chiave, raccomandazioni…). Null se la chiave manca o la risposta non è valida.
+  Future<Map<String, Object?>?> raw(String path, Map<String, String> query) =>
+      _get(path, query);
+
   /// Verifies the key. Returns null when accepted, else a reason.
   Future<String?> check() async {
     try {

@@ -229,12 +229,16 @@ class HeroCarousel extends ConsumerStatefulWidget {
 class _HeroCarouselState extends ConsumerState<HeroCarousel> {
   final _controller = PageController();
   Timer? _timer;
+  int _elapsed = 0;
   int _page = 0;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 7), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _elapsed++;
+      if (_elapsed < ref.read(settingsProvider).heroInterval) return;
+      _elapsed = 0;
       final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
       if (!mounted ||
           reduce ||

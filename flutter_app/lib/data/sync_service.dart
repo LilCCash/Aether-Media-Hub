@@ -83,6 +83,28 @@ class SyncService {
     }
   }
 
+  Future<void> watchlistRemoved(MetaItem meta) async {
+    final imdb = imdbOf(meta.id);
+    if (imdb == null) return;
+    try {
+      if (settings().traktSyncWatchlist) {
+        await trakt.removeFromWatchlist(meta.type, imdb);
+      }
+    } on Object {
+      // best effort
+    }
+  }
+
+  /// All'apertura dell'app: se Trakt è collegato e la scelta è accesa, porta qui le novità.
+  Future<void> autoSync() async {
+    if (!settings().traktSyncOnLaunch || !await trakt.linked) return;
+    try {
+      await pullTrakt();
+    } on Object {
+      // best effort
+    }
+  }
+
   /// Pulls Trakt into the library. Returns a line for the viewer.
   Future<String> pullTrakt() async {
     final s = settings();
@@ -123,6 +145,32 @@ class SyncService {
         listed++;
       }
     }
-    return 'Trakt: $films film e $eps episodi segnati come visti, $listed titoli aggiunti alla watchlist.';
+    // Da Aether a Trakt: ciò che qui risulta visto e Trakt non conosce ancora.
+    var pushed = 0;
+    if (s.traktSyncHistory) {
+      final remoteMovies = {for (final m in pull.watchedMovies) m.imdb};
+      final toMovies = <String>[];
+      final toEpisodes = <(String, int, int)>[];
+      for (final p in library.history.where((p) => p.completed)) {
+        final imdb = imdbOf(p.metaId);
+        if (imdb == null) continue;
+        if (p.type == 'movie') {
+          if (!remoteMovies.contains(imdb)) toMovies.add(imdb);
+        } else if (p.season != null && p.episode != null && p.season! > 0) {
+          final known =
+              pull.watchedEpisodes[imdb]?.contains(
+                '${p.season}:${p.episode}',
+              ) ??
+              false;
+          if (!known) toEpisodes.add((imdb, p.season!, p.episode!));
+        }
+      }
+      final movies = toMovies.take(300).toList();
+      final episodes = toEpisodes.take(300).toList();
+      if (await trakt.addHistory(movies: movies, episodes: episodes)) {
+        pushed = movies.length + episodes.length;
+      }
+    }
+    return 'Trakt: $films film e $eps episodi segnati come visti, $listed titoli aggiunti alla watchlist; $pushed titoli visti mandati a Trakt.';
   }
 }

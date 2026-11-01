@@ -18,6 +18,7 @@ import '../core/model/meta.dart';
 import '../core/model/stream.dart';
 import '../core/util/app_log.dart';
 import '../data/library_repository.dart';
+import '../core/search/advanced_search_engine.dart';
 import '../data/prefs_ext.dart';
 import '../data/settings.dart';
 import '../data/stores.dart';
@@ -169,9 +170,10 @@ final catalogProvider = FutureProvider.autoDispose
         extra: extra,
         cancel: cancel,
       );
+      final prefs = ref.read(settingsProvider);
       return withoutTalkShows(
         page.items,
-        hide: ref.read(settingsProvider).hideTalkShows,
+        hide: prefs.hidesTalk('home') || prefs.hidesTalk('discover'),
       );
     });
 
@@ -364,6 +366,22 @@ class SearchState {
   bool get loading => pending > 0;
 }
 
+/// Ricerca avanzata: parole chiave, frasi in italiano e AI (Impostazioni ▸ Ricerca avanzata).
+final advancedEngineProvider = Provider<AdvancedSearchEngine>((ref) {
+  final s = ref.watch(servicesProvider);
+  return AdvancedSearchEngine(tmdb: s.tmdb, secrets: s.secrets, store: s.store);
+});
+
+final advancedSearchProvider = FutureProvider.autoDispose
+    .family<
+      AdvancedResult,
+      ({String query, bool submitted, AdvancedConfig config})
+    >(
+      (ref, a) => ref
+          .watch(advancedEngineProvider)
+          .search(a.query, a.config, submitted: a.submitted),
+    );
+
 final searchProvider = StreamProvider.autoDispose.family<SearchState, String>((
   ref,
   query,
@@ -418,7 +436,7 @@ final searchProvider = StreamProvider.autoDispose.family<SearchState, String>((
                 catalog.type,
                 withoutTalkShows(
                   page.items,
-                  hide: ref.read(settingsProvider).hideTalkShows,
+                  hide: ref.read(settingsProvider).hidesTalk('search'),
                 ),
               );
             }

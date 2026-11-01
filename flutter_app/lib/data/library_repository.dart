@@ -146,11 +146,17 @@ class LibraryRepository {
   /// Called when a title is added to the watchlist (Trakt and Simkl are told).
   Future<void> Function(MetaItem)? onWatchlistAdded;
 
+  /// Called when a title is taken off the watchlist (Trakt and Simkl are told).
+  Future<void> Function(MetaItem)? onWatchlistRemoved;
+
   Future<bool> toggleWatchlist(MetaItem meta) async {
     final added = !_watchlist.containsKey(meta.id);
     added ? _watchlist[meta.id] = meta.preview : _watchlist.remove(meta.id);
     await _save();
-    if (added) unawaited(onWatchlistAdded?.call(meta) ?? Future<void>.value());
+    unawaited(
+      (added ? onWatchlistAdded : onWatchlistRemoved)?.call(meta) ??
+          Future<void>.value(),
+    );
     return added;
   }
 

@@ -83,6 +83,11 @@ enum ServiceKey {
   traktToken,
   simklClient,
   simklToken,
+  aiAnthropic,
+  aiOpenai,
+  aiGoogle,
+  aiOpenrouter,
+  aiCustom,
 }
 
 extension ServiceKeyStorage on SecretStore {

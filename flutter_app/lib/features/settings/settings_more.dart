@@ -237,8 +237,13 @@ class HiddenContentSettingsPage extends StatelessWidget {
             'hideTalkShows',
             'Nascondi i talk show',
             _hideTalk,
-            subtitle: 'Non compaiono in Home, Scopri, Cerca, titoli simili, stessi attori e filmografie',
+            subtitle: 'Scegli sotto dove nasconderli',
           ),
+          PrefSwitch('talkHome', 'Nella Home', _talkHome),
+          PrefSwitch('talkDiscover', 'In Scopri', _talkDiscover),
+          PrefSwitch('talkSearch', 'Nella ricerca', _talkSearch),
+          PrefSwitch('talkCast', 'Nelle filmografie degli attori', _talkCast),
+          PrefSwitch('talkSimilar', 'Nei titoli simili', _talkSimilar),
         ],
       ),
     ],
@@ -246,6 +251,11 @@ class HiddenContentSettingsPage extends StatelessWidget {
 }
 
 bool _hideTalk(AppSettings s) => s.hideTalkShows;
+bool _talkHome(AppSettings s) => s.talkHome;
+bool _talkDiscover(AppSettings s) => s.talkDiscover;
+bool _talkSearch(AppSettings s) => s.talkSearch;
+bool _talkCast(AppSettings s) => s.talkCast;
+bool _talkSimilar(AppSettings s) => s.talkSimilar;
 
 /// The theme on top of the look page, like iOS Settings: the choice dark / light / automatic.
 class ThemeQuickSettings extends StatelessWidget {
