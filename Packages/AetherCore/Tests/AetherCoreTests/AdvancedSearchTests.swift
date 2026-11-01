@@ -106,6 +106,11 @@ final class AdvancedSearchTests: XCTestCase {
         XCTAssertTrue(AISearchError.server(404, "x").message.contains("404"))
     }
 
+    func testGoogleThinkingOff() {
+        XCTAssertNotNil(AISearchClient.googleGenerationConfig(model: "gemini-2.5-flash")["thinkingConfig"])
+        XCTAssertNil(AISearchClient.googleGenerationConfig(model: "gemini-2.5-pro")["thinkingConfig"])
+    }
+
     func testListRequests() throws {
         let anthropic = try AISearchClient.listRequest(provider: .anthropic, key: "k", customBase: "")
         XCTAssertEqual(anthropic.headers["x-api-key"], "k")

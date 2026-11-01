@@ -269,7 +269,7 @@ public struct AISearchClient: Sendable {
             headers["x-goog-api-key"] = key ?? ""
             body = ["systemInstruction": ["parts": [["text": system]]],
                     "contents": [["role": "user", "parts": [["text": user]]]],
-                    "generationConfig": ["responseMimeType": "application/json"]]
+                    "generationConfig": Self.googleGenerationConfig(model: model)]
         case .custom:
             let trimmed = customBase.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             guard let base = URL(string: trimmed), base.scheme?.lowercased() == "https", let host = base.host, !host.isEmpty,
@@ -281,6 +281,14 @@ public struct AISearchClient: Sendable {
         }
         guard let data = try? JSONSerialization.data(withJSONObject: body) else { throw AISearchError.badEndpoint }
         return HTTPRequest(url: url, method: "POST", headers: headers, body: data, timeout: timeout, maxBytes: HTTPLimits.manifest)
+    }
+
+    /// I modelli «2.5 flash» ragionano prima di rispondere: per tradurre una frase non serve e costa secondi.
+    static func googleGenerationConfig(model: String) -> [String: Any] {
+        var config: [String: Any] = ["responseMimeType": "application/json"]
+        let lower = model.lowercased()
+        if lower.contains("2.5-flash") { config["thinkingConfig"] = ["thinkingBudget": 0] }
+        return config
     }
 
     static func answerText(provider: AISearchProvider, data: Data) -> String? {

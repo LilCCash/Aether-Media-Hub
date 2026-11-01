@@ -55,8 +55,11 @@ final class AdvancedSearchEngine: @unchecked Sendable {
         // «Simili a…»: il parser sa solo cercare il titolo; l'AI sa davvero quali titoli gli somigliano.
         let aiKnowsSimilar = settings.aiSuggestsTitles && intent?.similarTo != nil
         let wantsAI = aiAllowed && (settings.aiMode == .always || intent == nil || aiKnowsSimilar)
+        var aiSeconds: Double?
         if wantsAI {
+            let started = Date()
             let outcome = await askAI(query, settings: settings, year: year)
+            aiSeconds = Date().timeIntervalSince(started)
             if let found = outcome.intent { intent = found }
             notes.append(contentsOf: outcome.notes)
         } else if settings.aiEnabled && !aiAllowed && intent == nil {
@@ -73,8 +76,12 @@ final class AdvancedSearchEngine: @unchecked Sendable {
         }
         guard let finalIntent = intent else { return AdvancedSearchResult(intent: nil, items: [], notes: notes) }
         let extra = finalIntent.source == .keyword ? [] : leftovers
+        let tmdbStarted = Date()
         let outcome = await service.run(intent: finalIntent, extraKeywords: extra, settings: settings, language: language)
         notes.append(contentsOf: outcome.notes)
+        if let ai = aiSeconds {
+            notes.append(String(format: "Tempi: AI %.1f s, TMDB %.1f s.", ai, Date().timeIntervalSince(tmdbStarted)))
+        }
         return AdvancedSearchResult(intent: finalIntent, items: outcome.items, notes: notes)
     }
 
