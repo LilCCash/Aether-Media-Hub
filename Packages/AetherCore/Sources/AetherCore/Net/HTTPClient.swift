@@ -314,7 +314,8 @@ public final class URLSessionHTTPClient: NSObject, HTTPClient, URLSessionDataDel
                     return AddonError.atsBlocked
                 }
                 #endif
-                return AddonError.unreachable(host)
+                // The code tells the reason: -1003 name not found (DNS), -1004 connection refused, -1005 connection lost, -1200 TLS.
+                return AddonError.unreachable("\(host), codice \(urlError.code.rawValue)")
             }
         }
         if error is CancellationError { return error }
