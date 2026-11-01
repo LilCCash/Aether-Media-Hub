@@ -264,6 +264,7 @@ final class PlayerViewModel: ObservableObject {
     }
 
     func teardown() {
+        scrobbleTrakt(.stop)
         guard !tornDown else { return }
         tornDown = true
         // Closing the player ends a TorBox wait too; an item already added to the user's account stays there.
@@ -765,6 +766,7 @@ final class PlayerViewModel: ObservableObject {
             env.diagnostics.logDetached(.warning, "player", "Picture in Picture non avviato: \(failure)")
         }
         if new.isReady && !wasReady { refreshTracks() }
+        if new.isPlaying != old.isPlaying { scrobbleTrakt(new.isPlaying ? .start : .pause) }
         if new.isExternalPlaybackActive != old.isExternalPlaybackActive {
             let where_ = conversionLease != nil ? "indirizzo Wi-Fi del ponte" : (conversion != nil ? "questo telefono (127.0.0.1)" : "indirizzo originale")
             env.diagnostics.logDetached(.info, "player", "AirPlay: riproduzione esterna \(new.isExternalPlaybackActive ? "attiva" : "terminata"), file su: \(where_)")
@@ -774,6 +776,22 @@ final class PlayerViewModel: ObservableObject {
         if new.isPlaying { lastRetryPosition = new.position }
         recordProgress(force: false)
         evaluateNextEpisodePrompt()
+    }
+
+    private var traktActive = false
+
+    /// Dice a Trakt cosa sta succedendo (se è acceso): inizio, pausa, fine.
+    private func scrobbleTrakt(_ action: TraktClient.ScrobbleAction, finished: Bool = false) {
+        guard !snapshot.isLive else { return }
+        switch action {
+        case .start: traktActive = true
+        case .pause: guard traktActive else { return }
+        case .stop:
+            guard traktActive else { return }
+            traktActive = false
+        }
+        let duration = snapshot.duration
+        env.trakt.scrobble(action, meta: meta, video: currentVideo, position: finished ? duration : snapshot.position, duration: duration)
     }
 
     /// Returns true when a write was scheduled.
@@ -798,6 +816,7 @@ final class PlayerViewModel: ObservableObject {
 
     private func handleEnded() {
         recordFinalCompletion()
+        scrobbleTrakt(.stop, finished: true)
         if case .download(let item) = request.source {
             env.downloads.deleteIfWatched(metaID: item.metaID, videoID: item.videoID)
         }

@@ -155,6 +155,11 @@ public struct TMDBClient: Sendable {
         return all
     }
 
+    /// Un titolo in breve (nome, trama, locandina) con una sola richiesta.
+    func summary(kind: Kind, id: Int, language: String) async throws -> TMDBDetails {
+        return try await get("/\(kind.rawValue)/\(id)", query: [("language", language)])
+    }
+
     // MARK: Transport
 
     private func get<T: Decodable>(_ path: String, query: [(String, String)]) async throws -> T {

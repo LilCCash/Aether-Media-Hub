@@ -14,6 +14,8 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var favoriteIDs = Set<String>()
 
     let store: LibraryStore
+    /// Chiamata dopo ogni aggiunta o rimozione dalla lista (Trakt la ripete sul suo servizio).
+    var onWatchlistChange: ((MetaItem, Bool) -> Void)?
     private var observer: Task<Void, Never>?
 
     init(store: LibraryStore) {
@@ -60,6 +62,7 @@ final class LibraryModel: ObservableObject {
         // Optimistic: buttons react instantly.
         if enable { watchlistIDs.insert(meta.id) } else { watchlistIDs.remove(meta.id) }
         Task { await store.setWatchlist(enable, meta: meta) }
+        onWatchlistChange?(meta, enable)
     }
 
     func toggleFavorite(_ meta: MetaItem) {

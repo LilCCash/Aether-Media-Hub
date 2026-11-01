@@ -5,9 +5,11 @@ struct MoreView: View {
     @EnvironmentObject private var addons: AddonStore
     @EnvironmentObject private var casting: CastCoordinator
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var env: AppEnvironment
+    @EnvironmentObject private var appSettings: SettingsStore
     @State private var path = NavigationPath()
 
-    enum Destination: Hashable { case addons, stats, casting, settings, about }
+    enum Destination: Hashable { case addons, stats, trakt, casting, settings, about }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -22,6 +24,12 @@ struct MoreView: View {
                         rowLabel("Statistiche", "chart.bar.fill", .orange, detail: nil)
                     }
                     .accessibilityIdentifier("more.stats")
+                    if appSettings.value.content.trakt.enabled {
+                        NavigationLink(value: Destination.trakt) {
+                            rowLabel("Trakt", "play.square.stack.fill", .red, detail: env.trakt.user?.username)
+                        }
+                        .accessibilityIdentifier("more.trakt")
+                    }
                     NavigationLink(value: Destination.casting) {
                         rowLabel("Casting", "tv.and.mediabox.fill", .teal, detail: casting.statusSummary)
                     }
@@ -43,6 +51,7 @@ struct MoreView: View {
                 switch destination {
                 case .addons: AddonsView()
                 case .stats: StatsView()
+                case .trakt: TraktCatalogView(trakt: env.trakt)
                 case .casting: CastView()
                 case .settings: SettingsRootView()
                 case .about: AboutView()
@@ -73,6 +82,8 @@ struct MoreView: View {
 }
 
 struct SettingsRootView: View {
+    @EnvironmentObject private var env: AppEnvironment
+
     var body: some View {
         List {
             Section {
@@ -82,6 +93,7 @@ struct SettingsRootView: View {
                 link("Contenuti e scoperta", "square.grid.2x2.fill", .green) { ContentSettingsView() }
                 link("Ricerca avanzata", "sparkle.magnifyingglass", .mint) { AdvancedSearchSettingsView() }
                 link("Indicizzazione", "magnifyingglass.circle.fill", .indigo) { IndexingSettingsView() }
+                link("Trakt", "play.square.stack.fill", .red) { TraktSettingsView(trakt: env.trakt) }
                 link("Casting", "tv.and.mediabox.fill", .teal) { CastingSettingsView() }
                 link("Servizi", "key.fill", .purple) { ServicesSettingsView() }
             }

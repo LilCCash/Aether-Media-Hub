@@ -38,6 +38,8 @@ final class AppEnvironment: ObservableObject {
     let mdblist: MDBListClient
     /// Ricerca avanzata: parole chiave, frasi in italiano, Apple Intelligence e modelli AI con la chiave dell'utente.
     let advancedSearch: AdvancedSearchEngine
+    /// Trakt: collegamento, sincronizzazione, scrobble e cataloghi.
+    let trakt: TraktService
     /// Tempi di ogni fase della ricerca avanzata (registro consultabile nelle impostazioni).
     let searchTimings: SearchTimingLog
     /// Debrid providers: connection status, cache checks and torrent resolution into playable links (user-supplied keys).
@@ -110,6 +112,9 @@ final class AppEnvironment: ObservableObject {
             cache: responseCache)
         fanart = FanartClient(http: http, credentials: serviceKeys.provider(for: .fanart))
         mdblist = MDBListClient(http: http, credentials: serviceKeys.provider(for: .mdblist))
+        trakt = TraktService(http: http, secrets: secrets,
+                             tmdb: TMDBClient(http: http, credentials: serviceKeys.provider(for: .tmdb), baseURL: tmdbBase),
+                             library: libraryStore, settings: settings)
         let timingLog = SearchTimingLog()
         searchTimings = timingLog
         advancedSearch = AdvancedSearchEngine(
@@ -144,7 +149,9 @@ final class AppEnvironment: ObservableObject {
         await libraryStore.load()
         library.start()
         await library.refresh()
+        library.onWatchlistChange = { [weak self] meta, enabled in self?.trakt.watchlistChanged(meta, enabled: enabled) }
         await downloads.restore()
+        Task { await trakt.bootstrap() }
         await diagnostics.configure(enabled: settings.value.privacy.keepDiagnosticLog,
                                     verbose: settings.value.advanced.verboseLogging)
         await diagnostics.log(.info, "app", "Avvio completato: \(addons.addons.count) addon, rete \(network.interfaceName)")

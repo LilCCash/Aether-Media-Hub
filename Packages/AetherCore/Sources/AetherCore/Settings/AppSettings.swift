@@ -575,13 +575,15 @@ public struct ContentSettings: Codable, Equatable, Sendable {
     public var advancedSearch = AdvancedSearchSettings()
     /// Indicizzazione di Spotlight: quanti titoli e locandine.
     public var indexing = IndexingSettings()
+    /// Trakt: collegamento, sincronizzazione e cataloghi.
+    public var trakt = TraktSettings()
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case preferredLanguage, catalogRefreshMinutes, hideAdultCatalogs, hideTalkShows, talkHome, talkDiscover, talkSearch, talkCast, talkSimilar, searchRemote, searchLocal
         case saveSearchHistory, searchSort, discoverTypes
-        case catalogLayout, streamDisplay, titleModules, ratings, advancedSearch, indexing
+        case catalogLayout, streamDisplay, titleModules, ratings, advancedSearch, indexing, trakt
     }
 
     public init(from decoder: Decoder) throws {
@@ -606,6 +608,7 @@ public struct ContentSettings: Codable, Equatable, Sendable {
         ratings = c.value(.ratings, default: RatingsSettings())
         advancedSearch = c.value(.advancedSearch, default: AdvancedSearchSettings())
         indexing = c.value(.indexing, default: IndexingSettings())
+        trakt = c.value(.trakt, default: TraktSettings())
     }
 }
 
