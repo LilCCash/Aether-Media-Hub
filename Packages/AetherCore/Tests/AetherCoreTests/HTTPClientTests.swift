@@ -182,7 +182,7 @@ final class HTTPClientTests: XCTestCase {
             (.timedOut, .timeout),
             (.notConnectedToInternet, .offline),
             (.serverCertificateUntrusted, .tlsFailure),
-            (.cannotConnectToHost, .unreachable("addon.test"))
+            (.cannotConnectToHost, .unreachable("addon.test, codice -1004"))
         ]
         for (code, expected) in cases {
             StubURLProtocol.handler = { _ in .fail(URLError(code)) }
