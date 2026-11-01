@@ -11,6 +11,8 @@ public enum TraktError: Error, Equatable, Sendable {
     case notFound
     case server(Int)
     case network
+    /// Il collegamento non è partito: il motivo, in italiano.
+    case transport(String)
     case malformed
     /// Collegamento: l'utente non ha ancora inserito il codice.
     case pending
@@ -27,6 +29,7 @@ public enum TraktError: Error, Equatable, Sendable {
         case .notFound: return "Trakt non ha trovato quello che cercavo."
         case .server(let status): return "Trakt ha risposto con un errore \(status)."
         case .network: return "Impossibile raggiungere Trakt: controlla la connessione."
+        case .transport(let reason): return "Impossibile raggiungere Trakt (\(reason))."
         case .malformed: return "Trakt ha risposto in un modo che non so leggere."
         case .pending: return "In attesa che tu inserisca il codice."
         case .denied: return "Hai rifiutato il collegamento su Trakt."

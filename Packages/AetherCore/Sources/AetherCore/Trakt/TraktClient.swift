@@ -282,6 +282,10 @@ public actor TraktClient {
     private nonisolated func send(_ request: HTTPRequest) async throws -> HTTPResponse {
         do {
             return try await http.send(request)
+        } catch let error as AddonError {
+            throw TraktError.transport(Self.describe(error))
+        } catch is CancellationError {
+            throw TraktError.transport("richiesta annullata")
         } catch {
             throw TraktError.network
         }
@@ -311,6 +315,23 @@ public actor TraktClient {
         case 426: throw TraktError.vipRequired
         case 429: throw TraktError.rateLimited
         default: throw TraktError.server(response.statusCode)
+        }
+    }
+
+    /// Il motivo per cui una richiesta non è partita, in poche parole (mai con indirizzi privati o chiavi).
+    static func describe(_ error: AddonError) -> String {
+        switch error {
+        case .offline: return "nessuna connessione a Internet"
+        case .timeout: return "tempo scaduto"
+        case .tlsFailure: return "certificato del server non accettato"
+        case .atsBlocked: return "connessione non sicura bloccata da iOS"
+        case .unreachable(let host): return "il server \(host) non risponde"
+        case .blockedURL: return "indirizzo bloccato dalle regole di rete di Aether: controlla DNS o VPN"
+        case .insecureTransport: return "connessione non sicura rifiutata"
+        case .tooManyRedirects, .redirectBlocked: return "troppi reindirizzamenti"
+        case .responseTooLarge: return "risposta troppo grande"
+        case .cancelled: return "richiesta annullata"
+        default: return "errore di rete"
         }
     }
 
