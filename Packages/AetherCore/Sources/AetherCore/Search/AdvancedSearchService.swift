@@ -1,21 +1,80 @@
 import Foundation
 
+/// Quanto ha impiegato una fase della ricerca.
+public struct PhaseTiming: Equatable, Sendable, Codable {
+    public var name: String
+    public var seconds: Double
+    public var detail: String?
+
+    public init(name: String, seconds: Double, detail: String? = nil) {
+        self.name = name
+        self.seconds = seconds
+        self.detail = detail
+    }
+}
+
 public struct AdvancedSearchOutcome: Sendable {
     public var items: [MetaItem]
     public var notes: [String]
+    public var timings: [PhaseTiming]
 
-    public init(items: [MetaItem] = [], notes: [String] = []) {
+    public init(items: [MetaItem] = [], notes: [String] = [], timings: [PhaseTiming] = []) {
         self.items = items
         self.notes = notes
+        self.timings = timings
+    }
+}
+
+/// Ricorda (finché l'app è aperta) i titoli già ritrovati su TMDB e i loro codici IMDb: le ricerche ripetute non rifanno le richieste.
+public final class AdvancedSearchCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var metas: [String: MetaItem] = [:]
+    private var imdb: [String: String] = [:]
+
+    public init() {}
+
+    func meta(_ key: String) -> MetaItem? {
+        lock.lock()
+        defer { lock.unlock() }
+        return metas[key]
+    }
+
+    func setMeta(_ value: MetaItem, for key: String) {
+        lock.lock()
+        if metas.count > 800 { metas.removeAll() }
+        metas[key] = value
+        lock.unlock()
+    }
+
+    func imdbID(_ key: String) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return imdb[key]
+    }
+
+    func setIMDB(_ value: String, for key: String) {
+        lock.lock()
+        if imdb.count > 2000 { imdb.removeAll() }
+        imdb[key] = value
+        lock.unlock()
+    }
+
+    public func clear() {
+        lock.lock()
+        metas.removeAll()
+        imdb.removeAll()
+        lock.unlock()
     }
 }
 
 /// Esegue un `SearchIntent` su TMDB (discover, parole chiave, titolo) e restituisce titoli apribili in Aether.
 public struct AdvancedSearchService: Sendable {
     private let tmdb: TMDBClient
+    private let cache: AdvancedSearchCache
 
-    public init(tmdb: TMDBClient) {
+    public init(tmdb: TMDBClient, cache: AdvancedSearchCache = AdvancedSearchCache()) {
         self.tmdb = tmdb
+        self.cache = cache
     }
 
     public var isAvailable: Bool { return tmdb.isConfigured }
@@ -24,13 +83,16 @@ public struct AdvancedSearchService: Sendable {
     ///   - extraKeywords: parole non riconosciute dal parser, da provare come parole chiave TMDB (livello 1).
     public func run(intent: SearchIntent, extraKeywords: [String], settings: AdvancedSearchSettings, language: String) async -> AdvancedSearchOutcome {
         var notes: [String] = []
+        var timings: [PhaseTiming] = []
         let kinds = Self.kinds(for: intent, settings: settings)
         guard !kinds.isEmpty else { return AdvancedSearchOutcome() }
 
         // I titoli proposti dall'AI vanno per primi; i filtri (se ci sono) completano la lista.
         if !intent.suggestions.isEmpty {
-            let proposed = await resolve(intent.suggestions, kinds: kinds, language: language)
-            let suggested = await Self.items(from: proposed, tmdb: tmdb, limit: settings.maxResults)
+            let started = Date()
+            let suggested = await resolveItems(intent.suggestions, kinds: kinds, language: language, limit: settings.maxResults)
+            timings.append(PhaseTiming(name: "TMDB · titoli proposti (ricerca e codici IMDb)", seconds: Date().timeIntervalSince(started),
+                                       detail: "\(suggested.count) su \(intent.suggestions.count) trovati"))
             if suggested.count < intent.suggestions.count {
                 notes.append("\(suggested.count) titoli su \(intent.suggestions.count) proposti dall'AI sono stati trovati su TMDB.")
             }
@@ -39,17 +101,18 @@ public struct AdvancedSearchService: Sendable {
             rest.similarTo = nil
             rest.title = nil
             guard rest.hasFilters, suggested.count < settings.maxResults else {
-                return AdvancedSearchOutcome(items: suggested, notes: notes)
+                return AdvancedSearchOutcome(items: suggested, notes: notes, timings: timings)
             }
             let more = await run(intent: rest, extraKeywords: extraKeywords, settings: settings, language: language)
             var seen = Set(suggested.map { $0.id })
             var merged = suggested
             for item in more.items where seen.insert(item.id).inserted && merged.count < settings.maxResults { merged.append(item) }
-            return AdvancedSearchOutcome(items: merged, notes: notes + more.notes)
+            return AdvancedSearchOutcome(items: merged, notes: notes + more.notes, timings: timings + more.timings)
         }
 
         // «Simili a …»: si cerca il titolo di partenza e si prendono i consigliati di TMDB.
         if let reference = intent.similarTo {
+            let started = Date()
             var found: [(TMDBClient.Kind, TMDBDiscoverItem)] = []
             for kind in kinds {
                 guard let match = (try? await tmdb.searchTitles(kind: kind, text: reference, language: language))?.first,
@@ -60,8 +123,9 @@ public struct AdvancedSearchService: Sendable {
                 break
             }
             if found.isEmpty && notes.isEmpty { notes.append("Non ho trovato «\(reference)» su TMDB.") }
-            let items = await Self.items(from: found, tmdb: tmdb, limit: settings.maxResults)
-            return AdvancedSearchOutcome(items: items, notes: notes)
+            let items = await Self.items(from: found, tmdb: tmdb, limit: settings.maxResults, cache: cache)
+            timings.append(PhaseTiming(name: "TMDB · titoli simili (raccomandazioni)", seconds: Date().timeIntervalSince(started), detail: "\(items.count) titoli"))
+            return AdvancedSearchOutcome(items: items, notes: notes, timings: timings)
         }
 
         // Un titolo preciso: ricerca per nome.
@@ -72,17 +136,22 @@ public struct AdvancedSearchService: Sendable {
                     found.append(contentsOf: list.prefix(settings.maxResults).map { (kind, $0) })
                 }
             }
-            let items = await Self.items(from: found, tmdb: tmdb, limit: settings.maxResults)
-            return AdvancedSearchOutcome(items: items, notes: notes)
+            let items = await Self.items(from: found, tmdb: tmdb, limit: settings.maxResults, cache: cache)
+            return AdvancedSearchOutcome(items: items, notes: notes, timings: timings)
         }
 
         var words = intent.keywords
         if settings.keywordSearch {
             for word in extraKeywords where words.count < 4 && !words.contains(word) { words.append(word) }
         }
+        let keywordStarted = Date()
         let ids = await keywordIDs(words)
+        if !words.isEmpty {
+            timings.append(PhaseTiming(name: "TMDB · parole chiave", seconds: Date().timeIntervalSince(keywordStarted), detail: words.joined(separator: ", ")))
+        }
         if !words.isEmpty && ids.isEmpty { notes.append("Nessuna parola chiave TMDB corrisponde a «\(words.joined(separator: ", "))»: ho usato solo gli altri filtri.") }
 
+        let discoverStarted = Date()
         var found = await fetch(kinds: kinds, intent: intent, keywordIDs: ids, settings: settings, language: language, notes: &notes)
         // Le parole chiave restringono molto: se i titoli sono pochi, si completa con quelli degli altri filtri.
         if !ids.isEmpty && found.count < settings.maxResults {
@@ -94,16 +163,21 @@ public struct AdvancedSearchService: Sendable {
             }
             if more.count > 0 { notes.append("Prima i titoli con la parola chiave, poi altri dello stesso genere.") }
         }
-        let items = await Self.items(from: found, tmdb: tmdb, limit: settings.maxResults)
-        return AdvancedSearchOutcome(items: items, notes: notes)
+        timings.append(PhaseTiming(name: "TMDB · elenco per filtri (discover)", seconds: Date().timeIntervalSince(discoverStarted), detail: "\(found.count) candidati"))
+        let idsStarted = Date()
+        let items = await Self.items(from: found, tmdb: tmdb, limit: settings.maxResults, cache: cache)
+        timings.append(PhaseTiming(name: "TMDB · codici IMDb", seconds: Date().timeIntervalSince(idsStarted), detail: "\(items.count) titoli"))
+        return AdvancedSearchOutcome(items: items, notes: notes, timings: timings)
     }
 
     // MARK: Passi
 
-    /// Ritrova su TMDB i titoli proposti dall'AI (nome originale e anno), nello stesso ordine.
-    private func resolve(_ suggestions: [SuggestedTitle], kinds: [TMDBClient.Kind], language: String) async -> [(TMDBClient.Kind, TMDBDiscoverItem)] {
+    /// Ritrova su TMDB i titoli proposti dall'AI: per ognuno cerca il titolo e subito dopo il codice IMDb, tutti in parallelo
+    /// (una catena per titolo, senza aspettare gli altri). Le ricerche già fatte vengono dalla memoria.
+    private func resolveItems(_ suggestions: [SuggestedTitle], kinds: [TMDBClient.Kind], language: String, limit: Int) async -> [MetaItem] {
         let client = tmdb
-        return await withTaskGroup(of: (Int, (TMDBClient.Kind, TMDBDiscoverItem)?).self) { (group: inout TaskGroup<(Int, (TMDBClient.Kind, TMDBDiscoverItem)?)>) -> [(TMDBClient.Kind, TMDBDiscoverItem)] in
+        let cache = self.cache
+        return await withTaskGroup(of: (Int, MetaItem?).self) { (group: inout TaskGroup<(Int, MetaItem?)>) -> [MetaItem] in
             for (index, suggestion) in suggestions.enumerated() {
                 let order: [TMDBClient.Kind]
                 if let kind = suggestion.kind {
@@ -112,18 +186,31 @@ public struct AdvancedSearchService: Sendable {
                     order = kinds
                 }
                 group.addTask {
+                    let key = "\(language)|\(suggestion.title.lowercased())|\(suggestion.year ?? 0)|" + order.map { $0.rawValue }.joined(separator: ",")
+                    if let hit = cache.meta(key) { return (index, hit) }
                     for kind in order {
                         let list = (try? await client.searchTitles(kind: kind, text: suggestion.title, language: language, year: suggestion.year)) ?? []
-                        if let first = list.first { return (index, (kind, first)) }
+                        guard let first = list.first, let id = first.id else { continue }
+                        let imdbKey = "\(kind.rawValue)-\(id)"
+                        var imdb = cache.imdbID(imdbKey)
+                        if imdb == nil, let ids = try? await client.externalIDs(kind: kind, id: id), let code = ids.imdbID, !code.isEmpty {
+                            cache.setIMDB(code, for: imdbKey)
+                            imdb = code
+                        }
+                        guard let code = imdb, let meta = Self.meta(kind: kind, item: first, imdb: code) else { continue }
+                        cache.setMeta(meta, for: key)
+                        return (index, meta)
                     }
                     return (index, nil)
                 }
             }
-            var found: [(Int, (TMDBClient.Kind, TMDBDiscoverItem))] = []
-            for await (index, match) in group {
-                if let match = match { found.append((index, match)) }
+            var collected: [(Int, MetaItem)] = []
+            for await (index, meta) in group {
+                if let meta = meta { collected.append((index, meta)) }
             }
-            return found.sorted { (a: (Int, (TMDBClient.Kind, TMDBDiscoverItem)), b: (Int, (TMDBClient.Kind, TMDBDiscoverItem))) -> Bool in a.0 < b.0 }.map { $0.1 }
+            var seen = Set<String>()
+            let ordered = collected.sorted { (a: (Int, MetaItem), b: (Int, MetaItem)) -> Bool in a.0 < b.0 }.map { $0.1 }
+            return Array(ordered.filter { seen.insert($0.id).inserted }.prefix(limit))
         }
     }
 
@@ -142,11 +229,22 @@ public struct AdvancedSearchService: Sendable {
 
     private func fetch(kinds: [TMDBClient.Kind], intent: SearchIntent, keywordIDs: [Int], settings: AdvancedSearchSettings,
                        language: String, notes: inout [String]) async -> [(TMDBClient.Kind, TMDBDiscoverItem)] {
-        var lists: [[(TMDBClient.Kind, TMDBDiscoverItem)]] = []
+        var requests: [(TMDBClient.Kind, [(String, String)])] = []
         for kind in kinds {
-            let query = Self.query(kind: kind, intent: intent, keywordIDs: keywordIDs, settings: settings, language: language, notes: &notes)
-            let list = (try? await tmdb.discover(kind: kind, query: query)) ?? []
-            lists.append(list.map { (kind, $0) })
+            requests.append((kind, Self.query(kind: kind, intent: intent, keywordIDs: keywordIDs, settings: settings, language: language, notes: &notes)))
+        }
+        // Film e serie si chiedono insieme, non uno dopo l'altro.
+        let client = tmdb
+        let lists = await withTaskGroup(of: (Int, [(TMDBClient.Kind, TMDBDiscoverItem)]).self) { (group: inout TaskGroup<(Int, [(TMDBClient.Kind, TMDBDiscoverItem)])>) -> [[(TMDBClient.Kind, TMDBDiscoverItem)]] in
+            for (index, request) in requests.enumerated() {
+                group.addTask {
+                    let list = (try? await client.discover(kind: request.0, query: request.1)) ?? []
+                    return (index, list.map { (request.0, $0) })
+                }
+            }
+            var byIndex: [Int: [(TMDBClient.Kind, TMDBDiscoverItem)]] = [:]
+            for await (index, list) in group { byIndex[index] = list }
+            return requests.indices.map { byIndex[$0] ?? [] }
         }
         // Film e serie si alternano, così nessuno dei due riempie la lista.
         var merged: [(TMDBClient.Kind, TMDBDiscoverItem)] = []
@@ -209,27 +307,38 @@ public struct AdvancedSearchService: Sendable {
         return query
     }
 
+    static func meta(kind: TMDBClient.Kind, item: TMDBDiscoverItem, imdb: String) -> MetaItem? {
+        guard let id = item.id, let title = item.title else { return nil }
+        let year = item.date.map { String($0.prefix(4)) }.flatMap { $0.count == 4 ? $0 : nil }
+        let poster = item.posterPath.flatMap { (path: String) -> String? in
+            path.hasPrefix("/") && !path.contains("..") ? "https://image.tmdb.org/t/p/w342" + path : nil
+        }
+        let background = item.backdropPath.flatMap { (path: String) -> String? in
+            path.hasPrefix("/") && !path.contains("..") ? "https://image.tmdb.org/t/p/w780" + path : nil
+        }
+        return MetaItem(id: imdb, type: kind == .movie ? "movie" : "series", name: title, poster: poster,
+                        background: background, description: item.overview, releaseInfo: year,
+                        externalIDs: ExternalIDs(imdb: imdb, tmdb: id))
+    }
+
     /// Dà a ogni risultato il suo codice IMDb (quello che usano gli addon) e lo trasforma in `MetaItem`.
-    static func items(from found: [(TMDBClient.Kind, TMDBDiscoverItem)], tmdb: TMDBClient, limit: Int) async -> [MetaItem] {
+    static func items(from found: [(TMDBClient.Kind, TMDBDiscoverItem)], tmdb: TMDBClient, limit: Int,
+                      cache: AdvancedSearchCache? = nil) async -> [MetaItem] {
         let slice = Array(found.prefix(limit + 8))
         return await withTaskGroup(of: (Int, MetaItem?).self) { (group: inout TaskGroup<(Int, MetaItem?)>) -> [MetaItem] in
             for (index, entry) in slice.enumerated() {
                 let kind = entry.0
                 let item = entry.1
                 group.addTask {
-                    guard let id = item.id, let title = item.title else { return (index, nil) }
-                    guard let ids = try? await tmdb.externalIDs(kind: kind, id: id), let imdb = ids.imdbID, !imdb.isEmpty else { return (index, nil) }
-                    let year = item.date.map { String($0.prefix(4)) }.flatMap { $0.count == 4 ? $0 : nil }
-                    let poster = item.posterPath.flatMap { (path: String) -> String? in
-                        path.hasPrefix("/") && !path.contains("..") ? "https://image.tmdb.org/t/p/w342" + path : nil
+                    guard let id = item.id else { return (index, nil) }
+                    let key = "\(kind.rawValue)-\(id)"
+                    var imdb = cache?.imdbID(key)
+                    if imdb == nil, let ids = try? await tmdb.externalIDs(kind: kind, id: id), let code = ids.imdbID, !code.isEmpty {
+                        cache?.setIMDB(code, for: key)
+                        imdb = code
                     }
-                    let background = item.backdropPath.flatMap { (path: String) -> String? in
-                        path.hasPrefix("/") && !path.contains("..") ? "https://image.tmdb.org/t/p/w780" + path : nil
-                    }
-                    let meta = MetaItem(id: imdb, type: kind == .movie ? "movie" : "series", name: title, poster: poster,
-                                        background: background, description: item.overview, releaseInfo: year,
-                                        externalIDs: ExternalIDs(imdb: imdb, tmdb: id))
-                    return (index, meta)
+                    guard let code = imdb else { return (index, nil) }
+                    return (index, Self.meta(kind: kind, item: item, imdb: code))
                 }
             }
             var collected: [(Int, MetaItem)] = []

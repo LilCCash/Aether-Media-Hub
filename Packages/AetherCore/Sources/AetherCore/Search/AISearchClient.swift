@@ -49,7 +49,7 @@ public enum AIIntentCodec {
         if suggestTitles {
             text += """
              Add "titles": an array of up to \(count) real titles that best answer the request, most relevant first, \
-            each as {"title": ORIGINAL title, "year": release year, "type": "movie" or "series"}. \
+            each as {"t": ORIGINAL title, "y": release year, "k": "m" for movie or "s" for series} (short keys, no extra fields). \
             Use your knowledge: Italian release titles often differ from the original ones \
             (e.g. "Ghost Movie" is the Italian title of "A Haunted House" (2013)), so identify the real title first and \
             then recommend titles with the same genre, tone and style, not just titles that share a word. \
@@ -93,12 +93,12 @@ public enum AIIntentCodec {
         if let runtime = integer(object["max_runtime"]), runtime > 20, runtime < 400 { intent.maxRuntime = runtime }
         for entry in (object["titles"] as? [Any] ?? []) {
             guard let dict = entry as? [String: Any],
-                  let name = (dict["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
-            let year = integer(dict["year"]).flatMap { (1880...2100).contains($0) ? $0 : nil }
+                  let name = ((dict["t"] as? String) ?? (dict["title"] as? String))?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
+            let year = integer(dict["y"] ?? dict["year"]).flatMap { (1880...2100).contains($0) ? $0 : nil }
             var kind: IntentKind?
-            if let type = (dict["type"] as? String)?.lowercased() {
-                if type == "movie" || type == "film" { kind = .movie }
-                if type == "series" || type == "tv" || type == "show" { kind = .series }
+            if let type = ((dict["k"] as? String) ?? (dict["type"] as? String))?.lowercased() {
+                if type == "m" || type == "movie" || type == "film" { kind = .movie }
+                if type == "s" || type == "series" || type == "tv" || type == "show" { kind = .series }
             }
             let suggestion = SuggestedTitle(title: name, year: year, kind: kind)
             if !intent.suggestions.contains(suggestion) { intent.suggestions.append(suggestion) }
@@ -148,13 +148,10 @@ public struct AISearchClient: Sendable {
         guard !model.isEmpty else { throw AISearchError.notConfigured }
         let system = AIIntentCodec.systemPrompt(year: year, count: settings.maxResults, suggestTitles: settings.aiSuggestsTitles)
         let user = AIIntentCodec.userPrompt(query)
-        let request = try Self.request(provider: provider, model: model, key: secret, customBase: settings.customBaseURL,
-                                       system: system, user: user, timeout: TimeInterval(settings.aiTimeout))
-        let response: HTTPResponse
-        do {
-            response = try await http.send(request)
-        } catch {
-            throw AISearchError.unavailable
+        var response = try await send(provider: provider, model: model, key: secret, settings: settings, system: system, user: user, thinkingOff: true)
+        // Se Google rifiuta il parametro del ragionamento per questo modello, si riprova senza.
+        if provider == .google, response.statusCode == 400, Self.mentionsThinking(response.data) {
+            response = try await send(provider: provider, model: model, key: secret, settings: settings, system: system, user: user, thinkingOff: false)
         }
         if !(200..<300).contains(response.statusCode) { throw Self.error(status: response.statusCode, data: response.data) }
         guard let text = Self.answerText(provider: provider, data: response.data),
@@ -172,6 +169,21 @@ public struct AISearchClient: Sendable {
         } catch {
             return .unavailable
         }
+    }
+
+    private func send(provider: AISearchProvider, model: String, key: String?, settings: AdvancedSearchSettings,
+                      system: String, user: String, thinkingOff: Bool) async throws -> HTTPResponse {
+        let request = try Self.request(provider: provider, model: model, key: key, customBase: settings.customBaseURL,
+                                       system: system, user: user, timeout: TimeInterval(settings.aiTimeout), thinkingOff: thinkingOff)
+        do {
+            return try await http.send(request)
+        } catch {
+            throw AISearchError.unavailable
+        }
+    }
+
+    static func mentionsThinking(_ data: Data) -> Bool {
+        return String(decoding: data, as: UTF8.self).lowercased().contains("thinking")
     }
 
     /// Traduce una risposta di errore (senza mai riportare la chiave) nel messaggio giusto.
@@ -239,7 +251,7 @@ public struct AISearchClient: Sendable {
     // MARK: Richieste
 
     static func request(provider: AISearchProvider, model: String, key: String?, customBase: String,
-                        system: String, user: String, timeout: TimeInterval) throws -> HTTPRequest {
+                        system: String, user: String, timeout: TimeInterval, thinkingOff: Bool = true) throws -> HTTPRequest {
         var headers = ["Content-Type": "application/json", "Accept": "application/json"]
         let url: URL
         let body: [String: Any]
@@ -269,7 +281,7 @@ public struct AISearchClient: Sendable {
             headers["x-goog-api-key"] = key ?? ""
             body = ["systemInstruction": ["parts": [["text": system]]],
                     "contents": [["role": "user", "parts": [["text": user]]]],
-                    "generationConfig": Self.googleGenerationConfig(model: model)]
+                    "generationConfig": Self.googleGenerationConfig(model: model, thinking: thinkingOff)]
         case .custom:
             let trimmed = customBase.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             guard let base = URL(string: trimmed), base.scheme?.lowercased() == "https", let host = base.host, !host.isEmpty,
@@ -283,11 +295,18 @@ public struct AISearchClient: Sendable {
         return HTTPRequest(url: url, method: "POST", headers: headers, body: data, timeout: timeout, maxBytes: HTTPLimits.manifest)
     }
 
-    /// I modelli «2.5 flash» ragionano prima di rispondere: per tradurre una frase non serve e costa secondi.
-    static func googleGenerationConfig(model: String) -> [String: Any] {
+    /// Il ragionamento allunga la risposta e per tradurre una frase o elencare titoli non serve. Ogni generazione ha il suo parametro:
+    /// la serie 2.5 usa un budget di token, la serie 3 un livello. I modelli Pro non permettono di spegnerlo.
+    static func googleGenerationConfig(model: String, thinking: Bool = true) -> [String: Any] {
         var config: [String: Any] = ["responseMimeType": "application/json"]
+        guard thinking else { return config }
         let lower = model.lowercased()
-        if lower.contains("2.5-flash") { config["thinkingConfig"] = ["thinkingBudget": 0] }
+        if lower.contains("pro") { return config }
+        if lower.contains("2.5-flash") {
+            config["thinkingConfig"] = ["thinkingBudget": 0]
+        } else if lower.hasPrefix("gemini-3") {
+            config["thinkingConfig"] = ["thinkingLevel": "minimal"]
+        }
         return config
     }
 

@@ -37,6 +37,7 @@ struct AdvancedSearchSettingsView: View {
                     whenSection
                 }
                 resultsSection
+                timingSection
                 examplesSection
             }
         }
@@ -319,6 +320,23 @@ struct AdvancedSearchSettingsView: View {
         }
     }
 
+    private var timingSection: some View {
+        Section {
+            Toggle("Registra i tempi", isOn: settings.binding(\.content.advancedSearch.logTimings))
+                .accessibilityIdentifier("advsearch.logTimings")
+            NavigationLink {
+                SearchTimingLogView()
+            } label: {
+                LabeledContent("Registro dei tempi", value: "\(env.searchTimings.entries.count)")
+            }
+            .accessibilityIdentifier("advsearch.timings")
+        } header: {
+            Text("Velocità")
+        } footer: {
+            Text("Per ogni ricerca segna quanto ci hanno messo l'AI e TMDB, fase per fase: così si vede chi è lento. Il registro resta sul telefono (ultime 40 ricerche) e si può copiare. Aether ricorda anche i titoli già ritrovati, quindi le ricerche ripetute sono più veloci.")
+        }
+    }
+
     private var examplesSection: some View {
         Section {
             ForEach(["film divertenti degli ultimi anni", "commedie demenziali famose", "horror italiani anni 80", "migliori serie thriller", "heist movie recenti"], id: \.self) { example in
@@ -450,5 +468,66 @@ private struct AIModelPickerView: View {
         .searchable(text: $query)
         .navigationTitle("Modello")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+
+/// Registro dei tempi della ricerca avanzata.
+private struct SearchTimingLogView: View {
+    @EnvironmentObject private var env: AppEnvironment
+
+    var body: some View {
+        TimingList(log: env.searchTimings)
+    }
+}
+
+private struct TimingList: View {
+    @ObservedObject var log: SearchTimingLog
+    @State private var copied = false
+
+    var body: some View {
+        List {
+            if log.entries.isEmpty {
+                Text("Nessuna ricerca registrata. Fai una ricerca avanzata (con «Registra i tempi» acceso) e torna qui.")
+                    .font(.footnote).foregroundStyle(Color.aetherSecondary)
+            }
+            ForEach(log.entries) { entry in
+                Section {
+                    ForEach(Array(entry.phases.enumerated()), id: \.offset) { _, phase in
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Text(phase.name).font(.footnote)
+                                Spacer()
+                                Text(String(format: "%.2f s", phase.seconds)).font(.footnote.monospacedDigit())
+                            }
+                            if let detail = phase.detail {
+                                Text(detail).font(.caption).foregroundStyle(Color.aetherSecondary)
+                            }
+                        }
+                    }
+                    ForEach(entry.notes, id: \.self) { note in
+                        Text(note).font(.caption).foregroundStyle(.orange)
+                    }
+                } header: {
+                    Text("«\(entry.query)» · \(String(format: "%.1f", entry.total)) s · \(entry.results) risultati")
+                        .textCase(nil)
+                } footer: {
+                    Text("\(entry.date.formatted(date: .abbreviated, time: .standard)) · \(entry.interpreter)")
+                }
+            }
+        }
+        .navigationTitle("Registro dei tempi")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button(copied ? "Copiato" : "Copia") {
+                    UIPasteboard.general.string = log.text()
+                    copied = true
+                }
+                .disabled(log.entries.isEmpty)
+                Button("Svuota", role: .destructive) { log.clear() }
+                    .disabled(log.entries.isEmpty)
+            }
+        }
     }
 }

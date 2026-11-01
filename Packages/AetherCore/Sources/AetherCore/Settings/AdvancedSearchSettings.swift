@@ -130,6 +130,8 @@ public struct AdvancedSearchSettings: Codable, Equatable, Sendable {
     public var showSource: Bool = true
     public var includeAdult: Bool = false
     public var rememberInterpretations: Bool = true
+    /// Registra quanto ci mette ogni fase (AI, TMDB) in un registro consultabile nelle impostazioni.
+    public var logTimings: Bool = true
 
     public init() {}
 
@@ -148,7 +150,7 @@ public struct AdvancedSearchSettings: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case enabled, keywordSearch, naturalParser, aiEnabled, aiEngine, aiSuggestsTitles, provider, models
         case customBaseURL, aiTrigger, aiMode, aiTimeout, resultKind, maxResults, minVotes, showInterpretation
-        case showSource, includeAdult, rememberInterpretations
+        case showSource, includeAdult, rememberInterpretations, logTimings
     }
 
     public init(from decoder: Decoder) throws {
@@ -172,5 +174,6 @@ public struct AdvancedSearchSettings: Codable, Equatable, Sendable {
         showSource = c.value(.showSource, default: true)
         includeAdult = c.value(.includeAdult, default: false)
         rememberInterpretations = c.value(.rememberInterpretations, default: true)
+        logTimings = c.value(.logTimings, default: true)
     }
 }

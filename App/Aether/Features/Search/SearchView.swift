@@ -384,8 +384,11 @@ final class SearchViewModel: ObservableObject {
             advancedBusy = false
             return
         }
-        try? await Task.sleep(nanoseconds: 450_000_000)
-        if Task.isCancelled { return }
+        // Premendo Cerca si parte subito; mentre si scrive si aspetta una breve pausa.
+        if submittedQuery != text {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            if Task.isCancelled { return }
+        }
         advancedBusy = true
         let language = SearchViewModel.tmdbLanguage(env.settings.value.content.preferredLanguage)
         let result = await env.advancedSearch.search(text, settings: options, language: language, submitted: submittedQuery == text)

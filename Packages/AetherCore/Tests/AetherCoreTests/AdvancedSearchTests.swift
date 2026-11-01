@@ -111,6 +111,16 @@ final class AdvancedSearchTests: XCTestCase {
         XCTAssertNil(AISearchClient.googleGenerationConfig(model: "gemini-2.5-pro")["thinkingConfig"])
     }
 
+    func testShortTitleKeysAndThinkingLevels() {
+        let intent = AIIntentCodec.parse("{\"titles\":[{\"t\":\"A Haunted House\",\"y\":2013,\"k\":\"m\"},{\"t\":\"Lost\",\"y\":2004,\"k\":\"s\"}]}")
+        XCTAssertEqual(intent?.suggestions, [SuggestedTitle(title: "A Haunted House", year: 2013, kind: .movie), SuggestedTitle(title: "Lost", year: 2004, kind: .series)])
+        let level = (AISearchClient.googleGenerationConfig(model: "gemini-3.1-flash-lite")["thinkingConfig"] as? [String: Any])?["thinkingLevel"] as? String
+        XCTAssertEqual(level, "minimal")
+        XCTAssertNil(AISearchClient.googleGenerationConfig(model: "gemini-3-pro")["thinkingConfig"])
+        XCTAssertNil(AISearchClient.googleGenerationConfig(model: "gemini-3.1-flash-lite", thinking: false)["thinkingConfig"])
+        XCTAssertTrue(AISearchClient.mentionsThinking(Data("Unknown name thinkingLevel".utf8)))
+    }
+
     func testListRequests() throws {
         let anthropic = try AISearchClient.listRequest(provider: .anthropic, key: "k", customBase: "")
         XCTAssertEqual(anthropic.headers["x-api-key"], "k")

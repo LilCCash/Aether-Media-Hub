@@ -12,17 +12,21 @@ struct AdvancedSearchResult {
 final class AdvancedSearchEngine: @unchecked Sendable {
     private let service: AdvancedSearchService
     let ai: AISearchClient
+    private let timing: SearchTimingLog
+    private let resolveCache = AdvancedSearchCache()
     private let lock = NSLock()
     private var cache: [String: SearchIntent] = [:]
 
-    init(tmdb: TMDBClient, ai: AISearchClient) {
-        service = AdvancedSearchService(tmdb: tmdb)
+    init(tmdb: TMDBClient, ai: AISearchClient, timing: SearchTimingLog) {
+        service = AdvancedSearchService(tmdb: tmdb, cache: resolveCache)
         self.ai = ai
+        self.timing = timing
     }
 
     var tmdbReady: Bool { return service.isAvailable }
 
     func clearCache() {
+        resolveCache.clear()
         lock.lock()
         cache.removeAll()
         lock.unlock()
@@ -47,20 +51,28 @@ final class AdvancedSearchEngine: @unchecked Sendable {
             return AdvancedSearchResult(intent: nil, items: [], notes: ["La ricerca avanzata usa TMDB: inserisci la chiave in Impostazioni ▸ Servizi."])
         }
         let year = Calendar.current.component(.year, from: Date())
+        let totalStarted = Date()
+        var phases: [PhaseTiming] = []
+        var interpreter = "parser locale"
         var notes: [String] = []
+        let parseStarted = Date()
         let parsed = settings.naturalParser ? NaturalQueryParser(currentYear: year).parse(query) : nil
         var intent: SearchIntent? = (parsed?.intent.hasFilters ?? false) ? parsed?.intent : nil
+        phases.append(PhaseTiming(name: "Parser locale", seconds: Date().timeIntervalSince(parseStarted)))
 
         let aiAllowed = settings.aiEnabled && (submitted || settings.aiTrigger == .whileTyping)
         // «Simili a…»: il parser sa solo cercare il titolo; l'AI sa davvero quali titoli gli somigliano.
         let aiKnowsSimilar = settings.aiSuggestsTitles && intent?.similarTo != nil
         let wantsAI = aiAllowed && (settings.aiMode == .always || intent == nil || aiKnowsSimilar)
-        var aiSeconds: Double?
         if wantsAI {
             let started = Date()
             let outcome = await askAI(query, settings: settings, year: year)
-            aiSeconds = Date().timeIntervalSince(started)
-            if let found = outcome.intent { intent = found }
+            phases.append(PhaseTiming(name: "Interpretazione AI · \(outcome.via)", seconds: Date().timeIntervalSince(started),
+                                      detail: outcome.intent.map { "\($0.suggestions.count) titoli proposti" } ?? "nessuna risposta"))
+            if let found = outcome.intent {
+                intent = found
+                interpreter = outcome.via
+            }
             notes.append(contentsOf: outcome.notes)
         } else if settings.aiEnabled && !aiAllowed && intent == nil {
             notes.append("Premi «Cerca» sulla tastiera per far interpretare la frase dal modello AI.")
@@ -68,7 +80,10 @@ final class AdvancedSearchEngine: @unchecked Sendable {
 
         let leftovers = settings.keywordSearch ? Array((parsed?.leftovers ?? NaturalQueryParser(currentYear: year).parse(query).leftovers).prefix(3)) : []
         if intent == nil {
-            guard !leftovers.isEmpty else { return AdvancedSearchResult(intent: nil, items: [], notes: notes) }
+            guard !leftovers.isEmpty else {
+                record(query: query, interpreter: interpreter, total: Date().timeIntervalSince(totalStarted), phases: phases, results: 0, notes: notes, enabled: settings.logTimings)
+                return AdvancedSearchResult(intent: nil, items: [], notes: notes)
+            }
             var keywordOnly = SearchIntent()
             keywordOnly.source = .keyword
             keywordOnly.keywords = leftovers
@@ -76,30 +91,37 @@ final class AdvancedSearchEngine: @unchecked Sendable {
         }
         guard let finalIntent = intent else { return AdvancedSearchResult(intent: nil, items: [], notes: notes) }
         let extra = finalIntent.source == .keyword ? [] : leftovers
-        let tmdbStarted = Date()
         let outcome = await service.run(intent: finalIntent, extraKeywords: extra, settings: settings, language: language)
         notes.append(contentsOf: outcome.notes)
-        if let ai = aiSeconds {
-            notes.append(String(format: "Tempi: AI %.1f s, TMDB %.1f s.", ai, Date().timeIntervalSince(tmdbStarted)))
-        }
+        phases.append(contentsOf: outcome.timings)
+        record(query: query, interpreter: interpreter, total: Date().timeIntervalSince(totalStarted), phases: phases, results: outcome.items.count, notes: notes, enabled: settings.logTimings)
         return AdvancedSearchResult(intent: finalIntent, items: outcome.items, notes: notes)
+    }
+
+    private func record(query: String, interpreter: String, total: Double, phases: [PhaseTiming], results: Int, notes: [String], enabled: Bool) {
+        guard enabled else { return }
+        let entry = SearchTimingEntry(query: query, interpreter: interpreter, total: total, phases: phases, results: results, notes: notes)
+        let log = timing
+        Task { @MainActor in log.add(entry) }
     }
 
     // MARK: AI
 
-    private func askAI(_ query: String, settings: AdvancedSearchSettings, year: Int) async -> (intent: SearchIntent?, notes: [String]) {
+    private func askAI(_ query: String, settings: AdvancedSearchSettings, year: Int) async -> (intent: SearchIntent?, notes: [String], via: String) {
         let key = "\(query.lowercased())|\(settings.aiEngine.rawValue)|\(settings.aiSuggestsTitles)|\(settings.maxResults)|\(settings.provider.rawValue)|\(settings.model(for: settings.provider))"
         if settings.rememberInterpretations {
-            if let hit = cached(key) { return (hit, []) }
+            if let hit = cached(key) { return (hit, [], "memoria") }
         }
         var notes: [String] = []
         var found: SearchIntent?
+        var via = "nessuno"
         let triesApple = settings.aiEngine != .networkOnly
         let triesNetwork = settings.aiEngine != .appleOnly
         if triesApple {
             let status = AppleIntelligence.status
             if status.isAvailable {
                 found = await AppleIntelligence.interpret(query, year: year, count: settings.maxResults, suggestTitles: settings.aiSuggestsTitles)
+                if found != nil { via = "Apple Intelligence" }
                 if found == nil { notes.append("Apple Intelligence non ha capito la frase.") }
             } else {
                 notes.append(status.text)
@@ -108,6 +130,7 @@ final class AdvancedSearchEngine: @unchecked Sendable {
         if found == nil && triesNetwork {
             do {
                 found = try await ai.interpret(query, settings: settings, year: year)
+                via = "\(settings.provider.title) (\(settings.model(for: settings.provider)))"
             } catch let error as AISearchError {
                 notes.append("\(settings.provider.title): \(error.message)")
             } catch {
@@ -117,6 +140,6 @@ final class AdvancedSearchEngine: @unchecked Sendable {
         if let found = found, settings.rememberInterpretations {
             store(found, for: key)
         }
-        return (found, notes)
+        return (found, notes, via)
     }
 }
