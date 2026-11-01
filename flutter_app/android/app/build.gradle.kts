@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "app.aether.aether_flutter"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
