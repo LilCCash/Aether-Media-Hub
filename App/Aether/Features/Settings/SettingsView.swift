@@ -81,6 +81,7 @@ struct SettingsRootView: View {
                 link("Riproduzione", "play.rectangle.fill", .orange) { PlaybackSettingsView() }
                 link("Contenuti e scoperta", "square.grid.2x2.fill", .green) { ContentSettingsView() }
                 link("Ricerca avanzata", "sparkle.magnifyingglass", .mint) { AdvancedSearchSettingsView() }
+                link("Indicizzazione", "magnifyingglass.circle.fill", .indigo) { IndexingSettingsView() }
                 link("Casting", "tv.and.mediabox.fill", .teal) { CastingSettingsView() }
                 link("Servizi", "key.fill", .purple) { ServicesSettingsView() }
             }

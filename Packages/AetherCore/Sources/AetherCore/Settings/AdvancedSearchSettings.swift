@@ -177,3 +177,30 @@ public struct AdvancedSearchSettings: Codable, Equatable, Sendable {
         logTimings = c.value(.logTimings, default: true)
     }
 }
+
+
+/// Impostazioni ▸ Indicizzazione: quanti titoli mettere nella ricerca del sistema (Spotlight) e come.
+public struct IndexingSettings: Codable, Equatable, Sendable {
+    public static let choices = [100, 250, 500, 1000, 2000, 3000, 5000]
+
+    /// Numero massimo di titoli indicizzati (libreria compresa).
+    public var limit: Int = 500
+    /// Scarica anche le locandine (piccole immagini) da mostrare nei risultati di Spotlight.
+    public var includePosters: Bool = true
+    /// «Indicizza ora» raccoglie altri titoli dai tuoi cataloghi finché arriva al numero scelto.
+    public var fillFromCatalogs: Bool = true
+    /// Aggiorna l'indice da sé mentre usi l'app (titoli visti, libreria).
+    public var automatic: Bool = true
+
+    public init() {}
+
+    private enum CodingKeys: String, CodingKey { case limit, includePosters, fillFromCatalogs, automatic }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        limit = min(5000, max(50, c.value(.limit, default: 500)))
+        includePosters = c.value(.includePosters, default: true)
+        fillFromCatalogs = c.value(.fillFromCatalogs, default: true)
+        automatic = c.value(.automatic, default: true)
+    }
+}

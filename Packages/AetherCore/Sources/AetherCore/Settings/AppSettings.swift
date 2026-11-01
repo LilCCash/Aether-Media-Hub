@@ -573,13 +573,15 @@ public struct ContentSettings: Codable, Equatable, Sendable {
     public var ratings = RatingsSettings()
     /// Ricerca avanzata: parole chiave, frasi e intelligenza artificiale.
     public var advancedSearch = AdvancedSearchSettings()
+    /// Indicizzazione di Spotlight: quanti titoli e locandine.
+    public var indexing = IndexingSettings()
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case preferredLanguage, catalogRefreshMinutes, hideAdultCatalogs, hideTalkShows, talkHome, talkDiscover, talkSearch, talkCast, talkSimilar, searchRemote, searchLocal
         case saveSearchHistory, searchSort, discoverTypes
-        case catalogLayout, streamDisplay, titleModules, ratings, advancedSearch
+        case catalogLayout, streamDisplay, titleModules, ratings, advancedSearch, indexing
     }
 
     public init(from decoder: Decoder) throws {
@@ -603,6 +605,7 @@ public struct ContentSettings: Codable, Equatable, Sendable {
         titleModules = c.value(.titleModules, default: TitleModulesSettings())
         ratings = c.value(.ratings, default: RatingsSettings())
         advancedSearch = c.value(.advancedSearch, default: AdvancedSearchSettings())
+        indexing = c.value(.indexing, default: IndexingSettings())
     }
 }
 

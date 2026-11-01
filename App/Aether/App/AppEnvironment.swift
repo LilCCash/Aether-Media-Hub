@@ -131,7 +131,9 @@ final class AppEnvironment: ObservableObject {
             Task { await metadata.reset() }
             self.debrid.credentialsDidChange()
         }
+        SpotlightIndexer.options = settings.value.content.indexing
         settings.onChange = { [weak self] new, old in
+            SpotlightIndexer.options = new.content.indexing
             self?.settingsDidChange(new: new, old: old)
         }
     }
