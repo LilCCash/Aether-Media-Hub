@@ -88,6 +88,15 @@ class AddonsNotifier extends Notifier<List<InstalledAddon>> {
     _sync();
   }
 
+  Future<void> setCatalogSearchable(
+    String id,
+    ManifestCatalog c,
+    bool v,
+  ) async {
+    await _repo.setCatalogSearchable(id, c, v);
+    _sync();
+  }
+
   Future<void> remove(String id) async {
     await _repo.remove(id);
     _sync();
@@ -396,7 +405,10 @@ final searchProvider = StreamProvider.autoDispose.family<SearchState, String>((
   });
   final jobs = <(InstalledAddon, ManifestCatalog)>[
     for (final a in addons.where((a) => a.enabled))
-      for (final c in a.manifest.catalogs.where((c) => c.isSearchable)) (a, c),
+      for (final c in a.manifest.catalogs.where(
+        (c) => c.isSearchable && a.isCatalogSearchable(c),
+      ))
+        (a, c),
   ];
   final groups = <int, SearchGroup>{};
   final errors = <String, String>{};

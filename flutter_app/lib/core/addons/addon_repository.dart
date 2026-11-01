@@ -43,6 +43,10 @@ class InstalledAddon {
   );
 
   bool isCatalogVisible(ManifestCatalog c) => !hiddenCatalogs.contains(c.key);
+
+  /// Il catalogo risponde alle ricerche (si può escludere a parte da Home e Scopri).
+  bool isCatalogSearchable(ManifestCatalog c) =>
+      !hiddenCatalogs.contains('search:${c.key}');
 }
 
 /// What the user sees before confirming an installation.
@@ -207,6 +211,18 @@ class AddonRepository {
   ) => _update(id, (a) {
     final hidden = {...a.hiddenCatalogs};
     visible ? hidden.remove(catalog.key) : hidden.add(catalog.key);
+    return a.copyWith(hiddenCatalogs: hidden);
+  });
+
+  Future<void> setCatalogSearchable(
+    String id,
+    ManifestCatalog catalog,
+    bool searchable,
+  ) => _update(id, (a) {
+    final hidden = {...a.hiddenCatalogs};
+    searchable
+        ? hidden.remove('search:${catalog.key}')
+        : hidden.add('search:${catalog.key}');
     return a.copyWith(hiddenCatalogs: hidden);
   });
 

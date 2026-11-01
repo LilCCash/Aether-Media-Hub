@@ -14,7 +14,9 @@ import '../../data/prefs_ext.dart';
 import '../../data/settings.dart';
 import 'about_eggs.dart';
 import "settings_extra.dart";
+import '../../app/app_icon.dart';
 import '../trakt/trakt_screen.dart';
+import 'app_icon_page.dart';
 import 'advanced_search_page.dart';
 import 'settings_pages2.dart';
 import 'settings_services.dart';
@@ -223,6 +225,13 @@ const _topicsMain = [
     'Parole chiave, frasi e modelli AI',
   ),
   _Topic(
+    'appicon',
+    'Icona dell\u2019app',
+    Icons.apps_rounded,
+    Color(0xFFFF8A5B),
+    'Cinema, Halloween, Natale, Western…',
+  ),
+  _Topic(
     'casting',
     'Casting',
     Icons.cast_connected_rounded,
@@ -282,7 +291,13 @@ class SettingsRootScreen extends StatelessWidget {
     );
     return SettingsPageFrame(
       title: 'Impostazioni',
-      children: [group(_topicsMain), group(_topicsData)],
+      children: [
+        group([
+          for (final t in _topicsMain)
+            if (t.id != 'appicon' || AppIconService.supported) t,
+        ]),
+        group(_topicsData),
+      ],
     );
   }
 }
@@ -581,6 +596,7 @@ class SettingsPageScreen extends ConsumerWidget {
       'services' => const ServicesPage(),
       'advsearch' => const AdvancedSearchSettingsPage(),
       'trakt' => const TraktCatalogSettingsPage(),
+      'appicon' => const AppIconSettingsPage(),
       'catalogs-edit' => const _CatalogsPage(),
       'advanced' || 'diagnostics' => const _DiagnosticsPage(),
       'about' => const _AboutPage(),

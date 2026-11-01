@@ -401,6 +401,19 @@ class _AddonCardState extends State<_AddonCard> {
                     value: a.isCatalogVisible(c),
                     onChanged: (v) => n.setCatalogVisible(a.id, c, v),
                   ),
+                for (final c in a.manifest.catalogs.where(
+                  (c) => c.isSearchable,
+                ))
+                  SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${c.name} · usato nella ricerca'),
+                    subtitle: const Text(
+                      'Spegnilo per escludere questo modulo dalla ricerca',
+                    ),
+                    value: a.isCatalogSearchable(c),
+                    onChanged: (v) => n.setCatalogSearchable(a.id, c, v),
+                  ),
               ],
             ],
           ],

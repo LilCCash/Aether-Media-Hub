@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_light_bg">#3F4380</color>
+    <color name="ic_dark_bg">#07071A</color>
+    <color name="ic_cinema_bg">#180A09</color>
+    <color name="ic_halloween_bg">#3A1431</color>
+    <color name="ic_natale_bg">#214231</color>
+    <color name="ic_western_bg">#663D1A</color>
+    <color name="ic_scifi_bg">#062B46</color>
+    <color name="ic_giallo_bg">#E4AF0D</color>
+</resources>
