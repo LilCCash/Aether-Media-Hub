@@ -719,7 +719,10 @@ struct StreamPickerSheet: View {
                         DisclosureGroup("Non riproducibili su iOS (\(unplayable.count))", isExpanded: $showUnplayable) {
                             ForEach(unplayable) { item in
                                 StreamRow(item: item, isBest: false, debrid: model.appearance(for: item)) { openExternally(item) }
-                                    .contextMenu { copyLinkButton(item) }
+                                    .contextMenu {
+                                        copyLinkButton(item)
+                                        externalPlayerMenu(item)
+                                    }
                             }
                         }
                     }
@@ -840,6 +843,7 @@ struct StreamPickerSheet: View {
                 Label("Scarica per guardarlo offline", systemImage: "arrow.down.circle")
             }
             copyLinkButton(item)
+            externalPlayerMenu(item)
         }
     }
 
@@ -910,6 +914,35 @@ struct StreamPickerSheet: View {
                 if case .torrent = item.stream.source { model.infoMessage = "Magnet copiato" } else { model.infoMessage = "Link copiato" }
             } label: {
                 Label("Copia il link", systemImage: "link")
+            }
+        }
+    }
+
+    /// «Apri in un lettore esterno»: VLC, Infuse, nPlayer, Outplayer (solo quelli installati), per le fonti con un indirizzo diretto.
+    @ViewBuilder
+    private func externalPlayerMenu(_ item: RankedStream) -> some View {
+        if let media = item.stream.directMediaURL {
+            let installed = ExternalPlayer.allCases.filter { (player: ExternalPlayer) -> Bool in
+                guard let probe = player.probeURL else { return false }
+                return UIApplication.shared.canOpenURL(probe)
+            }
+            Menu {
+                if installed.isEmpty {
+                    Text("Nessun lettore esterno installato (VLC, Infuse, nPlayer, Outplayer)")
+                } else {
+                    ForEach(installed, id: \.self) { player in
+                        Button {
+                            if let address = player.url(for: media) { openURL(address) }
+                            if item.stream.needsRequestHeaders {
+                                model.infoMessage = "Questa fonte richiede intestazioni particolari: il lettore esterno potrebbe riceverne un 403."
+                            }
+                        } label: {
+                            Text(player.title)
+                        }
+                    }
+                }
+            } label: {
+                Label("Apri in un lettore esterno", systemImage: "arrow.up.forward.app")
             }
         }
     }
