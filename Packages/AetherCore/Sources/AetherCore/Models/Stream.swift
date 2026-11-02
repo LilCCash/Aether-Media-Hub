@@ -276,3 +276,34 @@ extension URL {
         return URL(string: encoded)
     }
 }
+
+extension AddonStream {
+    /// The link of this source as text to copy: the direct address, the page, the YouTube link, or a magnet for a torrent
+    /// (with its trackers and the file chosen inside it). Nil when the source has no address at all (an archive without link).
+    public var shareableLink: String? {
+        switch source {
+        case .url(let text), .external(let text), .playerFrame(let text):
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        case .youtube(let id):
+            return "https://www.youtube.com/watch?v=\(id)"
+        case .torrent(let hash, let index, let trackers):
+            let allowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+#"))
+            var parts = ["xt=urn:btih:\(hash)"]
+            if let name = behaviorHints.filename, !name.isEmpty,
+               let encoded = name.addingPercentEncoding(withAllowedCharacters: allowed) {
+                parts.append("dn=\(encoded)")
+            }
+            for tracker in trackers {
+                // Stremio writes them as «tracker:udp://…» (and «dht:…», which a magnet does not need).
+                let raw = tracker.hasPrefix("tracker:") ? String(tracker.dropFirst(8)) : tracker
+                if raw.hasPrefix("dht:") || raw.isEmpty { continue }
+                if let encoded = raw.addingPercentEncoding(withAllowedCharacters: allowed) { parts.append("tr=\(encoded)") }
+            }
+            if let index = index { parts.append("so=\(index)") }
+            return "magnet:?" + parts.joined(separator: "&")
+        case .archive, .unknown:
+            return nil
+        }
+    }
+}

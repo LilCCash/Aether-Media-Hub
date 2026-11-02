@@ -719,6 +719,7 @@ struct StreamPickerSheet: View {
                         DisclosureGroup("Non riproducibili su iOS (\(unplayable.count))", isExpanded: $showUnplayable) {
                             ForEach(unplayable) { item in
                                 StreamRow(item: item, isBest: false, debrid: model.appearance(for: item)) { openExternally(item) }
+                                    .contextMenu { copyLinkButton(item) }
                             }
                         }
                     }
@@ -838,6 +839,7 @@ struct StreamPickerSheet: View {
             Button { Task { await model.download(item, env: env) } } label: {
                 Label("Scarica per guardarlo offline", systemImage: "arrow.down.circle")
             }
+            copyLinkButton(item)
         }
     }
 
@@ -897,6 +899,19 @@ struct StreamPickerSheet: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
         .accessibilityIdentifier("stream.empty")
+    }
+
+    /// «Copia il link» for any source, whatever it is (direct link, web page, torrent as a magnet, YouTube, live channel).
+    @ViewBuilder
+    private func copyLinkButton(_ item: RankedStream) -> some View {
+        if let link = item.stream.shareableLink {
+            Button {
+                UIPasteboard.general.string = link
+                if case .torrent = item.stream.source { model.infoMessage = "Magnet copiato" } else { model.infoMessage = "Link copiato" }
+            } label: {
+                Label("Copia il link", systemImage: "link")
+            }
+        }
     }
 
     private func openExternally(_ item: RankedStream) {
