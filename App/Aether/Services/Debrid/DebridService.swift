@@ -60,6 +60,18 @@ final class DebridService: ObservableObject {
     /// Links resolved by the stream picker, waiting for the player to pick them up (once). In memory only: a link carries a
     /// token, so it is never written to disk, a log or a backup.
     private var prepared: [String: PreparedLink] = [:]
+    /// I video dei torrent con più episodi che sono stati aperti (per hash): il player ne ricava «questo episodio è già nel pack».
+    private var packs: [String: [DebridPackFile]] = [:]
+
+    func packFiles(forHash hash: String) -> [DebridPackFile] {
+        return packs[DebridHash.normalize(hash) ?? hash.lowercased()] ?? []
+    }
+
+    private func rememberPack(hash: String, files: [DebridPackFile]) {
+        guard files.count > 1 else { return }
+        if packs.count > 60 { packs.removeAll() }
+        packs[DebridHash.normalize(hash) ?? hash.lowercased()] = files
+    }
     static let preparedLifetime: TimeInterval = 20 * 60
 
     init(credentials: ServiceCredentials,
@@ -230,12 +242,15 @@ final class DebridService: ObservableObject {
         // Keep provider and credentials paired for the full resolution; each client owns its own Keychain provider.
         let provider = override ?? selectedProvider
         do {
+            let result: DebridResolution
             switch provider {
             case .torbox:
-                return try await resolver.resolve(request, onProgress: onProgress)
+                result = try await resolver.resolve(request, onProgress: onProgress)
             case .realdebrid:
-                return try await realDebrid.resolve(request, onProgress: onProgress)
+                result = try await realDebrid.resolve(request, onProgress: onProgress)
             }
+            rememberPack(hash: request.infoHash, files: result.packFiles)
+            return result
         } catch let error as DebridError {
             noteFailure(error, from: provider)
             throw error
@@ -264,6 +279,7 @@ final class DebridService: ObservableObject {
         }
         for key in stale.keys { prepared.removeValue(forKey: key) }
         prepared[preparedKey(for: stream, stremioID: stremioID)] = PreparedLink(resolution: resolution, storedAt: current)
+        if case .torrent(let hash, _, _) = stream.source { rememberPack(hash: hash, files: resolution.packFiles) }
     }
 
     /// Hands the stashed link out once; a second call (a retry after the link went bad) gets nothing and resolves afresh.

@@ -4,6 +4,7 @@ import AetherCore
 
 struct PlayerEpisodesSheet: View {
     @ObservedObject var model: PlayerViewModel
+    @EnvironmentObject private var settings: SettingsStore
     @Environment(\.dismiss) private var dismiss
     @State private var season: Int?
 
@@ -12,6 +13,22 @@ struct PlayerEpisodesSheet: View {
             let seasons = model.meta.seasons
             let selected = season ?? model.currentVideo?.season ?? seasons.first
             List {
+                Section {
+                    Picker("Cambiando episodio", selection: settings.binding(\.playback.episodeSwitch)) {
+                        Text("Fonte automatica").tag(EpisodeSwitchMode.automatic)
+                        Text("Scelgo io").tag(EpisodeSwitchMode.askEachTime)
+                    }
+                    .pickerStyle(.segmented)
+                    if model.packEpisodeCount > 1 {
+                        Toggle(isOn: settings.binding(\.playback.preferPack)) {
+                            Label("Usa prima il pack aperto (\(model.packEpisodeCount) file)", systemImage: "shippingbox.fill")
+                        }
+                    }
+                } footer: {
+                    Text(model.packEpisodeCount > 1
+                         ? "Gli episodi con l'icona del pack sono già nel file che stai guardando: si aprono subito, senza cercare una fonte. Tieni premuto un episodio per scegliere come aprirlo."
+                         : "Con «Scelgo io», toccando un altro episodio si apre l'elenco delle fonti. Tieni premuto un episodio per altre scelte.")
+                }
                 if seasons.count > 1 {
                     Picker("Stagione", selection: Binding(get: { selected ?? 0 }, set: { season = $0 })) {
                         ForEach(seasons, id: \.self) { Text($0 == 0 ? "Speciali" : "Stagione \($0)").tag($0) }
@@ -35,10 +52,27 @@ struct PlayerEpisodesSheet: View {
                                 }
                             }
                             Spacer()
+                            if model.isInPack(video) {
+                                Image(systemName: "shippingbox.fill").font(.footnote).foregroundStyle(Color.aetherSecondary)
+                                    .accessibilityLabel("Nel pack")
+                            }
                             if video.id == model.currentVideo?.id { Image(systemName: "play.fill").foregroundStyle(Color.accentColor) }
                         }
                     }
                     .foregroundStyle(.primary)
+                    .contextMenu {
+                        if model.isInPack(video) {
+                            Button { dismiss(); Task { await model.play(episode: video, via: .pack) } } label: {
+                                Label("Apri dal pack", systemImage: "shippingbox")
+                            }
+                        }
+                        Button { dismiss(); Task { await model.play(episode: video, via: .search) } } label: {
+                            Label("Cerca la fonte e scegli la migliore", systemImage: "wand.and.stars")
+                        }
+                        Button { dismiss(); Task { await model.play(episode: video, via: .pick) } } label: {
+                            Label("Scegli la fonte…", systemImage: "list.bullet")
+                        }
+                    }
                 }
             }
             .navigationTitle("Episodi")
@@ -46,6 +80,83 @@ struct PlayerEpisodesSheet: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fine") { dismiss() } } }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+/// L'elenco delle fonti di un episodio, per sceglierla a mano (impostazione «Scelgo io», o tenendo premuto un episodio).
+struct EpisodeSourcesSheet: View {
+    @ObservedObject var model: PlayerViewModel
+    let video: Video
+    @EnvironmentObject private var env: AppEnvironment
+    @Environment(\.dismiss) private var dismiss
+    @State private var ranked: [RankedStream] = []
+    @State private var loading = true
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if model.isInPack(video) {
+                    Section {
+                        Button {
+                            dismiss()
+                            Task { await model.play(episode: video, via: .pack) }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "shippingbox.fill").foregroundStyle(Color.accentColor)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Dal pack che stai guardando").font(.headline)
+                                    Text("Subito, senza cercare: l'episodio è nello stesso file.").font(.caption).foregroundStyle(Color.aetherSecondary)
+                                }
+                            }
+                        }
+                        .foregroundStyle(.primary)
+                    }
+                }
+                Section(header: Text("Fonti per \(video.episodeLabel ?? "questo episodio")")) {
+                    if loading {
+                        HStack(spacing: 10) { ProgressView(); Text("Cerco le fonti…").foregroundStyle(Color.aetherSecondary) }
+                    } else if ranked.isEmpty {
+                        Text("Nessuna fonte trovata per questo episodio.").foregroundStyle(Color.aetherSecondary)
+                    }
+                    ForEach(Array(ranked.enumerated()), id: \.element.id) { index, item in
+                        Button {
+                            dismiss()
+                            Task { await model.playEpisode(video, with: item, ranked: ranked) }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(spacing: 6) {
+                                    Text(item.stream.name ?? item.stream.addonName ?? "Sorgente").font(.headline).lineLimit(1)
+                                    if index == 0 { Text("consigliata").font(.caption2.weight(.semibold)).foregroundStyle(Color.accentColor) }
+                                }
+                                if let details = item.stream.details {
+                                    Text(details).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(3)
+                                }
+                                HStack(spacing: 6) {
+                                    Text(item.info.badges.prefix(4).joined(separator: " · "))
+                                    if let size = item.info.sizeBytes { Text("· " + ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) }
+                                    if let addon = item.stream.addonName { Text("· " + addon) }
+                                }
+                                .font(.caption2)
+                                .foregroundStyle(Color.aetherSecondary)
+                            }
+                        }
+                        .foregroundStyle(.primary)
+                    }
+                }
+            }
+            .navigationTitle(video.episodeLabel ?? "Episodio")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Annulla") { dismiss() } } }
+            .task { await load() }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func load() async {
+        let result = await env.service.allStreams(type: model.meta.type, videoID: video.id)
+        let found = StreamSelector.rank(result.streams, preferences: env.streamPreferences())
+        ranked = found.filter { $0.info.support.isPlayable }
+        loading = false
     }
 }
 

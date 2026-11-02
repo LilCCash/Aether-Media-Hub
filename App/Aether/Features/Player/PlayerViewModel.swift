@@ -67,6 +67,10 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var nextEpisode: Video?
     @Published private(set) var nextCountdown: Int?
     @Published private(set) var isResolvingNext = false
+    /// The episode the viewer is choosing a source for (the list of sources opens over the player).
+    @Published var sourcePickerEpisode: Video?
+    /// The videos of the torrent being played when it holds more than one (a season pack).
+    @Published private(set) var packFiles: [DebridPackFile] = []
     @Published private(set) var alternatives: [RankedStream]
     @Published private(set) var engine: PlaybackEngine
     @Published private(set) var mediaInfo: MediaFormatInfo?
@@ -770,7 +774,7 @@ final class PlayerViewModel: ObservableObject {
             scheduleStatusClear(after: 4)
             env.diagnostics.logDetached(.warning, "player", "Picture in Picture non avviato: \(failure)")
         }
-        if new.isReady && !wasReady { refreshTracks() }
+        if new.isReady && !wasReady { refreshTracks(); refreshPack() }
         if new.isPlaying != old.isPlaying { scrobbleTrakt(new.isPlaying ? .start : .pause) }
         if new.isExternalPlaybackActive != old.isExternalPlaybackActive {
             let where_ = conversionLease != nil ? "indirizzo Wi-Fi del ponte" : (conversion != nil ? "questo telefono (127.0.0.1)" : "indirizzo originale")
@@ -826,7 +830,7 @@ final class PlayerViewModel: ObservableObject {
             env.downloads.deleteIfWatched(metaID: item.metaID, videoID: item.videoID)
         }
         if nextEpisode != nil && playback.autoplayNextEpisode {
-            Task { await playNext() }
+            Task { await playNext(userInitiated: false) }
         } else {
             didFinish = true
         }
@@ -1036,20 +1040,110 @@ final class PlayerViewModel: ObservableObject {
 
     // MARK: Episodes
 
-    func play(episode: Video) async {
-        await switchEpisode(to: episode)
+    /// How an episode is opened: by the viewer's settings, from the pack already open, by searching the addons, or from a list.
+    enum EpisodeVia { case automatic, pack, search, pick }
+
+    func play(episode: Video, via: EpisodeVia = .automatic) async {
+        await switchEpisode(to: episode, via: via, userInitiated: true)
     }
 
     func playPrevious() async {
-        if let previous = previousEpisode { await switchEpisode(to: previous) }
+        if let previous = previousEpisode { await switchEpisode(to: previous, via: .automatic, userInitiated: true) }
     }
 
-    func playNext() async {
+    /// `userInitiated` is false for the automatic jump at the end of an episode: it never stops to ask for a source.
+    func playNext(userInitiated: Bool = true) async {
         guard let next = nextEpisode else { return }
-        await switchEpisode(to: next)
+        await switchEpisode(to: next, via: .automatic, userInitiated: userInitiated)
     }
 
-    private func switchEpisode(to video: Video) async {
+    // MARK: Season packs
+
+    private var currentTorrentStream: AddonStream? {
+        var stream = currentStream
+        if stream == nil, case .stream(let requested) = request.source { stream = requested }
+        guard let found = stream, case .torrent = found.source else { return nil }
+        return found
+    }
+
+    private func refreshPack() {
+        guard let stream = currentTorrentStream, case .torrent(let hash, _, _) = stream.source else {
+            if !packFiles.isEmpty { packFiles = [] }
+            return
+        }
+        let files = env.debrid.packFiles(forHash: hash)
+        if files != packFiles { packFiles = files }
+    }
+
+    /// The episode is inside the file that is playing (a season pack): it can be opened from there without searching.
+    func isInPack(_ video: Video) -> Bool {
+        guard let season = video.season, let episode = video.episode else { return false }
+        return packFiles.contains { (file: DebridPackFile) -> Bool in file.contains(season: season, episode: episode) }
+    }
+
+    var packEpisodeCount: Int { return packFiles.count }
+
+    private func switchEpisode(to video: Video, via: EpisodeVia, userInitiated: Bool) async {
+        guard !isResolvingNext else { return }
+        var way = via
+        if way == .automatic {
+            if userInitiated && playback.episodeSwitch == .askEachTime {
+                sourcePickerEpisode = video
+                return
+            }
+            way = (playback.preferPack && isInPack(video)) ? .pack : .search
+        }
+        switch way {
+        case .pick:
+            sourcePickerEpisode = video
+        case .pack:
+            if await switchWithinPack(video) { return }
+            await switchBySearch(video)
+        case .search, .automatic:
+            await switchBySearch(video)
+        }
+    }
+
+    /// Opens the episode from the torrent that is already playing: the debrid service picks the file of that episode. False when it
+    /// cannot (the file is not there, the service refuses): the caller then searches the addons as usual.
+    private func switchWithinPack(_ video: Video) async -> Bool {
+        guard let stream = currentTorrentStream,
+              let packRequest = DebridRequest(stream: stream, stremioID: video.id, mode: .cachedOnly),
+              let best = StreamSelector.rank([stream], preferences: env.streamPreferences()).first else { return false }
+        isResolvingNext = true
+        defer { isResolvingNext = false }
+        countdownTask?.cancel()
+        nextCountdown = nil
+        statusMessage = "Apro \(video.episodeLabel ?? "l'episodio") dal pack…"
+        recordProgress(force: true)
+        progressSuspended = true
+        engine.pause()
+        do {
+            let result = try await env.debrid.resolve(packRequest, onProgress: nil)
+            env.debrid.stashResolution(result, for: stream, stremioID: video.id)
+        } catch {
+            statusMessage = "Questo episodio non è nel pack: cerco una sorgente…"
+            return false
+        }
+        await commitEpisode(video, best: best, ranked: [best])
+        return true
+    }
+
+    /// The viewer chose a source for the episode from the list.
+    func playEpisode(_ video: Video, with item: RankedStream, ranked: [RankedStream]) async {
+        guard !isResolvingNext else { return }
+        isResolvingNext = true
+        defer { isResolvingNext = false }
+        countdownTask?.cancel()
+        nextCountdown = nil
+        statusMessage = "Apro \(video.episodeLabel ?? "l'episodio")…"
+        recordProgress(force: true)
+        progressSuspended = true
+        engine.pause()
+        await commitEpisode(video, best: item, ranked: ranked)
+    }
+
+    private func switchBySearch(_ video: Video) async {
         guard !isResolvingNext else { return }
         isResolvingNext = true
         countdownTask?.cancel()
@@ -1077,6 +1171,11 @@ final class PlayerViewModel: ObservableObject {
             handleFailure(PlaybackFailure(kind: .notFound, detail: "Nessuna sorgente riproducibile per \(video.episodeLabel ?? "questo episodio")."))
             return
         }
+        await commitEpisode(video, best: best, ranked: ranked)
+    }
+
+    /// Puts the chosen source on screen for the episode: state, subtitles, skip data, then playback.
+    private func commitEpisode(_ video: Video, best: RankedStream, ranked: [RankedStream]) async {
         currentVideo = video
         currentStream = best.stream
         sourceName = best.stream.name ?? best.stream.addonName ?? "Sorgente"
@@ -1127,7 +1226,7 @@ final class PlayerViewModel: ObservableObject {
             }
             if Task.isCancelled { return }
             self?.countdownTask = nil
-            await self?.playNext()
+            await self?.playNext(userInitiated: false)
         }
     }
 

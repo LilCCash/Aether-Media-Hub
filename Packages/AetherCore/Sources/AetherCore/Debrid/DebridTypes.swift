@@ -131,6 +131,29 @@ public struct DebridFileCandidate: Hashable, Sendable {
 }
 
 /// A playable link. The URL is short lived: use it for the current playback session and ask again later.
+/// Un video dentro un torrent con più episodi (un «pack» di stagione), con gli episodi che contiene.
+public struct DebridPackFile: Equatable, Hashable, Sendable {
+    public var name: String
+    public var size: Int64?
+    public var season: Int?
+    public var firstEpisode: Int?
+    public var lastEpisode: Int?
+
+    public init(name: String, size: Int64? = nil, season: Int? = nil, firstEpisode: Int? = nil, lastEpisode: Int? = nil) {
+        self.name = name
+        self.size = size
+        self.season = season
+        self.firstEpisode = firstEpisode
+        self.lastEpisode = lastEpisode
+    }
+
+    /// Il file contiene quell'episodio (un file doppio come S01E01-E02 ne contiene due).
+    public func contains(season wantedSeason: Int, episode: Int) -> Bool {
+        guard let season = season, let first = firstEpisode else { return false }
+        return season == wantedSeason && episode >= first && episode <= (lastEpisode ?? first)
+    }
+}
+
 public struct DebridResolution: Equatable, Sendable, CustomStringConvertible {
     public var url: URL
     public var fileName: String
@@ -140,9 +163,11 @@ public struct DebridResolution: Equatable, Sendable, CustomStringConvertible {
     /// The torrent was already in the user's TorBox account before this call.
     public var wasAlreadyInAccount: Bool
     public var resolvedAt: Date
+    /// I video del torrent, quando ne contiene più di uno (serve a riconoscere un pack di stagione).
+    public var packFiles: [DebridPackFile]
 
     public init(url: URL, fileName: String, fileSize: Int64?, torrentID: Int, fileID: Int,
-                wasAlreadyInAccount: Bool, resolvedAt: Date) {
+                wasAlreadyInAccount: Bool, resolvedAt: Date, packFiles: [DebridPackFile] = []) {
         self.url = url
         self.fileName = fileName
         self.fileSize = fileSize
@@ -150,6 +175,7 @@ public struct DebridResolution: Equatable, Sendable, CustomStringConvertible {
         self.fileID = fileID
         self.wasAlreadyInAccount = wasAlreadyInAccount
         self.resolvedAt = resolvedAt
+        self.packFiles = packFiles
     }
 
     /// Host only: the CDN URL carries a per-download token and must not end up in logs.

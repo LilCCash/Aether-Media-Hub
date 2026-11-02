@@ -282,6 +282,14 @@ struct PlaybackSettingsView: View {
                 Toggle("Riproduci sempre in orizzontale", isOn: settings.binding(\.playback.landscapeOnly))
                 Toggle("Pagina nera con logo subito all'apertura", isOn: settings.binding(\.playback.instantLaunchPage))
             }
+            Section(header: Text("Cambio episodio"), footer: Text("Quando nel player scegli un altro episodio. «Mostra l'elenco delle fonti» apre la lista delle fonti di quell'episodio; il salto automatico a fine episodio non si ferma mai a chiedere. Con «Usa prima il pack» un episodio che è nello stesso file (una stagione completa) si apre subito, senza cercare.")) {
+                Picker("Cambiando episodio", selection: settings.binding(\.playback.episodeSwitch)) {
+                    ForEach(EpisodeSwitchMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .accessibilityIdentifier("settings.episodeSwitch")
+                Toggle("Usa prima il pack già aperto", isOn: settings.binding(\.playback.preferPack))
+                    .accessibilityIdentifier("settings.preferPack")
+            }
             Section(header: Text("Episodi")) {
                 Toggle("Riproduci automaticamente il prossimo episodio", isOn: settings.binding(\.playback.autoplayNextEpisode))
                     .accessibilityIdentifier("settings.autoplay")

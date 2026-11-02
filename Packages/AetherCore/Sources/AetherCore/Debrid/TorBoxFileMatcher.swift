@@ -245,6 +245,14 @@ public enum TorBoxFileMatcher {
         return false
     }
 
+    /// I video del torrent con la loro stagione ed episodio (senza campioni né archivi).
+    public static func packFiles(from files: [TorBoxFile]) -> [DebridPackFile] {
+        return files.filter { isVideo($0) && !isSample($0) && !isArchive($0) && !$0.infected }.map { (file: TorBoxFile) -> DebridPackFile in
+            let tag = episodeTag(for: file)
+            return DebridPackFile(name: file.displayName, size: file.size, season: tag?.season, firstEpisode: tag?.first, lastEpisode: tag?.last)
+        }
+    }
+
     // MARK: Season / episode parsing
 
     struct EpisodeTag: Equatable {

@@ -247,7 +247,8 @@ public actor DebridResolver: DebridProvider {
         let url = try await client.requestDownloadLink(torrentID: torrent.id, fileID: fileID)
         await note(.info, "link ottenuto")
         return DebridResolution(url: url, fileName: file.displayName, fileSize: file.size, torrentID: torrent.id,
-                                fileID: fileID, wasAlreadyInAccount: wasInAccount, resolvedAt: clock.now())
+                                fileID: fileID, wasAlreadyInAccount: wasInAccount, resolvedAt: clock.now(),
+                                packFiles: TorBoxFileMatcher.packFiles(from: torrent.files))
     }
 
     // MARK: Steps

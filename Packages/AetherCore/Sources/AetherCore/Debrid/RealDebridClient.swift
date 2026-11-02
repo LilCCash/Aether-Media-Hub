@@ -144,7 +144,7 @@ public struct RealDebridClient: DebridProvider {
         }
         return DebridResolution(url: url, fileName: selected.displayName, fileSize: selected.size,
                                 torrentID: Int(id) ?? 0, fileID: fileID, wasAlreadyInAccount: wasInAccount,
-                                resolvedAt: clock.now())
+                                resolvedAt: clock.now(), packFiles: TorBoxFileMatcher.packFiles(from: files))
     }
 
     /// Lettura di un elenco dell'account (usata dal «Cloud» della Libreria).

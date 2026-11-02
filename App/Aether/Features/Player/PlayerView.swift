@@ -165,6 +165,7 @@ struct PlayerView: View {
             .persistentSystemOverlays(.hidden)
             .preferredColorScheme(.dark)
             .sheet(item: $sheet) { sheet in sheetContent(sheet) }
+            .sheet(item: $model.sourcePickerEpisode) { video in EpisodeSourcesSheet(model: model, video: video) }
             .fileImporter(isPresented: $importingSubtitle, allowedContentTypes: SubtitleFileTypes.all) { result in
                 if case .success(let url) = result { model.importLocalSubtitle(url) }
             }

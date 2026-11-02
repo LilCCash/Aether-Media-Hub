@@ -316,6 +316,21 @@ public enum VideoQualityCap: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// Cosa fa il player quando scegli un altro episodio.
+public enum EpisodeSwitchMode: String, Codable, CaseIterable, Sendable {
+    /// L'app sceglie la fonte da sola (prima il pack già aperto, se l'episodio c'è).
+    case automatic
+    /// Si apre l'elenco delle fonti dell'episodio e scegli tu.
+    case askEachTime
+
+    public var title: String {
+        switch self {
+        case .automatic: return "Scelta automatica della fonte"
+        case .askEachTime: return "Mostra l'elenco delle fonti"
+        }
+    }
+}
+
 public enum PlayerEngineChoice: String, Codable, CaseIterable, Sendable {
     case automatic, avPlayer, mpv
 
@@ -441,6 +456,10 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var engine: PlayerEngineChoice = .automatic
     /// Il lettore per i canali in diretta (tipo «tv»): scelto a parte, perché le dirette hanno formati e regole diversi.
     public var liveEngine: PlayerEngineChoice = .automatic
+    /// Cambiando episodio: fonte automatica oppure elenco delle fonti da cui scegliere.
+    public var episodeSwitch: EpisodeSwitchMode = .automatic
+    /// Se l'episodio è nel pack già aperto (un torrent con tutta la stagione), si apre da lì invece di cercare una fonte.
+    public var preferPack: Bool = true
     public var autoResume: Bool = true
     public var resumeRewindSeconds: Int = 0
     public var skipBackSeconds: Int = 10
@@ -489,7 +508,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case video, secondaryAudioLanguage, secondarySubtitleLanguage, stripHearingImpairedTags, holdToSpeed, holdSpeed
-        case engine, liveEngine, autoResume, resumeRewindSeconds, skipBackSeconds, skipForwardSeconds, autoplayNextEpisode
+        case engine, liveEngine, episodeSwitch, preferPack, autoResume, resumeRewindSeconds, skipBackSeconds, skipForwardSeconds, autoplayNextEpisode
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly, instantLaunchPage
@@ -500,6 +519,8 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         engine = c.value(.engine, default: .automatic)
         liveEngine = c.value(.liveEngine, default: .automatic)
+        episodeSwitch = c.value(.episodeSwitch, default: .automatic)
+        preferPack = c.value(.preferPack, default: true)
         autoResume = c.value(.autoResume, default: true)
         resumeRewindSeconds = min(30, max(0, c.value(.resumeRewindSeconds, default: 0)))
         skipBackSeconds = min(120, max(5, c.value(.skipBackSeconds, default: 10)))
