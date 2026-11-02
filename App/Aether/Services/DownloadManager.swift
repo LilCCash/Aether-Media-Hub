@@ -31,6 +31,8 @@ final class DownloadManager: NSObject, ObservableObject {
     private var transientHTTPRetries: [UUID: Int] = [:]
     private var lastPublished: [UUID: Date] = [:]
     nonisolated(unsafe) static var backgroundCompletionHandler: (() -> Void)?
+    /// Looks up intro / recap of an episode (imdb id, season, episode); nil when the lookup failed. Set by the environment.
+    var skipLookup: ((String, Int, Int) async -> EpisodeSkipSegments?)?
 
     init(paths: AppPaths, snapshot: SettingsSnapshot, diagnostics: DiagnosticLog) {
         self.paths = paths
@@ -321,6 +323,38 @@ final class DownloadManager: NSObject, ObservableObject {
         }
         items = await store.all()
         scheduleQueue()
+        Task { await self.fetchSkipSegments(id: id) }
+    }
+
+    // MARK: Offline skip data
+
+    func completedItem(metaID: String, videoID: String?) -> DownloadItem? {
+        guard let found = item(metaID: metaID, videoID: videoID), localURL(for: found) != nil else { return nil }
+        return found
+    }
+
+    /// The intro / recap of a downloaded episode are kept with the file, so the skip button works offline too.
+    func fetchSkipSegments(id: UUID) async {
+        guard let lookup = skipLookup, let current = items.first(where: { $0.id == id }), current.skipChecked != true,
+              let coordinates = current.episodeCoordinates, let imdb = ExternalIDs.imdbID(fromMetaID: current.metaID) else { return }
+        guard let found = await lookup(imdb, coordinates.season, coordinates.episode) else { return }
+        await store.update(id: id) { $0.store(skipSegments: found) }
+        items = await store.all()
+    }
+
+    /// Downloads made before this existed (or while offline) get their skip data the next time the app is online.
+    func backfillSkipSegments() async {
+        for item in items where item.state == .completed && item.skipChecked != true && item.episodeCoordinates != nil {
+            await fetchSkipSegments(id: item.id)
+        }
+    }
+
+    /// Keeps what the player found online for a downloaded episode.
+    func saveSkipSegments(_ segments: EpisodeSkipSegments, for id: UUID) {
+        Task {
+            await store.update(id: id) { $0.store(skipSegments: segments) }
+            items = await store.all()
+        }
     }
 
     /// CDN/provider 5xx responses are often transient. Retry twice before surfacing the error,
@@ -423,7 +457,10 @@ extension DownloadManager: URLSessionDownloadDelegate, URLSessionTaskDelegate {
             return
         }
         // The temporary file disappears when this method returns: move it synchronously.
-        let ext = DownloadManager.fileExtension(forURL: downloadTask.originalRequest?.url, mime: mime)
+        // What the file really is wins over the address and the type the server announced: Matroska saved as ".mp4" would be
+        // handed to AVPlayer, which refuses it.
+        let ext = ContainerSniffer.container(header: previewData)
+            ?? DownloadManager.fileExtension(forURL: downloadTask.originalRequest?.url, mime: mime)
         let fileName = "\(id.uuidString).\(ext)"
         let destinationDirectory = self.downloadsDirectory
         let destination = destinationDirectory.appendingPathComponent(fileName)

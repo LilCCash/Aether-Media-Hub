@@ -460,6 +460,8 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var episodeSwitch: EpisodeSwitchMode = .automatic
     /// Se l'episodio è nel pack già aperto (un torrent con tutta la stagione), si apre da lì invece di cercare una fonte.
     public var preferPack: Bool = true
+    /// An episode that is already downloaded opens from the file instead of searching for a source.
+    public var preferDownloaded: Bool = true
     public var autoResume: Bool = true
     public var resumeRewindSeconds: Int = 0
     public var skipBackSeconds: Int = 10
@@ -508,7 +510,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case video, secondaryAudioLanguage, secondarySubtitleLanguage, stripHearingImpairedTags, holdToSpeed, holdSpeed
-        case engine, liveEngine, episodeSwitch, preferPack, autoResume, resumeRewindSeconds, skipBackSeconds, skipForwardSeconds, autoplayNextEpisode
+        case engine, liveEngine, episodeSwitch, preferPack, preferDownloaded, autoResume, resumeRewindSeconds, skipBackSeconds, skipForwardSeconds, autoplayNextEpisode
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly, instantLaunchPage
@@ -521,6 +523,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         liveEngine = c.value(.liveEngine, default: .automatic)
         episodeSwitch = c.value(.episodeSwitch, default: .automatic)
         preferPack = c.value(.preferPack, default: true)
+        preferDownloaded = c.value(.preferDownloaded, default: true)
         autoResume = c.value(.autoResume, default: true)
         resumeRewindSeconds = min(30, max(0, c.value(.resumeRewindSeconds, default: 0)))
         skipBackSeconds = min(120, max(5, c.value(.skipBackSeconds, default: 10)))

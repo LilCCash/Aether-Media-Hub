@@ -259,7 +259,10 @@ final class PlayerViewModel: ObservableObject {
         case .stream(let stream):
             return StreamAnalyzer.analyze(stream, streamingServer: env.streamPreferences().streamingServer).container
         case .download(let item):
-            let ext = env.downloads.localURL(for: item)?.pathExtension.lowercased() ?? ""
+            guard let local = env.downloads.localURL(for: item) else { return nil }
+            // The content decides, not the name: Matroska saved as ".mp4" is not something AVPlayer can open.
+            if let real = ContainerSniffer.container(ofFileAt: local) { return real }
+            let ext = local.pathExtension.lowercased()
             return ext.isEmpty ? nil : ext
         }
     }
@@ -340,6 +343,8 @@ final class PlayerViewModel: ObservableObject {
                 return
             }
             url = local
+            // Another downloaded episode can be of another container than the one the engine was chosen for.
+            guard adoptEngine(forContainer: currentContainer) else { return }
         case .stream(let stream):
             var source = stream
             if DebridStreamLogic.isTorrent(stream) && env.debrid.isConfigured {
@@ -685,10 +690,13 @@ final class PlayerViewModel: ObservableObject {
     /// The file TorBox returned decides the container, and so the engine (a Matroska file needs MPV). False when no engine can
     /// play it; the failure panel then says why.
     private func adoptEngine(forResolved direct: AddonStream) -> Bool {
+        return adoptEngine(forContainer: StreamAnalyzer.analyze(direct, streamingServer: nil).container)
+    }
+
+    private func adoptEngine(forContainer container: String?) -> Bool {
         // A restart after an engine fallback keeps the engine the fallback chose: planning again from the file name alone
         // would put the engine that just failed back (and the same failure would repeat).
         if engineChosenByFallback { return true }
-        let container = StreamAnalyzer.analyze(direct, streamingServer: nil).container
         let plan = PlaybackPlanner.plan(container: container, facts: nil, device: device,
                                         mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: engineChoice,
                                         forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting, isLive: isLiveContent)
@@ -925,6 +933,12 @@ final class PlayerViewModel: ObservableObject {
     private func loadSkipSegments() {
         skipSegmentsTask?.cancel()
         skipSegments = .none
+        // A downloaded episode carries its own intro / recap: works offline and asks nobody.
+        if playback.skipSegmentsEnabled, case .download(let file) = request.source,
+           let stored = env.downloads.items.first(where: { $0.id == file.id })?.storedSkipSegments {
+            skipSegments = stored
+            return
+        }
         guard playback.skipSegmentsEnabled, !tornDown, let video = currentVideo, let season = video.season, let episode = video.episode,
               let imdb = ExternalIDs.imdbID(fromMetaID: meta.id) else { return }
         let videoID = video.id
@@ -932,6 +946,8 @@ final class PlayerViewModel: ObservableObject {
             let found = await skipSegmentsService.segments(imdbID: imdb, season: season, episode: episode)
             guard !Task.isCancelled, let self = self, !self.tornDown, self.currentVideo?.id == videoID else { return }
             self.skipSegments = found ?? .none
+            // Played from a download: keep what was found, so the next time it works offline.
+            if let found = found, case .download(let file) = self.request.source { self.env.downloads.saveSkipSegments(found, for: file.id) }
         }
     }
 
@@ -1087,6 +1103,11 @@ final class PlayerViewModel: ObservableObject {
         guard !isResolvingNext else { return }
         var way = via
         if way == .automatic {
+            // A downloaded episode opens from its file, offline too, before any search (switch it off in the settings).
+            if playback.preferDownloaded, let file = env.downloads.completedItem(metaID: meta.id, videoID: video.id) {
+                await commitDownloadedEpisode(video, item: file)
+                return
+            }
             if userInitiated && playback.episodeSwitch == .askEachTime {
                 sourcePickerEpisode = video
                 return
@@ -1141,6 +1162,36 @@ final class PlayerViewModel: ObservableObject {
         progressSuspended = true
         engine.pause()
         await commitEpisode(video, best: item, ranked: ranked)
+    }
+
+    /// Opens the episode from the file in the Downloads: no search, no network.
+    private func commitDownloadedEpisode(_ video: Video, item: DownloadItem) async {
+        guard !isResolvingNext else { return }
+        isResolvingNext = true
+        defer { isResolvingNext = false }
+        countdownTask?.cancel()
+        nextCountdown = nil
+        statusMessage = "Apro \(video.episodeLabel ?? "l'episodio") dai download…"
+        recordProgress(force: true)
+        progressSuspended = true
+        engine.pause()
+        currentVideo = video
+        currentStream = nil
+        sourceName = "Download"
+        request.video = video
+        request.source = .download(item)
+        engineChosenByFallback = false
+        alternatives = []
+        resetSubtitleStateForNewVideo()
+        loadSkipSegments()
+        lastRecordedPosition = -100
+        didFinish = false
+        nextStreamsTask = nil
+        updateNextEpisode()
+        nowPlaying.setMetadata(title: meta.name, subtitle: episodeSubtitle(),
+                               artworkURL: (video.thumbnail ?? meta.background ?? meta.poster).flatMap { URL.lenient($0) }, loader: env.images)
+        await beginPlayback(startOverride: nil)
+        await loadSubtitleOptions()
     }
 
     private func switchBySearch(_ video: Video) async {
@@ -1200,7 +1251,8 @@ final class PlayerViewModel: ObservableObject {
     private func evaluateNextEpisodePrompt() {
         guard let next = nextEpisode, snapshot.duration > 120, !snapshot.isLive else { return }
         let remaining = snapshot.duration - snapshot.position
-        if nextStreamsTask == nil, snapshot.position / snapshot.duration > 0.8 {
+        let nextIsDownloaded = playback.preferDownloaded && env.downloads.completedItem(metaID: meta.id, videoID: next.id) != nil
+        if nextStreamsTask == nil, !nextIsDownloaded, snapshot.position / snapshot.duration > 0.8 {
             let service = env.service
             let type = meta.type
             nextStreamsTask = Task { await service.allStreams(type: type, videoID: next.id) }

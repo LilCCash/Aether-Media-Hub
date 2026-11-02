@@ -328,7 +328,9 @@ struct PlayerView: View {
 
     private func close() {
         router.player = nil
+        router.launch = nil
         LandscapeHostingController.dismissCurrent()
+        LandscapeHostingController.closeUntilGone(router)
     }
 
     // MARK: Controls visibility

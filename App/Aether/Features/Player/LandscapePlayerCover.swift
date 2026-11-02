@@ -41,6 +41,33 @@ final class LandscapeHostingController: UIHostingController<AnyView> {
         return false
     }
 
+    /// The player page that is topmost in the presented chain, taken down whatever the coordinator remembers.
+    @MainActor
+    static func dismissTopmost() {
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
+        var controller = scene.keyWindow?.rootViewController
+        var found: LandscapeHostingController?
+        while let current = controller {
+            if let page = current as? LandscapeHostingController { found = page }
+            controller = current.presentedViewController
+        }
+        found?.dismissThenTurnBack()
+    }
+
+    /// A dismissal asked while the page was still moving (typical when an error shows the instant it opens) is silently ignored by
+    /// iOS, and the close button then seemed dead until a later tap. This asks again until the page is really gone.
+    @MainActor
+    static func closeUntilGone(_ router: AppRouter) {
+        Task { @MainActor in
+            for _ in 0..<12 {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                guard router.player == nil, isShowing else { return }
+                router.launch = nil
+                dismissTopmost()
+            }
+        }
+    }
+
     /// Takes the page down and only then gives the screen back to the orientation of the app: asked before, the request is refused
     /// (this page, still on top, only allows landscape) and the app stays sideways. Asked once more a moment later, for the slow cases.
     @MainActor

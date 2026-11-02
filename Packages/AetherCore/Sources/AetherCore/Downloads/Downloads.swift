@@ -74,6 +74,13 @@ public struct DownloadItem: Codable, Hashable, Identifiable, Sendable {
     public var createdAt: Date
     public var completedAt: Date?
     public var errorMessage: String?
+    /// Intro / recap of an episode kept with the file, so the skip button also works offline (seconds from the start).
+    public var introStart: Double?
+    public var introEnd: Double?
+    public var recapStart: Double?
+    public var recapEnd: Double?
+    /// True once the skip data was looked up successfully (even if the episode has none): no more lookups for this file.
+    public var skipChecked: Bool?
 
     public init(id: UUID = UUID(), metaID: String, videoID: String?, type: String, title: String, subtitle: String? = nil,
                 poster: String? = nil, sourceURL: String, headers: [String: String] = [:],
@@ -104,6 +111,57 @@ public struct DownloadItem: Codable, Hashable, Identifiable, Sendable {
     }
 
     public var isFinished: Bool { return state == .completed }
+
+    /// Season and episode of a series episode whose video id is `tt…:season:episode`; nil for a film.
+    public var episodeCoordinates: (season: Int, episode: Int)? {
+        guard let videoID = videoID else { return nil }
+        let parts = videoID.split(separator: ":")
+        guard parts.count >= 3, let episode = Int(parts[parts.count - 1]), let season = Int(parts[parts.count - 2]) else { return nil }
+        return (season, episode)
+    }
+
+    /// The skippable parts kept with the file, or nil when none are stored.
+    public var storedSkipSegments: EpisodeSkipSegments? {
+        var found = EpisodeSkipSegments()
+        if let start = introStart, let end = introEnd, end > start { found.intro = SkipSegment(kind: .intro, start: start, end: end) }
+        if let start = recapStart, let end = recapEnd, end > start { found.recap = SkipSegment(kind: .recap, start: start, end: end) }
+        return found.isEmpty ? nil : found
+    }
+
+    public mutating func store(skipSegments segments: EpisodeSkipSegments) {
+        introStart = segments.intro?.start
+        introEnd = segments.intro?.end
+        recapStart = segments.recap?.start
+        recapEnd = segments.recap?.end
+        skipChecked = true
+    }
+}
+
+/// What a file really is, from its first bytes: a download saved as ".mp4" can hold Matroska (the server sent no useful type),
+/// and AVPlayer then refuses it while MPV, which looks inside, plays it.
+public enum ContainerSniffer {
+    public static func container(header: Data) -> String? {
+        let b = [UInt8](header.prefix(16))
+        guard b.count >= 12 else { return nil }
+        if b[0] == 0x1A, b[1] == 0x45, b[2] == 0xDF, b[3] == 0xA3 {
+            // EBML: Matroska or WebM (the doc type sits near the start).
+            let text = String(decoding: header.prefix(64), as: UTF8.self)
+            return text.contains("webm") ? "webm" : "mkv"
+        }
+        if b[4] == 0x66, b[5] == 0x74, b[6] == 0x79, b[7] == 0x70 {   // "ftyp"
+            let brand = String(decoding: b[8..<12], as: UTF8.self)
+            return brand.hasPrefix("qt") ? "mov" : "mp4"
+        }
+        if b[0] == 0x52, b[1] == 0x49, b[2] == 0x46, b[3] == 0x46, b[8] == 0x41, b[9] == 0x56, b[10] == 0x49 { return "avi" }
+        return nil
+    }
+
+    public static func container(ofFileAt url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: 64) else { return nil }
+        return container(header: data)
+    }
 }
 
 public struct DownloadStoreState: Codable, Sendable {

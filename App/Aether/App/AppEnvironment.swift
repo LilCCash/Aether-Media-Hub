@@ -131,6 +131,8 @@ final class AppEnvironment: ObservableObject {
         let introDBBase = hooks.metadataBaseURL.flatMap { URL(string: $0 + "/introdb") }
             ?? (hooks.isActive ? URL(string: "http://127.0.0.1:9")! : IntroDBClient.productionBaseURL)
         skipSegments = SkipSegmentsService(client: IntroDBClient(http: http, baseURL: introDBBase))
+        let skipService = skipSegments
+        downloads.skipLookup = { imdb, season, episode in await skipService.segments(imdbID: imdb, season: season, episode: episode) }
 
         credentials.onChange = { [weak self] in
             guard let self = self else { return }
@@ -153,6 +155,7 @@ final class AppEnvironment: ObservableObject {
         await library.refresh()
         library.onWatchlistChange = { [weak self] meta, enabled in self?.trakt.watchlistChanged(meta, enabled: enabled) }
         await downloads.restore()
+        Task { await downloads.backfillSkipSegments() }
         Task { await trakt.bootstrap() }
         await diagnostics.configure(enabled: settings.value.privacy.keepDiagnosticLog,
                                     verbose: settings.value.advanced.verboseLogging)
