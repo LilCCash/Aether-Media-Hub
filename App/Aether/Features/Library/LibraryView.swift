@@ -2,7 +2,7 @@ import SwiftUI
 import AetherCore
 
 enum LibrarySection: String, CaseIterable, Identifiable {
-    case continueWatching, watchlist, favorites, history, downloads
+    case continueWatching, watchlist, favorites, history, downloads, cloud
     var id: String { rawValue }
 
     var title: String {
@@ -12,6 +12,7 @@ enum LibrarySection: String, CaseIterable, Identifiable {
         case .favorites: return "Preferiti"
         case .history: return "Cronologia"
         case .downloads: return "Download"
+        case .cloud: return "Cloud"
         }
     }
 }
@@ -109,6 +110,8 @@ struct LibraryView: View {
             }
         case .downloads:
             DownloadsView(filter: filter)
+        case .cloud:
+            CloudLibraryView(filter: filter)
         }
     }
 

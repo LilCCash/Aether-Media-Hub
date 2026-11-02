@@ -147,6 +147,11 @@ public struct RealDebridClient: DebridProvider {
                                 resolvedAt: clock.now())
     }
 
+    /// Lettura di un elenco dell'account (usata dal «Cloud» della Libreria).
+    func cloudList(path: String) async throws -> [[String: Any]] {
+        return try await requestJSONArray(path: path, method: "GET")
+    }
+
     private func requestJSONArray(path: String, method: String, form: [String: String]? = nil) async throws -> [[String: Any]] {
         let data = try await send(path: path, method: method, form: form)
         guard let value = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {

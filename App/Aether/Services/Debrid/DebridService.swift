@@ -48,6 +48,7 @@ final class DebridService: ObservableObject {
     private let credentials: ServiceCredentials
     private let resolver: DebridResolver
     private let realDebrid: RealDebridClient
+    private let torboxClient: TorBoxClient
     private let now: @Sendable () -> Date
     private var verifyGeneration = 0
 
@@ -74,6 +75,7 @@ final class DebridService: ObservableObject {
         }
         let client = TorBoxClient(http: http, keyProvider: keyProvider, baseURL: baseURL, retry: retry, clock: clock, log: log)
         self.credentials = credentials
+        self.torboxClient = client
         self.resolver = DebridResolver(client: client, configuration: configuration, clock: clock, log: log)
         self.realDebrid = RealDebridClient(http: http, tokenProvider: credentials.provider(for: .realdebrid), clock: clock)
         let savedChoice = UserDefaults.standard.string(forKey: "debrid.selectedProvider")
@@ -100,6 +102,31 @@ final class DebridService: ObservableObject {
         case .torbox: return isTorBoxConfigured
         case .realdebrid: return credentials.isConfigured(.realdebrid)
         }
+    }
+
+    /// Whether a given provider has a saved credential (the Cloud page of the Library shows every configured one).
+    func hasCredentials(for provider: ProviderChoice) -> Bool {
+        switch provider {
+        case .torbox: return isTorBoxConfigured
+        case .realdebrid: return credentials.isConfigured(.realdebrid)
+        }
+    }
+
+    /// What the user has in the cloud of every configured provider, and the providers that did not answer.
+    func cloudItems() async -> (items: [DebridCloudItem], failures: [String: String]) {
+        var items: [DebridCloudItem] = []
+        var failures: [String: String] = [:]
+        if hasCredentials(for: .torbox) {
+            do { items += try await torboxClient.cloudTorrents() } catch {
+                failures[ProviderChoice.torbox.title] = DebridErrorText.describe(error, provider: .torbox)
+            }
+        }
+        if hasCredentials(for: .realdebrid) {
+            do { items += try await realDebrid.cloudItems() } catch {
+                failures[ProviderChoice.realdebrid.title] = DebridErrorText.describe(error, provider: .realdebrid)
+            }
+        }
+        return (items, failures)
     }
 
     /// TorBox-specific configuration used by its account-status UI.
@@ -198,10 +225,10 @@ final class DebridService: ObservableObject {
         }
     }
 
-    func resolve(_ request: DebridRequest,
+    func resolve(_ request: DebridRequest, provider override: ProviderChoice? = nil,
                  onProgress: (@Sendable (DebridProgress) -> Void)?) async throws -> DebridResolution {
         // Keep provider and credentials paired for the full resolution; each client owns its own Keychain provider.
-        let provider = selectedProvider
+        let provider = override ?? selectedProvider
         do {
             switch provider {
             case .torbox:
