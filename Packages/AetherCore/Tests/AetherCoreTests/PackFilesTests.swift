@@ -3,7 +3,7 @@ import XCTest
 
 final class PackFilesTests: XCTestCase {
     private func file(_ id: Int, _ name: String, size: Int64 = 1_000_000_000) -> TorBoxFile {
-        return TorBoxFile(id: id, name: name, shortName: nil, size: size, mimetype: "video/x-matroska")
+        return TorBoxFile(id: id, name: name, shortName: nil, size: size, mimetype: name.hasSuffix(".txt") ? "text/plain" : "video/x-matroska")
     }
 
     func testASeasonPackListsItsEpisodes() {
