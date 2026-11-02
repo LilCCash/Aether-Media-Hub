@@ -421,6 +421,45 @@ final class StreamPickerModel: ObservableObject {
         }
     }
 
+    /// The address to hand to an external player: the source's own link, or — for a torrent — the link the debrid service
+    /// (TorBox or Real-Debrid) makes for it. A torrent that is not already in the service's cache is not added without asking.
+    func externalPlayerURL(_ item: RankedStream, player: ExternalPlayer, env: AppEnvironment) async -> URL? {
+        if let media = item.stream.directMediaURL { return player.url(for: media) }
+        guard DebridStreamLogic.isTorrent(item.stream) else { return nil }
+        guard env.debrid.isConfigured else {
+            blockedMessage = "Per aprire un torrent in un lettore esterno configura TorBox o Real-Debrid in Impostazioni ▸ Servizi."
+            return nil
+        }
+        let stremioID = DebridStreamLogic.stremioID(meta: request.meta, video: request.video)
+        guard let debridRequest = DebridRequest(stream: item.stream, stremioID: stremioID, mode: .cachedOnly) else {
+            blockedMessage = "Questa sorgente torrent non contiene un hash valido."
+            return nil
+        }
+        let provider = env.debrid.selectedProvider
+        infoMessage = "Preparo il link con \(provider.title)…"
+        do {
+            let result = try await env.debrid.resolve(debridRequest, onProgress: nil)
+            infoMessage = nil
+            if let blocked = await env.validateMediaURL(result.url) {
+                blockedMessage = blocked.message
+                return nil
+            }
+            return player.url(for: result.url)
+        } catch let error as DebridError {
+            infoMessage = nil
+            if case .notCached = error {
+                blockedMessage = "Questo torrent non è già pronto su \(provider.title). Avvialo una volta dalla riproduzione normale (viene aggiunto al tuo account) e poi riprova."
+            } else {
+                blockedMessage = error.message
+            }
+            return nil
+        } catch {
+            infoMessage = nil
+            blockedMessage = DebridErrorText.describe(error, provider: provider)
+            return nil
+        }
+    }
+
     func play(_ item: RankedStream, env: AppEnvironment, dismiss: @escaping () -> Void) async {
         cancelResolution()
         rowFailure = nil
@@ -918,10 +957,11 @@ struct StreamPickerSheet: View {
         }
     }
 
-    /// «Apri in un lettore esterno»: VLC, Infuse, nPlayer, Outplayer (solo quelli installati), per le fonti con un indirizzo diretto.
+    /// «Apri in un lettore esterno»: VLC, Infuse, nPlayer, Outplayer (solo quelli installati), per le fonti con un indirizzo diretto
+    /// e per i torrent (il link lo fa il servizio debrid configurato).
     @ViewBuilder
     private func externalPlayerMenu(_ item: RankedStream) -> some View {
-        if let media = item.stream.directMediaURL {
+        if item.stream.directMediaURL != nil || DebridStreamLogic.isTorrent(item.stream) {
             let installed = ExternalPlayer.allCases.filter { (player: ExternalPlayer) -> Bool in
                 guard let probe = player.probeURL else { return false }
                 return UIApplication.shared.canOpenURL(probe)
@@ -932,9 +972,11 @@ struct StreamPickerSheet: View {
                 } else {
                     ForEach(installed, id: \.self) { player in
                         Button {
-                            if let address = player.url(for: media) { openURL(address) }
-                            if item.stream.needsRequestHeaders {
-                                model.infoMessage = "Questa fonte richiede intestazioni particolari: il lettore esterno potrebbe riceverne un 403."
+                            Task {
+                                if let address = await model.externalPlayerURL(item, player: player, env: env) { openURL(address) }
+                                if item.stream.needsRequestHeaders {
+                                    model.infoMessage = "Questa fonte richiede intestazioni particolari: il lettore esterno potrebbe riceverne un 403."
+                                }
                             }
                         } label: {
                             Text(player.title)
