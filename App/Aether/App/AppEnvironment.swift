@@ -74,6 +74,8 @@ final class AppEnvironment: ObservableObject {
         }
         http = URLSessionHTTPClient(policyProvider: policyProvider)
         imageHTTP = URLSessionHTTPClient(policyProvider: policyProvider)
+        // Trakt has its own connections: a stale one shared with the addons used to drop with «connessione persa» (-1005).
+        let traktHTTP = URLSessionHTTPClient(policyProvider: policyProvider)
         responseCache = ResponseCache(directory: paths.responseCacheDirectory)
         addonClient = AddonClient(
             http: http, cache: responseCache,
@@ -112,7 +114,7 @@ final class AppEnvironment: ObservableObject {
             cache: responseCache)
         fanart = FanartClient(http: http, credentials: serviceKeys.provider(for: .fanart))
         mdblist = MDBListClient(http: http, credentials: serviceKeys.provider(for: .mdblist))
-        trakt = TraktService(http: http, secrets: secrets,
+        trakt = TraktService(http: traktHTTP, secrets: secrets,
                              tmdb: TMDBClient(http: http, credentials: serviceKeys.provider(for: .tmdb), baseURL: tmdbBase),
                              library: libraryStore, settings: settings)
         let timingLog = SearchTimingLog()

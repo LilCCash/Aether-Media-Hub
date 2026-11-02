@@ -280,14 +280,23 @@ public actor TraktClient {
     }
 
     private nonisolated func send(_ request: HTTPRequest) async throws -> HTTPResponse {
-        do {
-            return try await http.send(request)
-        } catch let error as AddonError {
-            throw TraktError.transport(Self.describe(error))
-        } catch is CancellationError {
-            throw TraktError.transport("richiesta annullata")
-        } catch {
-            throw TraktError.network
+        // A dropped connection (-1005) is often just a stale one: it is retried twice on a fresh connection before giving up.
+        var attempt = 0
+        while true {
+            do {
+                return try await http.send(request)
+            } catch let error as AddonError {
+                if case .unreachable = error, attempt < 2, !Task.isCancelled {
+                    attempt += 1
+                    try? await Task.sleep(nanoseconds: UInt64(attempt) * 600_000_000)
+                    continue
+                }
+                throw TraktError.transport(Self.describe(error))
+            } catch is CancellationError {
+                throw TraktError.transport("richiesta annullata")
+            } catch {
+                throw TraktError.network
+            }
         }
     }
 
