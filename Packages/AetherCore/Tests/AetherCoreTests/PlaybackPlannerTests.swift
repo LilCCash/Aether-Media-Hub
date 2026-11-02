@@ -308,4 +308,16 @@ final class MPVErrorMapperTests: XCTestCase {
     func testPlainLoadingFailureIsUnreachable() {
         XCTAssertEqual(MPVErrorMapper.map(code: -13, message: "loading failed", recentLog: []).kind, .unreachable)
     }
+
+    func testLiveChannelsAreNeverConvertedAndFallBackToMPV() {
+        let forced = PlaybackPlanner.plan(container: "ts", facts: nil, device: hdrPhone, mpvAvailable: true, choice: .avPlayer, isLive: true)
+        XCTAssertEqual(forced.engine, .mpv)
+        XCTAssertFalse(forced.usesRemux)
+        let mkv = PlaybackPlanner.plan(container: "mkv", facts: nil, device: hdrPhone, mpvAvailable: true, choice: .avPlayer,
+                                       remux: RemuxRouting(available: true, matroskaForAVPlayer: true), isLive: true)
+        XCTAssertFalse(mkv.usesRemux)
+        XCTAssertEqual(mkv.engine, .mpv)
+        // A file keeps the old rule: AVPlayer refuses what it cannot open.
+        XCTAssertNil(PlaybackPlanner.plan(container: "ts", facts: nil, device: hdrPhone, mpvAvailable: true, choice: .avPlayer).engine)
+    }
 }

@@ -456,11 +456,11 @@ struct AddonDetailView: View {
                                         set: { value in Task { await addons.setCatalogVisible(value, catalogKey: catalog.key, id: addon.id) } })) {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(catalog.name)
-                                            Text("\(RequestPlanner.friendlyTypeName(catalog.type))\(catalog.supportsSearch ? " · ricerca" : "")\(catalog.isPlainFeed ? "" : " · richiede filtri")")
+                                            Text("\(RequestPlanner.friendlyTypeName(catalog.type))\(catalog.supportsSearch ? " · ricerca" : "")\(catalog.isPlainFeed ? "" : (DiscoverFiltering.serverFilter(for: catalog)?.isRequired == true ? " · scelta del genere obbligatoria" : " · richiede filtri"))")
                                                 .font(.caption).foregroundStyle(Color.aetherSecondary)
                                         }
                                     }
-                                    .disabled(!catalog.isPlainFeed)
+                                    .disabled(!catalog.isPlainFeed && DiscoverFiltering.serverFilter(for: catalog)?.isRequired != true)
                                 }
                             }
                         }

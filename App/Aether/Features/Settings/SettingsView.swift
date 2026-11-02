@@ -221,11 +221,17 @@ struct PlaybackSettingsView: View {
                 .accessibilityIdentifier("settings.streams")
             }
             Section(header: Text("Motore"),
-                    footer: Text("Automatico usa AVPlayer (il player di Apple, l'unico che può mostrare il vero Dolby Vision) per MP4, MOV e HLS, e MPV per MKV, AVI, TS e i file che AVPlayer non sa decodificare. Se un motore non riesce ad aprire il file, Aether prova l'altro una volta.\(RemuxEngineFactory.isAvailable ? " «Converti i file MKV per AVPlayer» fa passare anche gli MKV da AVPlayer: il telefono li rimette al volo in pezzi HLS (video e audio copiati, non ricodificati), così funzionano Picture in Picture e AirPlay. Una traccia audio alla volta, niente sottotitoli incorporati, e non parte se l'audio è solo DTS/TrueHD o il video è VP9/AV1: in quel caso Automatico usa MPV." : "")")) {
+                    footer: Text("Automatico usa AVPlayer (il player di Apple, l'unico che può mostrare il vero Dolby Vision) per MP4, MOV e HLS, e MPV per MKV, AVI, TS e i file che AVPlayer non sa decodificare. Se un motore non riesce ad aprire il file, Aether prova l'altro una volta. I canali in diretta hanno il loro lettore («Player per le dirette») e non vengono mai convertiti: con AVPlayer, un formato che non sa aprire (TS, DASH…) passa a MPV.\(RemuxEngineFactory.isAvailable ? " «Converti i file MKV per AVPlayer» fa passare anche gli MKV da AVPlayer: il telefono li rimette al volo in pezzi HLS (video e audio copiati, non ricodificati), così funzionano Picture in Picture e AirPlay. Una traccia audio alla volta, niente sottotitoli incorporati, e non parte se l'audio è solo DTS/TrueHD o il video è VP9/AV1: in quel caso Automatico usa MPV." : "")")) {
                 Picker("Player", selection: settings.binding(\.playback.engine)) {
                     ForEach(PlayerEngineChoice.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .accessibilityIdentifier("settings.engine")
+                Picker("Player per le dirette", selection: settings.binding(\.playback.liveEngine)) {
+                    ForEach(PlayerEngineChoice.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .accessibilityIdentifier("settings.liveEngine")
+                NavigationLink("Cataloghi TV in diretta") { LiveTVSettingsView() }
+                    .accessibilityIdentifier("settings.liveCatalogs")
                 if RemuxEngineFactory.isAvailable {
                     Toggle("Converti i file MKV per AVPlayer", isOn: settings.binding(\.playback.convertMatroskaForAVPlayer))
                         .accessibilityIdentifier("settings.convertMKV")

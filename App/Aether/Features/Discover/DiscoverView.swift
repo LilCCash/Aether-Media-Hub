@@ -116,7 +116,8 @@ enum DiscoverFiltering {
     }
 
     /// The server-side filter a catalog declares through its `genre` extra, or nil when it declares none.
-    /// A required `genre` that is not a list of years is a mandatory choice Discover cannot make for the user: nil.
+    /// A required `genre` is a mandatory choice: Discover starts from the first option and offers no «all» entry
+    /// (a list of years is treated as years, anything else as genre names — channel groups, leagues…).
     static func serverFilter(for catalog: ManifestCatalog) -> DiscoverServerFilter? {
         guard let property = catalog.extraProperty("genre") else { return nil }
         var options: [String] = []
@@ -129,8 +130,7 @@ enum DiscoverFiltering {
         if let years = sortedYears(options) {
             return DiscoverServerFilter(kind: .year, options: years, isRequired: property.isRequired)
         }
-        if property.isRequired { return nil }
-        return DiscoverServerFilter(kind: .genre, options: options, isRequired: false)
+        return DiscoverServerFilter(kind: .genre, options: options, isRequired: property.isRequired)
     }
 
     /// The options as years, newest first, when every one of them is a plausible 4-digit year; nil otherwise.
@@ -157,7 +157,8 @@ enum DiscoverFiltering {
     }
 
     /// Catalogs of `typeID` that cannot be listed plainly (`CatalogCapabilities.catalogsToBrowse` leaves them out) but
-    /// can once a year is chosen: their only required extra is a `genre` that is a list of years. Addon order.
+    /// can once the mandatory choice is made: their only required extra is a `genre` (a list of years, or names such as
+    /// channel groups and leagues). Discover starts from the first option. Addon order.
     static func yearCatalogs(handles: [AddonHandle], typeID: String, hideAdultCatalogs: Bool) -> [CatalogRef] {
         var result: [CatalogRef] = []
         for handle in handles {
@@ -168,7 +169,7 @@ enum DiscoverFiltering {
                 if ContentTypes.canonicalID(catalog.type) != typeID { continue }
                 if !addon.isCatalogVisible(catalog) { continue }
                 if catalog.isExtraSupported([]) { continue }
-                guard let filter = serverFilter(for: catalog), filter.kind == .year,
+                guard let filter = serverFilter(for: catalog), filter.isRequired,
                       let newest = filter.options.first else { continue }
                 let probe = [ExtraValue(name: "genre", value: newest)]
                 if !catalog.isExtraSupported(probe) { continue }

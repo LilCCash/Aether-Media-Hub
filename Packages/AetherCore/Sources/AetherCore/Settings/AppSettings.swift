@@ -439,6 +439,8 @@ public struct SubtitleStyle: Codable, Equatable, Sendable {
 
 public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var engine: PlayerEngineChoice = .automatic
+    /// Il lettore per i canali in diretta (tipo «tv»): scelto a parte, perché le dirette hanno formati e regole diversi.
+    public var liveEngine: PlayerEngineChoice = .automatic
     public var autoResume: Bool = true
     public var resumeRewindSeconds: Int = 0
     public var skipBackSeconds: Int = 10
@@ -487,7 +489,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case video, secondaryAudioLanguage, secondarySubtitleLanguage, stripHearingImpairedTags, holdToSpeed, holdSpeed
-        case engine, autoResume, resumeRewindSeconds, skipBackSeconds, skipForwardSeconds, autoplayNextEpisode
+        case engine, liveEngine, autoResume, resumeRewindSeconds, skipBackSeconds, skipForwardSeconds, autoplayNextEpisode
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly, instantLaunchPage
@@ -497,6 +499,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         engine = c.value(.engine, default: .automatic)
+        liveEngine = c.value(.liveEngine, default: .automatic)
         autoResume = c.value(.autoResume, default: true)
         resumeRewindSeconds = min(30, max(0, c.value(.resumeRewindSeconds, default: 0)))
         skipBackSeconds = min(120, max(5, c.value(.skipBackSeconds, default: 10)))

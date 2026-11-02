@@ -168,6 +168,9 @@ final class PlayerViewModel: ObservableObject {
     private var skipSegmentsTask: Task<Void, Never>?
 
     private var playback: PlaybackSettings { env.settings.value.playback }
+    /// The live channels (type «tv») have their own player choice and are never converted.
+    private var isLiveContent: Bool { return meta.type == "tv" }
+    private var engineChoice: PlayerEngineChoice { return isLiveContent ? playback.liveEngine : playback.engine }
 
     init(request: PlayerRequest, env: AppEnvironment) {
         self.request = request
@@ -179,9 +182,11 @@ final class PlayerViewModel: ObservableObject {
         let device = DeviceCapabilitiesReader.current()
         self.device = device
         let plan = PlaybackPlanner.plan(container: PlayerViewModel.container(of: request, env: env), facts: nil, device: device,
-                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: settings.engine,
+                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable,
+                                        choice: request.meta.type == "tv" ? settings.liveEngine : settings.engine,
                                         forceSDR: settings.video.hdrMode == .sdr,
-                                        remux: RemuxEngineFactory.routing(matroskaForAVPlayer: settings.convertMatroskaForAVPlayer))
+                                        remux: RemuxEngineFactory.routing(matroskaForAVPlayer: settings.convertMatroskaForAVPlayer),
+                                        isLive: request.meta.type == "tv")
         self.playbackPlan = plan
         self.engine = PlaybackEngineFactory.make(plan.engine ?? .avPlayer, settings: settings, device: device)
         self.subtitleDelay = env.settings.value.playback.subtitleDelaySeconds
@@ -397,8 +402,8 @@ final class PlayerViewModel: ObservableObject {
     private var shouldConvertCurrentSource: Bool {
         guard engine.kind == .avPlayer else { return false }
         let plan = PlaybackPlanner.plan(container: currentContainer, facts: nil, device: device,
-                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: playback.engine,
-                                        forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting)
+                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: engineChoice,
+                                        forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting, isLive: isLiveContent)
         return plan.usesRemux
     }
 
@@ -442,11 +447,11 @@ final class PlayerViewModel: ObservableObject {
     /// The file cannot be converted: with the Automatic engine MPV takes it, otherwise the failure panel says why.
     private func giveUpConversion(because reason: String) {
         env.diagnostics.logDetached(.warning, "player", "Conversione del file non riuscita: \(reason)")
-        if playback.engine == .automatic, canUse(.mpv) {
+        if engineChoice == .automatic, canUse(.mpv) {
             switchEngine(to: .mpv, reason: "\(RemuxFailureText.problem(reason)) Uso MPV.")
         } else {
             let advised = reason.contains("motore Automatico")
-            let hint = playback.engine == .avPlayer && !advised ? " Scegli «Automatico» o «MPV» in Impostazioni → Riproduzione." : ""
+            let hint = engineChoice == .avPlayer && !advised ? " Scegli «Automatico» o «MPV» in Impostazioni → Riproduzione." : ""
             failureExplanation = reason + hint
             handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: reason + hint))
         }
@@ -681,8 +686,8 @@ final class PlayerViewModel: ObservableObject {
         if engineChosenByFallback { return true }
         let container = StreamAnalyzer.analyze(direct, streamingServer: nil).container
         let plan = PlaybackPlanner.plan(container: container, facts: nil, device: device,
-                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: playback.engine,
-                                        forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting)
+                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: engineChoice,
+                                        forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting, isLive: isLiveContent)
         playbackPlan = plan
         guard let wanted = plan.engine else {
             handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: plan.blockingMessage ?? "Formato non riproducibile"))
@@ -864,10 +869,10 @@ final class PlayerViewModel: ObservableObject {
     private func handleMediaInfo(_ info: MediaFormatInfo) {
         mediaInfo = info
         let plan = PlaybackPlanner.plan(container: info.container ?? currentContainer, facts: info, device: device,
-                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: playback.engine,
-                                        forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting)
+                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: engineChoice,
+                                        forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting, isLive: isLiveContent)
         playbackPlan = plan
-        guard playback.engine == .automatic, info.source == .avFoundation, engineSwitches == 0,
+        guard engineChoice == .automatic, info.source == .avFoundation, engineSwitches == 0,
               let wanted = plan.engine, wanted != engine.kind, canUse(wanted) else { return }
         switchEngine(to: wanted, reason: plan.notes.first(where: { $0.severity != .warning })?.text ?? "Cambio motore di riproduzione…")
     }
@@ -875,7 +880,7 @@ final class PlayerViewModel: ObservableObject {
     /// An engine that cannot open the file is replaced by the other one, once, resuming at the same position.
     /// Network problems never trigger a switch.
     private func tryEngineFallback(after failure: PlaybackFailure) -> Bool {
-        guard playback.engine == .automatic, engineSwitches < 2, !tornDown else { return false }
+        guard engineChoice == .automatic, engineSwitches < 2, !tornDown else { return false }
         let target: PlaybackEngineKind = engine.kind == .avPlayer ? .mpv : .avPlayer
         guard canUse(target) else { return false }
         switch failure.kind {

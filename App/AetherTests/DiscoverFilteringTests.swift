@@ -98,10 +98,13 @@ final class DiscoverServerFilterTests: XCTestCase {
         XCTAssertEqual(filter?.isRequired, false)
     }
 
-    func testARequiredListOfGenreNamesCannotBeBrowsed() {
+    func testARequiredListOfGenreNamesIsAMandatoryChoice() {
         let catalog = DiscoverTestKit.catalog("movie", "pick", extras: [
             DiscoverTestKit.extra("genre", required: true, options: ["Action", "Comedy"])])
-        XCTAssertNil(DiscoverFiltering.serverFilter(for: catalog))
+        let filter = DiscoverFiltering.serverFilter(for: catalog)
+        XCTAssertEqual(filter?.kind, DiscoverServerFilter.Kind.genre)
+        XCTAssertEqual(filter?.isRequired, true)
+        XCTAssertEqual(DiscoverFiltering.defaultSelection(for: filter), "Action")
     }
 
     func testNumbersThatAreNotYearsStayGenres() {

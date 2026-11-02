@@ -125,7 +125,8 @@ public enum PlaybackPlanner {
                             mpvAvailable: Bool,
                             choice: PlayerEngineChoice,
                             forceSDR: Bool = false,
-                            remux: RemuxRouting = .unavailable) -> PlaybackPlan {
+                            remux: RemuxRouting = .unavailable,
+                            isLive: Bool = false) -> PlaybackPlan {
         var notes: [PlaybackNote] = []
         let isMatroska = (container ?? "").lowercased() == "mkv"
         var usesRemux = false
@@ -138,7 +139,11 @@ public enum PlaybackPlanner {
         switch choice {
         case .avPlayer:
             engine = .avPlayer
-            if !nativeContainer && isMatroska && remux.available {
+            if isLive && !nativeContainer && mpvAvailable {
+                // A live channel is never converted (it has no end); what AVPlayer cannot open goes to MPV.
+                engine = .mpv
+                notes.append(PlaybackNote(.info, "AVPlayer non apre questo formato in diretta: uso MPV."))
+            } else if !nativeContainer && isMatroska && remux.available && !isLive {
                 usesRemux = true
                 notes.append(PlaybackNote(.info, "Il file MKV viene convertito al volo per AVPlayer (video e audio sono copiati, non ricodificati)."))
             } else if !nativeContainer {
@@ -156,7 +161,7 @@ public enum PlaybackPlanner {
                 notes.append(PlaybackNote(.blocking, "Il motore MPV non è incluso in questa build."))
             }
         case .automatic:
-            if !nativeContainer && isMatroska && remux.available && remux.matroskaForAVPlayer {
+            if !isLive && !nativeContainer && isMatroska && remux.available && remux.matroskaForAVPlayer {
                 engine = .avPlayer
                 usesRemux = true
                 notes.append(PlaybackNote(.info, "Il file MKV viene convertito al volo per AVPlayer (video e audio sono copiati, non ricodificati)."))
