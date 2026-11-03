@@ -89,6 +89,8 @@ public struct TraktTitle: Equatable, Sendable {
     public var season: Int?
     public var episode: Int?
     public var episodeTitle: String?
+    /// Moment in which the episode airs (ISO 8601, as Trakt writes it), for the calendar.
+    public var firstAired: String?
 }
 
 public struct TraktListInfo: Identifiable, Equatable, Sendable {

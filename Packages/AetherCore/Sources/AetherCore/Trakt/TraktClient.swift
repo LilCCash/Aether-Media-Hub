@@ -385,6 +385,7 @@ public actor TraktClient {
                 found.season = episode?["season"] as? Int
                 found.episode = episode?["number"] as? Int
                 found.episodeTitle = episode?["title"] as? String
+            found.firstAired = entry["first_aired"] as? String
                 found.progress = progress
                 let label = [found.season.map { "S\($0)" }, found.episode.map { "E\($0)" }].compactMap { $0 }.joined()
                 found.note = [label, progress.map { "\(Int($0))%" }].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")

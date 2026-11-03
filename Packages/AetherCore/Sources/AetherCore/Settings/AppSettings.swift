@@ -753,10 +753,12 @@ public struct AdvancedSettings: Codable, Equatable, Sendable {
     /// Hand the television the original link of a source that carries the user's account key, instead of letting the phone relay the
     /// video. Off by default: with it on, whoever controls the television (or listens on the Wi-Fi) can read the key.
     public var sendDirectLinkToTV: Bool = false
+    /// Optional features of the November 2026 build (updates, notifications, translation…).
+    public var extras = ExtrasSettings()
 
     public init() {}
 
-    private enum CodingKeys: String, CodingKey { case useExternalStreamingServer, streamingServerURL, verboseLogging, sendDirectLinkToTV }
+    private enum CodingKeys: String, CodingKey { case useExternalStreamingServer, streamingServerURL, verboseLogging, sendDirectLinkToTV, extras }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -764,6 +766,7 @@ public struct AdvancedSettings: Codable, Equatable, Sendable {
         streamingServerURL = c.value(.streamingServerURL, default: "")
         verboseLogging = c.value(.verboseLogging, default: false)
         sendDirectLinkToTV = c.value(.sendDirectLinkToTV, default: false)
+        extras = c.value(.extras, default: ExtrasSettings())
     }
 }
 
