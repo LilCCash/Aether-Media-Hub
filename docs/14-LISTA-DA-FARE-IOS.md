@@ -24,9 +24,9 @@ Priorità: build e CI veloci e affidabili, poi le funzioni. Le funzioni nuove ha
 - 🟡 **24** Colori dal poster per tingere l'interfaccia (interruttore)
 
 ## Ricerche di fattibilità (documento, nessuna promessa)
-- ☐ **27** Picture in Picture con MPV
-- ☐ **28** SharePlay ("guardare insieme")
-- ☐ **29** Widget e Live Activity (limiti del sideload)
+- ✅ **27** Picture in Picture con MPV → `15-FATTIBILITA-PIP-MPV-SHAREPLAY-WIDGET.md`
+- ✅ **28** SharePlay ("guardare insieme")
+- ✅ **29** Widget e Live Activity (limiti del sideload)
 
 ## Alla fine
 - ☐ Build e CI, release `devbuilds` / source SideStore
