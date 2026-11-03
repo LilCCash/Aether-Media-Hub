@@ -40,6 +40,10 @@ on:
         description: "Tag of the release, for example v1.0.0-alpha.1 (created on the built commit if it does not exist yet)"
         type: string
         default: ''
+      republish_run_id:
+        description: "Do not build: add the IPA of this earlier run (its id) to the SideStore source"
+        type: string
+        default: ''
       export_method:
         description: "Signed build only: development | ad-hoc | app-store-connect (must match the certificate and profile)"
         type: choice
@@ -60,6 +64,7 @@ permissions:
 jobs:
   unsigned:
     name: Unsigned IPA
+    if: ${{ inputs.republish_run_id == '' }}
     runs-on: macos-latest
     timeout-minutes: 45
     env:
@@ -237,6 +242,33 @@ jobs:
             fi
           fi
           gh release view "$TAG" --json url,tagName,isPrerelease,assets --jq '{url, tagName, isPrerelease, assets: [.assets[] | {name, size}]}'
+
+  # Every build is added to the SideStore/AltStore source (release "devbuilds", asset source.json).
+  devbuild:
+    name: Add the build to the SideStore source
+    needs: unsigned
+    if: ${{ !cancelled() && (needs.unsigned.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.republish_run_id != '')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: devbuild-source
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Aether-unsigned-ipa
+          run-id: ${{ inputs.republish_run_id || github.run_id }}
+          github-token: ${{ github.token }}
+      - name: Publish the IPA and update source.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: python3 Scripts/publish_devbuild.py Aether-unsigned.ipa
 
   signed:
     name: Signed IPA (your credentials)
