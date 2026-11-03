@@ -1305,13 +1305,19 @@ struct DebridFileChoiceSheet: View {
 
 /// Wrapping row of small badges (quality, codec, HDR, audio, languages, size).
 struct FlowBadges: View {
+    /// The badges of a source: «Stagione completa» first when its name says it is a pack, then the usual ones.
+    static func allBadges(info: StreamInfo, display: StreamDisplaySettings, stream: AddonStream?) -> [StreamBadge] {
+        var result = StreamFormatter.badges(for: info, settings: display)
+        if let stream = stream, let pack = StreamFormatter.packBadge(for: stream, settings: display) { result.insert(pack, at: 0) }
+        return result
+    }
+
     let info: StreamInfo
     var display = StreamDisplaySettings()
     var stream: AddonStream?
 
     var body: some View {
-        var badges = StreamFormatter.badges(for: info, settings: display)
-        if let stream = stream, let pack = StreamFormatter.packBadge(for: stream, settings: display) { badges.insert(pack, at: 0) }
+        let badges = Self.allBadges(info: info, display: display, stream: stream)
         let imported = stream.map { CustomBadgePack.badges(for: $0, rules: display.customBadges) } ?? []
         if !badges.isEmpty || !imported.isEmpty {
             WrappingHStack(spacing: 6) {
