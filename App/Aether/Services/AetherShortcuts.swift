@@ -49,11 +49,11 @@ struct SimilarToIntent: AppIntent {
     static var openAppWhenRun: Bool = true
 
     @Parameter(title: "Titolo", requestValueDialog: "Simili a quale titolo?")
-    var title: String
+    var name: String
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        QuickActionRouter.shared.receive("search:film simili a " + title)
+        QuickActionRouter.shared.receive("search:film simili a " + name)
         return .result()
     }
 }
