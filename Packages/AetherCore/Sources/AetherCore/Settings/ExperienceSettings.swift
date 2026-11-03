@@ -89,7 +89,7 @@ public enum StreamBadgeStyle: String, Codable, CaseIterable, Sendable {
 
 /// The kinds of information a source row can show as a badge.
 public enum StreamBadgeKind: String, Codable, CaseIterable, Sendable {
-    case quality, codec, hdr, audio, language, size, format
+    case quality, codec, hdr, audio, language, size, format, pack
 
     public var title: String {
         switch self {
@@ -100,6 +100,7 @@ public enum StreamBadgeKind: String, Codable, CaseIterable, Sendable {
         case .language: return "Lingue"
         case .size: return "Dimensione del file"
         case .format: return "Formato del file (MKV, MP4…)"
+        case .pack: return "Stagione o serie completa"
         }
     }
 }
@@ -174,6 +175,12 @@ public enum StreamFormatter {
         add(.size, info.sizeLabel)
         add(.format, info.formatLabel)
         return result
+    }
+
+    /// «Stagione completa» / «Serie completa» when the name of the source says it is a pack.
+    public static func packBadge(for stream: AddonStream, settings: StreamDisplaySettings) -> StreamBadge? {
+        guard settings.isShown(.pack), let kind = SeasonPackDetector.kind(of: stream) else { return nil }
+        return StreamBadge(kind: .pack, text: kind.label)
     }
 
     /// The viewer's pattern filled with what is known about the source; words with nothing to say disappear together with

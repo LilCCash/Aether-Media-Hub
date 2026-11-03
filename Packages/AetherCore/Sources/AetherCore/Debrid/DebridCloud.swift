@@ -22,9 +22,14 @@ public struct DebridCloudItem: Identifiable, Equatable, Sendable {
     public var progress: Double
     /// Pronto da guardare (in cache, scaricato).
     public var isReady: Bool
+    /// TorBox web downloads: the link is asked for when the file is opened (`webdl/requestdl`), it is not stored.
+    public var webID: Int?
+    public var fileID: Int?
 
     public init(id: String, provider: String, kind: DebridCloudKind, name: String, hash: String? = nil, directLink: String? = nil,
-                size: Int64? = nil, progress: Double = 1, isReady: Bool = true) {
+                size: Int64? = nil, progress: Double = 1, isReady: Bool = true, webID: Int? = nil, fileID: Int? = nil) {
+        self.webID = webID
+        self.fileID = fileID
         self.id = id
         self.provider = provider
         self.kind = kind
@@ -48,6 +53,21 @@ extension TorBoxClient {
             let ready = torrent.downloadFinished == true || torrent.downloadPresent == true || torrent.cached == true || fraction >= 0.999
             return DebridCloudItem(id: "torbox:\(torrent.id)", provider: "torbox", kind: .torrent, name: name,
                                    hash: torrent.hash, size: torrent.size, progress: min(1, max(0, ready ? 1 : fraction)), isReady: ready)
+        }
+    }
+}
+
+enum TorBoxWebCloud {
+    /// One row per web download, pointing at its biggest video file.
+    static func items(from list: [TorBoxTorrent]) -> [DebridCloudItem] {
+        return list.compactMap { (entry: TorBoxTorrent) -> DebridCloudItem? in
+            guard let name = entry.name, !name.isEmpty else { return nil }
+            var fraction = entry.progress ?? (entry.downloadFinished == true ? 1 : 0)
+            if fraction > 1 { fraction /= 100 }
+            let ready = entry.downloadFinished == true || entry.downloadPresent == true || fraction >= 0.999
+            let video = entry.files.filter { TorBoxFileMatcher.isVideo($0) && !$0.infected }.max { ($0.size ?? 0) < ($1.size ?? 0) }
+            return DebridCloudItem(id: "torbox-web:\(entry.id)", provider: "torbox", kind: .web, name: name, size: entry.size,
+                                   progress: min(1, max(0, ready ? 1 : fraction)), isReady: ready, webID: entry.id, fileID: video?.id ?? 0)
         }
     }
 }

@@ -80,8 +80,9 @@ final class AdvancedSearchEngine: @unchecked Sendable {
 
         let leftovers = settings.keywordSearch ? Array((parsed?.leftovers ?? NaturalQueryParser(currentYear: year).parse(query).leftovers).prefix(3)) : []
         if intent == nil {
+            // Nothing to search and no service asked: not worth a line in the log.
             guard !leftovers.isEmpty else {
-                record(query: query, interpreter: interpreter, total: Date().timeIntervalSince(totalStarted), phases: phases, results: 0, notes: notes, enabled: settings.logTimings)
+                if phases.count > 1 { record(query: query, interpreter: interpreter, total: Date().timeIntervalSince(totalStarted), phases: phases, results: 0, notes: notes, enabled: settings.logTimings) }
                 return AdvancedSearchResult(intent: nil, items: [], notes: notes)
             }
             var keywordOnly = SearchIntent()

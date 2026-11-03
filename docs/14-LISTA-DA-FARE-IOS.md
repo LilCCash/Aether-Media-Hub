@@ -10,10 +10,10 @@ Priorità: build e CI veloci e affidabili, poi le funzioni. Le funzioni nuove ha
 - ☐ **11** Note "cosa c'è di nuovo" per area + foglio in app che le legge
 
 ## Correzioni
-- ☐ **1** Log dei tempi della ricerca avanzata senza righe vuote
-- ☐ **3** Badge "Stagione completa" sulle fonti pack
-- ☐ **4** Episodi scaricati segnati nella lista episodi
-- ☐ **5** Download web/usenet di TorBox nella scheda Cloud
+- 🟡 **1** Log dei tempi della ricerca avanzata senza righe vuote
+- 🟡 **3** Badge "Stagione completa" sulle fonti pack
+- 🟡 **4** Episodi scaricati segnati nella lista episodi
+- 🟡 **5** Download web/usenet di TorBox nella scheda Cloud
 
 ## Funzioni (con interruttore dove indicato)
 - ☐ **15** Precarica del link del prossimo episodio (interruttore)

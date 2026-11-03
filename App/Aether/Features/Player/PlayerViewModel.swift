@@ -1099,6 +1099,11 @@ final class PlayerViewModel: ObservableObject {
 
     var packEpisodeCount: Int { return packFiles.count }
 
+    /// The episode is in the Downloads and plays from the file.
+    func isDownloaded(_ video: Video) -> Bool {
+        return env.downloads.completedItem(metaID: meta.id, videoID: video.id) != nil
+    }
+
     private func switchEpisode(to video: Video, via: EpisodeVia, userInitiated: Bool) async {
         guard !isResolvingNext else { return }
         var way = via

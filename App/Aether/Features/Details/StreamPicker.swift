@@ -1310,7 +1310,8 @@ struct FlowBadges: View {
     var stream: AddonStream?
 
     var body: some View {
-        let badges = StreamFormatter.badges(for: info, settings: display)
+        var badges = StreamFormatter.badges(for: info, settings: display)
+        if let stream = stream, let pack = StreamFormatter.packBadge(for: stream, settings: display) { badges.insert(pack, at: 0) }
         let imported = stream.map { CustomBadgePack.badges(for: $0, rules: display.customBadges) } ?? []
         if !badges.isEmpty || !imported.isEmpty {
             WrappingHStack(spacing: 6) {
@@ -1355,6 +1356,7 @@ struct FlowBadges: View {
         case .codec: return .teal
         case .language: return .green
         case .size, .format: return .gray
+        case .pack: return .pink
         }
     }
 }

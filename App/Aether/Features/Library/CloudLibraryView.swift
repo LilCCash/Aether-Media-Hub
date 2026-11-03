@@ -48,7 +48,16 @@ final class CloudLibraryModel: ObservableObject {
             return
         }
         let meta = MetaItem(id: "cloud:" + item.id, type: "movie", name: Self.displayName(item.name))
-        if let link = item.directLink {
+        var directLink = item.directLink
+        if directLink == nil, let webID = item.webID {
+            playingID = item.id
+            defer { playingID = nil }
+            do { directLink = try await env.debrid.torboxWebLink(webID: webID, fileID: item.fileID ?? 0).absoluteString } catch {
+                message = DebridErrorText.describe(error, provider: .torbox)
+                return
+            }
+        }
+        if let link = directLink {
             guard let url = URL.lenient(link) else {
                 message = "Il link di questo file non è valido."
                 return

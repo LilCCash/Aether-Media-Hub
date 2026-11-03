@@ -52,6 +52,10 @@ struct PlayerEpisodesSheet: View {
                                 }
                             }
                             Spacer()
+                            if model.isDownloaded(video) {
+                                Image(systemName: "arrow.down.circle.fill").font(.footnote).foregroundStyle(Color.green)
+                                    .accessibilityLabel("Scaricato")
+                            }
                             if model.isInPack(video) {
                                 Image(systemName: "shippingbox.fill").font(.footnote).foregroundStyle(Color.aetherSecondary)
                                     .accessibilityLabel("Nel pack")

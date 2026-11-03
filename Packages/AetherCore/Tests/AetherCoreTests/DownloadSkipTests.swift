@@ -77,3 +77,39 @@ final class LiveContainerLauncherTests: XCTestCase {
         XCTAssertNil(LiveContainerLauncher.url(scheme: "livecontainer", bundleID: "a.b", media: URL(string: "magnet:?xt=1")!, player: .vlc))
     }
 }
+
+final class TorBoxWebCloudTests: XCTestCase {
+    func testAWebDownloadPointsAtItsBiggestVideo() {
+        let entry = TorBoxTorrent(id: 7, hash: nil, name: "Show.S01E01", size: 900, progress: 1, downloadFinished: true, files: [
+            TorBoxFile(id: 1, name: "Show.S01E01/readme.txt", size: 5, mimetype: "text/plain"),
+            TorBoxFile(id: 2, name: "Show.S01E01/sample.mkv", size: 50, mimetype: "video/x-matroska"),
+            TorBoxFile(id: 3, name: "Show.S01E01/Show.S01E01.mkv", size: 800, mimetype: "video/x-matroska")])
+        let items = TorBoxWebCloud.items(from: [entry])
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items[0].webID, 7)
+        XCTAssertEqual(items[0].fileID, 3)
+        XCTAssertEqual(items[0].kind, .web)
+        XCTAssertTrue(items[0].isReady)
+    }
+}
+
+final class SeasonPackDetectorTests: XCTestCase {
+    func testSeasonPacksAreRecognised() {
+        for name in ["Show.S01.1080p.BluRay.x265", "Show S02 COMPLETE", "Show Complete Season 3", "Show Stagione Completa ITA",
+                     "Show.S01E01-E10.1080p", "Show Season 4 2160p", "Show.S01E01-10.WEB-DL", "Show Integrale"] {
+            XCTAssertEqual(SeasonPackDetector.kind(of: name), .season, name)
+        }
+    }
+
+    func testSeriesPacksAreRecognised() {
+        for name in ["Show Complete Series 1080p", "Show S01-S05 1080p", "Show.Serie.Completa.ITA", "Show All Seasons"] {
+            XCTAssertEqual(SeasonPackDetector.kind(of: name), .series, name)
+        }
+    }
+
+    func testSingleEpisodesAndFilmsAreNot() {
+        for name in ["Show.S01E05.1080p.WEB-DL", "Show 1x05 HDTV", "Film.2023.2160p.BluRay", "Show S02E10 Finale", "Show S03E02 x265"] {
+            XCTAssertNil(SeasonPackDetector.kind(of: name), name)
+        }
+    }
+}

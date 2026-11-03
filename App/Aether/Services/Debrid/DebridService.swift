@@ -132,6 +132,8 @@ final class DebridService: ObservableObject {
             do { items += try await torboxClient.cloudTorrents() } catch {
                 failures[ProviderChoice.torbox.title] = DebridErrorText.describe(error, provider: .torbox)
             }
+            // The web downloads are a separate list on TorBox; if it does not answer, the torrents are still shown.
+            if let web = try? await torboxClient.cloudWebDownloads() { items += web }
         }
         if hasCredentials(for: .realdebrid) {
             do { items += try await realDebrid.cloudItems() } catch {
@@ -139,6 +141,11 @@ final class DebridService: ObservableObject {
             }
         }
         return (items, failures)
+    }
+
+    /// The link of a TorBox web download, asked for when it is opened.
+    func torboxWebLink(webID: Int, fileID: Int) async throws -> URL {
+        return try await torboxClient.requestWebDownloadLink(webID: webID, fileID: fileID)
     }
 
     /// TorBox-specific configuration used by its account-status UI.

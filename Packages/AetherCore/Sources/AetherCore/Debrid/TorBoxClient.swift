@@ -504,3 +504,27 @@ public struct TorBoxClient: Sendable {
         return String(cleaned.prefix(240))
     }
 }
+
+extension TorBoxClient {
+    /// The web downloads in the TorBox account (`webdl/mylist`, same shape as the torrents; not verified against a real account).
+    public func cloudWebDownloads() async throws -> [DebridCloudItem] {
+        let envelope = try await call(TorBoxTorrentPayload.self, method: "GET", path: "/webdl/mylist",
+                                      query: [("bypass_cache", "true"), ("limit", "200")], auth: .bearer, idempotent: true,
+                                      maxBytes: 16 * 1024 * 1024)
+        if envelope.dataUnreadable { throw DebridError.invalidResponse("formato di webdl/mylist inatteso") }
+        return TorBoxWebCloud.items(from: envelope.data?.torrents ?? [])
+    }
+
+    /// `GET webdl/requestdl?token=…&web_id=…&file_id=…` — the link of a web download, like `requestDownloadLink` for a torrent.
+    public func requestWebDownloadLink(webID: Int, fileID: Int) async throws -> URL {
+        let query: [(String, String)] = [("web_id", String(webID)), ("file_id", String(fileID)),
+                                         ("zip_link", "false"), ("redirect", "false"), ("append_name", "false")]
+        let envelope = try await call(TorBoxLinkPayload.self, method: "GET", path: "/webdl/requestdl",
+                                      query: query, auth: .queryToken, idempotent: true)
+        guard let raw = envelope.data?.url?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty,
+              let url = URL.lenient(raw), let scheme = url.scheme?.lowercased(), scheme == "https", let host = url.host, !host.isEmpty else {
+            throw DebridError.invalidResponse("manca il link di download")
+        }
+        return url
+    }
+}
