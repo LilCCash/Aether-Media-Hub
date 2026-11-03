@@ -32,3 +32,5 @@ node scripts/smoke.mjs "<password>"   # prova completa in un browser vero contro
 
 ## Pubblicazione
 Il flusso `.github/workflows/web-pages.yml` costruisce e pubblica su GitHub Pages a ogni modifica di `web/` sul ramo `aether-web`. Una volta sola: Impostazioni ▸ Pages ▸ Source = «GitHub Actions».
+
+_Ultimo aggiornamento della pubblicazione: 3 novembre 2026._
