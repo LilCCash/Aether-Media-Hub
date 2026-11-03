@@ -131,6 +131,12 @@ struct RootView: View {
             QuickActionRouter.shared.handler = { [router] type in
                 switch type {
                 case "app.aether.continue": router.tab = .home
+                case "app.aether.resume":
+                    // The title watched last, on its page; with no history, the Home.
+                    router.tab = .home
+                    if let last = library.history.first {
+                        router.detail = MetaRoute(type: last.type, id: last.metaID, preview: last.asMeta)
+                    }
                 case "app.aether.search": router.tab = .search
                 case "app.aether.library": router.tab = .library
                 case "app.aether.downloads": router.tab = .more

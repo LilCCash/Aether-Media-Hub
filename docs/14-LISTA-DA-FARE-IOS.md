@@ -7,7 +7,7 @@ Priorità: build e CI veloci e affidabili, poi le funzioni. Le funzioni nuove ha
 - ✅ **6** Swift nella sandbox: `swift test` del Core in locale
 - ✅ **12** CI veloce e affidabile (UI test solo su richiesta, timeout, nuovi tentativi, Core su Linux, screenshot dei fallimenti)
 - 🟡 **10** dSYM allegati alla release `devbuilds` per ogni build
-- ☐ **11** Note "cosa c'è di nuovo" per area + foglio in app che le legge
+- 🟡 **11** Note "cosa c'è di nuovo" per area + foglio in app che le legge
 
 ## Correzioni
 - 🟡 **1** Log dei tempi della ricerca avanzata senza righe vuote
@@ -16,12 +16,12 @@ Priorità: build e CI veloci e affidabili, poi le funzioni. Le funzioni nuove ha
 - 🟡 **5** Download web/usenet di TorBox nella scheda Cloud
 
 ## Funzioni (con interruttore dove indicato)
-- ☐ **15** Precarica del link del prossimo episodio (interruttore)
-- ☐ **17** Notifiche "nuovo episodio" con il calendario Trakt (interruttore)
-- ☐ **18** Controllo aggiornamenti dalla source di SideStore (interruttore)
-- ☐ **19** Scorciatoie e Pulsante Azione (App Intents)
-- ☐ **21** Sottotitoli tradotti sul telefono (interruttore)
-- ☐ **24** Colori dal poster per tingere l'interfaccia (interruttore)
+- 🟡 **15** Precarica del link del prossimo episodio (interruttore)
+- 🟡 **17** Notifiche "nuovo episodio" con il calendario Trakt (interruttore)
+- 🟡 **18** Controllo aggiornamenti dalla source di SideStore (interruttore)
+- 🟡 **19** Scorciatoie e Pulsante Azione (App Intents)
+- 🟡 **21** Sottotitoli tradotti sul telefono (interruttore)
+- 🟡 **24** Colori dal poster per tingere l'interfaccia (interruttore)
 
 ## Ricerche di fattibilità (documento, nessuna promessa)
 - ☐ **27** Picture in Picture con MPV

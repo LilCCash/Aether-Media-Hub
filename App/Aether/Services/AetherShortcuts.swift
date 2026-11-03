@@ -29,6 +29,35 @@ struct ContinueWatchingIntent: AppIntent {
     }
 }
 
+/// «Riprendi l'ultimo»: opens the title that was watched last, on its page (one tap from playing).
+struct ResumeLastIntent: AppIntent {
+    static var title: LocalizedStringResource = "Riprendi l'ultimo titolo"
+    static var description = IntentDescription("Apre l'ultimo film o episodio che stavi guardando.")
+    static var openAppWhenRun: Bool = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        QuickActionRouter.shared.receive("app.aether.resume")
+        return .result()
+    }
+}
+
+/// «Cerca titoli simili a…»: the advanced search ("film simili a Toy Story") with the title already written.
+struct SimilarToIntent: AppIntent {
+    static var title: LocalizedStringResource = "Cerca titoli simili"
+    static var description = IntentDescription("Cerca film e serie simili a un titolo.")
+    static var openAppWhenRun: Bool = true
+
+    @Parameter(title: "Titolo", requestValueDialog: "Simili a quale titolo?")
+    var title: String
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        QuickActionRouter.shared.receive("search:film simili a " + title)
+        return .result()
+    }
+}
+
 /// The phrases iOS knows without the viewer setting anything up; they also show in Spotlight and in the Shortcuts app.
 struct AetherShortcuts: AppShortcutsProvider {
     @AppShortcutsBuilder
@@ -41,5 +70,13 @@ struct AetherShortcuts: AppShortcutsProvider {
                     phrases: ["Riprendi in \(.applicationName)", "Continua a guardare in \(.applicationName)"],
                     shortTitle: "Continua a guardare",
                     systemImageName: "play.circle.fill")
+        AppShortcut(intent: ResumeLastIntent(),
+                    phrases: ["Riprendi l'ultimo in \(.applicationName)", "Riprendi dove ero in \(.applicationName)"],
+                    shortTitle: "Riprendi l'ultimo",
+                    systemImageName: "backward.end.fill")
+        AppShortcut(intent: SimilarToIntent(),
+                    phrases: ["Cerca titoli simili in \(.applicationName)", "Cerca qualcosa di simile in \(.applicationName)"],
+                    shortTitle: "Cerca titoli simili",
+                    systemImageName: "sparkle.magnifyingglass")
     }
 }
