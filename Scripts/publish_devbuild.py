@@ -12,6 +12,12 @@ IPA = sys.argv[1] if len(sys.argv) > 1 else "Aether-unsigned.ipa"
 repo = os.environ["GH_REPO"]
 sha = os.environ.get("SHA", "")
 note = os.environ.get("NOTE", "")
+# What is new in this build: docs/devbuild-notes.md, written before every build (shown in SideStore with the version).
+try:
+    with open("docs/devbuild-notes.md") as handle:
+        note = handle.read().strip() or note
+except OSError:
+    pass
 
 
 def gh(*args, check=True):
