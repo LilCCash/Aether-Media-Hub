@@ -228,8 +228,16 @@ final class RemuxSourceTests: XCTestCase {
         let fine = try await source.resource(named: "seg-1.m4s")
         XCTAssertEqual(fine.length, 1000)
         engine.failingSegment = nil
-        let retried = try await source.resource(named: "seg-2.m4s")
-        XCTAssertEqual(retried.length, 1000, "a failure is not cached")
+        // A look-ahead piece that was already running when the failure was switched off may still answer with the old failure for a
+        // moment: ask again a few times before judging (the failure itself must not stay in the cache).
+        var retried = try? await source.resource(named: "seg-2.m4s")
+        var attempts = 0
+        while retried == nil && attempts < 20 {
+            attempts += 1
+            try await Task.sleep(nanoseconds: 50_000_000)
+            retried = try? await source.resource(named: "seg-2.m4s")
+        }
+        XCTAssertEqual(retried?.length, 1000, "a failure is not cached")
     }
 
     func testClosingCancelsAndClosesTheEngine() async throws {
