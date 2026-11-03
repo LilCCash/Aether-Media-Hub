@@ -232,6 +232,8 @@ struct PlaybackSettingsView: View {
                 .accessibilityIdentifier("settings.liveEngine")
                 NavigationLink("Cataloghi TV in diretta") { LiveTVSettingsView() }
                     .accessibilityIdentifier("settings.liveCatalogs")
+                NavigationLink("Funzioni extra (aggiornamenti, notifiche, traduzione…)") { ExtrasSettingsView() }
+                    .accessibilityIdentifier("settings.extras")
                 if RemuxEngineFactory.isAvailable {
                     Toggle("Converti i file MKV per AVPlayer", isOn: settings.binding(\.playback.convertMatroskaForAVPlayer))
                         .accessibilityIdentifier("settings.convertMKV")

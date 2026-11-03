@@ -441,6 +441,16 @@ struct PlayerSubtitlesPanel: View {
                 }
                 footerButton("Importa", "doc.badge.plus", id: "subtitle.import", enabled: true, action: onImport)
                 footerButton("Stile", "textformat.size", id: "subtitle.style", enabled: true) { showingStyle = true }
+                if model.translationOffered {
+                    footerButton("Traduci", "character.bubble", id: "subtitle.translate", enabled: model.canTranslateSubtitle) {
+                        model.translateSelectedSubtitle()
+                    }
+                }
+            }
+            if let status = model.translationStatus {
+                Text(status).font(.caption2).foregroundStyle(Color.white.opacity(0.75))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("subtitle.translate.status")
             }
             Text(delayNote)
                 .font(.caption2)

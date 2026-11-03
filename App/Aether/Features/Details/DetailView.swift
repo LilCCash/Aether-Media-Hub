@@ -168,6 +168,7 @@ struct DetailView: View {
     @StateObject private var model: DetailViewModel
     @State private var picker: StreamPickerRequest?
     @State private var posterPicker = false
+    @State private var posterAccent: Color?
     @ObservedObject private var posterOverrides = PosterOverrides.shared
     @State private var descriptionExpanded = false
     @State private var openedSimilar: MetaRoute?
@@ -227,6 +228,14 @@ struct DetailView: View {
             }
         }
         .task(id: network.reconnectToken) { await model.load(env: env) }
+        // Buttons and highlights take the colour of the poster (switch: Funzioni extra ▸ Colori dalla locandina).
+        .tint(settings.value.advanced.extras.posterTint ? posterAccent : nil)
+        .task(id: model.meta.poster ?? model.meta.background) {
+            guard settings.value.advanced.extras.posterTint else { posterAccent = nil; return }
+            if let palette = await PosterTint.palette(for: model.meta.poster ?? model.meta.background, loader: env.images) {
+                posterAccent = PosterTint.color(palette.accent)
+            }
+        }
         .task(id: model.meta.background ?? model.meta.poster) {
             guard style.mood else { return }
             CinematicMood.shared.color = await CinematicMood.color(fromURL: model.meta.background ?? model.meta.poster)

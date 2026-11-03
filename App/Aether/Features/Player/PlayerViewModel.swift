@@ -2,6 +2,15 @@ import SwiftUI
 import AVFoundation
 import AetherCore
 
+/// A subtitle to translate on the device with Apple's Translation framework (iOS 18): the cues in groups, from and into a language.
+struct SubtitleTranslationJob: Identifiable {
+    let id = UUID()
+    let optionID: String
+    let source: Locale.Language?
+    let target: Locale.Language
+    let batches: [[(index: Int, text: String)]]
+}
+
 struct SubtitleOption: Identifiable, Hashable {
     enum Kind: Hashable {
         case embedded(String)
@@ -55,6 +64,8 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var subtitleOptions: [SubtitleOption] = []
     @Published private(set) var selectedSubtitleID: String?
     @Published private(set) var activeCues: [SubtitleCue] = []
+    /// The colour of the poster, for the controls (when the viewer left «Colori dalla locandina» on).
+    @Published private(set) var posterAccent: Color?
     @Published private(set) var subtitleError: String?
     /// Addon subtitles grouped by language and ranked for this viewer (`SubtitleCatalog`).
     @Published private(set) var subtitleGroups: [SubtitleLanguageGroup] = []
@@ -170,6 +181,10 @@ final class PlayerViewModel: ObservableObject {
     private var debridGeneration = 0
     private var debridProgressSequence = 0
     private var skipSegmentsTask: Task<Void, Never>?
+    private var nextLinkTask: Task<Void, Never>?
+    @Published private(set) var translationJob: SubtitleTranslationJob?
+    @Published private(set) var translationStatus: String?
+    @Published private(set) var translatedOptionID: String?
 
     private var playback: PlaybackSettings { env.settings.value.playback }
     /// The live channels (type «tv») have their own player choice and are never converted.
@@ -203,11 +218,26 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
+    // MARK: Poster colour
+
+    /// The colour of the poster for the controls; nothing happens when the switch is off.
+    private func loadPosterAccent() {
+        guard env.settings.value.advanced.extras.posterTint else { return }
+        let address = meta.poster ?? meta.background
+        Task { [weak self] in
+            guard let self = self else { return }
+            if let palette = await PosterTint.palette(for: address, loader: self.env.images), !self.tornDown {
+                self.posterAccent = PosterTint.color(palette.accent)
+            }
+        }
+    }
+
     // MARK: Lifecycle
 
     func start() {
         guard !tornDown else { return }
         bindEngine()
+        loadPosterAccent()
 
         audioSession.onInterruptionBegan = { [weak self] in
             guard let self = self else { return }
@@ -287,6 +317,8 @@ final class PlayerViewModel: ObservableObject {
         debridStreamKey = nil
         skipSegmentsTask?.cancel()
         skipSegmentsTask = nil
+        nextLinkTask?.cancel()
+        nextLinkTask = nil
         closeConversion()
         stopRouteDetection()
         pictureInPictureGrace?.cancel()
@@ -1192,6 +1224,8 @@ final class PlayerViewModel: ObservableObject {
         lastRecordedPosition = -100
         didFinish = false
         nextStreamsTask = nil
+        nextLinkTask?.cancel()
+        nextLinkTask = nil
         updateNextEpisode()
         nowPlaying.setMetadata(title: meta.name, subtitle: episodeSubtitle(),
                                artworkURL: (video.thumbnail ?? meta.background ?? meta.poster).flatMap { URL.lenient($0) }, loader: env.images)
@@ -1244,6 +1278,8 @@ final class PlayerViewModel: ObservableObject {
         lastRecordedPosition = -100
         didFinish = false
         nextStreamsTask = nil
+        nextLinkTask?.cancel()
+        nextLinkTask = nil
         updateNextEpisode()
         env.setBingeGroup(best.stream.behaviorHints.bingeGroup, forMeta: meta.id)
         nowPlaying.setMetadata(title: meta.name, subtitle: episodeSubtitle(),
@@ -1262,12 +1298,37 @@ final class PlayerViewModel: ObservableObject {
             let type = meta.type
             nextStreamsTask = Task { await service.allStreams(type: type, videoID: next.id) }
         }
+        if !nextIsDownloaded { prefetchNextLink(for: next) }
         let countdown = playback.nextEpisodeCountdownSeconds
         guard playback.autoplayNextEpisode, countdown > 0 else { return }
         if remaining <= Double(countdown) + 1, remaining > 0.5, countdownTask == nil, nextCountdown == nil, snapshot.isPlaying {
             startCountdown(from: countdown)
         } else if remaining > Double(countdown) + 3 {
             cancelCountdown()
+        }
+    }
+
+    /// Near the end of an episode: when the next one is a torrent the debrid service has in its cache, ask for its link now and keep it,
+    /// so that «Prossimo» opens it at once (the player takes a kept link before asking again). Never starts a download. Switch:
+    /// Funzioni extra ▸ Precarica il prossimo episodio.
+    private func prefetchNextLink(for next: Video) {
+        guard nextLinkTask == nil, env.settings.value.advanced.extras.prefetchNextLink, env.debrid.isConfigured,
+              let streamsTask = nextStreamsTask else { return }
+        let videoID = next.id
+        nextLinkTask = Task { [weak self] in
+            let found = await streamsTask.value
+            guard let self = self, !Task.isCancelled, !self.tornDown, self.nextEpisode?.id == videoID else { return }
+            let preferences = self.env.streamPreferences()
+            let ranked = StreamSelector.rank(found.streams, preferences: preferences)
+            let binge = self.currentStream?.behaviorHints.bingeGroup ?? self.env.bingeGroup(forMeta: self.meta.id)
+            let choices = await self.debridAutoSelectable(ranked)
+            guard let best = StreamSelector.autoSelect(choices, previousBingeGroup: binge, ordering: preferences.ordering),
+                  DebridStreamLogic.isTorrent(best.stream) else { return }
+            let stremioID = DebridStreamLogic.stremioID(meta: self.meta, video: next)
+            guard let request = DebridRequest(stream: best.stream, stremioID: stremioID, mode: .cachedOnly),
+                  let resolution = try? await self.env.debrid.resolve(request, onProgress: nil), !self.tornDown else { return }
+            self.env.debrid.stashResolution(resolution, for: best.stream, stremioID: stremioID)
+            self.env.diagnostics.logDetached(.info, "player", "Link del prossimo episodio preparato in anticipo")
         }
     }
 
@@ -1736,6 +1797,57 @@ final class PlayerViewModel: ObservableObject {
         statusMessage = message
         scheduleStatusClear()
         env.diagnostics.logDetached(.warning, "subtitles", message)
+    }
+
+    // MARK: Subtitle translation (Funzioni extra ▸ Offri la traduzione dei sottotitoli)
+
+    /// The button is shown at all (switch on, iOS 18 or later).
+    var translationOffered: Bool {
+        guard #available(iOS 18.0, *) else { return false }
+        return env.settings.value.advanced.extras.translateSubtitles
+    }
+
+    private var translationTarget: String {
+        return SettingsStore.resolvedLanguage(playback.preferredSubtitleLanguage) ?? SettingsStore.resolvedLanguage("system") ?? "it"
+    }
+
+    /// Only subtitles the app draws itself (from an addon or a file) have cues it can translate; the ones inside the video are drawn by the engine.
+    var canTranslateSubtitle: Bool {
+        guard translationOffered, translationJob == nil, let option = selectedOption, timeline != nil, translatedOptionID != option.id else { return false }
+        return SubtitleTranslationPlan.shouldOffer(subtitleLanguage: option.languageCode ?? option.language, target: translationTarget)
+    }
+
+    func translateSelectedSubtitle() {
+        guard canTranslateSubtitle, let option = selectedOption, let current = timeline else { return }
+        let cues = current.cues
+        let batches = SubtitleTranslationPlan.batches(for: cues).map { group in
+            group.map { (index: $0, text: SubtitleTranslationPlan.plainText(cues[$0].text)) }
+        }
+        let sourceCode = (option.languageCode ?? option.language).map { String($0.prefix(2)) }
+        translationJob = SubtitleTranslationJob(optionID: option.id, source: sourceCode.map { Locale.Language(identifier: $0) },
+                                                target: Locale.Language(identifier: String(translationTarget.prefix(2))), batches: batches)
+        translationStatus = "Traduco i sottotitoli…"
+    }
+
+    func translationProgress(done: Int, total: Int) {
+        translationStatus = "Traduco i sottotitoli… \(done)/\(total)"
+    }
+
+    func finishTranslation(_ job: SubtitleTranslationJob, results: [Int: String]) {
+        translationJob = nil
+        guard job.optionID == selectedOption?.id, let current = timeline else { return }
+        let translated = SubtitleTimeline(cues: SubtitleTranslationPlan.apply(results, to: current.cues))
+        cueCache[job.optionID] = translated
+        timeline = translated
+        translatedOptionID = job.optionID
+        translationStatus = "Sottotitoli tradotti sul telefono."
+        updateCues()
+    }
+
+    func failTranslation(_ message: String) {
+        translationJob = nil
+        translationStatus = "Traduzione non riuscita: \(message)"
+        env.diagnostics.logDetached(.warning, "subtitles", "Traduzione: \(message)")
     }
 
     /// Tries again with the subtitle that failed.

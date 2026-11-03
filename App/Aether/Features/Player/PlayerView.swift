@@ -73,7 +73,11 @@ struct PlayerView: View {
 
     /// Opened from Theater Mode: the colour chosen there tints the controls, so the screen does not change character.
     private var fromTheater: Bool { router.theater }
-    private var accent: Color { fromTheater ? TheaterPalette.color(theaterPalette) : settings.accentColor }
+    private var accent: Color {
+        if fromTheater { return TheaterPalette.color(theaterPalette) }
+        if settings.value.advanced.extras.posterTint, let tinted = model.posterAccent { return tinted }
+        return settings.accentColor
+    }
 
     private var playbackSettings: PlaybackSettings { settings.value.playback }
     private var isCasting: Bool { casting.session != nil }
@@ -229,6 +233,7 @@ struct PlayerView: View {
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                 HiddenVolumeView(controller: volume).frame(width: 1, height: 1).allowsHitTesting(false)
+                if #available(iOS 18.0, *) { SubtitleTranslationHost(model: model) }
 
                 // While a panel is open the panel draws the subtitle itself, beside it, above the dimming.
                 if panel == nil { subtitleOverlay(size: proxy.size) }

@@ -40,6 +40,7 @@ final class AppEnvironment: ObservableObject {
     let advancedSearch: AdvancedSearchEngine
     /// Trakt: collegamento, sincronizzazione, scrobble e cataloghi.
     let trakt: TraktService
+    let extras: ExtrasService
     /// Tempi di ogni fase della ricerca avanzata (registro consultabile nelle impostazioni).
     let searchTimings: SearchTimingLog
     /// Debrid providers: connection status, cache checks and torrent resolution into playable links (user-supplied keys).
@@ -117,6 +118,7 @@ final class AppEnvironment: ObservableObject {
         trakt = TraktService(http: traktHTTP, secrets: secrets,
                              tmdb: TMDBClient(http: http, credentials: serviceKeys.provider(for: .tmdb), baseURL: tmdbBase),
                              library: libraryStore, settings: settings)
+        extras = ExtrasService(settings: settings, trakt: trakt, diagnostics: diagnostics)
         let timingLog = SearchTimingLog()
         searchTimings = timingLog
         advancedSearch = AdvancedSearchEngine(

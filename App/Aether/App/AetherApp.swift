@@ -21,6 +21,7 @@ struct AetherApp: App {
                 .environmentObject(env.downloads)
                 .environmentObject(env.casting)
                 .environmentObject(env.relay)
+                .environmentObject(env.extras)
                 .environment(\.imageLoader, env.images)
                 .task { await env.bootstrap() }
                 .onOpenURL { env.router.handle(url: $0) }
@@ -99,6 +100,7 @@ struct RootView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var library: LibraryModel
+    @EnvironmentObject private var extras: ExtrasService
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var titleZoom
 
@@ -162,11 +164,13 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { env.persistForBackground() }
+            if phase == .active { env.extras.appBecameActive() }
             env.relay.appPhaseChanged(phase)
         }
         // While Theater Mode is open it presents the player itself (one full-screen cover cannot present another from the same view).
         .landscapePlayer(Binding(get: { router.theater ? nil : router.player }, set: { router.player = $0 }), showsLaunch: !router.theater)
         .fullScreenCover(isPresented: $router.theater) { TheaterView() }
+        .sheet(isPresented: $extras.showingWhatsNew) { WhatsNewSheet() }
         .sheet(item: Binding(get: { settings.value.appearance.detailAsCard ? router.detail : nil }, set: { router.detail = $0 })) { route in
             NavigationStack { DetailView(route: route).zoomDestination(id: route.id) }
         }
