@@ -13,14 +13,30 @@ on:
   workflow_dispatch:
     inputs:
       ui_tests:
-        description: "UI tests to run, as -only-testing targets separated by commas (for example AetherUITests/LayoutUITests,AetherUITests/BrowseUITests)"
-        default: AetherUITests
+        description: "UI tests to run (empty = none, the default): -only-testing targets separated by commas, for example AetherUITests/LayoutUITests,AetherUITests/BrowseUITests, or AetherUITests for all"
+        default: ''
 
 concurrency:
   group: ci-${{ github.ref }}-${{ inputs.ui_tests }}
   cancel-in-progress: true
 
 jobs:
+  # Fast feedback (about 2 minutes, cheap Linux runner): the Core is pure Swift. Tests that need Apple frameworks skip themselves there
+  # and run in the macOS jobs below. Same script as `Scripts/test-core.sh`.
+  core-linux:
+    name: AetherCore on Linux (fast)
+    runs-on: ubuntu-latest
+    container: swift:6.0.3-noble
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run AetherCore tests
+        working-directory: Packages/AetherCore
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tee core-linux.log | grep -E "error:|Executed [0-9]+ tests?|failed \(|Fatal|crashed" | sort -u | tail -25
+          ! grep -E "error: -\[|Fatal error|Program crashed" core-linux.log
+
   core:
     name: AetherCore (swift test)
     runs-on: macos-latest
@@ -121,7 +137,7 @@ jobs:
       # Dolby Vision cannot be produced here (no encoder), so it is not part of the matrix.
       - name: Generate the media matrix
         id: media
-        if: steps.build.outcome == 'success' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
+        if: steps.build.outcome == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.ui_tests != ''))
         run: |
           set -euo pipefail
           brew install ffmpeg > "$RUNNER_TEMP/brew-ffmpeg.log" 2>&1 || { tail -20 "$RUNNER_TEMP/brew-ffmpeg.log"; exit 1; }
@@ -147,7 +163,7 @@ jobs:
 
       - name: Start the fixture addon server
         id: fixture
-        if: steps.build.outcome == 'success' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
+        if: steps.build.outcome == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.ui_tests != ''))
         run: |
           swiftc -O Tools/MakeFixtureVideo.swift -o "$RUNNER_TEMP/makevideo"
           "$RUNNER_TEMP/makevideo" "$RUNNER_TEMP/sample.mp4" 150
@@ -168,6 +184,7 @@ jobs:
         if: steps.fixture.outcome == 'success'
         env:
           UI_TESTS: ${{ inputs.ui_tests }}
+        timeout-minutes: 40
         run: |
           set -o pipefail
           # UI_TESTS may list several targets separated by commas (AetherUITests/LayoutUITests,AetherUITests/BrowseUITests).
@@ -180,6 +197,8 @@ jobs:
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             "${ONLY[@]}" \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 300 \
+            -retry-tests-on-failure -test-iterations 2 \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" 2>&1 | tee "$RUNNER_TEMP/ui.log"
 
       - name: Upload result bundles

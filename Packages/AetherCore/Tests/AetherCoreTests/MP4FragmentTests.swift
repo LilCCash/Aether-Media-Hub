@@ -117,8 +117,13 @@ final class MP4FragmentTests: XCTestCase {
         func u32(_ value: UInt32) -> [UInt8] { return [UInt8(value >> 24), UInt8((value >> 16) & 0xff), UInt8((value >> 8) & 0xff), UInt8(value & 0xff)] }
         // tkhd v0: version/flags, creation, modification, track ID, reserved, duration …; mdhd v0: version/flags, creation, modification, time scale, duration …
         func track(id: UInt32, scale: UInt32) -> [UInt8] {
-            let tkhd = box("tkhd", [0, 0, 0, 0] + u32(0) + u32(0) + u32(id) + u32(0) + u32(0))
-            let mdhd = box("mdhd", [0, 0, 0, 0] + u32(0) + u32(0) + u32(scale) + u32(0) + [0, 0, 0, 0])
+            var tkhdBody: [UInt8] = [0, 0, 0, 0]
+            for value in [UInt32(0), 0, id, 0, 0] { tkhdBody += u32(value) }
+            var mdhdBody: [UInt8] = [0, 0, 0, 0]
+            for value in [UInt32(0), 0, scale, 0] { mdhdBody += u32(value) }
+            mdhdBody += [0, 0, 0, 0]
+            let tkhd = box("tkhd", tkhdBody)
+            let mdhd = box("mdhd", mdhdBody)
             return box("trak", tkhd + box("mdia", mdhd))
         }
         let initPart = Data(box("ftyp", Array("isom".utf8)) + box("moov", track(id: 1, scale: 16000) + track(id: 2, scale: 48000)))

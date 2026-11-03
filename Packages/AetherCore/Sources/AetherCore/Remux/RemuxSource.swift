@@ -237,6 +237,10 @@ final class DataBodyReader: RelayBodyReader, @unchecked Sendable {
     }
 
     func next() async throws -> Data? {
+        return nextChunk()
+    }
+
+    private func nextChunk() -> Data? {
         lock.lock()
         defer { lock.unlock() }
         if cancelled || position > last { return nil }

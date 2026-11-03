@@ -45,6 +45,10 @@ if gh("release", "view", TAG, check=False).returncode != 0:
        "--notes", "Build di sviluppo non firmate per SideStore. Aggiungi la source: "
                   f"https://github.com/{repo}/releases/download/{TAG}/source.json")
 gh("release", "upload", TAG, asset, "--clobber")
+if os.path.exists("Aether-dSYMs.zip"):
+    symbols = os.path.join(work, f"Aether-devbuild-{build}.dSYM.zip")
+    shutil.copyfile("Aether-dSYMs.zip", symbols)
+    gh("release", "upload", TAG, symbols, "--clobber")
 
 base = f"https://github.com/{repo}/releases/download/{TAG}"
 source_path = os.path.join(work, "source.json")

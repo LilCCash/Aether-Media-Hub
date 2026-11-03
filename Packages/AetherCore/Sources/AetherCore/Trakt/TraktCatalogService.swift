@@ -59,10 +59,7 @@ public final class TraktCatalogService: @unchecked Sendable {
     private func resolve(_ title: TraktTitle, language: String) async -> Resolved {
         guard let id = title.tmdb, tmdb.isConfigured else { return Resolved() }
         let key = "\(title.kind.rawValue)-\(id)-\(language)"
-        lock.lock()
-        let hit = cache[key]
-        lock.unlock()
-        if let hit = hit { return hit }
+        if let hit = cached(key) { return hit }
         guard let details = try? await tmdb.summary(kind: title.kind == .movie ? .movie : .tv, id: id, language: language) else { return Resolved() }
         func image(_ path: String?, size: String) -> String? {
             guard let path = path, path.hasPrefix("/"), !path.contains("..") else { return nil }
@@ -70,10 +67,21 @@ public final class TraktCatalogService: @unchecked Sendable {
         }
         let resolved = Resolved(name: details.title, overview: details.overview,
                                 poster: image(details.posterPath, size: "w342"), background: image(details.backdropPath, size: "w780"))
-        lock.lock()
-        if cache.count > 1500 { cache.removeAll() }
-        cache[key] = resolved
-        lock.unlock()
+        store(resolved, for: key)
         return resolved
+    }
+
+    // The lock is taken in plain synchronous helpers: it must not be held across an await (and the compiler warns about it).
+    private func cached(_ key: String) -> Resolved? {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache[key]
+    }
+
+    private func store(_ value: Resolved, for key: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if cache.count > 1500 { cache.removeAll() }
+        cache[key] = value
     }
 }

@@ -1,4 +1,7 @@
 import XCTest
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 @testable import AetherCore
 
 /// Scripted network layer below `URLSession`, so the real `URLSessionHTTPClient` (delegate, redirects, limits,
@@ -58,8 +61,12 @@ final class HTTPClientTests: XCTestCase {
         return URLSessionHTTPClient(policyProvider: { policy }, configuration: configuration)
     }
 
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        #if os(Linux)
+        // swift-corelibs-foundation does not run redirects through a URLProtocol stub: it crashes. They run on macOS in CI.
+        throw XCTSkip("URLProtocol di prova non supportato su Linux")
+        #endif
+        try super.setUpWithError()
         StubURLProtocol.reset()
     }
 

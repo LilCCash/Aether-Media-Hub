@@ -111,7 +111,9 @@ public final class URLSessionHTTPClient: NSObject, HTTPClient, URLSessionDataDel
         config.httpShouldSetCookies = false
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        #if !os(Linux)
         config.waitsForConnectivity = false
+        #endif
         config.httpMaximumConnectionsPerHost = 6
         config.timeoutIntervalForResource = 60
         let queue = OperationQueue()

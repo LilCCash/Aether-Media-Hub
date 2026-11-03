@@ -1027,6 +1027,9 @@ final class SubtitleEncodingHintTests: XCTestCase {
     }
 
     func testTheAnnouncedCharsetDecodesLegacyBytes() throws {
+        #if os(Linux)
+        throw XCTSkip("codifiche legacy di Foundation non disponibili su Linux")
+        #endif
         let polish = "Zażółć gęślą jaźń"
         let data = try XCTUnwrap(srt(polish).data(using: .windowsCP1250))
         XCTAssertNil(String(data: data, encoding: .utf8), "the bytes are not UTF-8")
@@ -1038,6 +1041,9 @@ final class SubtitleEncodingHintTests: XCTestCase {
     }
 
     func testTheHintBeatsTheLanguageGuessAndUnknownHintsFallBack() throws {
+        #if os(Linux)
+        throw XCTSkip("codifiche legacy di Foundation non disponibili su Linux")
+        #endif
         let russian = "Привет, мир"
         let data = try XCTUnwrap(srt(russian).data(using: .windowsCP1251))
         XCTAssertEqual(try SubtitleParser.parse(data, languageHint: "pol", encodingHint: "windows-1251").first?.text, russian)
@@ -1056,6 +1062,9 @@ final class SubtitleEncodingHintTests: XCTestCase {
     }
 
     func testExistingBehaviourIsUnchangedWithoutAHint() throws {
+        #if os(Linux)
+        throw XCTSkip("codifiche legacy di Foundation non disponibili su Linux")
+        #endif
         let data = try Fixture.data("sample_cp1252.srt")
         XCTAssertEqual(try SubtitleParser.parse(data, languageHint: "ita").first?.text, "È già così perché sì")
         XCTAssertEqual(SubtitleParser.decode(data, languageHint: "pt-BR"), SubtitleParser.decode(data, languageHint: "por"),

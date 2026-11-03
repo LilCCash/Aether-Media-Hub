@@ -398,6 +398,9 @@ final class SubtitleParserTests: XCTestCase {
     }
 
     func testDetectsLegacyEncodings() throws {
+        #if os(Linux)
+        throw XCTSkip("codifiche legacy di Foundation non disponibili su Linux")
+        #endif
         let data = try Fixture.data("sample_cp1252.srt")
         XCTAssertNil(String(data: data, encoding: .utf8), "fixture really is not UTF-8")
         let cues = try SubtitleParser.parse(data, languageHint: "ita")
