@@ -6,9 +6,9 @@ name: CI
 on:
   push:
     branches: ['**']
-    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE']
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE', 'web/**', '.github/workflows/web-pages.yml']
   pull_request:
-    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE']
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'NOTICE', 'web/**', '.github/workflows/web-pages.yml']
   workflow_dispatch:
     inputs:
       ui_tests:
