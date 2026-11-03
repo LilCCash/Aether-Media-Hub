@@ -462,6 +462,10 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var preferPack: Bool = true
     /// An episode that is already downloaded opens from the file instead of searching for a source.
     public var preferDownloaded: Bool = true
+    /// Lettore esterno dentro LiveContainer: id dell'app ospite (vuoto = voce nascosta), schema di LiveContainer e formato del lettore.
+    public var liveContainerBundleID: String = ""
+    public var liveContainerScheme: String = "livecontainer"
+    public var liveContainerPlayer: ExternalPlayer = .vlc
     public var autoResume: Bool = true
     public var resumeRewindSeconds: Int = 0
     public var skipBackSeconds: Int = 10
@@ -510,7 +514,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case video, secondaryAudioLanguage, secondarySubtitleLanguage, stripHearingImpairedTags, holdToSpeed, holdSpeed
-        case engine, liveEngine, episodeSwitch, preferPack, preferDownloaded, autoResume, resumeRewindSeconds, skipBackSeconds, skipForwardSeconds, autoplayNextEpisode
+        case engine, liveEngine, episodeSwitch, preferPack, preferDownloaded, liveContainerBundleID, liveContainerScheme, liveContainerPlayer, autoResume, resumeRewindSeconds, skipBackSeconds, skipForwardSeconds, autoplayNextEpisode
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly, instantLaunchPage
@@ -524,6 +528,9 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         episodeSwitch = c.value(.episodeSwitch, default: .automatic)
         preferPack = c.value(.preferPack, default: true)
         preferDownloaded = c.value(.preferDownloaded, default: true)
+        liveContainerBundleID = c.value(.liveContainerBundleID, default: "")
+        liveContainerScheme = c.value(.liveContainerScheme, default: "livecontainer")
+        liveContainerPlayer = c.value(.liveContainerPlayer, default: ExternalPlayer.vlc)
         autoResume = c.value(.autoResume, default: true)
         resumeRewindSeconds = min(30, max(0, c.value(.resumeRewindSeconds, default: 0)))
         skipBackSeconds = min(120, max(5, c.value(.skipBackSeconds, default: 10)))

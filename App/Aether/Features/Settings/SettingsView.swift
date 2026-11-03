@@ -292,6 +292,16 @@ struct PlaybackSettingsView: View {
                 Toggle("Apri prima gli episodi scaricati", isOn: settings.binding(\.playback.preferDownloaded))
                     .accessibilityIdentifier("settings.preferDownloaded")
             }
+            Section(header: Text("LiveContainer"), footer: Text("Per aprire un video in un lettore che gira dentro LiveContainer. Scrivi l'id (bundle identifier) dell'app ospite, per esempio org.videolan.vlc-ios; lascia vuoto per nascondere la voce. «Formato» è il modo in cui quel lettore riceve l'indirizzo. Non l'ho provato su un dispositivo: se non parte, controlla id e formato.")) {
+                TextField("Id dell'app ospite", text: settings.binding(\.playback.liveContainerBundleID))
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .accessibilityIdentifier("settings.liveContainerBundle")
+                TextField("Schema di LiveContainer", text: settings.binding(\.playback.liveContainerScheme))
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                Picker("Formato", selection: settings.binding(\.playback.liveContainerPlayer)) {
+                    ForEach(ExternalPlayer.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+            }
             Section(header: Text("Episodi")) {
                 Toggle("Riproduci automaticamente il prossimo episodio", isOn: settings.binding(\.playback.autoplayNextEpisode))
                     .accessibilityIdentifier("settings.autoplay")

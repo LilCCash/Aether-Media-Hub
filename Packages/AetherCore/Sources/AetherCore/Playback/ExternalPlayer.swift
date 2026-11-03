@@ -47,6 +47,22 @@ public enum ExternalPlayer: String, CaseIterable, Sendable {
     }
 }
 
+/// LiveContainer lancia un'app che gira al suo interno: `livecontainer://livecontainer-launch?bundle-name=ID&open-url=BASE64`.
+/// L'app ospite riceve `open-url` come se l'avesse aperto iOS, quindi ci va l'indirizzo nel formato che quel lettore capisce.
+public enum LiveContainerLauncher {
+    public static let defaultScheme = "livecontainer"
+
+    public static func url(scheme: String, bundleID: String, media: URL, player: ExternalPlayer) -> URL? {
+        let cleanScheme = scheme.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let cleanBundle = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanBundle.isEmpty, !cleanScheme.isEmpty,
+              cleanScheme.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "." || $0 == "+" }),
+              let inner = player.url(for: media) else { return nil }
+        let payload = Data(inner.absoluteString.utf8).base64EncodedString()
+        return URL(string: "\(cleanScheme)://livecontainer-launch?bundle-name=\(ExternalPlayer.encode(cleanBundle))&open-url=\(ExternalPlayer.encode(payload))")
+    }
+}
+
 extension AddonStream {
     /// L'indirizzo diretto del video, se la fonte ne ha uno (http/https): è quello che si può dare a un lettore esterno.
     public var directMediaURL: URL? {

@@ -56,3 +56,24 @@ final class DownloadSkipTests: XCTestCase {
         XCTAssertTrue(decoded.preferDownloaded)
     }
 }
+
+final class LiveContainerLauncherTests: XCTestCase {
+    func testTheLaunchAddressCarriesTheAppAndTheEncodedPlayerLink() throws {
+        let media = URL(string: "https://cdn.test/video.mkv?token=a+b")!
+        let url = try XCTUnwrap(LiveContainerLauncher.url(scheme: "livecontainer", bundleID: "org.videolan.vlc-ios", media: media, player: .vlc))
+        XCTAssertEqual(url.scheme, "livecontainer")
+        XCTAssertEqual(url.host, "livecontainer-launch")
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        XCTAssertEqual(items.first(where: { $0.name == "bundle-name" })?.value, "org.videolan.vlc-ios")
+        let encoded = try XCTUnwrap(items.first(where: { $0.name == "open-url" })?.value)
+        let decoded = String(decoding: try XCTUnwrap(Data(base64Encoded: encoded)), as: UTF8.self)
+        XCTAssertEqual(decoded, ExternalPlayer.vlc.url(for: media)?.absoluteString)
+    }
+
+    func testAnEmptyAppOrAMalformedSchemeGivesNothing() {
+        let media = URL(string: "https://cdn.test/v.mp4")!
+        XCTAssertNil(LiveContainerLauncher.url(scheme: "livecontainer", bundleID: " ", media: media, player: .vlc))
+        XCTAssertNil(LiveContainerLauncher.url(scheme: "bad scheme://", bundleID: "a.b", media: media, player: .vlc))
+        XCTAssertNil(LiveContainerLauncher.url(scheme: "livecontainer", bundleID: "a.b", media: URL(string: "magnet:?xt=1")!, player: .vlc))
+    }
+}

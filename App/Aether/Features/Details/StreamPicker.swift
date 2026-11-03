@@ -424,7 +424,13 @@ final class StreamPickerModel: ObservableObject {
     /// The address to hand to an external player: the source's own link, or — for a torrent — the link the debrid service
     /// (TorBox or Real-Debrid) makes for it. A torrent that is not already in the service's cache is not added without asking.
     func externalPlayerURL(_ item: RankedStream, player: ExternalPlayer, env: AppEnvironment) async -> URL? {
-        if let media = item.stream.directMediaURL { return player.url(for: media) }
+        guard let media = await playbackLink(item, env: env) else { return nil }
+        return player.url(for: media)
+    }
+
+    /// The address that plays the source: its own http(s) link, or — for a torrent — the one the debrid service makes for it.
+    func playbackLink(_ item: RankedStream, env: AppEnvironment) async -> URL? {
+        if let media = item.stream.directMediaURL { return media }
         guard DebridStreamLogic.isTorrent(item.stream) else { return nil }
         guard env.debrid.isConfigured else {
             blockedMessage = "Per aprire un torrent in un lettore esterno configura TorBox o Real-Debrid in Impostazioni ▸ Servizi."
@@ -444,7 +450,7 @@ final class StreamPickerModel: ObservableObject {
                 blockedMessage = blocked.message
                 return nil
             }
-            return player.url(for: result.url)
+            return result.url
         } catch let error as DebridError {
             infoMessage = nil
             if case .notCached = error {
@@ -963,6 +969,18 @@ struct StreamPickerSheet: View {
             } label: {
                 Label("Copia il link", systemImage: "link")
             }
+            if DebridStreamLogic.isTorrent(item.stream) {
+                Button {
+                    Task {
+                        if let address = await model.playbackLink(item, env: env) {
+                            UIPasteboard.general.string = address.absoluteString
+                            model.infoMessage = "Link di riproduzione copiato. Contiene il tuo accesso al servizio e scade: non condividerlo."
+                        }
+                    }
+                } label: {
+                    Label("Copia il link di riproduzione (via debrid)", systemImage: "link.badge.plus")
+                }
+            }
         }
     }
 
@@ -975,8 +993,24 @@ struct StreamPickerSheet: View {
                 guard let probe = player.probeURL else { return false }
                 return UIApplication.shared.canOpenURL(probe)
             }
+            let live = env.settings.value.playback
             Menu {
-                if installed.isEmpty {
+                if !live.liveContainerBundleID.isEmpty {
+                    Button {
+                        Task {
+                            guard let media = await model.playbackLink(item, env: env) else { return }
+                            if let address = LiveContainerLauncher.url(scheme: live.liveContainerScheme, bundleID: live.liveContainerBundleID,
+                                                                       media: media, player: live.liveContainerPlayer) {
+                                openURL(address)
+                            } else {
+                                model.blockedMessage = "Controlla le impostazioni di LiveContainer (id dell'app e schema)."
+                            }
+                        }
+                    } label: {
+                        Text("LiveContainer · \(live.liveContainerPlayer.title)")
+                    }
+                }
+                if installed.isEmpty && live.liveContainerBundleID.isEmpty {
                     Text("Nessun lettore esterno installato (VLC, Infuse, nPlayer, Outplayer)")
                 } else {
                     ForEach(installed, id: \.self) { player in
