@@ -2,7 +2,7 @@ import Foundation
 
 /// I lettori di altri produttori a cui si può passare un indirizzo video (VLC, Infuse, nPlayer, Outplayer).
 /// Servono i loro «schemi» nell'Info.plist (`LSApplicationQueriesSchemes`) per sapere quali sono installati.
-public enum ExternalPlayer: String, CaseIterable, Sendable {
+public enum ExternalPlayer: String, CaseIterable, Codable, Sendable {
     case vlc, infuse, nplayer, outplayer
 
     public var title: String {
