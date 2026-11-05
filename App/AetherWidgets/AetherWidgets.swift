@@ -4,7 +4,7 @@ import UIKit
 import WidgetKit
 
 private let accent = Color(red: 0.55, green: 0.49, blue: 1.0)
-private let background = Color(red: 0.07, green: 0.07, blue: 0.10)
+private let panelColor = Color(red: 0.07, green: 0.07, blue: 0.10)
 
 @main
 struct AetherWidgetBundle: WidgetBundle {
@@ -46,7 +46,7 @@ struct ContinueWatchingWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "app.aether.widget.continue", provider: ContinueProvider()) { entry in
             ContinueView(entry: entry)
-                .containerBackground(for: .widget) { background }
+                .containerBackground(for: .widget) { panelColor }
         }
         .configurationDisplayName("Continua a guardare")
         .description("I film e le serie che stavi guardando, un tocco per riprendere.")
@@ -94,7 +94,7 @@ private struct SmallItem: View {
                 Image(uiImage: image).resizable().scaledToFill()
                 LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .center, endPoint: .bottom)
             } else {
-                background
+                panelColor
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title).font(.footnote.weight(.bold)).lineLimit(2)
@@ -134,7 +134,7 @@ struct DownloadLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: DownloadActivityAttributes.self) { context in
             DownloadLockView(state: context.state)
-                .activityBackgroundTint(background)
+                .activityBackgroundTint(panelColor)
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             DynamicIsland {
