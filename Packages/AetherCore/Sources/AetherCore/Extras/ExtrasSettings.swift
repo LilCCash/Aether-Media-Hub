@@ -18,11 +18,20 @@ public struct ExtrasSettings: Codable, Equatable, Sendable {
     public var translateSubtitles: Bool = false
     /// Tint the title page and the controls with the colours of the poster.
     public var posterTint: Bool = true
+    /// Keep the «Continua a guardare» widget up to date (the app writes the list the widget reads).
+    public var widget: Bool = true
+    /// Show the progress of the downloads on the Lock Screen and in the Dynamic Island.
+    public var downloadLiveActivity: Bool = true
+    /// A notification when a download finishes while the app is not on screen.
+    public var downloadNotifications: Bool = true
+    /// Offer «Guarda insieme» (SharePlay) in the player and take part in the ones a friend starts.
+    public var sharePlay: Bool = true
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case checkUpdates, showWhatsNew, lastSeenBuild, prefetchNextLink, episodeNotifications, episodeNotificationHour, translateSubtitles, posterTint
+        case widget, downloadLiveActivity, downloadNotifications, sharePlay
     }
 
     public init(from decoder: Decoder) throws {
@@ -35,6 +44,10 @@ public struct ExtrasSettings: Codable, Equatable, Sendable {
         episodeNotificationHour = min(23, max(0, c.value(.episodeNotificationHour, default: 18) as Int))
         translateSubtitles = c.value(.translateSubtitles, default: false)
         posterTint = c.value(.posterTint, default: true)
+        widget = c.value(.widget, default: true)
+        downloadLiveActivity = c.value(.downloadLiveActivity, default: true)
+        downloadNotifications = c.value(.downloadNotifications, default: true)
+        sharePlay = c.value(.sharePlay, default: true)
     }
 }
 

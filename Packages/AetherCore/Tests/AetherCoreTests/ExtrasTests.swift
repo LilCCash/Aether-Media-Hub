@@ -140,3 +140,59 @@ final class SubtitleTranslationPlanTests: XCTestCase {
         XCTAssertTrue(SubtitleTranslationPlan.shouldOffer(subtitleLanguage: nil, target: "it"))
     }
 }
+
+final class SurfacesTests: XCTestCase {
+    private func progress(_ meta: String, _ video: String, position: Double, duration: Double = 3600, at: TimeInterval, season: Int? = nil, episode: Int? = nil) -> PlaybackProgress {
+        PlaybackProgress(metaID: meta, videoID: video, type: season == nil ? "movie" : "series", title: "T-" + meta,
+                         episodeTitle: season == nil ? nil : "Pilota", season: season, episode: episode,
+                         position: position, duration: duration, updatedAt: Date(timeIntervalSince1970: at))
+    }
+
+    func testTheWidgetListsUnfinishedTitlesOncePerTitleNewestFirst() {
+        let history = [progress("a", "a", position: 1800, at: 100),
+                       progress("b", "b:1:1", position: 600, at: 300, season: 1, episode: 1),
+                       progress("b", "b:1:2", position: 900, at: 400, season: 1, episode: 2),
+                       progress("c", "c", position: 3500, at: 500),     // almost finished
+                       progress("d", "d", position: 5, at: 600)]        // just started
+        let items = ContinueWatchingPlanner.items(from: history)
+        XCTAssertEqual(items.map { $0.metaID }, ["b", "a"])
+        XCTAssertEqual(items[0].videoID, "b:1:2")
+        XCTAssertEqual(items[0].subtitle, "S1E2 · Pilota")
+        XCTAssertEqual(items[1].progress, 0.5, accuracy: 0.001)
+        XCTAssertEqual(ContinueWatchingPlanner.items(from: history, limit: 1).count, 1)
+    }
+
+    func testTheLiveActivityFollowsTheRunningDownloads() {
+        func item(_ title: String, state: DownloadState, written: Int64, total: Int64) -> DownloadItem {
+            DownloadItem(metaID: title, videoID: nil, type: "movie", title: title, sourceURL: "https://x.test/a.mp4", state: state, bytesWritten: written, totalBytes: total)
+        }
+        XCTAssertNil(DownloadActivityPlanner.summary([item("A", state: .queued, written: 0, total: 100), item("B", state: .completed, written: 100, total: 100)]))
+        let one = DownloadActivityPlanner.summary([item("A", state: .downloading, written: 25, total: 100)])
+        XCTAssertEqual(one?.title, "A")
+        XCTAssertEqual(one?.fraction ?? 0, 0.25, accuracy: 0.001)
+        let two = DownloadActivityPlanner.summary([item("A", state: .downloading, written: 50, total: 100), item("B", state: .downloading, written: 150, total: 300)])
+        XCTAssertEqual(two?.title, "2 download")
+        XCTAssertEqual(two?.fraction ?? 0, 0.5, accuracy: 0.001)
+        XCTAssertEqual(two?.count, 2)
+    }
+
+    func testFollowingAFriendDoesNotMakeEveryoneJump() {
+        let remote = PlaybackSyncMessage(isPlaying: true, position: 100, sentAt: 1000)
+        XCTAssertTrue(PlaybackSyncPlanner.actions(localPlaying: true, localPosition: 101, remote: remote, now: 1000.5).isEmpty)
+        XCTAssertEqual(PlaybackSyncPlanner.actions(localPlaying: false, localPosition: 101, remote: remote, now: 1000.5), [.play])
+        XCTAssertEqual(PlaybackSyncPlanner.actions(localPlaying: true, localPosition: 50, remote: remote, now: 1001), [.seek(101)])
+    }
+
+    func testAPauseSeeksExactlyAndTheLagIsCapped() {
+        let paused = PlaybackSyncMessage(isPlaying: false, position: 200, sentAt: 1000)
+        XCTAssertEqual(PlaybackSyncPlanner.actions(localPlaying: true, localPosition: 200.2, remote: paused, now: 1004), [.pause])
+        XCTAssertEqual(PlaybackSyncPlanner.actions(localPlaying: true, localPosition: 203, remote: paused, now: 1004), [.seek(200), .pause])
+        let playing = PlaybackSyncMessage(isPlaying: true, position: 10, sentAt: 0)      // clocks that disagree by hours
+        XCTAssertEqual(PlaybackSyncPlanner.actions(localPlaying: true, localPosition: 0, remote: playing, now: 50_000), [.seek(13)])
+    }
+
+    func testTheNewSwitchesAreOnByDefault() {
+        let fresh = ExtrasSettings()
+        XCTAssertTrue(fresh.widget && fresh.downloadLiveActivity && fresh.downloadNotifications && fresh.sharePlay)
+    }
+}
