@@ -42,6 +42,7 @@ final class AppEnvironment: ObservableObject {
     /// Trakt: collegamento, sincronizzazione, scrobble e cataloghi.
     let trakt: TraktService
     let extras: ExtrasService
+    let livePlaylists = LivePlaylistService()
     let liveActivity = DownloadActivityService()
     let widgetBridge = WidgetBridge()
     let watchTogether = WatchTogetherService()

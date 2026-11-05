@@ -1,36 +1,99 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import AetherCore
 
-/// Impostazioni ▸ Riproduzione ▸ Cataloghi TV in diretta: quali cataloghi di canali mostrare (Scopri, Home) e quali usare nella ricerca.
+/// Impostazioni ▸ Live TV: la voce nella barra in basso, le playlist M3U, i cataloghi degli addon che contano come TV in diretta
+/// e, in fondo, quali di essi compaiono in Scopri e Home.
 struct LiveTVSettingsView: View {
     @EnvironmentObject private var addons: AddonStore
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var playlists: LivePlaylistService
+    @State private var adding = false
+    @State private var newName = ""
+    @State private var newURL = ""
+    @State private var importing = false
+    @State private var importError: String?
 
     private struct Row: Identifiable {
         let addon: InstalledAddon
         let catalog: ManifestCatalog
         var id: String { return addon.id.uuidString + "/" + catalog.key }
+        var isTV: Bool { return ContentTypes.canonicalID(catalog.type) == "tv" }
+        /// A catalog that only answers a search is not a list of channels.
+        var isSearchOnly: Bool { return catalog.supportsSearch && !catalog.isPlainFeed && DiscoverFiltering.serverFilter(for: catalog) == nil }
     }
 
-    private var rows: [Row] {
+    private var allRows: [Row] {
         var found: [Row] = []
-        for addon in addons.addons {
-            for catalog in addon.manifest.catalogs where ContentTypes.canonicalID(catalog.type) == "tv" {
-                found.append(Row(addon: addon, catalog: catalog))
-            }
+        for addon in addons.addons where addon.isEnabled {
+            for catalog in addon.manifest.catalogs { found.append(Row(addon: addon, catalog: catalog)) }
         }
         return found
     }
 
+    private var live: LiveTVSettings { return settings.value.content.liveTV }
+
     var body: some View {
         Form {
-            if rows.isEmpty {
-                Section {
-                    Text("Nessun addon installato offre cataloghi di TV in diretta.").foregroundStyle(Color.aetherSecondary)
+            Section(footer: Text("Aggiunge «Live TV» alla barra in basso, dopo Scopri. Con la voce attiva la ricerca si apre dal menu Altro (non c'è posto per sei voci).")) {
+                Toggle(isOn: settings.binding(\.content.liveTV.showTab)) {
+                    Label("Mostra Live TV nella barra", systemImage: "tv.fill")
+                }
+                .accessibilityIdentifier("live.showTab")
+            }
+
+            Section(header: Text("Playlist M3U"),
+                    footer: Text("Una playlist è un elenco di canali (file .m3u o .m3u8) che ti dà il tuo fornitore o che trovi online. Aether la scarica e la tiene sul telefono. Servono indirizzi https: iOS blocca http per i download delle liste.")) {
+                if live.playlists.isEmpty { Text("Nessuna playlist.").foregroundStyle(Color.aetherSecondary) }
+                ForEach(live.playlists) { playlist in
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(playlist.name).font(.body.weight(.semibold))
+                            Spacer()
+                            if playlists.loading.contains(playlist.id) { ProgressView() }
+                        }
+                        let count = playlists.cached(playlist.id).count
+                        Text(count > 0 ? "\(count) canali" + (playlists.updated[playlist.id].map { " · aggiornata \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "") : "Nessun canale scaricato")
+                            .font(.caption).foregroundStyle(Color.aetherSecondary)
+                        if let message = playlists.messages[playlist.id] { Text(message).font(.caption).foregroundStyle(.orange) }
+                    }
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) { remove(playlist) } label: { Label("Elimina", systemImage: "trash") }
+                    }
+                    .swipeActions(edge: .leading) {
+                        if playlist.url != nil { Button { Task { await playlists.load(playlist, force: true) } } label: { Label("Aggiorna", systemImage: "arrow.clockwise") }.tint(.blue) }
+                    }
+                }
+                Button { adding = true } label: { Label("Aggiungi da indirizzo", systemImage: "link.badge.plus") }
+                Button { importing = true } label: { Label("Importa da file", systemImage: "doc.badge.plus") }
+                if let importError = importError { Text(importError).font(.caption).foregroundStyle(.orange) }
+            }
+
+            Section(header: Text("Cataloghi degli addon in Live TV"),
+                    footer: Text("I cataloghi di tipo «tv» compaiono da soli. Qui puoi spegnerne qualcuno oppure considerare TV in diretta un catalogo di un altro tipo (per esempio un catalogo sportivo). I moduli che servono solo per la ricerca non sono elencati.")) {
+                let rows = allRows.filter { !$0.isSearchOnly }
+                if rows.isEmpty { Text("Nessun addon installato offre cataloghi.").foregroundStyle(Color.aetherSecondary) }
+                ForEach(addons.addons.filter { addon in rows.contains { $0.addon.id == addon.id } }) { addon in
+                    DisclosureGroup(addon.displayName) {
+                        ForEach(rows.filter { $0.addon.id == addon.id }) { row in
+                            Toggle(isOn: Binding(
+                                get: { live.includes(catalogKey: row.id, isTVType: row.isTV) },
+                                set: { settings.value.content.liveTV.setIncluded($0, catalogKey: row.id, isTVType: row.isTV) })) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(row.catalog.name)
+                                    Text(row.isTV ? "TV in diretta" : "tipo «\(row.catalog.type)»").font(.caption).foregroundStyle(Color.aetherSecondary)
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            ForEach(addons.addons.filter { addon in rows.contains { $0.addon.id == addon.id } }) { addon in
-                Section(header: Text(addon.displayName)) {
-                    ForEach(rows.filter { $0.addon.id == addon.id }) { row in
+
+            let tvRows = allRows.filter { $0.isTV }
+            if !tvRows.isEmpty {
+                Section(header: Text("In Scopri e Home"),
+                        footer: Text("Spegnere un catalogo lo nasconde da Scopri e Home; per i moduli di ricerca l'interruttore decide se partecipano alla ricerca. Il lettore per le dirette si sceglie in Riproduzione ▸ Motore.")) {
+                    ForEach(tvRows) { row in
                         if row.catalog.supportsSearch && !row.catalog.isPlainFeed && DiscoverFiltering.serverFilter(for: row.catalog) == nil {
                             Toggle(isOn: Binding(
                                 get: { row.addon.isCatalogSearchable(row.catalog) },
@@ -48,18 +111,62 @@ struct LiveTVSettingsView: View {
                     }
                 }
             }
-            Section(footer: Text("Spegnere un catalogo lo nasconde da Scopri e Home; per i moduli di ricerca l'interruttore decide se partecipano alla ricerca. Il lettore per le dirette si sceglie in Riproduzione ▸ Motore.")) {
-                EmptyView()
-            }
         }
-        .navigationTitle("TV in diretta")
+        .navigationTitle("Live TV")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Aggiungi una playlist", isPresented: $adding) {
+            TextField("Nome", text: $newName)
+            TextField("https://…/lista.m3u", text: $newURL).textInputAutocapitalization(.never).keyboardType(.URL)
+            Button("Aggiungi") { addPlaylist() }
+            Button("Annulla", role: .cancel) { newName = ""; newURL = "" }
+        } message: { Text("Incolla l'indirizzo della lista (https).") }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.data, .plainText], allowsMultipleSelection: false) { result in
+            importFile(result)
+        }
     }
 
     private func label(_ row: Row, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(row.catalog.name)
-            Text(detail).font(.caption).foregroundStyle(Color.aetherSecondary)
+            Text(row.addon.displayName + " · " + detail).font(.caption).foregroundStyle(Color.aetherSecondary)
         }
+    }
+
+    private func addPlaylist() {
+        let address = newURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        defer { newName = ""; newURL = "" }
+        guard let url = URL(string: address), let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http", url.host != nil else {
+            importError = "Indirizzo non valido: deve cominciare con https://"
+            return
+        }
+        importError = nil
+        let name = newName.trimmingCharacters(in: .whitespaces).isEmpty ? (url.host ?? "Playlist") : newName.trimmingCharacters(in: .whitespaces)
+        let playlist = LivePlaylist(name: name, url: address)
+        settings.value.content.liveTV.playlists.append(playlist)
+        Task { await playlists.load(playlist, force: true) }
+    }
+
+    private func importFile(_ result: Result<[URL], Error>) {
+        guard case .success(let urls) = result, let url = urls.first else { return }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url), data.count <= 30 * 1024 * 1024 else {
+            importError = "Non riesco a leggere il file (o è oltre 30 MB)."
+            return
+        }
+        let playlist = LivePlaylist(name: url.deletingPathExtension().lastPathComponent, url: nil)
+        playlists.importText(data, into: playlist.id)
+        if playlists.cached(playlist.id).isEmpty {
+            importError = playlists.messages[playlist.id] ?? "Nessun canale trovato nel file."
+            playlists.remove(playlist.id)
+            return
+        }
+        importError = nil
+        settings.value.content.liveTV.playlists.append(playlist)
+    }
+
+    private func remove(_ playlist: LivePlaylist) {
+        settings.value.content.liveTV.playlists.removeAll { $0.id == playlist.id }
+        playlists.remove(playlist.id)
     }
 }

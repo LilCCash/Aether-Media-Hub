@@ -2,7 +2,7 @@ import SwiftUI
 import AetherCore
 
 enum AppTab: String, Hashable {
-    case home, discover, library, search, more
+    case home, discover, live, library, search, more
 }
 
 /// Navigation target for a title detail screen.
@@ -61,6 +61,8 @@ final class PlayerLaunch: ObservableObject, Identifiable {
 @MainActor
 final class AppRouter: ObservableObject {
     @Published var tab: AppTab = .home
+    /// With the Live TV tab on there is no room for the Search tab: Search opens as a page over the app instead.
+    @Published var searchSheet = false
     @Published var player: PlayerRequest? {
         didSet {
             note(player == nil ? "Lettore: chiuso" : "Lettore: richiesta di apertura")

@@ -14,6 +14,13 @@ struct MoreView: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
+                if appSettings.value.content.liveTV.showTab {
+                    Section {
+                        Button { router.searchSheet = true } label: { rowLabel("Cerca", "magnifyingglass", .blue, detail: nil) }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("more.search")
+                    }
+                }
                 Section {
                     NavigationLink(value: Destination.addons) {
                         rowLabel("Addon", "puzzlepiece.extension.fill", .indigo,
@@ -91,6 +98,7 @@ struct SettingsRootView: View {
                 link("Theater Mode", "film.stack.fill", .yellow) { TheaterSettingsView() }
                 link("Riproduzione", "play.rectangle.fill", .orange) { PlaybackSettingsView() }
                 link("Contenuti e scoperta", "square.grid.2x2.fill", .green) { ContentSettingsView() }
+                link("Live TV", "tv.fill", .red) { LiveTVSettingsView() }
                 link("Ricerca avanzata", "sparkle.magnifyingglass", .mint) { AdvancedSearchSettingsView() }
                 link("Indicizzazione", "magnifyingglass.circle.fill", .indigo) { IndexingSettingsView() }
                 link("Trakt", "play.square.stack.fill", .red) { TraktSettingsView(trakt: env.trakt) }
@@ -231,7 +239,7 @@ struct PlaybackSettingsView: View {
                     ForEach(PlayerEngineChoice.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .accessibilityIdentifier("settings.liveEngine")
-                NavigationLink("Cataloghi TV in diretta") { LiveTVSettingsView() }
+                NavigationLink("Live TV: playlist e cataloghi") { LiveTVSettingsView() }
                     .accessibilityIdentifier("settings.liveCatalogs")
                 if RemuxEngineFactory.isAvailable {
                     Toggle("Converti i file MKV per AVPlayer", isOn: settings.binding(\.playback.convertMatroskaForAVPlayer))

@@ -22,6 +22,7 @@ struct AetherApp: App {
                 .environmentObject(env.casting)
                 .environmentObject(env.relay)
                 .environmentObject(env.extras)
+                .environmentObject(env.livePlaylists)
                 .environment(\.imageLoader, env.images)
                 .task { await env.bootstrap() }
                 .onOpenURL { env.router.handle(url: $0) }
@@ -104,6 +105,8 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var titleZoom
 
+    private var showsLiveTab: Bool { return settings.value.content.liveTV.showTab }
+
     var body: some View {
         TabView(selection: $router.tab) {
             HomeView()
@@ -112,17 +115,36 @@ struct RootView: View {
             DiscoverView()
                 .tabItem { Label("Scopri", systemImage: "safari.fill") }
                 .tag(AppTab.discover)
+            if showsLiveTab {
+                LiveTVView()
+                    .tabItem { Label("Live TV", systemImage: "tv.fill") }
+                    .tag(AppTab.live)
+            }
             LibraryView()
                 .tabItem { Label("Libreria", systemImage: "books.vertical.fill") }
                 .tag(AppTab.library)
-            SearchView()
-                .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
-                .tag(AppTab.search)
+            if !showsLiveTab {
+                SearchView()
+                    .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
+                    .tag(AppTab.search)
+            }
             MoreView()
                 .tabItem { Label("Altro", systemImage: "ellipsis.circle.fill") }
                 .tag(AppTab.more)
         }
         .tint(settings.accentColor)
+        .onChange(of: router.tab) { old, new in
+            // A request for the Search tab (a shortcut, a Spotlight result) while it is not in the bar opens it as a page.
+            if new == .search && showsLiveTab { router.tab = old == .search ? .home : old; router.searchSheet = true }
+            if new == .live && !showsLiveTab { router.tab = .home }
+        }
+        .sheet(isPresented: $router.searchSheet) {
+            SearchView()
+                .overlay(alignment: .topTrailing) {
+                    Button { router.searchSheet = false } label: { Image(systemName: "xmark.circle.fill").font(.title2).symbolRenderingMode(.hierarchical) }
+                        .padding(16).accessibilityLabel("Chiudi la ricerca")
+                }
+        }
         .environment(\.zoomNamespace, titleZoom)
         .preferredColorScheme(settings.colorScheme)
         .onAppear { InterfaceStyle.apply(settings.colorScheme) }
