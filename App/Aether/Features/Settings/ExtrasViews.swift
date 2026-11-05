@@ -57,8 +57,9 @@ struct ExtrasSettingsView: View {
                 }
                 if let message = extras.checkMessage { Text(message).font(.footnote).foregroundStyle(Color.aetherSecondary) }
                 if let release = extras.available {
-                    Button { open(sideStore: release) } label: { Label("Apri in SideStore", systemImage: "arrow.down.app") }
-                    Button { openURL(release.downloadURL) } label: { Label("Scarica l'IPA con Safari", systemImage: "safari") }
+                    Button { open(sideStore: release) } label: { Label("Apri SideStore", systemImage: "arrow.down.app") }
+                    Text("In SideStore: Sources ▸ Aether ▸ aggiorna alla build \(release.build). Così l'app conosce il suo identificativo; un IPA aperto da solo non si installa.")
+                        .font(.footnote).foregroundStyle(Color.aetherSecondary)
                     if !release.notes.isEmpty {
                         Text(DevbuildFeed.noteLines(release.notes).joined(separator: "\n")).font(.footnote).foregroundStyle(Color.aetherSecondary)
                     }
@@ -124,11 +125,8 @@ struct ExtrasSettingsView: View {
         .onChange(of: settings.value.advanced.extras.episodeNotificationHour) { _, _ in Task { await extras.refreshEpisodeAlerts() } }
     }
 
+    /// Only opens SideStore: installing from the source (not from the bare IPA address) is what gives it the app's identifier.
     private func open(sideStore release: DevbuildRelease) {
-        if let url = DevbuildFeed.sideStoreInstallURL(for: release.downloadURL) {
-            openURL(url) { accepted in
-                if !accepted { openURL(release.downloadURL) }
-            }
-        }
+        if let url = URL(string: "sidestore://") { openURL(url) }
     }
 }
