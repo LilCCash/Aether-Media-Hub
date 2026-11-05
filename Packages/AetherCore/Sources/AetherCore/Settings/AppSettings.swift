@@ -611,13 +611,15 @@ public struct ContentSettings: Codable, Equatable, Sendable {
     public var indexing = IndexingSettings()
     /// Trakt: collegamento, sincronizzazione e cataloghi.
     public var trakt = TraktSettings()
+    /// The «Live TV» section: its tab, M3U playlists, chosen catalogs and favourites.
+    public var liveTV = LiveTVSettings()
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case preferredLanguage, catalogRefreshMinutes, hideAdultCatalogs, hideTalkShows, talkHome, talkDiscover, talkSearch, talkCast, talkSimilar, searchRemote, searchLocal
         case saveSearchHistory, searchSort, discoverTypes
-        case catalogLayout, streamDisplay, titleModules, ratings, advancedSearch, indexing, trakt
+        case catalogLayout, streamDisplay, titleModules, ratings, advancedSearch, indexing, trakt, liveTV
     }
 
     public init(from decoder: Decoder) throws {
@@ -643,6 +645,7 @@ public struct ContentSettings: Codable, Equatable, Sendable {
         advancedSearch = c.value(.advancedSearch, default: AdvancedSearchSettings())
         indexing = c.value(.indexing, default: IndexingSettings())
         trakt = c.value(.trakt, default: TraktSettings())
+        liveTV = c.value(.liveTV, default: LiveTVSettings())
     }
 }
 
