@@ -276,11 +276,11 @@ final class AppEnvironment: ObservableObject {
                 guard let self = self else { return }
                 self.liveActivity.sync(items, enabled: self.settings.value.advanced.extras.downloadLiveActivity)
             }.store(in: &surfaceTokens)
-        library.$history
+        library.$history.combineLatest(library.$watchlist, library.$favorites)
             .debounce(for: .seconds(2), scheduler: DispatchQueue.main)
-            .sink { [weak self] history in
+            .sink { [weak self] history, watchlist, favorites in
                 guard let self = self else { return }
-                self.widgetBridge.refresh(history: history, enabled: self.settings.value.advanced.extras.widget, images: self.images)
+                self.widgetBridge.refresh(history: history, library: favorites + watchlist, enabled: self.settings.value.advanced.extras.widget, env: self)
             }.store(in: &surfaceTokens)
     }
 }

@@ -92,6 +92,11 @@ struct ExtrasSettingsView: View {
                 Toggle("Avviso quando un download finisce", isOn: settings.binding(\.advanced.extras.downloadNotifications))
                     .accessibilityIdentifier("extras.downloadNotify")
             }
+            Section(header: Text("Stato del widget"),
+                    footer: Text("Se qui dice «nessun contenitore condiviso», la firma di SideStore non ha dato all'app il gruppo per il widget: i widget «Citazioni» funzionano lo stesso, gli altri restano vuoti. Mandami questa riga.")) {
+                Text(AppGroup.diagnosis).font(.caption).textSelection(.enabled)
+                Button { UIPasteboard.general.string = AppGroup.diagnosis } label: { Label("Copia", systemImage: "doc.on.doc") }
+            }
             Section(header: Text("Guarda insieme"),
                     footer: Text("Dal player, menu ⋯ ▸ «Guarda insieme (SharePlay)» durante una chiamata FaceTime: gli altri vedono il titolo e scelgono la propria fonte, e play, pausa e posizione restano allineati. Serve che la firma di SideStore consenta SharePlay: se non lo consente, l'app lo dice.")) {
                 Toggle("Offri «Guarda insieme»", isOn: settings.binding(\.advanced.extras.sharePlay))

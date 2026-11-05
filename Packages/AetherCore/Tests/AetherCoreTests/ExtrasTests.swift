@@ -205,3 +205,37 @@ final class PauseScreenSettingsTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(ExtrasSettings.self, from: Data("{\"pauseScreenSeconds\":99}".utf8)).pauseScreenSeconds, 15)
     }
 }
+
+final class ViewingStatsTests: XCTestCase {
+    private var utc: Calendar { var c = Calendar(identifier: .gregorian); c.timeZone = TimeZone(identifier: "UTC")!; return c }
+    private func row(_ meta: String, _ video: String, position: Double, duration: Double, daysAgo: Int, now: Date, completed: Bool = false, season: Int? = nil, episode: Int? = nil) -> PlaybackProgress {
+        PlaybackProgress(metaID: meta, videoID: video, type: season == nil ? "movie" : "series", title: meta, season: season, episode: episode,
+                         position: position, duration: duration, updatedAt: now.addingTimeInterval(-Double(daysAgo) * 86_400), isCompleted: completed)
+    }
+
+    func testTotalsDaysStreakAndKinds() {
+        let now = ISO8601DateFormatter().date(from: "2026-11-05T12:00:00Z")!
+        let history = [row("a", "a", position: 600, duration: 6000, daysAgo: 0, now: now),
+                       row("b", "b", position: 100, duration: 3000, daysAgo: 1, now: now, completed: true),
+                       row("c", "c:1:1", position: 1200, duration: 2400, daysAgo: 2, now: now, season: 1, episode: 1),
+                       row("d", "d", position: 900, duration: 5400, daysAgo: 20, now: now)]
+        let stats = ViewingStatsPlanner.compute(history, now: now, calendar: utc)
+        XCTAssertEqual(stats.totalSeconds, 600 + 3000 + 1200 + 900, accuracy: 0.1)
+        XCTAssertEqual(stats.weekSeconds, 600 + 3000 + 1200, accuracy: 0.1)
+        XCTAssertEqual(stats.days, [0, 0, 0, 0, 1200, 3000, 600])
+        XCTAssertEqual(stats.streak, 3)
+        XCTAssertEqual(stats.titles, 4)
+        XCTAssertEqual(stats.completed, 1)
+        XCTAssertEqual(stats.films, 3)
+        XCTAssertEqual(stats.episodes, 1)
+    }
+
+    func testTheStreakSurvivesAnEmptyTodayAndBreaksOnAGap() {
+        let now = ISO8601DateFormatter().date(from: "2026-11-05T12:00:00Z")!
+        let yesterdayOnly = [row("a", "a", position: 60, duration: 600, daysAgo: 1, now: now), row("b", "b", position: 60, duration: 600, daysAgo: 2, now: now)]
+        XCTAssertEqual(ViewingStatsPlanner.compute(yesterdayOnly, now: now, calendar: utc).streak, 2)
+        let gap = [row("a", "a", position: 60, duration: 600, daysAgo: 0, now: now), row("b", "b", position: 60, duration: 600, daysAgo: 2, now: now)]
+        XCTAssertEqual(ViewingStatsPlanner.compute(gap, now: now, calendar: utc).streak, 1)
+        XCTAssertEqual(ViewingStatsPlanner.compute([], now: now, calendar: utc).streak, 0)
+    }
+}

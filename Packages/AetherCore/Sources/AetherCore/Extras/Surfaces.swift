@@ -91,3 +91,53 @@ public enum PlaybackSyncPlanner {
         return result
     }
 }
+
+// MARK: Viewing statistics (widget)
+
+public struct ViewingStats: Equatable, Sendable {
+    public var totalSeconds: Double
+    public var weekSeconds: Double
+    /// Seconds watched on each of the last seven days, today last.
+    public var days: [Double]
+    public var titles: Int
+    public var completed: Int
+    public var films: Int
+    public var episodes: Int
+    /// Days in a row, up to today (or yesterday, if today has nothing yet), with something watched.
+    public var streak: Int
+}
+
+public enum ViewingStatsPlanner {
+    /// Same rule as the Statistics page: a finished video counts for its whole length, an unfinished one for the point reached. The time is
+    /// credited to the day the video was last watched (the history keeps one record per video, not one per session).
+    public static func compute(_ history: [PlaybackProgress], now: Date, calendar: Calendar = .current) -> ViewingStats {
+        func seconds(_ row: PlaybackProgress) -> Double { return row.isCompleted ? max(row.duration, row.position) : row.position }
+        let today = calendar.startOfDay(for: now)
+        var days = [Double](repeating: 0, count: 7)
+        var perDay: [Date: Double] = [:]
+        var total = 0.0, week = 0.0
+        var titles = Set<String>()
+        var completed = 0, films = 0, episodes = 0
+        for row in history {
+            let value = max(0, seconds(row))
+            total += value
+            titles.insert(row.metaID)
+            if row.isCompleted { completed += 1 }
+            if row.season != nil && row.episode != nil { episodes += 1 } else { films += 1 }
+            let day = calendar.startOfDay(for: row.updatedAt)
+            perDay[day, default: 0] += value
+            if let offset = calendar.dateComponents([.day], from: day, to: today).day, offset >= 0, offset < 7 {
+                days[6 - offset] += value
+                week += value
+            }
+        }
+        var streak = 0
+        var cursor = (perDay[today] ?? 0) > 0 ? today : (calendar.date(byAdding: .day, value: -1, to: today) ?? today)
+        while (perDay[cursor] ?? 0) > 0 {
+            streak += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+        return ViewingStats(totalSeconds: total, weekSeconds: week, days: days, titles: titles.count, completed: completed, films: films, episodes: episodes, streak: streak)
+    }
+}

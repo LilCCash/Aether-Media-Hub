@@ -3,13 +3,16 @@ import SwiftUI
 import UIKit
 import WidgetKit
 
-private let accent = Color(red: 0.55, green: 0.49, blue: 1.0)
-private let panelColor = Color(red: 0.07, green: 0.07, blue: 0.10)
+let accent = Color(red: 0.55, green: 0.49, blue: 1.0)
+let panelColor = Color(red: 0.07, green: 0.07, blue: 0.10)
 
 @main
 struct AetherWidgetBundle: WidgetBundle {
     var body: some Widget {
         ContinueWatchingWidget()
+        FeaturedTitleWidget()
+        ViewingStatsWidget()
+        QuoteWidget()
         DownloadLiveActivity()
     }
 }
@@ -63,8 +66,11 @@ struct ContinueView: View {
         if items.isEmpty {
             VStack(spacing: 6) {
                 Image(systemName: "play.circle.fill").font(.title).foregroundStyle(accent)
-                Text(entry.hasContainer ? "Niente da riprendere" : "Apri Aether per attivare il widget")
+                Text(entry.hasContainer ? "Niente da riprendere" : "Il gruppo condiviso non è disponibile")
                     .font(.footnote.weight(.semibold)).multilineTextAlignment(.center)
+                if !entry.hasContainer {
+                    Text("Apri Aether ▸ Funzioni extra ▸ Stato del widget").font(.caption2).opacity(0.7).multilineTextAlignment(.center)
+                }
             }
             .foregroundStyle(.white)
         } else if family == .systemSmall, let first = items.first {
