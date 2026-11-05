@@ -44,6 +44,10 @@ on:
         description: "Do not build: add the IPA of this earlier run (its id) to the SideStore source"
         type: string
         default: ''
+      entitlements:
+        description: "Embed the entitlements (App Group for the widget, SharePlay) with an ad-hoc signature; switch off if SideStore refuses to install the build"
+        type: boolean
+        default: true
       reset_devbuilds:
         description: "Delete the SideStore source (release devbuilds) before adding this build"
         type: boolean
@@ -123,6 +127,19 @@ jobs:
             echo "::warning::The archive has no dSYMs"
           fi
 
+      # An unsigned build carries no entitlements, and SideStore signs with what it finds. An ad-hoc signature (no certificate) puts them in:
+      # the App Group of the widget and the SharePlay entitlement. SideStore removes the signature and signs again with the viewer's team.
+      - name: Embed the entitlements
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.entitlements }}
+        run: |
+          APP="$RUNNER_TEMP/Aether.xcarchive/Products/Applications/Aether.app"
+          for EXT in "$APP"/PlugIns/*.appex; do
+            [ -d "$EXT" ] || continue
+            codesign --force --sign - --entitlements App/AetherWidgets/AetherWidgets.entitlements "$EXT" || echo "::warning::could not embed the entitlements of $EXT"
+          done
+          codesign --force --sign - --entitlements App/Aether/Aether.full.entitlements "$APP" || echo "::warning::could not embed the entitlements of the app"
+          codesign -d --entitlements - "$APP" 2>&1 | head -20 || true
+
       - name: Pack Aether-unsigned.ipa
         run: |
           APP="$RUNNER_TEMP/Aether.xcarchive/Products/Applications/Aether.app"
@@ -176,6 +193,7 @@ jobs:
           echo "  info  executable size $(du -h "$APP/Aether" | cut -f1), package $(du -h Aether-unsigned.ipa | cut -f1)"
 
           [ -d "$APP/Frameworks/GoogleCast.framework" ] && check ok "Google Cast framework embedded" || check bad "GoogleCast.framework is missing from Frameworks/"
+          [ -d "$APP/PlugIns/AetherWidgets.appex" ] && check ok "widget extension embedded" || check bad "AetherWidgets.appex is missing from PlugIns/"
           [ -f "$APP/Assets.car" ] && check ok "asset catalog compiled" || check bad "Assets.car is missing"
           if xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep -q '"Name" : "AppIcon"' \
              || /usr/libexec/PlistBuddy -c 'Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName' "$INFO" 2>/dev/null | grep -qx AppIcon; then

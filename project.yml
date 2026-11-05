@@ -42,7 +42,11 @@ targets:
     platform: iOS
     sources:
       - path: App/Aether
+        excludes:
+          - "*.entitlements"
+      - path: App/Shared
     dependencies:
+      - target: AetherWidgets
       - package: AetherCore
       - package: GoogleCast
         product: GoogleCastDynamic
@@ -54,6 +58,9 @@ targets:
         INFOPLIST_FILE: App/Aether/Resources/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         PRODUCT_NAME: Aether
+        # The App Group shared with the widget. (SharePlay's entitlement is added to the unsigned package after the archive: see the
+        # build workflow; a simulator build does not need it.)
+        CODE_SIGN_ENTITLEMENTS: App/Aether/Aether.entitlements
         # The alternate icons the viewer can choose in Settings (each one is an app icon set in the asset catalog).
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIconLight AppIconDark AppIconCinema AppIconHalloween AppIconNatale AppIconWestern AppIconSciFi AppIconGiallo"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
@@ -77,6 +84,9 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIRequiredDeviceCapabilities: [arm64]
         UIBackgroundModes: [audio]
+        NSSupportsLiveActivities: true
+        # SideStore renames the App Group for the viewer's team and rewrites this list with the real name.
+        ALTAppGroups: [group.app.aether.mediahub]
         ITSAppUsesNonExemptEncryption: false
         UIApplicationSupportsIndirectInputEvents: true
         # Lets the system offer «Cerca in Aether» under the results of its search (the words typed arrive as a search-continuation activity).
@@ -117,6 +127,32 @@ targets:
         - AetherUITests
       gatherCoverageData: true
       commandLineArguments: {}
+
+  AetherWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: App/AetherWidgets
+        excludes:
+          - "*.entitlements"
+      - path: App/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).widgets
+        INFOPLIST_FILE: App/AetherWidgets/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        PRODUCT_NAME: AetherWidgets
+        CODE_SIGN_ENTITLEMENTS: App/AetherWidgets/AetherWidgets.entitlements
+        SKIP_INSTALL: YES
+    info:
+      path: App/AetherWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Aether Widget
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        ALTAppGroups: [group.app.aether.mediahub]
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
   AetherTests:
     type: bundle.unit-test

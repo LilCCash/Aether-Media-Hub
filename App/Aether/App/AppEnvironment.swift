@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import AetherCore
 
 /// Composition root: builds the engine (AetherCore) and wires user settings into its behaviour.
@@ -41,6 +42,10 @@ final class AppEnvironment: ObservableObject {
     /// Trakt: collegamento, sincronizzazione, scrobble e cataloghi.
     let trakt: TraktService
     let extras: ExtrasService
+    let liveActivity = DownloadActivityService()
+    let widgetBridge = WidgetBridge()
+    let watchTogether = WatchTogetherService()
+    private var surfaceTokens = Set<AnyCancellable>()
     /// Tempi di ogni fase della ricerca avanzata (registro consultabile nelle impostazioni).
     let searchTimings: SearchTimingLog
     /// Debrid providers: connection status, cache checks and torrent resolution into playable links (user-supplied keys).
@@ -157,6 +162,7 @@ final class AppEnvironment: ObservableObject {
         await library.refresh()
         library.onWatchlistChange = { [weak self] meta, enabled in self?.trakt.watchlistChanged(meta, enabled: enabled) }
         await downloads.restore()
+        startSurfaces()
         Task { await downloads.backfillSkipSegments() }
         Task { await trakt.bootstrap() }
         await diagnostics.configure(enabled: settings.value.privacy.keepDiagnosticLog,
@@ -257,6 +263,24 @@ final class AppEnvironment: ObservableObject {
         settings.resetToDefaults()
         await addons.reload()
         await library.refresh()
+    }
+
+    /// Widget, Live Activity and SharePlay: they follow the library and the downloads, and each one has its switch in Funzioni extra.
+    private func startSurfaces() {
+        watchTogether.configure(router: router)
+        watchTogether.observeSessions()
+        downloads.$items
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] items in
+                guard let self = self else { return }
+                self.liveActivity.sync(items, enabled: self.settings.value.advanced.extras.downloadLiveActivity)
+            }.store(in: &surfaceTokens)
+        library.$history
+            .debounce(for: .seconds(2), scheduler: DispatchQueue.main)
+            .sink { [weak self] history in
+                guard let self = self else { return }
+                self.widgetBridge.refresh(history: history, enabled: self.settings.value.advanced.extras.widget, images: self.images)
+            }.store(in: &surfaceTokens)
     }
 }
 

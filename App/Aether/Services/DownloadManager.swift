@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UserNotifications
 import AetherCore
 
 struct SeasonDownloadFallback: Sendable {
@@ -117,6 +118,10 @@ final class DownloadManager: NSObject, ObservableObject {
             await store.add(item)
             items = await store.all()
             scheduleQueue()
+            // The first download is the moment to ask for the right to notify when it ends (iOS asks only once).
+            if snapshot.get().advanced.extras.downloadNotifications {
+                Task { _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) }
+            }
             return nil
         }
     }
@@ -324,6 +329,16 @@ final class DownloadManager: NSObject, ObservableObject {
         items = await store.all()
         scheduleQueue()
         Task { await self.fetchSkipSegments(id: id) }
+        if snapshot.get().advanced.extras.downloadNotifications, UIApplication.shared.applicationState != .active,
+           let item = items.first(where: { $0.id == id }) {
+            let content = UNMutableNotificationContent()
+            content.title = "Download completato"
+            content.body = [item.title, item.subtitle].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+            content.sound = .default
+            let request = UNNotificationRequest(identifier: "aether.dl.\(id.uuidString)", content: content,
+                                                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false))
+            Task { try? await UNUserNotificationCenter.current().add(request) }
+        }
     }
 
     // MARK: Offline skip data

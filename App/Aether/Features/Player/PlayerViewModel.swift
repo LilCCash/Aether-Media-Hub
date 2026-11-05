@@ -238,6 +238,7 @@ final class PlayerViewModel: ObservableObject {
         guard !tornDown else { return }
         bindEngine()
         loadPosterAccent()
+        env.watchTogether.attach(self)
 
         audioSession.onInterruptionBegan = { [weak self] in
             guard let self = self else { return }
@@ -319,6 +320,7 @@ final class PlayerViewModel: ObservableObject {
         skipSegmentsTask = nil
         nextLinkTask?.cancel()
         nextLinkTask = nil
+        env.watchTogether.detach(self)
         closeConversion()
         stopRouteDetection()
         pictureInPictureGrace?.cancel()
@@ -1000,15 +1002,55 @@ final class PlayerViewModel: ObservableObject {
     }
 
     func togglePlayPause() {
+        let wasPlaying = snapshot.isPlaying
         // Before the engine has the file there is nothing to play or pause: a tap would only set a false state.
         guard !isOpeningSource else { return }
         if snapshot.isPlaying { engine.pause() } else { engine.play() }
+        sendWatchState(playing: !wasPlaying)
     }
 
-    func skip(_ seconds: Double) { engine.seek(by: seconds) }
-    func skipBack() { engine.seek(by: -Double(playback.skipBackSeconds)) }
-    func skipForward() { engine.seek(by: Double(playback.skipForwardSeconds)) }
-    func seek(to seconds: Double) { engine.seek(to: seconds, precise: true) }
+    func skip(_ seconds: Double) { engine.seek(by: seconds); sendWatchState(position: snapshot.position + seconds) }
+    func skipBack() { skip(-Double(playback.skipBackSeconds)) }
+    func skipForward() { skip(Double(playback.skipForwardSeconds)) }
+    func seek(to seconds: Double) { engine.seek(to: seconds, precise: true); sendWatchState(position: seconds) }
+
+    // MARK: Watching together (SharePlay)
+
+    private var applyingRemote = false
+
+    var sharePlayAvailable: Bool { return env.settings.value.advanced.extras.sharePlay && !isLiveContent }
+
+    func startWatchTogether() {
+        Task {
+            await env.watchTogether.start(type: meta.type, metaID: meta.id, videoID: currentVideo?.id, title: title)
+            if let status = env.watchTogether.status { statusMessage = status; scheduleStatusClear() }
+        }
+    }
+
+    func currentSyncState() -> (isPlaying: Bool, position: Double) { return (snapshot.isPlaying, snapshot.position) }
+
+    /// What this player just did, for the others in the call (nothing while it is only following them).
+    private func sendWatchState(playing: Bool? = nil, position: Double? = nil) {
+        guard !applyingRemote, env.watchTogether.isActive else { return }
+        env.watchTogether.send(isPlaying: playing ?? snapshot.isPlaying, position: position ?? snapshot.position)
+    }
+
+    func applyRemote(_ message: PlaybackSyncMessage) {
+        guard !tornDown, !isOpeningSource else { return }
+        let actions = PlaybackSyncPlanner.actions(localPlaying: snapshot.isPlaying, localPosition: snapshot.position, remote: message,
+                                                  now: Date().timeIntervalSince1970)
+        guard !actions.isEmpty else { return }
+        applyingRemote = true
+        for action in actions {
+            switch action {
+            case .seek(let target): engine.seek(to: target, precise: true)
+            case .play: engine.play()
+            case .pause: engine.pause()
+            }
+        }
+        // The engine reports the change a moment later: until then what it does is not a choice of this person.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.applyingRemote = false }
+    }
 
     func setRate(_ rate: Float) {
         playbackRate = rate

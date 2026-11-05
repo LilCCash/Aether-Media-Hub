@@ -73,6 +73,20 @@ struct ExtrasSettingsView: View {
                 Toggle("Precarica il prossimo episodio", isOn: settings.binding(\.advanced.extras.prefetchNextLink))
                     .accessibilityIdentifier("extras.prefetch")
             }
+            Section(header: Text("Schermata Home, Blocco e download"),
+                    footer: Text("Il widget «Continua a guardare» (aggiungilo dalla schermata Home), l'attività dei download sul Blocco schermo e nella Dynamic Island, e l'avviso quando un download finisce. Il widget ha bisogno che la firma di SideStore dia all'app il gruppo condiviso: se resta vuoto, apri Aether e riprova.")) {
+                Toggle("Widget «Continua a guardare»", isOn: settings.binding(\.advanced.extras.widget))
+                    .accessibilityIdentifier("extras.widget")
+                Toggle("Attività dei download (Blocco e Dynamic Island)", isOn: settings.binding(\.advanced.extras.downloadLiveActivity))
+                    .accessibilityIdentifier("extras.liveActivity")
+                Toggle("Avviso quando un download finisce", isOn: settings.binding(\.advanced.extras.downloadNotifications))
+                    .accessibilityIdentifier("extras.downloadNotify")
+            }
+            Section(header: Text("Guarda insieme"),
+                    footer: Text("Dal player, menu ⋯ ▸ «Guarda insieme (SharePlay)» durante una chiamata FaceTime: gli altri vedono il titolo e scelgono la propria fonte, e play, pausa e posizione restano allineati. Serve che la firma di SideStore consenta SharePlay: se non lo consente, l'app lo dice.")) {
+                Toggle("Offri «Guarda insieme»", isOn: settings.binding(\.advanced.extras.sharePlay))
+                    .accessibilityIdentifier("extras.sharePlay")
+            }
             Section(header: Text("Notifiche"),
                     footer: Text("Una notifica il giorno in cui esce un nuovo episodio di una serie che segui su Trakt. Le notifiche si programmano sul telefono per i prossimi 14 giorni: apri Aether ogni tanto per aggiornarle. Serve Trakt collegato.")) {
                 Toggle("Avvisami dei nuovi episodi", isOn: settings.binding(\.advanced.extras.episodeNotifications))

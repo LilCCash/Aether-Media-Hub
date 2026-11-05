@@ -645,6 +645,9 @@ struct PlayerView: View {
             if !model.alternatives.isEmpty {
                 Button { openPanel(.sources) } label: { Label("Cambia sorgente", systemImage: "arrow.triangle.2.circlepath") }
             }
+            if model.sharePlayAvailable {
+                Button { model.startWatchTogether() } label: { Label("Guarda insieme (SharePlay)", systemImage: "shareplay") }
+            }
             Button { importingSubtitle = true } label: { Label("Importa sottotitoli…", systemImage: "doc.badge.plus") }
             Button { sheet = .info } label: { Label("Informazioni sulla sorgente", systemImage: "info.circle") }
         } label: {
