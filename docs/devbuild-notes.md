@@ -1,11 +1,11 @@
+Widget
+- Nuovi: «Titolo in evidenza» (locandina, logo e colori del titolo, un tocco apre la scheda), «Statistiche di visione» (ore, giorni di fila, ultimi sette giorni) e «Citazioni dei film» (frecce per scorrere, un tocco apre il film).
+- Il widget ora cerca il gruppo condiviso nel profilo di firma; Funzioni extra ▸ «Stato del widget» mostra cosa ha dato la firma.
+Aggiornamenti
+- Il pulsante nel controllo aggiornamenti apre SideStore (non più l'IPA nudo, che dava «bundle ID non corrisponde»): installa dalla source.
 Player
-- Schermata di pausa: dopo qualche secondo senza toccare, i pulsanti spariscono e compaiono logo, trama e cast. Tocca la trama o il cast per leggerli per intero, lo spazio in mezzo per tornare ai pulsanti (Funzioni extra: si spegne e si sceglie il tempo).
-- Il tasto «Chiudi» risponde subito («Chiudo…») e scrive nel log quanto ci mette.
+- Schermata di pausa con logo, trama e cast (Funzioni extra).
+- Il tasto «Chiudi» risponde subito e scrive nel log quanto ci mette.
 - Gli MKV scaricati si convertono al volo anche per AVPlayer, senza rete.
 Live TV
-- Nuova voce «Live TV» nella barra in basso (Impostazioni ▸ Live TV): playlist M3U da indirizzo o da file, cataloghi degli addon scelti da te, gruppi, ricerca e preferiti. Con la voce attiva «Cerca» si apre da Altro.
-Impostazioni
-- «Funzioni extra» è nella schermata principale, tra «Account e dati» e «Avanzate».
-Schermata Home e Blocco
-- Widget «Continua a guardare», attività dei download sul Blocco e nella Dynamic Island, avviso a download finito.
-- SharePlay dal player (menu ⋯).
+- Voce «Live TV» nella barra (Impostazioni ▸ Live TV): playlist M3U, cataloghi scelti, gruppi, ricerca e preferiti.
