@@ -138,6 +138,7 @@ struct SecondaryActionButtonStyle: ButtonStyle {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .aetherGlassCapsule(interactive: true)
+            .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.8 : 1)
     }
 }

@@ -113,3 +113,34 @@ final class SeasonPackDetectorTests: XCTestCase {
         }
     }
 }
+
+final class FileRangeFetcherTests: XCTestCase {
+    private func makeFile(_ bytes: Int) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aether-range-\(UUID().uuidString).bin")
+        try Data((0..<bytes).map { UInt8($0 % 251) }).write(to: url)
+        return url
+    }
+
+    func testItReportsTheSizeAndReadsExactWindows() async throws {
+        let url = try makeFile(1000)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let fetcher = FileRangeFetcher(url: url)
+        let resource = try await fetcher.probe()
+        XCTAssertEqual(resource.length, 1000)
+        XCTAssertTrue(resource.acceptsRanges)
+        let window = try await fetcher.fetch(10...19)
+        XCTAssertEqual(Array(window), (10...19).map { UInt8($0 % 251) })
+        let tail = try await fetcher.fetch(990...2000)
+        XCTAssertEqual(tail.count, 10)
+    }
+
+    func testAMissingFileAndAnInvalidatedFetcherFailCleanly() async throws {
+        let missing = FileRangeFetcher(url: URL(fileURLWithPath: "/nonexistent/aether.mkv"))
+        do { _ = try await missing.probe(); XCTFail("expected a failure") } catch { XCTAssertEqual(error as? RelayError, .notFound) }
+        let url = try makeFile(10)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let fetcher = FileRangeFetcher(url: url)
+        fetcher.invalidate()
+        do { _ = try await fetcher.fetch(0...3); XCTFail("expected a failure") } catch { XCTAssertNotNil(error as? RelayError) }
+    }
+}

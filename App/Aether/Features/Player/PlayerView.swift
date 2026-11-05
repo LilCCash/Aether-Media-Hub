@@ -28,6 +28,7 @@ struct PlayerView: View {
     @State private var sheet: PlayerSheet?
     /// The panel on the right edge (subtitles, audio, sources), which keeps the picture visible behind it.
     @State private var panel: PlayerPanel?
+    @State private var closing = false
     @State private var importingSubtitle = false
     @State private var hud: HUD?
     @State private var hudTask: Task<Void, Never>?
@@ -260,6 +261,14 @@ struct PlayerView: View {
                                     subtitleLayer: { free in AnyView(subtitleOverlay(size: free)) })
                         .zIndex(10)
                 }
+                if closing {
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        VStack(spacing: 10) { ProgressView().tint(.white); Text("Chiudo…").font(.footnote).foregroundStyle(.white.opacity(0.8)) }
+                    }
+                    .zIndex(50)
+                    .accessibilityIdentifier("player.closing")
+                }
             }
             .animation(animationsAllowed ? .easeInOut(duration: 0.2) : nil, value: controlsVisible)
             .animation(animationsAllowed ? .easeInOut(duration: 0.25) : nil, value: panel)
@@ -331,11 +340,20 @@ struct PlayerView: View {
         OrientationController.restore()
     }
 
+    /// The page answers at once (black, «Chiudo…»), whatever the engine is doing; the page is taken down on the next turn of the run
+    /// loop and the time it takes is written in the log, so a slow close shows up there instead of as a button that «does nothing».
     private func close() {
-        router.player = nil
-        router.launch = nil
-        LandscapeHostingController.dismissCurrent()
-        LandscapeHostingController.closeUntilGone(router)
+        guard !closing else { return }
+        closing = true
+        let started = Date()
+        let router = self.router
+        DispatchQueue.main.async {
+            router.player = nil
+            router.launch = nil
+            LandscapeHostingController.dismissCurrent()
+            LandscapeHostingController.closeUntilGone(router)
+            router.note("Chiusura del player: avviata in \(Int(Date().timeIntervalSince(started) * 1000)) ms")
+        }
     }
 
     // MARK: Controls visibility
@@ -900,6 +918,20 @@ struct PlayerView: View {
 
         if let failure = model.failure {
             failurePanel(failure)
+            // A second way out, away from the card: big, in the corner, with nothing around it.
+            VStack {
+                HStack {
+                    Button { close() } label: {
+                        Image(systemName: "xmark").font(.system(size: 18, weight: .bold)).foregroundStyle(.white)
+                            .frame(width: 56, height: 56).contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Chiudi")
+                    .accessibilityIdentifier("player.close.top")
+                    Spacer()
+                }
+                Spacer()
+            }
+            .padding(.leading, 8).padding(.top, 6)
         }
 
         if model.failure == nil, !isCasting, !isLocked, let segment = model.activeSkipSegment {
@@ -1019,8 +1051,9 @@ struct PlayerView: View {
                         .buttonStyle(SecondaryActionButtonStyle())
                         .accessibilityIdentifier("player.otherSource")
                 }
-                Button { close() } label: { Text("Chiudi") }
+                Button { close() } label: { Text("Chiudi").frame(minHeight: 24) }
                     .buttonStyle(SecondaryActionButtonStyle())
+                    .accessibilityIdentifier("player.close")
             }
         }
         .foregroundStyle(.white)

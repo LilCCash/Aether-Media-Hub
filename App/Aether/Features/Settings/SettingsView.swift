@@ -100,6 +100,7 @@ struct SettingsRootView: View {
             Section {
                 link("Archiviazione", "internaldrive.fill", .brown) { StorageSettingsView() }
                 link("Account e dati", "person.crop.circle.fill", .blue) { AccountDataSettingsView() }
+                link("Funzioni extra", "sparkles", .cyan) { ExtrasSettingsView() }
                 link("Avanzate", "wrench.and.screwdriver.fill", .gray) { AdvancedSettingsView() }
             }
         }
@@ -232,8 +233,6 @@ struct PlaybackSettingsView: View {
                 .accessibilityIdentifier("settings.liveEngine")
                 NavigationLink("Cataloghi TV in diretta") { LiveTVSettingsView() }
                     .accessibilityIdentifier("settings.liveCatalogs")
-                NavigationLink("Funzioni extra (aggiornamenti, notifiche, traduzione…)") { ExtrasSettingsView() }
-                    .accessibilityIdentifier("settings.extras")
                 if RemuxEngineFactory.isAvailable {
                     Toggle("Converti i file MKV per AVPlayer", isOn: settings.binding(\.playback.convertMatroskaForAVPlayer))
                         .accessibilityIdentifier("settings.convertMKV")

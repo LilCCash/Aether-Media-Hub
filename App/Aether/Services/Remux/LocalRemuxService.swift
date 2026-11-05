@@ -77,18 +77,22 @@ final class LocalRemuxService {
         close()
         let epoch = openEpoch
         let scheme = upstream.url.scheme?.lowercased() ?? ""
-        guard scheme == "http" || scheme == "https" else { throw LocalRemuxError.notOnTheNetwork }
+        // A finished download is a file on this phone: it is converted from the file, with no network and no origin check.
+        let isFile = scheme == "file" && upstream.url.isFileURL
+        guard isFile || scheme == "http" || scheme == "https" else { throw LocalRemuxError.notOnTheNetwork }
 
         let allowPrivate = settings.value.privacy.allowLocalNetwork && RelayService.isLocalSource(upstream.url)
         let guardian = UpstreamGuard(allowPrivateOrigin: allowPrivate, selfAddresses: [], resolver: resolver)
-        do {
-            try await guardian.validateOrigin(upstream.url)
-        } catch {
-            throw LocalRemuxError.blocked
+        if !isFile {
+            do {
+                try await guardian.validateOrigin(upstream.url)
+            } catch {
+                throw LocalRemuxError.blocked
+            }
         }
         guard epoch == openEpoch else { throw CancellationError() }
 
-        let fetcher = fetcherFactory(upstream, guardian)
+        let fetcher: RelayRangeFetcher = isFile ? FileRangeFetcher(url: upstream.url) : fetcherFactory(upstream, guardian)
         var source: RemuxSource?
         do {
             let resource = try await fetcher.probe()
