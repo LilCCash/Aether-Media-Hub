@@ -127,9 +127,19 @@ final class LocalRemuxServiceTests: XCTestCase {
         }
     }
 
-    func testADownloadedFileIsNotConverted() async {
+    /// A finished download is a file on the phone: it is read from the file (no network check). A missing file fails at the first read.
+    func testADownloadedFileIsReadFromDisk() async {
         do {
-            _ = try await service.open(RelayUpstream(url: URL(fileURLWithPath: "/tmp/film.mkv")), audio: .standard)
+            _ = try await service.open(RelayUpstream(url: URL(fileURLWithPath: "/nonexistent/film.mkv")), audio: .standard)
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertNotEqual(error as? LocalRemuxError, .notOnTheNetwork, "a file is no longer refused for not being on the network")
+        }
+    }
+
+    func testOtherSchemesAreStillNotConverted() async {
+        do {
+            _ = try await service.open(RelayUpstream(url: URL(string: "ftp://example.test/film.mkv")!), audio: .standard)
             XCTFail("expected an error")
         } catch {
             XCTAssertEqual(error as? LocalRemuxError, .notOnTheNetwork)
