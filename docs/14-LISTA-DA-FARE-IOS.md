@@ -39,3 +39,10 @@ Priorità: build e CI veloci e affidabili, poi le funzioni. Le funzioni nuove ha
 - **Prima esecuzione reale della CI nuova (build 137):** il lavoro Linux ha trovato un mio errore (la shell del container non conosce `pipefail`, corretto con `shell: bash`); compilazione dell'app e test dell'app verdi; un test del Remux (`testAFailingPieceIsAnErrorForThatPieceOnly`) è fallito una volta sul Mac, non su Linux né in 6 prove locali: l'ho reso tollerante all'ordine dei tempi.
 - **10, 11** — verificati: la build 137 ha pubblicato `Aether-devbuild-137.dSYM.zip` e le note nella source.
 - **Funzioni 15, 17, 18, 19, 21, 24:** scritte e compilate in CI, **non provate su iPhone**.
+
+## Widget, Live Activity, SharePlay, notifiche (5 novembre 2026)
+- 🟡 **Widget «Continua a guardare»** (`App/AetherWidgets`, dati in App Group) — scritto, compilato in CI, **non provato su iPhone**.
+- 🟡 **Live Activity dei download** (ActivityKit) — scritta e compilata; si aggiorna solo quando l'app gira.
+- 🟡 **SharePlay «Guarda insieme»** (GroupActivities, sincronizzazione nostra di play/pausa/posizione) — scritto e compilato; dipende dall'entitlement che SideStore potrebbe togliere.
+- 🟡 **Notifiche:** nuovi episodi (Trakt) e fine dei download — scritte e compilate.
+- La build `138` porta tutto: il pacchetto contiene l'estensione `AetherWidgets.appex` e gli entitlement (App Group e SharePlay) con firma ad-hoc, che SideStore sostituisce con la sua.
