@@ -22,10 +22,12 @@ final class PauseInfoModel: ObservableObject {
         loaded = true
         logo = await FanartLogoStore.shared.load(meta: meta, env: env)
         var found: [PauseCastMember] = []
-        if await env.metadata.tmdbConfigured {
+        let configured = await env.metadata.tmdbConfigured
+        if configured {
             let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
-            if let rich = await env.metadata.richDetails(for: meta, language: language) {
-                found = rich.cast.map { PauseCastMember(name: $0.name, role: $0.role, photo: $0.photoURL) }
+            let rich = await env.metadata.richDetails(for: meta, language: language)
+            if let rich = rich {
+                found = rich.cast.map { person in PauseCastMember(name: person.name, role: person.role, photo: person.photoURL) }
             }
         }
         if found.isEmpty {
