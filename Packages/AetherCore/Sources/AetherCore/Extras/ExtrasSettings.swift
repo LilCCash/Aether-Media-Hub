@@ -26,12 +26,16 @@ public struct ExtrasSettings: Codable, Equatable, Sendable {
     public var downloadNotifications: Bool = true
     /// Offer «Guarda insieme» (SharePlay) in the player and take part in the ones a friend starts.
     public var sharePlay: Bool = true
+    /// After a few seconds of pause with no touch, the buttons go and a page with the logo, the plot and the cast takes their place.
+    public var pauseScreen: Bool = true
+    /// Seconds of pause without a touch before it (3...15).
+    public var pauseScreenSeconds: Int = 5
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case checkUpdates, showWhatsNew, lastSeenBuild, prefetchNextLink, episodeNotifications, episodeNotificationHour, translateSubtitles, posterTint
-        case widget, downloadLiveActivity, downloadNotifications, sharePlay
+        case widget, downloadLiveActivity, downloadNotifications, sharePlay, pauseScreen, pauseScreenSeconds
     }
 
     public init(from decoder: Decoder) throws {
@@ -48,6 +52,8 @@ public struct ExtrasSettings: Codable, Equatable, Sendable {
         downloadLiveActivity = c.value(.downloadLiveActivity, default: true)
         downloadNotifications = c.value(.downloadNotifications, default: true)
         sharePlay = c.value(.sharePlay, default: true)
+        pauseScreen = c.value(.pauseScreen, default: true)
+        pauseScreenSeconds = min(15, max(3, c.value(.pauseScreenSeconds, default: 5) as Int))
     }
 }
 

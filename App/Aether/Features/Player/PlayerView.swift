@@ -5,6 +5,7 @@ import AetherCore
 struct PlayerView: View {
     @StateObject private var model: PlayerViewModel
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var casting: CastCoordinator
     @EnvironmentObject private var relayService: RelayService
     @EnvironmentObject private var network: NetworkMonitor
@@ -29,6 +30,8 @@ struct PlayerView: View {
     /// The panel on the right edge (subtitles, audio, sources), which keeps the picture visible behind it.
     @State private var panel: PlayerPanel?
     @State private var closing = false
+    @State private var pauseVisible = false
+    @StateObject private var pauseInfo = PauseInfoModel()
     @State private var importingSubtitle = false
     @State private var hud: HUD?
     @State private var hudTask: Task<Void, Never>?
@@ -97,6 +100,7 @@ struct PlayerView: View {
         lifecycle
             .onChange(of: network.reconnectToken) { _, _ in networkChanged() }
             .onChange(of: model.snapshot.isPlaying) { _, value in playingChanged(value) }
+        .task { if settings.value.advanced.extras.pauseScreen { await pauseInfo.load(meta: model.meta, env: env) } }
             .onChange(of: model.didFinish) { _, value in finishedChanged(value) }
             .onChange(of: volume.level) { _, value in volumeButtonPressed(value) }
     }
@@ -122,7 +126,12 @@ struct PlayerView: View {
     }
 
     private func playingChanged(_ playing: Bool) {
-        if playing { scheduleHide() } else { showControls() }
+        if playing {
+            pauseVisible = false
+            scheduleHide()
+        } else {
+            showControls()
+        }
     }
 
     /// The hardware buttons changed the volume: show where it is. (A drag on the video shows its own bar.)
@@ -255,6 +264,11 @@ struct PlayerView: View {
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
+                if pauseVisible && model.failure == nil && !isLocked && !isCasting {
+                    PauseScreen(model: model, info: pauseInfo, accent: accent, onBringBackControls: { showControls() })
+                        .transition(.opacity)
+                        .zIndex(5)
+                }
                 overlays(size: proxy.size)
                 if let panel = panel {
                     PlayerPanelHost(panel: panel, model: model, onImportSubtitle: { importingSubtitle = true }, close: closePanel,
@@ -271,6 +285,7 @@ struct PlayerView: View {
                 }
             }
             .animation(animationsAllowed ? .easeInOut(duration: 0.2) : nil, value: controlsVisible)
+            .animation(animationsAllowed ? .easeInOut(duration: 0.3) : nil, value: pauseVisible)
             .animation(animationsAllowed ? .easeInOut(duration: 0.25) : nil, value: panel)
             .onChange(of: controlsVisible) { _, _ in syncExtras(after: 1) }
             // A skip button that appears while the controls are hidden shows for a few seconds, then goes.
@@ -374,18 +389,33 @@ struct PlayerView: View {
     private func showControls() {
         pendingHideTask?.cancel()
         pendingHideTask = nil
+        if pauseVisible { pauseVisible = false }
         if !controlsVisible { controlsVisible = true }
         scheduleHide()
     }
 
     private func scheduleHide() {
         hideTask?.cancel()
-        guard model.snapshot.isPlaying, !isScrubbing, sheet == nil, panel == nil, !isCasting else { return }
-        let delay = Double(playbackSettings.controlsAutoHideSeconds)
+        guard !isScrubbing, sheet == nil, panel == nil, !isCasting else { return }
+        if model.snapshot.isPlaying {
+            let delay = Double(playbackSettings.controlsAutoHideSeconds)
+            hideTask = Task {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                controlsVisible = false
+            }
+            return
+        }
+        // Paused: after a few seconds with no touch (and no setting being changed: a panel or a sheet cancels this) the buttons go and the
+        // page with the logo, the plot and the cast comes up.
+        let extras = settings.value.advanced.extras
+        guard extras.pauseScreen, !isLocked, model.failure == nil, model.snapshot.isReady, !model.isOpeningSource else { return }
+        let delay = Double(extras.pauseScreenSeconds)
         hideTask = Task {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, !model.snapshot.isPlaying, !isScrubbing, sheet == nil, panel == nil else { return }
             controlsVisible = false
+            pauseVisible = true
         }
     }
 

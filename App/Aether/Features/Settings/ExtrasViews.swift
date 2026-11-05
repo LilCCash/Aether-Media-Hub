@@ -68,6 +68,15 @@ struct ExtrasSettingsView: View {
                 Toggle("Mostra le novità dopo un aggiornamento", isOn: settings.binding(\.advanced.extras.showWhatsNew))
                 Button("Novità di questa build") { showingNotes = true }
             }
+            Section(header: Text("Schermata di pausa"),
+                    footer: Text("In pausa, dopo qualche secondo senza toccare lo schermo (e mai mentre cambi audio, sottotitoli o altre impostazioni) i pulsanti spariscono e compaiono il logo, la trama e il cast. Tocca la trama o il cast per leggerli per intero; tocca lo spazio in mezzo per far tornare i pulsanti.")) {
+                Toggle("Mostra logo, trama e cast in pausa", isOn: settings.binding(\.advanced.extras.pauseScreen))
+                    .accessibilityIdentifier("extras.pauseScreen")
+                if settings.value.advanced.extras.pauseScreen {
+                    Stepper("Dopo \(settings.value.advanced.extras.pauseScreenSeconds) secondi",
+                            value: settings.binding(\.advanced.extras.pauseScreenSeconds), in: 3...15)
+                }
+            }
             Section(header: Text("Riproduzione"),
                     footer: Text("Verso la fine di un episodio l'app prepara già il link del successivo (anche dal servizio debrid), così il passaggio è immediato. Usa un po' di rete in anticipo.")) {
                 Toggle("Precarica il prossimo episodio", isOn: settings.binding(\.advanced.extras.prefetchNextLink))

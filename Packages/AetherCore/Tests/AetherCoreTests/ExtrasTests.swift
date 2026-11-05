@@ -196,3 +196,12 @@ final class SurfacesTests: XCTestCase {
         XCTAssertTrue(fresh.widget && fresh.downloadLiveActivity && fresh.downloadNotifications && fresh.sharePlay)
     }
 }
+
+final class PauseScreenSettingsTests: XCTestCase {
+    func testTheDelayIsKeptInRangeAndOnByDefault() throws {
+        XCTAssertTrue(ExtrasSettings().pauseScreen)
+        XCTAssertEqual(ExtrasSettings().pauseScreenSeconds, 5)
+        XCTAssertEqual(try JSONDecoder().decode(ExtrasSettings.self, from: Data("{\"pauseScreenSeconds\":1}".utf8)).pauseScreenSeconds, 3)
+        XCTAssertEqual(try JSONDecoder().decode(ExtrasSettings.self, from: Data("{\"pauseScreenSeconds\":99}".utf8)).pauseScreenSeconds, 15)
+    }
+}
