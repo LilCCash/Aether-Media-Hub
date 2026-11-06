@@ -268,6 +268,8 @@ final class AppEnvironment: ObservableObject {
 
     /// Widget, Live Activity and SharePlay: they follow the library and the downloads, and each one has its switch in Funzioni extra.
     private func startSurfaces() {
+        extras.environment = self
+        extras.addonStore = addons
         watchTogether.configure(router: router)
         watchTogether.observeSessions()
         downloads.$items

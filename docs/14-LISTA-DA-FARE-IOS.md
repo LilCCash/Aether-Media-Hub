@@ -46,3 +46,10 @@ Priorità: build e CI veloci e affidabili, poi le funzioni. Le funzioni nuove ha
 - 🟡 **SharePlay «Guarda insieme»** (GroupActivities, sincronizzazione nostra di play/pausa/posizione) — scritto e compilato; dipende dall'entitlement che SideStore potrebbe togliere.
 - 🟡 **Notifiche:** nuovi episodi (Trakt) e fine dei download — scritte e compilate.
 - La build `138` porta tutto: il pacchetto contiene l'estensione `AetherWidgets.appex` e gli entitlement (App Group e SharePlay) con firma ad-hoc, che SideStore sostituisce con la sua.
+
+## Novembre 2026 · seconda tornata
+- 🟡 Profilo (foto, generi), gioco dei gusti, voti modificabili, inviti con consigli per genere
+- 🟡 Libreria: scelta tra lista Aether e lista Trakt (quando la sincronizzazione unita è spenta)
+- 🟡 Trailer dentro l'app
+- 🟡 Citazioni rinnovate, widget piccoli sistemati, formato grande per tutti i widget
+- ☐ PiP con MPV: non implementato (serve il rendering software di libmpv su AVSampleBufferDisplayLayer; vedi `15-FATTIBILITA-PIP-MPV-SHAREPLAY-WIDGET.md`)

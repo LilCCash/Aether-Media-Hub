@@ -17,6 +17,10 @@ final class ExtrasService: ObservableObject {
     private let defaults: UserDefaults
     private static let lastCheckKey = "aether.extras.lastUpdateCheck"
     private static let alertPrefix = "aether.ep."
+    private static let invitePrefix = "aether.invite."
+    private static let lastInviteKey = "aether.extras.lastInvites"
+    weak var environment: AppEnvironment?
+    weak var addonStore: AddonStore?
 
     init(settings: SettingsStore, trakt: TraktService, diagnostics: DiagnosticLog, defaults: UserDefaults = .standard) {
         self.settings = settings
@@ -38,6 +42,7 @@ final class ExtrasService: ObservableObject {
         if options.checkUpdates { Task { await checkForUpdate(force: false) } }
         presentWhatsNewIfNeeded()
         Task { await refreshEpisodeAlerts() }
+        Task { await refreshInvites(force: false) }
     }
 
     // MARK: Updates
@@ -130,6 +135,50 @@ final class ExtrasService: ObservableObject {
     private func removePending(_ center: UNUserNotificationCenter) async {
         let pending = await center.pendingNotificationRequests()
         let ids = pending.map { $0.identifier }.filter { $0.hasPrefix(Self.alertPrefix) }
+        if !ids.isEmpty { center.removePendingNotificationRequests(withIdentifiers: ids) }
+    }
+
+    // MARK: Invitations
+
+    /// The «what shall we watch?» notifications for the next two weeks, with a title suggested from the favourite genres. At most every 12 hours.
+    func refreshInvites(force: Bool) async {
+        let center = UNUserNotificationCenter.current()
+        let profile = settings.value.content.profile
+        guard profile.inviteNotifications else {
+            await removePendingInvites(center)
+            return
+        }
+        if !force, let last = defaults.object(forKey: Self.lastInviteKey) as? Date, Date().timeIntervalSince(last) < 12 * 3600 { return }
+        let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+        guard granted else { return }
+        var suggestions: [InviteSuggestion] = []
+        let genres = TasteEngine.topGenres(profile, limit: 3)
+        if let env = environment, let addons = addonStore, !genres.isEmpty {
+            let seen = Set(profile.votes.map { $0.id })
+            let found = await TasteSource.fetch(env: env, addons: addons, genres: genres)
+            let pool = TasteEngine.deck(found.shuffled(), profile: profile, excluding: seen)
+            for item in pool.prefix(6) {
+                let title = item.genres.lazy.compactMap { ProfileGenre.from(cinemeta: $0)?.title }.first ?? item.genres.first ?? "cinema"
+                suggestions.append(InviteSuggestion(id: item.id, type: item.type, name: item.name, genre: title))
+            }
+        }
+        let alerts = InvitePlanner.plan(now: Date(), name: profile.displayName, perWeek: profile.invitesPerWeek, suggestions: suggestions)
+        await removePendingInvites(center)
+        for alert in alerts {
+            let content = UNMutableNotificationContent()
+            content.title = alert.title
+            content.body = alert.body
+            content.sound = .default
+            if let type = alert.type, let id = alert.metaID { content.userInfo = ["type": type, "id": id] }
+            let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: alert.fire)
+            try? await center.add(UNNotificationRequest(identifier: alert.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)))
+        }
+        defaults.set(Date(), forKey: Self.lastInviteKey)
+        diagnostics.logDetached(.info, "notifications", "Inviti programmati: \(alerts.count)")
+    }
+
+    private func removePendingInvites(_ center: UNUserNotificationCenter) async {
+        let ids = await center.pendingNotificationRequests().map { $0.identifier }.filter { $0.hasPrefix(Self.invitePrefix) }
         if !ids.isEmpty { center.removePendingNotificationRequests(withIdentifiers: ids) }
     }
 }

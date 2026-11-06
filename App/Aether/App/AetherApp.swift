@@ -1,6 +1,7 @@
 import Combine
 import CoreSpotlight
 import SwiftUI
+import UserNotifications
 import UIKit
 import AetherCore
 
@@ -32,8 +33,24 @@ struct AetherApp: App {
 
 /// UIKit hooks SwiftUI does not cover: the orientation lock used by the player and the completion handler iOS
 /// hands over when a background download session wakes the app.
-final class AppDelegate: NSObject, UIApplicationDelegate {
+final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     nonisolated(unsafe) static var orientationMask: UIInterfaceOrientationMask = .portrait
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    // Notifications are shown even with the app open; a tap on an invitation that suggests a title opens its page.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        return [.banner, .sound]
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        let info = response.notification.request.content.userInfo
+        guard let type = info["type"] as? String, let id = info["id"] as? String else { return }
+        await MainActor.run { QuickActionRouter.shared.receive("detail:\(type)/\(id)") }
+    }
 
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         return AppDelegate.orientationMask
@@ -164,7 +181,10 @@ struct RootView: View {
                 case "app.aether.downloads": router.tab = .more
                 default:
                     // «Cerca in Aether» from Siri or Spotlight: the words come after the prefix.
-                    if type.hasPrefix("search:") {
+                    if type.hasPrefix("detail:") {
+                        let parts = type.dropFirst("detail:".count).split(separator: "/", maxSplits: 1).map(String.init)
+                        if parts.count == 2 { router.detail = MetaRoute(type: parts[0], id: parts[1]) }
+                    } else if type.hasPrefix("search:") {
                         router.pendingSearch = String(type.dropFirst("search:".count))
                         router.tab = .search
                     }

@@ -26,10 +26,20 @@ struct LibraryView: View {
     @State private var filter = ""
     @State private var confirmClear = false
 
+    /// With Trakt connected but its list not merged into the app's, the viewer chooses which of the two lists to see.
+    private var choosesList: Bool {
+        let trakt = settings.value.content.trakt
+        return trakt.enabled && env.trakt.isConnected && !trakt.syncWatchlist
+    }
+    private var showsTrakt: Bool { return choosesList && settings.value.content.trakt.libraryList == "trakt" }
+
     var body: some View {
         NavigationStack {
             ZStack {
                 AetherBackdrop()
+                if showsTrakt {
+                    TraktCatalogView(trakt: env.trakt)
+                } else {
                 VStack(spacing: 0) {
                     Picker("Sezione", selection: $section) {
                         ForEach(LibrarySection.allCases) { Text($0.title).tag($0) }
@@ -40,11 +50,26 @@ struct LibraryView: View {
                     .accessibilityIdentifier("library.picker")
                     content
                 }
+                }
             }
             .navigationTitle("Libreria")
             .navigationDestination(for: MetaRoute.self) { DetailView(route: $0).zoomDestination(id: $0.id) }
             .searchable(text: $filter, prompt: "Filtra nella sezione")
             .toolbar {
+                if choosesList {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Menu {
+                            Picker("Lista", selection: Binding(get: { settings.value.content.trakt.libraryList == "trakt" ? "trakt" : "aether" },
+                                                               set: { settings.value.content.trakt.libraryList = $0 })) {
+                                Label("Lista Aether", systemImage: "books.vertical").tag("aether")
+                                Label("Lista Trakt", systemImage: "play.square.stack").tag("trakt")
+                            }
+                        } label: {
+                            Label(showsTrakt ? "Trakt" : "Aether", systemImage: "chevron.down.circle")
+                        }
+                        .accessibilityIdentifier("library.listMenu")
+                    }
+                }
                 if section == .history && !library.history.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(role: .destructive) { confirmClear = true } label: { Image(systemName: "trash") }

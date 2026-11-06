@@ -161,6 +161,7 @@ struct DetailView: View {
     @EnvironmentObject private var library: LibraryModel
     @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.openURL) private var openURL
+    @State private var trailerRequest: TrailerRequest?
     @Environment(\.aetherStyle) private var style
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoomed = false
@@ -242,6 +243,7 @@ struct DetailView: View {
         }
         .onDisappear { CinematicMood.shared.color = CinematicMood.shared.homeColor }
         .sheet(isPresented: $posterPicker) { PosterPickerSheet(meta: model.meta) }
+        .sheet(item: $trailerRequest) { TrailerSheet(request: $0) }
         .sheet(item: $picker) { request in
             StreamPickerSheet(request: request)
         }
@@ -682,22 +684,22 @@ struct DetailView: View {
         if links.count > 1 {
             Menu {
                 ForEach(Array(links.enumerated()), id: \.offset) { _, link in
-                    Button(link.title) { openURL(link.url) }
+                    Button(link.title) { trailerRequest = TrailerRequest(url: link.url) }
                 }
             } label: {
                 trailerIcon
             }
             .foregroundStyle(Color.primary)
-            .accessibilityLabel("Guarda un trailer su YouTube")
+            .accessibilityLabel("Guarda un trailer")
             .accessibilityIdentifier("detail.trailerMenu")
         } else if let link = links.first {
             Button {
-                openURL(link.url)
+                trailerRequest = TrailerRequest(url: link.url)
             } label: {
                 trailerIcon
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Guarda il trailer su YouTube")
+            .accessibilityLabel("Guarda il trailer")
             .accessibilityIdentifier("detail.trailer")
         }
     }

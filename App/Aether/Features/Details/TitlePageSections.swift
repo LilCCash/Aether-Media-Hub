@@ -65,7 +65,7 @@ struct TitleCastSection: View {
 /// Every trailer TMDB lists, each opening its YouTube page.
 struct TitleTrailersSection: View {
     let trailers: [TitleRichDetails.Trailer]
-    @Environment(\.openURL) private var openURL
+    @State private var playing: TrailerRequest?
 
     static func subtitle(_ trailer: TitleRichDetails.Trailer) -> String {
         var parts = [trailer.type == "Teaser" ? "Teaser" : "Trailer"]
@@ -80,7 +80,7 @@ struct TitleTrailersSection: View {
             VStack(spacing: 8) {
                 ForEach(Array(trailers.enumerated()), id: \.offset) { index, trailer in
                     Button {
-                        if let url = trailer.watchURL { openURL(url) }
+                        if let url = trailer.watchURL { playing = TrailerRequest(url: url) }
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "play.rectangle.fill").font(.title3).foregroundStyle(Color.accentColor)
@@ -100,12 +100,13 @@ struct TitleTrailersSection: View {
                     .buttonStyle(.plain)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(trailer.name), \(TitleTrailersSection.subtitle(trailer))")
-                    .accessibilityHint("Apre il video su YouTube")
+                    .accessibilityHint("Riproduce il trailer nell'app")
                     .accessibilityIdentifier("detail.trailer.\(index)")
                 }
             }
             .padding(.horizontal, Theme.pageMargin)
         }
+        .sheet(item: $playing) { TrailerSheet(request: $0) }
     }
 }
 

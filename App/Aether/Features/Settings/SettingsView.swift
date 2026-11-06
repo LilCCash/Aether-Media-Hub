@@ -9,11 +9,15 @@ struct MoreView: View {
     @EnvironmentObject private var appSettings: SettingsStore
     @State private var path = NavigationPath()
 
-    enum Destination: Hashable { case addons, stats, trakt, casting, settings, about }
+    enum Destination: Hashable { case profile, addons, stats, trakt, casting, settings, about }
 
     var body: some View {
         NavigationStack(path: $path) {
             List {
+                Section {
+                    NavigationLink(value: Destination.profile) { ProfileHeaderRow() }
+                        .accessibilityIdentifier("more.profile")
+                }
                 if appSettings.value.content.liveTV.showTab {
                     Section {
                         Button { router.searchSheet = true } label: { rowLabel("Cerca", "magnifyingglass", .blue, detail: nil) }
@@ -56,6 +60,7 @@ struct MoreView: View {
             .navigationTitle("Altro")
             .navigationDestination(for: Destination.self) { destination in
                 switch destination {
+                case .profile: ProfileView()
                 case .addons: AddonsView()
                 case .stats: StatsView()
                 case .trakt: TraktCatalogView(trakt: env.trakt)
