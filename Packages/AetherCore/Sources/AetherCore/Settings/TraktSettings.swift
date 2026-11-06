@@ -4,6 +4,8 @@ import Foundation
 public struct TraktSettings: Codable, Equatable, Sendable {
     /// Interruttore generale (spento di default).
     public var enabled: Bool = false
+    /// Libreria, when the lists are not merged: which one to show («aether» or «trakt»).
+    public var libraryList: String = "aether"
     /// Mentre guardi, dice a Trakt cosa stai guardando e quando finisci («scrobble»).
     public var scrobble: Bool = true
     /// Lista (watchlist) in comune: quello che aggiungi o togli qui lo fai anche su Trakt, e viceversa.
@@ -29,12 +31,13 @@ public struct TraktSettings: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case enabled, scrobble, syncWatchlist, syncWatched, syncOnLaunch, hiddenCatalogs, itemsPerCatalog, showLists
+        case enabled, libraryList, scrobble, syncWatchlist, syncWatched, syncOnLaunch, hiddenCatalogs, itemsPerCatalog, showLists
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         enabled = c.value(.enabled, default: false)
+        libraryList = c.value(.libraryList, default: "aether")
         scrobble = c.value(.scrobble, default: true)
         syncWatchlist = c.value(.syncWatchlist, default: true)
         syncWatched = c.value(.syncWatched, default: true)
