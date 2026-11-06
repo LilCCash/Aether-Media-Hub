@@ -55,7 +55,7 @@ struct QuoteWidget: Widget {
         }
         .configurationDisplayName("Citazioni dei film")
         .description("Una battuta famosa che cambia ogni tanto. Le frecce scorrono, un tocco apre la scheda del film.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -66,31 +66,38 @@ struct QuoteView: View {
     var body: some View {
         let quote = entry.quote
         let link = WidgetSnapshot.deepLink(type: quote.type, id: quote.id)
-        if family == .systemSmall {
-            quoteBlock(quote).widgetURL(link)
-        } else {
-            VStack(spacing: 6) {
-                if let link = link { Link(destination: link) { quoteBlock(quote) } } else { quoteBlock(quote) }
-                HStack {
-                    Button(intent: QuoteStepIntent(step: -1)) { Image(systemName: "chevron.left").font(.footnote.weight(.bold)).frame(width: 40, height: 22) }
-                    Spacer()
-                    Button(intent: QuoteStepIntent(step: 1)) { Image(systemName: "chevron.right").font(.footnote.weight(.bold)).frame(width: 40, height: 22) }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.85))
-            }
+        VStack(spacing: family == .systemSmall ? 2 : 6) {
+            if let link = link { Link(destination: link) { quoteBlock(quote) } } else { quoteBlock(quote) }
+            controls
         }
     }
 
+    /// ◀ and ▶ on every size (small ones are tiny so the line keeps its room).
+    private var controls: some View {
+        HStack {
+            Button(intent: QuoteStepIntent(step: -1)) { Image(systemName: "chevron.left").font(.system(size: family == .systemSmall ? 11 : 15, weight: .bold)).frame(width: family == .systemSmall ? 30 : 48, height: family == .systemSmall ? 20 : 28) }
+            Spacer()
+            if family == .systemLarge { Text("Tocca la frase per aprire il film").font(.caption2).opacity(0.7) }
+            Spacer()
+            Button(intent: QuoteStepIntent(step: 1)) { Image(systemName: "chevron.right").font(.system(size: family == .systemSmall ? 11 : 15, weight: .bold)).frame(width: family == .systemSmall ? 30 : 48, height: family == .systemSmall ? 20 : 28) }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white.opacity(0.9))
+    }
+
     private func quoteBlock(_ quote: FilmQuote) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Image(systemName: "quote.opening").font(.title3.weight(.bold)).foregroundStyle(.white.opacity(0.55))
-            Text(quote.text).font(.system(family == .systemSmall ? .footnote : .headline, design: .serif).weight(.semibold))
-                .lineLimit(family == .systemSmall ? 5 : 4).minimumScaleFactor(0.7)
+        let size: Font.TextStyle = family == .systemSmall ? .footnote : (family == .systemMedium ? .headline : .title2)
+        return VStack(alignment: .leading, spacing: family == .systemLarge ? 14 : 6) {
+            Image(systemName: "quote.opening").font(family == .systemLarge ? .largeTitle.weight(.bold) : .title3.weight(.bold)).foregroundStyle(.white.opacity(0.55))
+            Text(quote.text).font(.system(size, design: .serif).weight(.semibold))
+                .lineLimit(family == .systemSmall ? 5 : (family == .systemMedium ? 4 : 9)).minimumScaleFactor(0.6)
             Spacer(minLength: 0)
-            Text(quote.film).font(.caption2.weight(.bold)).lineLimit(1).opacity(0.85)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(quote.film).font(family == .systemLarge ? .subheadline.weight(.bold) : .caption2.weight(.bold)).lineLimit(2).opacity(0.9)
+                if family != .systemSmall { Label("Apri la scheda", systemImage: "play.fill").font(.caption2.weight(.bold)).opacity(0.75) }
+            }
         }
         .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }

@@ -33,7 +33,7 @@ struct ViewingStatsWidget: Widget {
         }
         .configurationDisplayName("Statistiche di visione")
         .description("Quanto hai guardato: ore, ultimi sette giorni e giorni di fila.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -51,7 +51,11 @@ struct StatsView: View {
 
     var body: some View {
         if let stats = entry.stats {
-            if family == .systemSmall { small(stats) } else { medium(stats) }
+            switch family {
+            case .systemSmall: small(stats)
+            case .systemMedium: medium(stats)
+            default: large(stats)
+            }
         } else {
             VStack(spacing: 6) {
                 Image(systemName: "chart.bar.fill").font(.title).foregroundStyle(accent)
@@ -89,7 +93,36 @@ struct StatsView: View {
         .foregroundStyle(.white)
     }
 
-    private func bars(_ stats: WidgetSnapshot.Stats) -> some View {
+    private func large(_ stats: WidgetSnapshot.Stats) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Le tue statistiche", systemImage: "chart.bar.fill").font(.headline.weight(.bold)).foregroundStyle(accent)
+            HStack(spacing: 10) {
+                tile(hours(stats.weekSeconds), "questa settimana")
+                tile("\(stats.streak)", stats.streak == 1 ? "giorno di fila" : "giorni di fila")
+                tile(hours(stats.totalSeconds), "in totale")
+            }
+            Text("Ultimi sette giorni").font(.caption.weight(.semibold)).opacity(0.75)
+            bars(stats, height: 150, width: nil)
+            HStack {
+                Text("\(stats.titles) titoli").font(.caption.weight(.semibold))
+                Spacer()
+                Text("\(stats.films) film · \(stats.episodes) episodi · \(stats.completed) finiti").font(.caption).opacity(0.8)
+            }
+        }
+        .foregroundStyle(.white)
+    }
+
+    private func tile(_ value: String, _ caption: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value).font(.title3.weight(.heavy)).minimumScaleFactor(0.6).lineLimit(1)
+            Text(caption).font(.caption2).opacity(0.7).lineLimit(1)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func bars(_ stats: WidgetSnapshot.Stats, height: CGFloat = 84, width: CGFloat? = 130) -> some View {
         let peak = max(stats.days.max() ?? 0, 1)
         let todayIndex = Calendar.current.component(.weekday, from: Date()) - 1
         return HStack(alignment: .bottom, spacing: 6) {
@@ -98,11 +131,11 @@ struct StatsView: View {
                     Spacer(minLength: 0)
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(index == stats.days.count - 1 ? accent : accent.opacity(0.45))
-                        .frame(height: max(4, CGFloat(value / peak) * 62))
+                        .frame(height: max(4, CGFloat(value / peak) * (height - 22)))
                     Text(weekdays[((todayIndex - (stats.days.count - 1 - index)) % 7 + 7) % 7]).font(.system(size: 9, weight: .semibold)).opacity(0.7)
                 }
             }
         }
-        .frame(width: 130, height: 84)
+        .frame(width: width, height: height)
     }
 }

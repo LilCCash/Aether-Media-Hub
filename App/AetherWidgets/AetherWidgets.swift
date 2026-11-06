@@ -53,7 +53,7 @@ struct ContinueWatchingWidget: Widget {
         }
         .configurationDisplayName("Continua a guardare")
         .description("I film e le serie che stavi guardando, un tocco per riprendere.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -75,6 +75,18 @@ struct ContinueView: View {
             .foregroundStyle(.white)
         } else if family == .systemSmall, let first = items.first {
             SmallItem(item: first).widgetURL(WidgetSnapshot.deepLink(first))
+        } else if family == .systemLarge {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Continua a guardare", systemImage: "play.circle.fill").font(.headline.weight(.bold)).foregroundStyle(accent)
+                ForEach(0..<2, id: \.self) { row in
+                    HStack(spacing: 10) {
+                        ForEach(Array(items.dropFirst(row * 3).prefix(3))) { item in
+                            if let url = WidgetSnapshot.deepLink(item) { Link(destination: url) { MediumItem(item: item) } }
+                        }
+                        ForEach(0..<max(0, 3 - items.dropFirst(row * 3).prefix(3).count), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity) }
+                    }
+                }
+            }
         } else {
             HStack(spacing: 10) {
                 ForEach(items.prefix(3)) { item in
