@@ -255,7 +255,8 @@ final class UniverseLinkTests: XCTestCase {
         }
         XCTAssertEqual(UniverseCatalog.linked(to: "alien").map { $0.universe.id }, ["predator"])
         XCTAssertEqual(UniverseCatalog.linked(to: "predator").map { $0.universe.id }, ["alien"])
-        XCTAssertTrue(UniverseCatalog.linked(to: "mcu").isEmpty)
+        XCTAssertEqual(UniverseCatalog.linked(to: "mcu").map { $0.universe.id }, ["spiderman"])
+        XCTAssertEqual(UniverseCatalog.linked(to: "spiderman").map { $0.universe.id }, ["mcu"])
     }
 }
 
