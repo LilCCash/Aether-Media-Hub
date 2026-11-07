@@ -20,7 +20,7 @@ enum WatchedTitles {
     }
 }
 
-private extension UniverseDefinition {
+extension UniverseDefinition {
     var gradient: [Color] {
         var hash: UInt64 = 1469598103934665603
         for byte in id.utf8 { hash = (hash ^ UInt64(byte)) &* 1099511628211 }
