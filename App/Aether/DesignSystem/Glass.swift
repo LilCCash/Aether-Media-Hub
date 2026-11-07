@@ -121,11 +121,12 @@ struct PrimaryActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(.headline, design: .rounded))
-            .foregroundStyle(.white)
+            .foregroundStyle(Color(UIColor.systemBackground))
             .padding(.horizontal, 22)
             .padding(.vertical, 13)
-            .background(Capsule().fill(settings.accentColor.gradient))
-            .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.6))
+            .background(Capsule().fill(Color.primary))
+            .overlay(Capsule().stroke(settings.accentColor.opacity(0.5), lineWidth: 0.8))
+            .shadow(color: settings.accentColor.opacity(0.35), radius: 12, y: 4)
             .scaleEffect(configuration.isPressed && settings.animationsEnabled ? 0.97 : 1)
             .animation(settings.animationsEnabled ? .spring(response: 0.25, dampingFraction: 0.7) : nil, value: configuration.isPressed)
     }

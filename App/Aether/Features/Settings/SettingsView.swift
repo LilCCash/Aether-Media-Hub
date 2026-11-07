@@ -19,18 +19,14 @@ struct MoreView: View {
                         .accessibilityIdentifier("more.profile")
                 }
                 Section {
-                    Button { router.discoverSheet = true } label: { rowLabel("Scopri", "safari.fill", .blue, detail: nil) }
+                    Button { router.universeSheet = true } label: { rowLabel("Universe", "sparkles.tv.fill", .purple, detail: nil) }
                         .buttonStyle(.plain)
-                        .accessibilityIdentifier("more.discover")
+                        .accessibilityIdentifier("more.universe")
+                    Button { router.liveSheet = true } label: { rowLabel("Live TV", "tv.fill", .red, detail: nil) }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("more.live")
                     NavigationLink(value: Destination.diary) { rowLabel("Diario e statistiche", "book.closed.fill", .brown, detail: nil) }
                         .accessibilityIdentifier("more.diary")
-                }
-                if appSettings.value.content.liveTV.showTab {
-                    Section {
-                        Button { router.searchSheet = true } label: { rowLabel("Cerca", "magnifyingglass", .blue, detail: nil) }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("more.search")
-                    }
                 }
                 Section {
                     NavigationLink(value: Destination.addons) {

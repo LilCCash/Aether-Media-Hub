@@ -19,7 +19,7 @@ enum Theme {
 
     // Surfaces adapt to the colour scheme; both are tuned for >= 4.5:1 text contrast.
     static let backgroundTop = Color("LaunchBackground")
-    static let cardCorner: CGFloat = 14
+    static let cardCorner: CGFloat = 18
     static let sheetCorner: CGFloat = 28
     static let pageMargin: CGFloat = 16
 
@@ -78,7 +78,7 @@ struct AetherBackdrop: View {
     private var secondary: Color {
         if style.mood, let color = mood.shown { return color.opacity(0.8) }
         if let washes = style.palette.washes { return Color(hex: washes.secondary) }
-        return .cyan
+        return Color(red: 0.16, green: 0.30, blue: 0.95)
     }
 
     private var intensity: Double { return min(max(settings.value.appearance.backdropIntensity, 0), 1.5) }

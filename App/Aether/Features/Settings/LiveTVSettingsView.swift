@@ -35,11 +35,8 @@ struct LiveTVSettingsView: View {
 
     var body: some View {
         Form {
-            Section(footer: Text("Aggiunge «Live TV» alla barra in basso, dopo Scopri. Con la voce attiva la ricerca si apre dal menu Altro (non c'è posto per sei voci).")) {
-                Toggle(isOn: settings.binding(\.content.liveTV.showTab)) {
-                    Label("Mostra Live TV nella barra", systemImage: "tv.fill")
-                }
-                .accessibilityIdentifier("live.showTab")
+            Section(footer: Text("Live TV si apre dal pulsante con la TV in alto nella Home e dal menu Altro.")) {
+                Label("Live TV", systemImage: "tv.fill")
             }
 
             Section(header: Text("Playlist M3U"),

@@ -65,6 +65,9 @@ final class AppRouter: ObservableObject {
     @Published var searchSheet = false
     /// «Scopri» opens as a page over the tabs (the Universe tab took its place in the bar).
     @Published var discoverSheet = false
+    /// Universe and Live TV open as pages above the tabs, from the buttons at the top of the Home.
+    @Published var universeSheet = false
+    @Published var liveSheet = false
     @Published var player: PlayerRequest? {
         didSet {
             note(player == nil ? "Lettore: chiuso" : "Lettore: richiesta di apertura")
@@ -128,6 +131,8 @@ final class AppRouter: ObservableObject {
             }
             switch components.first ?? url.host?.lowercased() ?? "" {
             case "discover", "board": tab = .discover
+            case "live": tab = .live
+            case "universe": tab = .universe
             case "library": tab = .library
             default: break
             }

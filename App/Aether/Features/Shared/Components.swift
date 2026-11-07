@@ -11,6 +11,9 @@ struct SectionHeader: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center, spacing: 8) {
+                Capsule().fill(LinearGradient(colors: [Color.accentColor, Color.accentColor.opacity(0.3)], startPoint: .top, endPoint: .bottom))
+                    .frame(width: 4, height: 20).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.aetherTitle(22))
@@ -18,6 +21,7 @@ struct SectionHeader: View {
                 if let subtitle = subtitle {
                     Text(subtitle).font(.aetherCaption()).foregroundStyle(Color.aetherSecondary)
                 }
+            }
             }
             Spacer()
             if let actionTitle = actionTitle, let action = action {

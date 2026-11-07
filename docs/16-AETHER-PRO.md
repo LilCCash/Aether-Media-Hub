@@ -14,7 +14,8 @@ Fatto vero = scritto e con test nel Core dove possibile. **Nulla è provato su u
 | Provider TorBox e Real-Debrid | ✅ (già presenti) | Client in `Debrid/`. |
 | Player AVPlayer + MPV, skip intro, pausa, sottotitoli | ✅ (già presenti) | PiP con MPV non fatto. |
 | Download, widget, Live Activity, SharePlay, notifiche | ✅ (già presenti) | Limiti iOS e della firma gratuita. |
-| Design: palette Nebulosa, tab Universe | 🟡 | Liquid Glass usato dove già c'era; nessun rifacimento totale della grafica. |
+| Navigazione | ✅ | Dock invariata (Home, Scopri, Libreria, Cerca, Altro). Universe e Live TV: pulsanti in alto nella Home e voci in Altro. |
+| Design: logo, hero della scheda, pulsante bianco, dock traslucida, controlli del player a riquadri, intestazioni di sezione | 🟡 | Rifatti a codice, mai visti su schermo: va guardato e rifinito sul telefono. Liquid Glass solo dove c'era già. |
 | Scheda episodio con trama in long-press | ☐ | Da verificare cosa c'è già. |
 | Sincronizzazione tra dispositivi | ☐ | CloudKit richiede account sviluppatore a pagamento (non con SideStore). Restano backup/ripristino da file; backend esterno da decidere. |
 | Movie Companion, Modalità Cinema dedicata | ☐ | La schermata di pausa e il Theater Mode sono i punti di partenza. |

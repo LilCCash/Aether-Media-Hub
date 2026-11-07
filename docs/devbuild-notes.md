@@ -1,5 +1,6 @@
 Aether Pro
-- Nuova barra: Home, Universe, Cerca, Libreria, Altro. «Scopri» è la prima voce di Altro. Nuovo accento viola «Nebulosa».
+- Grafica rinnovata: logo Aether in alto, accento viola «Nebulosa», pulsante principale bianco, barra in basso traslucida, schede titolo con grande immagine e titolo sopra, controlli del player a riquadri.
+- La barra in basso resta Home, Scopri, Libreria, Cerca, Altro. Universe e Live TV sono pulsanti in alto a sinistra nella Home (e voci in Altro); in alto a destra il tuo profilo.
 - Universe: 14 universi (Marvel, Star Wars, Wizarding World, Terra di Mezzo, Alien, Predator, Jurassic, Fast & Furious, Mission: Impossible, James Bond, MonsterVerse, DC, Game of Thrones, The Walking Dead) con film e serie.
 - Ordine di uscita (certo), ordine della storia (editoriale, indicato come tale) e il tuo ordine personalizzato; percentuale di completamento, titoli mancanti, «prossimo da vedere», segui un universo.
 - Sezione «Universe» nella Home (si nasconde e si riordina come le altre) e universi nella ricerca.

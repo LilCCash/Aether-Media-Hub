@@ -38,6 +38,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        // Dock: a translucent blurred bar with a hairline, the selected item in the accent colour (iOS 26 draws its own glass on top).
+        let bar = UITabBarAppearance()
+        bar.configureWithDefaultBackground()
+        bar.backgroundEffect = UIBlurEffect(style: .systemChromeMaterialDark)
+        bar.backgroundColor = UIColor(red: 0.04, green: 0.04, blue: 0.14, alpha: 0.55)
+        bar.shadowColor = UIColor.white.withAlphaComponent(0.08)
+        UITabBar.appearance().standardAppearance = bar
+        UITabBar.appearance().scrollEdgeAppearance = bar
         return true
     }
 
@@ -122,53 +130,37 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var titleZoom
 
-    private var showsLiveTab: Bool { return settings.value.content.liveTV.showTab }
-
     var body: some View {
         TabView(selection: $router.tab) {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house.fill") }
                 .tag(AppTab.home)
-            UniverseHubView()
-                .tabItem { Label("Universe", systemImage: "sparkles.tv.fill") }
-                .tag(AppTab.universe)
-            if showsLiveTab {
-                LiveTVView()
-                    .tabItem { Label("Live TV", systemImage: "tv.fill") }
-                    .tag(AppTab.live)
-            }
+            DiscoverView()
+                .tabItem { Label("Scopri", systemImage: "safari.fill") }
+                .tag(AppTab.discover)
             LibraryView()
                 .tabItem { Label("Libreria", systemImage: "books.vertical.fill") }
                 .tag(AppTab.library)
-            if !showsLiveTab {
-                SearchView()
-                    .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
-                    .tag(AppTab.search)
-            }
+            SearchView()
+                .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
+                .tag(AppTab.search)
             MoreView()
                 .tabItem { Label("Altro", systemImage: "ellipsis.circle.fill") }
                 .tag(AppTab.more)
         }
         .tint(settings.accentColor)
         .onChange(of: router.tab) { old, new in
-            // A request for the Search tab (a shortcut, a Spotlight result) while it is not in the bar opens it as a page.
-            if new == .search && showsLiveTab { router.tab = old == .search ? .home : old; router.searchSheet = true }
-            if new == .live && !showsLiveTab { router.tab = .home }
-            if new == .discover { router.tab = old == .discover ? .home : old; router.discoverSheet = true }
+            // Universe and Live TV are not in the bar: a request for them (a shortcut) opens them as full pages over the tabs.
+            if new == .universe { router.tab = old == .universe ? .home : old; router.universeSheet = true }
+            if new == .live { router.tab = old == .live ? .home : old; router.liveSheet = true }
         }
-        .sheet(isPresented: $router.discoverSheet) {
-            DiscoverView()
-                .overlay(alignment: .topTrailing) {
-                    Button { router.discoverSheet = false } label: { Image(systemName: "xmark.circle.fill").font(.title2).symbolRenderingMode(.hierarchical) }
-                        .padding(16).accessibilityLabel("Chiudi Scopri")
-                }
+        .fullScreenCover(isPresented: $router.universeSheet) {
+            UniverseHubView()
+                .overlay(alignment: .topTrailing) { SheetCloseButton(label: "Chiudi Universe") { router.universeSheet = false } }
         }
-        .sheet(isPresented: $router.searchSheet) {
-            SearchView()
-                .overlay(alignment: .topTrailing) {
-                    Button { router.searchSheet = false } label: { Image(systemName: "xmark.circle.fill").font(.title2).symbolRenderingMode(.hierarchical) }
-                        .padding(16).accessibilityLabel("Chiudi la ricerca")
-                }
+        .fullScreenCover(isPresented: $router.liveSheet) {
+            LiveTVView()
+                .overlay(alignment: .topTrailing) { SheetCloseButton(label: "Chiudi Live TV") { router.liveSheet = false } }
         }
         .environment(\.zoomNamespace, titleZoom)
         .preferredColorScheme(settings.colorScheme)
@@ -242,5 +234,21 @@ struct RootView: View {
                     }
             }
         }
+    }
+}
+
+
+/// The round close button over a page opened above the tabs.
+struct SheetCloseButton: View {
+    let label: String
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark").font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
+                .frame(width: 34, height: 34).background(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.2), lineWidth: 1))
+        }
+        .padding(.trailing, 16).padding(.top, 8)
+        .accessibilityLabel(label)
     }
 }

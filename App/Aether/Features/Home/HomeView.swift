@@ -14,6 +14,7 @@ struct HomeView: View {
     @Environment(\.aetherStyle) private var style
     /// The film at the front of the featured carousel: the Home takes the colours of this one.
     @State private var heroPageID: String?
+    @State private var showingProfile = false
 
     var body: some View {
         NavigationStack {
@@ -23,6 +24,9 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showingCast) {
                 CastSheet()
+            }
+            .sheet(isPresented: $showingProfile) {
+                NavigationStack { ProfileView().toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Fine") { showingProfile = false } } } }
             }
             // Cinematic: the Home takes the colours of the featured film.
             .task(id: (style.mood ? (heroPageID ?? model.heroItems.first?.id) : nil) ?? "") {
@@ -42,29 +46,21 @@ struct HomeView: View {
                 let metas = model.heroItems + library.continueWatching.map { $0.asMeta } + library.nextUpSeeds.map { $0.asMeta }
                 FanartLogoStore.shared.prefetch(metas, env: env)
             }
-            .navigationTitle("Home")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        router.theater = true
-                    } label: {
-                        Label("Theater Mode", systemImage: "film")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(settings.accentColor)
-                    .accessibilityLabel("Apri Theater Mode")
-                    .accessibilityIdentifier("home.theater")
+                ToolbarItem(placement: .principal) { AetherWordmark() }
+                ToolbarItemGroup(placement: .topBarLeading) {
+                    homeButton("sparkles.tv.fill", "Universe", id: "home.universe") { router.universeSheet = true }
+                    homeButton("tv.fill", "Live TV", id: "home.live") { router.liveSheet = true }
+                    homeButton("film", "Apri Theater Mode", id: "home.theater") { router.theater = true }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingCast = true
-                    } label: {
-                        Image(systemName: "tv.and.mediabox")
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    homeButton("tv.and.mediabox", "Trasmetti su un dispositivo", id: "home.cast") { showingCast = true }
+                    Button { showingProfile = true } label: {
+                        AvatarView(avatarID: settings.value.content.profile.avatar, size: 30)
                     }
-                    .accessibilityLabel("Trasmetti su un dispositivo")
-                    .accessibilityIdentifier("home.cast")
+                    .accessibilityLabel("Profilo")
+                    .accessibilityIdentifier("home.profile")
                 }
             }
             .navigationDestination(for: MetaRoute.self) { route in
@@ -132,6 +128,14 @@ struct HomeView: View {
             .padding(.horizontal, Theme.pageMargin)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier("home.greeting")
+    }
+
+    private func homeButton(_ symbol: String, _ label: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
+        }
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(id)
     }
 
     @ViewBuilder

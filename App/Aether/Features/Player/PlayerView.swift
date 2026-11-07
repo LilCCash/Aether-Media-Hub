@@ -844,14 +844,20 @@ struct PlayerView: View {
     }
 
     private func actionLabel(_ symbol: String, _ title: String, compact: Bool) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
-            if !compact { Text(title).font(.subheadline.weight(.semibold)).lineLimit(1) }
+        Group {
+            if compact {
+                Image(systemName: symbol).font(.system(size: 16, weight: .semibold)).frame(width: 44, height: 44)
+            } else {
+                VStack(spacing: 4) {
+                    Image(systemName: symbol).font(.system(size: 18, weight: .semibold))
+                    Text(title).font(.system(size: 11, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(minWidth: 62).frame(height: 52).padding(.horizontal, 6)
+            }
         }
-        .padding(.horizontal, compact ? 0 : 14)
-        .frame(width: compact ? 40 : nil, height: 36)
-        .aetherGlassCapsule(interactive: true)
-        .contentShape(Capsule())
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.16), lineWidth: 0.8))
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     /// Where the AirPlay output is, said honestly: with MPV the sound goes to the device and the picture stays on the phone.

@@ -281,40 +281,42 @@ struct DetailView: View {
         ZStack(alignment: .bottomLeading) {
             headerArtwork
                 .frame(maxWidth: .infinity)
-                .frame(height: style.cinematic ? 470 : 330)
+                .frame(height: style.cinematic ? 500 : 400)
                 .scaleEffect(style.cinematic && style.motion && !reduceMotion && zoomed ? 1.2 : 1)
                 .animation(style.motion && !reduceMotion ? .easeInOut(duration: 16) : nil, value: zoomed)
                 .clipped()
                 .onAppear { zoomed = true }
-                // Cinematic: the artwork itself dissolves into the page (a mask), so the film's colours flow into the background
-                // with no seam; the classic header keeps its fade to the system background.
+                // The artwork dissolves into the page (a mask): the film's colours flow into the background with no seam.
                 .mask(
-                    LinearGradient(stops: style.cinematic
-                                   ? [.init(color: .black, location: 0), .init(color: .black, location: 0.45), .init(color: .clear, location: 1)]
-                                   : [.init(color: .black, location: 0), .init(color: .black, location: 1)],
+                    LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.5), .init(color: .clear, location: 1)],
                                    startPoint: .top, endPoint: .bottom)
                 )
                 .overlay(
-                    LinearGradient(colors: [.clear, Color(UIColor.systemBackground).opacity(0.0), Color(UIColor.systemBackground).opacity(style.cinematic ? 0 : 0.95)],
-                                   startPoint: .top, endPoint: .bottom)
+                    LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .init(x: 0.5, y: 0.3))
                 )
-            HStack(alignment: .bottom, spacing: 14) {
-                RemoteImage(urlString: posterOverrides.url(for: model.meta.id) ?? model.meta.poster, width: 220, placeholderSeed: model.meta.name)
-                    .frame(width: 104, height: 104 / CGFloat(model.meta.posterShape.aspectRatio))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .shadow(color: .black.opacity(0.35), radius: 12, y: 6)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(model.meta.name)
-                        .font(.aetherTitle(26))
-                        .lineLimit(3)
-                        .accessibilityAddTraits(.isHeader)
-                        .accessibilityIdentifier("detail.title")
-                    metaLine
+            VStack(alignment: .leading, spacing: 10) {
+                Text(model.meta.name)
+                    .font(.system(size: 36, weight: .heavy, design: AetherTypography.design))
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.7)
+                    .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("detail.title")
+                metaLine
+                if !model.meta.genres.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(model.meta.genres.prefix(4), id: \.self) { genre in
+                                Text(genre).font(.caption.weight(.semibold)).padding(.horizontal, 10).padding(.vertical, 4)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                                    .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 0.6))
+                            }
+                        }
+                    }
                 }
-                Spacer(minLength: 0)
             }
             .padding(.horizontal, Theme.pageMargin)
-            .padding(.bottom, 4)
+            .padding(.bottom, 6)
         }
     }
 
@@ -322,10 +324,16 @@ struct DetailView: View {
         HStack(spacing: 8) {
             if let year = model.meta.releaseInfo { Text(year) }
             if let runtime = model.meta.runtime { Text("· \(runtime)") }
-            if let rating = model.meta.imdbRating { Label(rating, systemImage: "star.fill").labelStyle(.titleAndIcon).foregroundStyle(.yellow) }
+            if let rating = model.meta.imdbRating {
+                HStack(spacing: 4) {
+                    Text("IMDb").font(.system(size: 10, weight: .black)).padding(.horizontal, 4).padding(.vertical, 1)
+                        .background(Color.yellow, in: RoundedRectangle(cornerRadius: 3)).foregroundStyle(.black)
+                    Text(rating).fontWeight(.bold)
+                }
+            }
         }
         .font(.system(.footnote, design: AetherTypography.design).weight(.medium))
-        .foregroundStyle(Color.aetherSecondary)
+        .foregroundStyle(Color.primary.opacity(0.85))
     }
 
     // MARK: Actions
