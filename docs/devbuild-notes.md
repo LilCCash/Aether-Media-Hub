@@ -9,6 +9,10 @@ Novità
 - Scopri: Scoperta cinematografica a pagine, Calendario uscite con promemoria, consigli dell'AI sui tuoi gusti.
 - Universe: mappa grafica della timeline. Archiviazione: barra con Film, Serie, Cache, Altro e spazio recuperabile.
 - Player: apertura cinematografica con suono originale (opzionale), titoli di coda in scena, chat durante «Guarda insieme». Le fonti che falliscono spesso scendono in lista (si può spegnere).
+Ritocchi di questa build
+- Avvio della riproduzione: appena tocchi una fonte si apre il player nero con il logo che torna alla sua dimensione e, quando tutto è pronto, il tasto «Guarda». Si spegne a parte per film, episodi e canali live (Impostazioni ▸ Riproduzione).
+- Live TV: toccando un canale con più fonti scegli la fonte da un menu. Suono d'apertura più leggero (un riser breve). Titoli di coda con un pulsante a fine film, chiudendoli torni al player.
+- Opzioni del player a tendina che non sfarfalla. Anteprime dei fotogrammi più robuste. Persone nei risultati di ricerca, foto in bolla intere, Libreria con schede più larghe, titolo scritto nella scheda del film, scheda aperta anche a schermo intero (Aspetto), Scoperta con chiusura e copertine pronte, gioco dei gusti con anche i film vecchi.
 Correzioni
 - Live TV: cataloghi che rispondevano con una pagina web invece dei dati ora si caricano (secondo tentativo come browser, messaggio chiaro se il servizio è offline).
 - Pulsanti di Scopri simmetrici. Nessuna voce ripetuta in più punti.
