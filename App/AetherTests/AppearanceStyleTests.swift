@@ -4,23 +4,19 @@ import AetherCore
 @testable import Aether
 
 final class AetherStyleTests: XCTestCase {
-    /// Classic (the default) is the 1.0 look; the Pro interface changes the corners and puts a glow on the cards.
-    func testDefaultStyleIsTheOneDotZeroLook() {
+    func testDefaultStyleIsTheStandardLook() {
         let style = AetherStyle(AppearanceSettings())
         XCTAssertEqual(style, AetherStyle())
-        XCTAssertEqual(style.posterRadius, 14)
-        XCTAssertEqual(style.landscapeRadius, 16, "the radius of the Continue Watching card in 1.0")
-        XCTAssertEqual(style.thumbnailRadius, 12, "the radius of the next-episode thumbnail in 1.0")
-        XCTAssertEqual(style.glassCardRadius, 18, "the radius of the next-episode card in 1.0")
-        XCTAssertEqual(style.heroRadius, 28, "the radius of the featured card in 1.0")
+        XCTAssertEqual(style.chrome, .glow)
+        XCTAssertEqual(style.posterRadius, 20)
+        XCTAssertEqual(style.landscapeRadius, 22)
+        XCTAssertEqual(style.heroRadius, 36)
         var appearance = AppearanceSettings()
-        appearance.switchInterface(to: .pro)
-        let pro = AetherStyle(appearance)
-        XCTAssertEqual(pro.chrome, .glow)
-        XCTAssertEqual(pro.posterRadius, 24)
-        XCTAssertEqual(pro.heroRadius, 36)
-        appearance.switchInterface(to: .classic)
-        XCTAssertEqual(AetherStyle(appearance), AetherStyle(), "back to Classic is the 1.0 look again")
+        LookPreset.minimal.apply(to: &appearance)
+        let minimal = AetherStyle(appearance)
+        XCTAssertEqual(minimal.backdrop, .plain)
+        XCTAssertEqual(minimal.posterRadius, 14)
+        XCTAssertFalse(minimal.cinematic)
     }
 
     func testRadiiFollowTheCornerChoice() {
@@ -131,7 +127,7 @@ final class AppearanceStoreTests: XCTestCase {
     func testSettingsStoredByOneDotZeroAreReadBack() {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
-        let old = #"{"appearance":{"accent":"jade","homeSections":[{"id":"watchlist","isVisible":true},{"id":"hero","isVisible":false},{"id":"continue","isVisible":true},{"id":"nextUp","isVisible":true},{"id":"catalogs","isVisible":true}]}}"#
+        let old = #"{"appearance":{"schema":2,"accent":"jade","homeSections":[{"id":"watchlist","isVisible":true},{"id":"hero","isVisible":false},{"id":"continue","isVisible":true},{"id":"nextUp","isVisible":true},{"id":"catalogs","isVisible":true}]}}"#
         defaults.set(Data(old.utf8), forKey: "aether.settings.v1")
         let store = SettingsStore(defaults: defaults)
         XCTAssertEqual(store.value.appearance.accent, .jade)

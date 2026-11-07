@@ -35,7 +35,7 @@ struct LiveTVSettingsView: View {
 
     var body: some View {
         Form {
-            Section(footer: Text("Live TV si apre dal pulsante con la TV in alto nella Home e dal menu Altro.")) {
+            Section(footer: Text("Live TV si apre dal pulsante con la TV in alto a sinistra in Scopri.")) {
                 Label("Live TV", systemImage: "tv.fill")
             }
 

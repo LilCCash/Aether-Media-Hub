@@ -264,3 +264,58 @@ public enum ContrastRatio {
                 foreground.b * alpha + background.b * (1 - alpha))
     }
 }
+
+// MARK: - Look presets
+
+/// Ready-made looks. Applying one sets colours, background, cards, corners, typeface and the Home hero in one go;
+/// everything it sets can then be changed one by one. Name, Home order, sizes and the motion switches are not touched.
+public enum LookPreset: String, CaseIterable, Sendable {
+    case aether, cinemaBlack, neon, luxury, minimal
+
+    public var title: String {
+        switch self {
+        case .aether: return "Aether"
+        case .cinemaBlack: return "Cinema Black"
+        case .neon: return "Neon"
+        case .luxury: return "Luxury"
+        case .minimal: return "Minimal"
+        }
+    }
+
+    public var summary: String {
+        switch self {
+        case .aether: return "Viola, alone sulle card, faro di luce"
+        case .cinemaBlack: return "Nero puro, oro, sala buia"
+        case .neon: return "Colori accesi, onde, carattere macchina"
+        case .luxury: return "Oro, contorni sottili, font con grazie"
+        case .minimal: return "Tinta unita, niente effetti"
+        }
+    }
+
+    public func apply(to a: inout AppearanceSettings) {
+        a.customAccentHex = nil
+        a.customBackgroundHex = nil
+        switch self {
+        case .aether:
+            a.theme = .dark; a.amoled = false; a.accent = .nebula; a.palette = .aether; a.backdrop = .spotlight; a.backdropIntensity = 1
+            a.cardChrome = .glow; a.cornerStyle = .rounded; a.titleFont = .rounded; a.heroStyle = .fullBleed; a.dynamicCinematic = true
+        case .cinemaBlack:
+            a.theme = .dark; a.amoled = true; a.accent = .gold; a.palette = .cinema; a.backdrop = .spotlight; a.backdropIntensity = 0.6
+            a.cardChrome = .shadow; a.cornerStyle = .standard; a.titleFont = .standard; a.heroStyle = .fullBleed; a.dynamicCinematic = true
+        case .neon:
+            a.theme = .dark; a.amoled = false; a.accent = .rose; a.palette = .candy; a.backdrop = .flow; a.backdropIntensity = 1
+            a.cardChrome = .glow; a.cornerStyle = .bubble; a.titleFont = .mono; a.heroStyle = .fullBleed; a.dynamicCinematic = true
+        case .luxury:
+            a.theme = .dark; a.amoled = false; a.accent = .gold; a.palette = .cinema; a.backdrop = .aurora; a.backdropIntensity = 0.8
+            a.cardChrome = .outline; a.cornerStyle = .standard; a.titleFont = .serif; a.heroStyle = .card; a.dynamicCinematic = true
+        case .minimal:
+            a.theme = .system; a.amoled = false; a.accent = .sky; a.palette = .aether; a.backdrop = .plain; a.backdropIntensity = 0
+            a.cardChrome = .standard; a.cornerStyle = .standard; a.titleFont = .standard; a.heroStyle = .card; a.dynamicCinematic = false
+        }
+    }
+}
+
+extension AppearanceSettings {
+    /// Back to the standard look of Aether (the "Aether" preset), keeping everything that is not look: name, Home order, sizes, motion.
+    public mutating func resetLook() { LookPreset.aether.apply(to: &self) }
+}

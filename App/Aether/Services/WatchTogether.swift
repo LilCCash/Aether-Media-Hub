@@ -18,6 +18,14 @@ struct AetherWatchActivity: GroupActivity {
     }
 }
 
+/// One line of the chat of a SharePlay session («Cinema insieme»).
+struct WatchChatMessage: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var sender: String
+    var text: String
+    var sentAt: Date = Date()
+}
+
 /// «Guarda insieme»: keeps play, pause and position of the players of the people in a SharePlay call aligned. Every person plays their own
 /// source; the messages only say «playing / paused, here». It needs the SharePlay entitlement in the signature: where SideStore does not
 /// give it, starting an activity fails and says so.
@@ -25,6 +33,7 @@ struct AetherWatchActivity: GroupActivity {
 final class WatchTogetherService: ObservableObject {
     @Published private(set) var isActive = false
     @Published private(set) var status: String?
+    @Published private(set) var chat: [WatchChatMessage] = []
 
     private weak var router: AppRouter?
     private weak var player: PlayerViewModel?
@@ -78,8 +87,12 @@ final class WatchTogetherService: ObservableObject {
         incoming.join()
         // The title opens for this person too; they pick their own source.
         router?.detail = MetaRoute(type: incoming.activity.type, id: incoming.activity.metaID, videoID: incoming.activity.videoID)
+        chat = []
         tasks.append(Task { [weak self] in
             for await (message, _) in messenger.messages(of: PlaybackSyncMessage.self) { self?.player?.applyRemote(message) }
+        })
+        tasks.append(Task { [weak self] in
+            for await (message, _) in messenger.messages(of: WatchChatMessage.self) { self?.chat.append(message) }
         })
         incoming.$state.sink { [weak self] state in
             if case .invalidated = state { self?.leave() }
@@ -97,6 +110,15 @@ final class WatchTogetherService: ObservableObject {
     func send(isPlaying: Bool, position: Double) {
         guard let messenger = messenger else { return }
         let message = PlaybackSyncMessage(isPlaying: isPlaying, position: position, sentAt: Date().timeIntervalSince1970)
+        Task { try? await messenger.send(message) }
+    }
+
+    /// Sends a line to everyone in the call; it shows in the chat at once for the sender too.
+    func sendChat(_ text: String, sender: String) {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let messenger = messenger, !clean.isEmpty else { return }
+        let message = WatchChatMessage(sender: sender, text: String(clean.prefix(400)))
+        chat.append(message)
         Task { try? await messenger.send(message) }
     }
 

@@ -135,6 +135,8 @@ final class PlayerViewModel: ObservableObject {
 
     // MARK: Internals
     private var currentStream: AddonStream?
+    /// The source that is playing has already been counted for the learning of reliability (once per source).
+    private var reliabilityCounted = false
     private var lastRecordedPosition: Double = -100
     private var lastRetryPosition: Double = 0
     private var timeline: SubtitleTimeline?
@@ -811,6 +813,7 @@ final class PlayerViewModel: ObservableObject {
         let wasReady = snapshot.isReady
         let old = snapshot
         snapshot = new
+        if !reliabilityCounted, new.isPlaying, new.position > 2 { recordReliability(success: true) }
         if new.isPictureInPicturePossible != old.isPictureInPicturePossible {
             env.diagnostics.logDetached(.info, "player", "Il sistema dice Picture in Picture possibile: \(new.isPictureInPicturePossible)")
         }
@@ -892,9 +895,20 @@ final class PlayerViewModel: ObservableObject {
         Task { _ = await store.recordProgress(meta: meta, video: video, position: duration, duration: duration) }
     }
 
+    /// Tells the ranking how the source of this addon went (see `SourceReliability`): once per source, started or not.
+    private func recordReliability(success: Bool) {
+        guard !reliabilityCounted, playback.sourceScoring.learnsFromPlayback else { return }
+        var stream = currentStream
+        if stream == nil, case .stream(let requested) = request.source { stream = requested }
+        guard let id = stream?.addonID else { return }
+        reliabilityCounted = true
+        env.settings.value.playback.sourceScoring.reliability.record(addonID: id, success: success)
+    }
+
     private func handleFailure(_ new: PlaybackFailure) {
         isOpeningSource = false
         if tryEngineFallback(after: new) { return }
+        if !isLiveContent { recordReliability(success: false) }
         // The engine's wording may quote the file's address, and a link resolved through TorBox carries a token: it is redacted
         // before it is shown or logged. A link the CDN refused (expired) is dropped, so that "Riprova" asks TorBox for a new one.
         var shown = new
@@ -1121,6 +1135,7 @@ final class PlayerViewModel: ObservableObject {
 
     func switchSource(to item: RankedStream) {
         currentStream = item.stream
+        reliabilityCounted = false
         sourceName = item.stream.name ?? item.stream.addonName ?? "Sorgente"
         request.source = .stream(item.stream)
         engineChosenByFallback = false
@@ -1316,6 +1331,7 @@ final class PlayerViewModel: ObservableObject {
     private func commitEpisode(_ video: Video, best: RankedStream, ranked: [RankedStream]) async {
         currentVideo = video
         currentStream = best.stream
+        reliabilityCounted = false
         sourceName = best.stream.name ?? best.stream.addonName ?? "Sorgente"
         request.video = video
         request.source = .stream(best.stream)

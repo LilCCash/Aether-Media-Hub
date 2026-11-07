@@ -181,6 +181,58 @@ public actor MetadataEnricher {
         }
     }
 
+    /// All the posters, backdrops and logos TMDB has for a title (empty when TMDB is not set up or does not know it).
+    public func artwork(for meta: MetaItem, language: String) async -> TitleArtwork {
+        guard let kind = MetadataEnricher.kind(forType: meta.type), let client = tmdb, client.isConfigured, !isPaused(.tmdb) else { return TitleArtwork() }
+        let ids = ExternalIDs.fromMetaID(meta.id).filling(from: meta.externalIDs)
+        if ids.isEmpty { return TitleArtwork() }
+        do {
+            let id = try await resolveTMDBID(client, kind: kind, ids: ids)
+            let list = try await client.imageList(kind: kind, id: id, language: language)
+            let configuration = await imageConfiguration(client)
+            let base = configuration.secureBaseURL ?? "https://image.tmdb.org/t/p/"
+            func urls(_ paths: [String]) -> [String] {
+                var seen = Set<String>()
+                return paths.filter { $0.hasPrefix("/") && $0.count > 1 && !$0.contains("..") }
+                    .map { (base.hasSuffix("/") ? base : base + "/") + "original" + $0 }.filter { seen.insert($0).inserted }
+            }
+            return TitleArtwork(posters: urls(list.posters), backdrops: urls(list.backdrops),
+                                logos: urls(list.logos.compactMap { $0.filePath }.filter { !$0.lowercased().hasSuffix(".svg") }))
+        } catch {
+            return TitleArtwork()
+        }
+    }
+
+    /// Films and series that come out in the next `days` days (the release calendar), most talked about first.
+    public func upcoming(language: String, region: String, days: Int = 120) async -> [DiscoveryCard] {
+        guard let client = tmdb, client.isConfigured, !isPaused(.tmdb) else { return [] }
+        let from = DiscoveryDates.format(Date())
+        let to = DiscoveryDates.format(Date().addingTimeInterval(Double(days) * 86_400))
+        let configuration = await imageConfiguration(client)
+        var cards: [DiscoveryCard] = []
+        for kind in [TMDBClient.Kind.movie, .tv] {
+            guard let items = try? await client.upcoming(kind: kind, language: language, region: region, from: from, to: to) else { continue }
+            cards += items.compactMap { MetadataEnricher.card($0, kind: kind, configuration: configuration) }
+        }
+        return cards.sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
+    }
+
+    /// Well rated titles with a wide picture, for the full-screen discovery; `page` 1...5 gives a different set.
+    public func acclaimed(type: String, language: String, page: Int) async -> [DiscoveryCard] {
+        guard let kind = MetadataEnricher.kind(forType: type), let client = tmdb, client.isConfigured, !isPaused(.tmdb) else { return [] }
+        let configuration = await imageConfiguration(client)
+        guard let items = try? await client.acclaimed(kind: kind, language: language, page: page) else { return [] }
+        return items.compactMap { MetadataEnricher.card($0, kind: kind, configuration: configuration) }.filter { $0.backdropURL != nil }
+    }
+
+    static func card(_ item: TMDBDiscoverItem, kind: TMDBClient.Kind, configuration: TMDBImageConfiguration) -> DiscoveryCard? {
+        guard let id = item.id, let title = item.title, !title.isEmpty else { return nil }
+        return DiscoveryCard(tmdbID: id, type: kind == .movie ? "movie" : "series", title: title, overview: item.overview ?? "",
+                             posterURL: imageURL(configuration, sizes: configuration.posterSizes, minimum: 500, path: item.posterPath),
+                             backdropURL: imageURL(configuration, sizes: configuration.backdropSizes, minimum: 1280, path: item.backdropPath),
+                             date: DiscoveryDates.parse(item.date), rating: item.voteAverage, genreIDs: item.genreIDs)
+    }
+
     // MARK: TMDB
 
     private func loadTMDB(_ client: TMDBClient, kind: TMDBClient.Kind, ids: ExternalIDs, language: String,

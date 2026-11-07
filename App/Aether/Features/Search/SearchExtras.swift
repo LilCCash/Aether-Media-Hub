@@ -35,7 +35,7 @@ struct SearchExtrasSection: View {
             if missingKey && query.count >= 3 {
                 VStack(alignment: .leading, spacing: 6) {
                     Label("Per vedere anche attori e registi serve la chiave TMDB (è gratuita).", systemImage: "person.crop.circle.badge.questionmark").font(.footnote.weight(.semibold))
-                    Button("Aggiungila in Altro ▸ Impostazioni ▸ Servizi") { router.tab = .more }.font(.footnote)
+                    Button("Aggiungila in Profilo ▸ Impostazioni ▸ Servizi") { router.open(.services) }.font(.footnote)
                 }
                 .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))

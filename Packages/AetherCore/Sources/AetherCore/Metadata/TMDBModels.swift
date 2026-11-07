@@ -251,17 +251,19 @@ struct TMDBErrorBody: Decodable {
 /// The posters TMDB has for a title (file paths, best rated first as TMDB lists them).
 struct TMDBImageList: Decodable {
     var posters: [String]
+    var backdrops: [String] = []
     var logos: [TMDBLogo]
 
     private struct File: Decodable {
         var file_path: String?
     }
 
-    private enum CodingKeys: String, CodingKey { case posters, logos }
+    private enum CodingKeys: String, CodingKey { case posters, backdrops, logos }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         posters = c.lossyArray(File.self, forKey: .posters).compactMap { $0.file_path }
+        backdrops = c.lossyArray(File.self, forKey: .backdrops).compactMap { $0.file_path }
         logos = c.lossyArray(TMDBLogo.self, forKey: .logos)
     }
 }

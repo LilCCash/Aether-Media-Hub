@@ -31,6 +31,7 @@ final class SettingsStore: ObservableObject {
         didSet {
             guard value != oldValue else { return }
             AetherTypography.design = AetherTypography.fontDesign(for: value.appearance.titleFont)
+            Haptics.enabled = value.appearance.haptics
             persist()
             snapshot.set(value)
             onChange?(value, oldValue)
@@ -51,6 +52,7 @@ final class SettingsStore: ObservableObject {
         self.value = loaded
         self.snapshot = SettingsSnapshot(loaded)
         AetherTypography.design = AetherTypography.fontDesign(for: loaded.appearance.titleFont)
+        Haptics.enabled = loaded.appearance.haptics
     }
 
     private func persist() {
@@ -79,9 +81,6 @@ final class SettingsStore: ObservableObject {
         case .dark: return .dark
         }
     }
-
-    /// The Pro interface is on (the look and the layout of some screens; the data and the features are the same in both).
-    var isPro: Bool { return value.appearance.interfaceMode == .pro }
 
     var accentColor: Color { value.appearance.customAccentHex.map { Color(hex: $0) } ?? Theme.accent(for: value.appearance.accent) }
 

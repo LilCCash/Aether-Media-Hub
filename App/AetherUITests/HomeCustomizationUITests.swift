@@ -102,7 +102,7 @@ final class HomeCustomizationUITests: AetherUITestCase {
 
     private func openAppearance() {
         openMoreRoot()
-        element("more.settings").tap()
+        element("profile.settings").tap()
         let row = element("settings.Aspetto")
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
@@ -188,7 +188,7 @@ final class HomeCustomizationUITests: AetherUITestCase {
 
         // The secret palette is now in the style screen.
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        element("more.settings").tap()
+        element("profile.settings").tap()
         let row = element("settings.Aspetto")
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()

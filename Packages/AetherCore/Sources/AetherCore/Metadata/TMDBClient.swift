@@ -87,6 +87,20 @@ public struct TMDBClient: Sendable {
         return try await get("/\(kind.rawValue)/\(id)/images", query: [("include_image_language", languages)])
     }
 
+    /// Titles that come out between two dates (`from` and `to` as yyyy-MM-dd), the most talked about first.
+    func upcoming(kind: Kind, language: String, region: String, from: String, to: String) async throws -> [TMDBDiscoverItem] {
+        let dateKey = kind == .movie ? "primary_release_date" : "first_air_date"
+        var query = [("language", language), ("sort_by", "popularity.desc"), ("\(dateKey).gte", from), ("\(dateKey).lte", to), ("page", "1")]
+        if kind == .movie { query.append(("region", region)); query.append(("with_release_type", "2|3")) }
+        return try await discover(kind: kind, query: query)
+    }
+
+    /// Well rated and well known titles, for the full-screen discovery (`page` 1...5 gives a different set).
+    func acclaimed(kind: Kind, language: String, page: Int) async throws -> [TMDBDiscoverItem] {
+        return try await discover(kind: kind, query: [("language", language), ("sort_by", "popularity.desc"), ("vote_average.gte", "7"),
+                                                      ("vote_count.gte", "800"), ("page", String(min(max(page, 1), 5)))])
+    }
+
     func externalIDs(kind: Kind, id: Int) async throws -> TMDBExternalIDs {
         return try await get("/\(kind.rawValue)/\(id)/external_ids", query: [])
     }

@@ -61,8 +61,8 @@ struct TitleLink<Label: View>: View {
 
     var body: some View {
         if settings.value.appearance.detailAsCard {
-            Button { router.detail = route } label: { label().contentShape(Rectangle()) }
-                .buttonStyle(.plain)
+            Button { Haptics.tap(); router.detail = route } label: { label().contentShape(Rectangle()) }
+                .buttonStyle(.pressable)
                 .zoomSource(id: route.id)
         } else {
             NavigationLink(value: route) { label() }

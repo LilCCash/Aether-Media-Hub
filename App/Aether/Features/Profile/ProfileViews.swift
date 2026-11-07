@@ -72,36 +72,15 @@ struct AvatarView: View {
     }
 }
 
-// MARK: Row in «Altro»
+// MARK: Profile editor
 
-/// The big row at the top of «Altro», like the account row of iOS Settings.
-struct ProfileHeaderRow: View {
-    @EnvironmentObject private var settings: SettingsStore
-
-    var body: some View {
-        let profile = settings.value.content.profile
-        HStack(spacing: 14) {
-            AvatarView(avatarID: profile.avatar, size: 64)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(profile.displayName ?? "Il tuo profilo").font(.title3.weight(.bold))
-                Text(profile.genres.isEmpty && profile.votes.isEmpty ? "Foto, gusti e voti" : "\(profile.genres.count) generi · \(profile.votes.count) voti")
-                    .font(.footnote).foregroundStyle(Color.aetherSecondary)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
-    }
-}
-
-// MARK: Profile page
-
-struct ProfileView: View {
+/// Everything about the viewer that can be changed: name, photo, genres, invites. Opened from the pencil at the top right of the Profile.
+struct ProfileEditorView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var env: AppEnvironment
     @ObservedObject private var photos = ProfilePhotoStore.shared
     @State private var pickedPhoto: PhotosPickerItem?
-    @State private var playing = false
 
     private var profile: ProfileSettings { return settings.value.content.profile }
 
@@ -110,12 +89,11 @@ struct ProfileView: View {
             headerSection
             avatarSection
             genresSection
-            tasteSection
             invitesSection
         }
-        .navigationTitle("Profilo")
+        .navigationTitle("Modifica profilo")
         .navigationBarTitleDisplayMode(.inline)
-        .fullScreenCover(isPresented: $playing) { TasteGameView() }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Fine") { dismiss() }.fontWeight(.semibold) } }
         .onChange(of: pickedPhoto) { _, item in
             guard let item = item else { return }
             Task {
@@ -203,36 +181,6 @@ struct ProfileView: View {
                 }
             }
             .padding(.vertical, 4)
-        }
-    }
-
-    private var tasteSection: some View {
-        Section(header: Text("Gusti")) {
-            Button { playing = true } label: {
-                HStack(spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous).fill(LinearGradient(colors: [.pink, .orange], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        Image(systemName: "hand.draw.fill").foregroundStyle(.white)
-                    }
-                    .frame(width: 34, height: 34)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Gioco dei gusti").font(.headline)
-                        Text("Scorri a destra se ti piace, a sinistra se no.").font(.caption).foregroundStyle(Color.aetherSecondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.aetherSecondary)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("profile.game")
-            NavigationLink { TasteVotesView() } label: {
-                HStack {
-                    Label("I miei voti", systemImage: "heart.text.square.fill")
-                    Spacer()
-                    Text("\(profile.likes.count) 👍 · \(profile.dislikes.count) 👎").font(.footnote).foregroundStyle(Color.aetherSecondary)
-                }
-            }
-            .accessibilityIdentifier("profile.votes")
         }
     }
 

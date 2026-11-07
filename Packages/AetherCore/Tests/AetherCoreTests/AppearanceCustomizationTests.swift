@@ -3,20 +3,21 @@ import XCTest
 
 final class AppearanceCustomizationTests: XCTestCase {
     private func decode(_ json: String) throws -> AppearanceSettings {
-        return try JSONDecoder.aether().decode(AppearanceSettings.self, from: Data(json.utf8))
+        let current = json.trimmingCharacters(in: .whitespacesAndNewlines) == "{}" ? #"{"schema":2}"# : json.replacingOccurrences(of: "{", with: #"{"schema":2,"#, options: [], range: json.range(of: "{"))
+        return try JSONDecoder.aether().decode(AppearanceSettings.self, from: Data(current.utf8))
     }
 
     // MARK: Defaults
 
-    func testDefaultsKeepTheOneDotZeroLook() {
+    func testDefaultsAreTheStandardLook() {
         let a = AppearanceSettings()
-        XCTAssertEqual(a.heroStyle, .card)
+        XCTAssertEqual(a.heroStyle, .fullBleed)
         XCTAssertTrue(a.heroAutoScroll)
         XCTAssertEqual(a.palette, .aether)
-        XCTAssertEqual(a.backdrop, .aurora)
-        XCTAssertEqual(a.cardChrome, .standard)
-        XCTAssertEqual(a.cornerStyle, .standard)
-        XCTAssertEqual(a.cornerStyle.radius, 14, "the radius posters have always had")
+        XCTAssertEqual(a.backdrop, .spotlight)
+        XCTAssertEqual(a.cardChrome, .glow)
+        XCTAssertEqual(a.cornerStyle, .rounded)
+        XCTAssertEqual(a.cornerStyle.radius, 20)
         XCTAssertEqual(a.titleFont, .rounded)
         XCTAssertFalse(a.greetingEnabled)
         XCTAssertTrue(a.unlockedSecrets.isEmpty)
@@ -63,7 +64,7 @@ final class AppearanceCustomizationTests: XCTestCase {
         {"theme":"dark","homeSections":[{"id":"catalogs","isVisible":false},{"id":"hero","isVisible":true},{"id":"watchlist","isVisible":true},{"id":"continue","isVisible":false},{"id":"nextUp","isVisible":true}]}
         """)
         XCTAssertEqual(a.homeSections.map { $0.id }, ["catalogs", "hero", "watchlist", "continue", "nextUp", "universes", "forYou"])
-        XCTAssertEqual(a.homeSections.map { $0.isVisible }, [false, true, true, false, true, false, false])
+        XCTAssertEqual(a.homeSections.map { $0.isVisible }, [false, true, true, false, true, true, true])
         XCTAssertEqual(a.theme, .dark)
     }
 
@@ -102,7 +103,7 @@ final class AppearanceCustomizationTests: XCTestCase {
         XCTAssertEqual(a.heroStyle, .fullBleed)
         XCTAssertEqual(a.palette, .ocean)
         XCTAssertEqual(a.backdrop, .flow)
-        XCTAssertEqual(a.cardChrome, .standard)
+        XCTAssertEqual(a.cardChrome, .glow)
         XCTAssertEqual(a.cornerStyle, .bubble)
         XCTAssertEqual(a.titleFont, .serif)
     }

@@ -397,7 +397,7 @@ struct PlayerSubtitlesPanel: View {
             case .noProvider:
                 EmptyStateView(systemImage: "captions.bubble",
                                title: "Nessun addon di sottotitoli installato",
-                               message: "Installa un addon di sottotitoli da Altro → Addon (OpenSubtitles v3 è tra i consigliati) per cercarli qui. Puoi sempre importare un file.")
+                               message: "Installa un addon di sottotitoli da Profilo ▸ Impostazioni ▸ Addon (OpenSubtitles v3 è tra i consigliati) per cercarli qui. Puoi sempre importare un file.")
                     .accessibilityIdentifier("subtitle.empty.noAddons")
             case .nothingFound:
                 EmptyStateView(systemImage: "text.bubble", title: nothingFoundTitle, message: nothingFoundMessage)

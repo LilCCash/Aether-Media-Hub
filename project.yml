@@ -103,12 +103,13 @@ targets:
             UIApplicationShortcutItemTitle: Libreria
             UIApplicationShortcutItemIconSymbolName: books.vertical.fill
           - UIApplicationShortcutItemType: app.aether.downloads
-            UIApplicationShortcutItemTitle: Altro e download
+            UIApplicationShortcutItemTitle: Download
             UIApplicationShortcutItemIconSymbolName: arrow.down.circle.fill
         CFBundleURLTypes:
           - CFBundleURLName: app.aether.links
             CFBundleTypeRole: Editor
             CFBundleURLSchemes: [aether, stremio]
+        NSPhotoLibraryAddUsageDescription: "Aether salva nelle Foto le immagini e gli sfondi che scegli di scaricare. Non legge le tue foto."
         NSLocalNetworkUsageDescription: "Aether usa la rete locale per trovare dispositivi Google Cast e DLNA, per raggiungere gli addon che ospiti nella tua rete e per passare al televisore, senza mostrargli la tua chiave, i video che la richiedono."
         LSApplicationQueriesSchemes:
           - vlc-x-callback

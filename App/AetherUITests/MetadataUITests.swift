@@ -9,7 +9,7 @@ final class MetadataUITests: AetherUITestCase {
 
     private func openServices() {
         openMoreRoot()
-        element("more.settings").tap()
+        element("profile.settings").tap()
         let services = element("settings.Servizi")
         XCTAssertTrue(services.waitForExistence(timeout: 10), "the Servizi page is not listed in the settings")
         services.tap()

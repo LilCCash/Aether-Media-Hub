@@ -31,10 +31,13 @@ public struct SourceScoring: Codable, Equatable, Sendable {
     public var sizeWeight: Int = 1
     public var codec: CodecPreference = .any
     public var codecWeight: Int = 1
+    /// Learn from how the sources of each addon played (see `SourceReliability`). On by default.
+    public var learnsFromPlayback: Bool = true
+    public var reliability = SourceReliability()
 
     public init() {}
 
-    private enum CodingKeys: String, CodingKey { case video, hdr, audio, size, sizeWeight, codec, codecWeight }
+    private enum CodingKeys: String, CodingKey { case video, hdr, audio, size, sizeWeight, codec, codecWeight, learnsFromPlayback, reliability }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         func weight(_ key: CodingKeys) -> Int { return min(3, max(0, (try? c.decode(Int.self, forKey: key)) ?? 0)) }
@@ -45,9 +48,16 @@ public struct SourceScoring: Codable, Equatable, Sendable {
         codecWeight = max(1, weight(.codecWeight))
         size = (try? c.decode(SizePreference.self, forKey: .size)) ?? .none
         codec = (try? c.decode(CodecPreference.self, forKey: .codec)) ?? .any
+        learnsFromPlayback = (try? c.decode(Bool.self, forKey: .learnsFromPlayback)) ?? true
+        reliability = (try? c.decode(SourceReliability.self, forKey: .reliability)) ?? SourceReliability()
     }
 
     public var isNeutral: Bool { return video == 0 && hdr == 0 && audio == 0 && size == .none && codec == .any }
+
+    /// What the history of plays says about the addon a source comes from (zero when learning is off or there is no history).
+    public func reliabilityBonus(addonID: String?) -> Int {
+        return learnsFromPlayback ? reliability.bonus(addonID: addonID) : 0
+    }
 
     /// The points a source earns (or loses) for these criteria. Zero when the criteria are neutral, so that the default ranking is untouched.
     public func bonus(for info: StreamInfo) -> Int {

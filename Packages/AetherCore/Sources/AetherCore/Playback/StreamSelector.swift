@@ -82,6 +82,7 @@ public enum StreamSelector {
                 if !info.warnings.isEmpty { score -= 25 }
                 if info.needsHeaders { score -= 10 }
                 score += preferences.scoring.bonus(for: info)
+                score += preferences.scoring.reliabilityBonus(addonID: stream.addonID)
             }
             if let addonID = stream.addonID, let order = preferences.addonOrder.firstIndex(of: addonID) {
                 score += max(0, 8 - order)

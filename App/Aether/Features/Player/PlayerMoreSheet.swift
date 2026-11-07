@@ -6,6 +6,7 @@ import AetherCore
 struct PlayerMoreSheet: View {
     @ObservedObject var model: PlayerViewModel
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var env: AppEnvironment
     @Environment(\.dismiss) private var dismiss
     let openPanel: (PlayerPanel) -> Void
     let importSubtitle: () -> Void
@@ -61,7 +62,11 @@ struct PlayerMoreSheet: View {
                     Button { dismiss(); importSubtitle() } label: { Label("Importa sottotitoli…", systemImage: "doc.badge.plus") }
                     Button { show(.info) } label: { Label("Informazioni sulla sorgente", systemImage: "info.circle") }
                     if model.sharePlayAvailable {
-                        Button { dismiss(); model.startWatchTogether() } label: { Label("Guarda insieme (SharePlay)", systemImage: "shareplay") }
+                        if env.watchTogether.isActive {
+                            Button { show(.chat) } label: { Label("Chat del cinema insieme", systemImage: "bubble.left.and.bubble.right.fill") }
+                        } else {
+                            Button { dismiss(); model.startWatchTogether() } label: { Label("Guarda insieme (SharePlay)", systemImage: "shareplay") }
+                        }
                     }
                 }
                 Section("Per goderti il film") {

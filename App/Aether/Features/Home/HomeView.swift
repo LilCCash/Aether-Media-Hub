@@ -14,7 +14,6 @@ struct HomeView: View {
     @Environment(\.aetherStyle) private var style
     /// The film at the front of the featured carousel: the Home takes the colours of this one.
     @State private var heroPageID: String?
-    @State private var showingProfile = false
 
     var body: some View {
         NavigationStack {
@@ -24,9 +23,6 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showingCast) {
                 CastSheet()
-            }
-            .sheet(isPresented: $showingProfile) {
-                NavigationStack { ProfileView().toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Fine") { showingProfile = false } } } }
             }
             // Cinematic: the Home takes the colours of the featured film.
             .task(id: (style.mood ? (heroPageID ?? model.heroItems.first?.id) : nil) ?? "") {
@@ -49,40 +45,8 @@ struct HomeView: View {
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                if settings.isPro {
-                    ToolbarItem(placement: .topBarLeading) {
-                        homeButton("film", "Apri Theater Mode", id: "home.theater") { router.theater = true }
-                    }
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        homeButton("tv.and.mediabox", "Trasmetti su un dispositivo", id: "home.cast") { showingCast = true }
-                        Button { showingProfile = true } label: {
-                            AvatarView(avatarID: settings.value.content.profile.avatar, size: 30)
-                        }
-                        .accessibilityLabel("Profilo")
-                        .accessibilityIdentifier("home.profile")
-                    }
-                } else {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            router.theater = true
-                        } label: {
-                            Label("Theater Mode", systemImage: "film")
-                                .font(.subheadline.weight(.semibold))
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(settings.accentColor)
-                        .accessibilityLabel("Apri Theater Mode")
-                        .accessibilityIdentifier("home.theater")
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showingCast = true
-                        } label: {
-                            Image(systemName: "tv.and.mediabox")
-                        }
-                        .accessibilityLabel("Trasmetti su un dispositivo")
-                        .accessibilityIdentifier("home.cast")
-                    }
+                ToolbarItem(placement: .topBarTrailing) {
+                    homeButton("tv.and.mediabox", "Trasmetti su un dispositivo", id: "home.cast") { showingCast = true }
                 }
             }
             .navigationDestination(for: MetaRoute.self) { route in
@@ -117,7 +81,7 @@ struct HomeView: View {
                                    message: "Aether mostra contenuti solo tramite addon compatibili con il protocollo Stremio. Installa il tuo primo addon per riempire Home e Scopri.",
                                    actionTitle: "Installa Cinemeta (consigliato)",
                                    action: { showingInstall = true })
-                    Button("Aggiungi un addon da URL") { router.tab = .more }
+                    Button("Aggiungi un addon da URL") { router.open(.addons) }
                         .buttonStyle(SecondaryActionButtonStyle())
                     Text("Aether non fornisce contenuti né addon preinstallati. Cinemeta è il catalogo di metadati ufficiale di Stremio.")
                         .font(.footnote).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.center)

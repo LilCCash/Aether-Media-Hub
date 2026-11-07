@@ -2,7 +2,12 @@ import SwiftUI
 import AetherCore
 
 enum AppTab: String, Hashable {
-    case home, discover, universe, live, library, search, more
+    case home, discover, universe, live, library, search, profile
+}
+
+/// Pages inside the Profile tab other screens can send the viewer to.
+enum ProfileRoute: Hashable {
+    case settings, addons, services
 }
 
 /// Navigation target for a title detail screen.
@@ -89,10 +94,15 @@ final class AppRouter: ObservableObject {
     var note: (String) -> Void = { _ in }
     /// What to do once the player closes (closing the source list that is still under it).
     var afterPlayer: (() -> Void)?
-    /// Theater Mode (the landscape cinema browser) is open.
-    @Published var theater = false
     @Published var detail: MetaRoute?
     @Published var pendingAddonInput: String?
+    /// A page of the Profile tab that something else asked for (the addons, the services, the settings); consumed by the tab.
+    @Published var profileRoute: ProfileRoute?
+
+    func open(_ route: ProfileRoute) {
+        profileRoute = route
+        tab = .profile
+    }
     @Published var pendingSearch: String?
 
     func openDetail(_ meta: MetaItem) {
@@ -108,7 +118,7 @@ final class AppRouter: ObservableObject {
         guard let scheme = url.scheme?.lowercased() else { return }
         if let installURL = AddonURL.installURL(fromDeepLink: url) {
             pendingAddonInput = installURL.absoluteString
-            tab = .more
+            open(.addons)
             return
         }
         if scheme == "stremio" || scheme == "aether" {

@@ -1,24 +1,19 @@
-# Interfaccia Pro — stato rispetto alla visione
+# Aether rifatta — stato
 
-L'app ora è una sola («Aether»): l'interfaccia Pro è un interruttore in Impostazioni ▸ Aspetto. Le funzioni nuove valgono in entrambe le interfacce.
-**Nulla è provato su un iPhone.** ✅ nel codice con test dove possibile · 🟡 sperimentale o parziale · ☐ non fatto.
+L'interfaccia Pro è ora **l'unica** di Aether: non esiste più l'interruttore Classica/Pro né Theater Mode.
+**Nulla è provato su un iPhone.** ✅ nel codice (con test dove possibile, in CI) · 🟡 sperimentale o parziale.
 
 | Area | Stato | Note |
 |---|---|---|
-| Interruttore Classica / Pro | ✅ | `AppearanceSettings.switchInterface`: ricorda l'aspetto della Classica e lo ripristina (test). Struttura: barra, Home, pagina titolo. |
-| Barra di sistema (Pro: 4 voci + ricerca separata) | 🟡 | Usa il ruolo «search» di `Tab` (iOS 18; la separazione in Liquid Glass la disegna iOS 26). Prima di iOS 18 resta la barra a 5 voci. |
-| Universe (14 universi, ordini, progresso, attori che tornano, collegamenti) | ✅ | ID confrontati con Cinemeta. Ordine della storia **editoriale**. Collegamenti solo se fatti certi (Alien↔Predator). |
-| Persone (bolla, ruoli, biografia, premi, collaborazioni, ricerca) | ✅ | TMDB (chiave tua) e Wikidata per i premi. |
-| Diario, timeline, statistiche | ✅ | Nelle impostazioni (quindi nei backup). |
-| Libreria: visti, abbandonati, collezioni; «Scelti per te» | ✅ | |
-| Intelligenza delle fonti | 🟡 | Pesi configurabili; HDR e audio dal nome della release (etichette, non misure). |
-| Companion + domande all'AI | 🟡 | Fatti da metadati e universi; l'AI usa la tua chiave. |
-| Modalità Cinema | 🟡 | Scheda prima del film e controlli minimi. |
-| Anteprime sulla barra di avanzamento | 🟡 | FFmpeg (già nell'app) legge il fotogramma chiave dal file ORIGINALE: vale per MKV, AVI, TS, WebM, HLS e MP4, con AVPlayer e con MPV. Mai provato su dispositivo; l'HDR può apparire spento e un 4K ad alto bitrate può tardare. Se FFmpeg non riesce, AVFoundation (solo AVPlayer e file semplici). |
-| Opzioni del player (foglio) | ✅ | Sostituisce il menu che sfarfallava. |
-| PiP con MPV | 🟡 | Sperimentale, spento di default: renderer software di libmpv su `AVSampleBufferDisplayLayer`; niente HDR. Mai provato su dispositivo. |
-| Sincronizzazione | 🟡 | Un file in una cartella scelta (iCloud Drive o altro): unisce libreria, cronologia, diario, collezioni, voti. Non è CloudKit. Mai provata con due dispositivi. |
-| Inviti | ✅ | Fino a 6 al giorno, di default 4, con testi adatti all'ora. |
-| Handoff | 🟡 | Dalla pagina titolo. |
-| Backup con chiavi | ✅ | Ora anche Real-Debrid e le chiavi AI (solo se scegli di includerle). |
-| Misurare il file prima di avviarlo | ☐ | HDR e audio restano dedotti dal nome. |
+| Barra di sistema: Home, Scopri, Libreria, Profilo + Ricerca separata | 🟡 | Ruolo «search» di `Tab` (iOS 18; Liquid Glass da iOS 26). Prima di iOS 18 resta la barra a 5 voci. |
+| Aspetto rifatto: stili pronti, colori, sfondo, schede, movimento | ✅ | `AppearanceSettings` (schema 2) e `LookPreset`; chi aggiorna riparte dallo standard (nome, ordine Home, libreria restano). Test in Core. |
+| Profilo: matita (modifica), ingranaggio (Impostazioni), Il mio universo, diario, statistiche, confronto voti, gusti | ✅ | Diario/timeline/statistiche solo qui. |
+| Storage con barra Film/Serie/Cache/Altro e spazio recuperabile | ✅ | Film/Serie dai download; «recuperabile» = cache + file inutilizzati + download già visti. |
+| Artwork Explorer, sfondi iPhone, modalità ambiente | 🟡 | Immagini TMDB (chiave tua). Gli sfondi si salvano nelle Foto (permesso «solo aggiungere»). Niente trailer/colonna sonora nell'ambiente. |
+| Scoperta cinematografica, Calendario uscite (promemoria), consigli AI | 🟡 | TMDB; promemoria = notifica locale alle 10 del giorno di uscita; l'AI usa il modello scelto in Ricerca avanzata. |
+| Mappa della timeline degli universi | ✅ | Ordine di uscita e, dove c'è, ordine della storia (editoriale). |
+| Apertura cinematografica (suono originale) e titoli di coda in scena | 🟡 | Il suono è sintetizzato nel codice. L'apertura mette in pausa il film finché non finisce. |
+| Chat del cinema insieme | 🟡 | Sopra SharePlay (serve l'entitlement; con SideStore può non esserci). |
+| Intelligenza delle fonti che impara | ✅ | `SourceReliability`: bonus da -60 a +30 per addon dopo 3 riproduzioni, spegnibile. |
+| Live TV: cataloghi che rispondono con una pagina | 🟡 | Secondo tentativo con User-Agent da browser e messaggio chiaro; non verificato con i servizi reali. |
+| Universe, Persone, Companion, PiP con MPV, anteprime FFmpeg, sincronizzazione cartella, handoff | come prima | Vedi le note delle build precedenti. |

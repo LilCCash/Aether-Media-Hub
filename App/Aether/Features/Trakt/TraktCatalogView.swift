@@ -1,7 +1,7 @@
 import SwiftUI
 import AetherCore
 
-/// Altro ▸ Trakt: i cataloghi di Trakt (in tendenza, popolari, consigliati, la tua lista, le tue liste, da riprendere, calendario).
+/// Profilo ▸ Collegamenti ▸ Trakt: i cataloghi di Trakt (in tendenza, popolari, consigliati, la tua lista, le tue liste, da riprendere, calendario).
 struct TraktCatalogView: View {
     @EnvironmentObject private var settings: SettingsStore
     @ObservedObject var trakt: TraktService

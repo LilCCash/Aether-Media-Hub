@@ -71,15 +71,27 @@ public final class AddonClient: Sendable {
         }
 
         do {
-            let response = try await http.send(HTTPRequest(url: url, timeout: timeout, maxBytes: HTTPLimits.resource))
+            var response = try await http.send(HTTPRequest(url: url, timeout: timeout, maxBytes: HTTPLimits.resource))
             try AddonClient.checkStatus(response)
+            var body = AddonClient.cleanedJSON(response.data)
+            if AddonClient.looksLikeHTML(body) {
+                // Some services (live TV above all) answer a page for a request that does not look like a browser's: one more try as one.
+                let retry = try await http.send(HTTPRequest(url: url, headers: ["User-Agent": AddonClient.browserUserAgent, "Accept": "application/json, text/plain, */*"],
+                                                            timeout: timeout, maxBytes: HTTPLimits.resource))
+                try AddonClient.checkStatus(retry)
+                response = retry
+                body = AddonClient.cleanedJSON(retry.data)
+            }
             let decoded: AddonResponse
             do {
-                decoded = try ResponseDecoder.decode(response.data, resource: path.resource,
+                decoded = try ResponseDecoder.decode(body, resource: path.resource,
                                                      expectsDetailedCatalog: detailedCatalog)
             } catch let error as ResponseDecodingError {
                 switch error {
-                case .notJSON: throw AddonError.malformedResponse("non è JSON")
+                case .notJSON:
+                    throw AddonError.malformedResponse(AddonClient.looksLikeHTML(body)
+                        ? "il servizio risponde con una pagina web invece dei dati (è offline, protetto da un controllo anti-bot o l'indirizzo non è quello dell'addon)"
+                        : "non è JSON")
                 case .notAnObject: throw AddonError.malformedResponse("non è un oggetto JSON")
                 case .missingKey(let missing): throw AddonError.malformedResponse("manca «\(missing)»")
                 }
@@ -87,7 +99,7 @@ public final class AddonClient: Sendable {
             if mode != .noCache, let cache = cache {
                 var hints = decoded.cache
                 if hints.maxAge == nil, let override = maxAgeOverride(kind) { hints.maxAge = override }
-                await cache.store(key: key, data: response.data, kind: kind, hints: hints)
+                await cache.store(key: key, data: body, kind: kind, hints: hints)
             }
             return decoded
         } catch {
@@ -103,6 +115,28 @@ public final class AddonClient: Sendable {
     }
 
     // MARK: Helpers
+
+    static let browserUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+
+    /// The body without a byte-order mark, leading blanks, or text before the first `{`/`[` (a few services wrap their JSON in a comment or a
+    /// callback). Anything else is returned as it came.
+    static func cleanedJSON(_ data: Data) -> Data {
+        var bytes = data
+        if bytes.starts(with: [0xEF, 0xBB, 0xBF]) { bytes = bytes.dropFirst(3) }
+        guard let first = bytes.firstIndex(where: { $0 != 0x20 && $0 != 0x0A && $0 != 0x0D && $0 != 0x09 }) else { return Data(bytes) }
+        if bytes[first] == UInt8(ascii: "{") || bytes[first] == UInt8(ascii: "[") { return Data(bytes[first...]) }
+        if bytes[first] == UInt8(ascii: "<") { return Data(bytes[first...]) }
+        if let open = bytes.firstIndex(where: { $0 == UInt8(ascii: "{") }), let close = bytes.lastIndex(where: { $0 == UInt8(ascii: "}") }), open < close,
+           open - first < 64 {
+            return Data(bytes[open...close])
+        }
+        return Data(bytes[first...])
+    }
+
+    static func looksLikeHTML(_ data: Data) -> Bool {
+        guard let first = data.first(where: { $0 != 0x20 && $0 != 0x0A && $0 != 0x0D && $0 != 0x09 }) else { return false }
+        return first == UInt8(ascii: "<")
+    }
 
     static func checkStatus(_ response: HTTPResponse) throws {
         if response.isSuccess { return }

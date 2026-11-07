@@ -69,7 +69,7 @@ struct TraktSettingsView: View {
                 } header: {
                     Text("Cataloghi nella pagina Trakt")
                 } footer: {
-                    Text("La pagina Trakt è in Altro ▸ Trakt. Alcuni cataloghi (consigliati, watchlist, da riprendere, calendario, liste) richiedono l'account collegato. Nomi, trame e locandine vengono da TMDB: senza la sua chiave (Impostazioni ▸ Servizi) i titoli compaiono senza immagine.")
+                    Text("La pagina Trakt è nel Profilo, sotto «Collegamenti». Alcuni cataloghi (consigliati, watchlist, da riprendere, calendario, liste) richiedono l'account collegato. Nomi, trame e locandine vengono da TMDB: senza la sua chiave (Impostazioni ▸ Servizi e chiavi) i titoli compaiono senza immagine.")
                 }
             }
         }

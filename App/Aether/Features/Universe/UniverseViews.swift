@@ -159,6 +159,7 @@ struct UniverseDetailView: View {
     @State private var order: UniverseOrder = .release
     @State private var filter: Filter = .all
     @State private var editing = false
+    @State private var showingMap = false
 
     enum Filter: String, CaseIterable, Identifiable {
         case all = "Tutto", films = "Film", series = "Serie", missing = "Mancanti"
@@ -215,7 +216,12 @@ struct UniverseDetailView: View {
         }
         .navigationTitle(universe.name)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingMap) { UniverseMapView(universe: universe) }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showingMap = true } label: { Image(systemName: "point.topleft.down.to.point.bottomright.curvepath") }
+                    .accessibilityLabel("Mappa della timeline")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { settings.value.content.universes.toggleFollow(universe.id) } label: {
                     Image(systemName: follows ? "star.fill" : "star")

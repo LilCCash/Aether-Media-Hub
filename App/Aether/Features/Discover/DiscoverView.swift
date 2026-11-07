@@ -446,6 +446,9 @@ struct DiscoverView: View {
     @EnvironmentObject private var router: AppRouter
     @StateObject private var model = DiscoverViewModel()
     @State private var showingCustomize = false
+    @State private var showingCinematic = false
+    @State private var showingCalendar = false
+    @State private var showingAI = false
 
     private var storedTypes: [DiscoverTypeSetting] {
         return settings.value.content.discoverTypes
@@ -462,20 +465,24 @@ struct DiscoverView: View {
             ZStack {
                 AetherBackdrop()
                 VStack(spacing: 0) {
+                    exploreStrip
                     if !types.isEmpty { controls(types) }
                     content(layout)
                 }
             }
+            .fullScreenCover(isPresented: $showingCinematic) { CinematicDiscoveryView() }
+            .sheet(isPresented: $showingCalendar) { ReleaseCalendarView() }
+            .sheet(isPresented: $showingAI) { AIDiscoverySheet() }
             .navigationTitle("Scopri")
             .navigationDestination(for: MetaRoute.self) { DetailView(route: $0).zoomDestination(id: $0.id) }
             .toolbar {
                 // Universe and Live TV live here, with the other ways of finding something to watch.
                 ToolbarItemGroup(placement: .topBarLeading) {
-                    Button { router.universeSheet = true } label: { Label("Universe", systemImage: "sparkles.tv.fill").labelStyle(.titleAndIcon).font(.subheadline.weight(.semibold)) }
-                        .buttonStyle(.bordered).tint(settings.accentColor)
+                    Button { router.universeSheet = true } label: { Image(systemName: "sparkles.tv.fill") }
+                        .accessibilityLabel("Universe")
                         .accessibilityIdentifier("discover.universe")
-                    Button { router.liveSheet = true } label: { Label("Live TV", systemImage: "tv.fill").labelStyle(.titleAndIcon).font(.subheadline.weight(.semibold)) }
-                        .buttonStyle(.bordered).tint(settings.accentColor)
+                    Button { router.liveSheet = true } label: { Image(systemName: "tv.fill") }
+                        .accessibilityLabel("Live TV")
                         .accessibilityIdentifier("discover.live")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -622,6 +629,31 @@ struct DiscoverView: View {
     // MARK: Content
 
     @ViewBuilder
+    /// Two ways of finding something that are not a list: the full-screen discovery and the calendar of what is coming out.
+    private var exploreStrip: some View {
+        HStack(spacing: 10) {
+            explorePill("Scoperta", "rectangle.stack.fill", id: "discover.cinematic") { showingCinematic = true }
+            explorePill("Calendario", "calendar", id: "discover.calendar") { showingCalendar = true }
+            explorePill("Per te", "sparkles", id: "discover.ai") { showingAI = true }
+        }
+        .padding(.horizontal, Theme.pageMargin)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
+    }
+
+    private func explorePill(_ title: String, _ icon: String, id: String, action: @escaping () -> Void) -> some View {
+        Button { Haptics.tap(); action() } label: {
+            Label(title, systemImage: icon)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .aetherGlassCapsule(tint: settings.accentColor.opacity(0.35), interactive: true)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityIdentifier(id)
+    }
+
     private func content(_ layout: DiscoverLayoutState) -> some View {
         if !model.hasLoaded {
             ScrollView {
@@ -632,7 +664,7 @@ struct DiscoverView: View {
                 EmptyStateView(systemImage: "square.grid.2x2",
                                title: "Niente da scoprire (ancora)",
                                message: "Scopri si costruisce dai cataloghi degli addon installati. Se nessun addon espone un catalogo, non mostro categorie vuote.",
-                               actionTitle: "Gestisci gli addon", action: { router.tab = .more })
+                               actionTitle: "Gestisci gli addon", action: { router.open(.addons) })
                     .padding(.top, 60)
                     .accessibilityIdentifier("discover.empty")
             }

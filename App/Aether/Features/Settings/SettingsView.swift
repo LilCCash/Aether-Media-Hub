@@ -1,126 +1,37 @@
 import SwiftUI
 import AetherCore
 
-struct MoreView: View {
-    @EnvironmentObject private var addons: AddonStore
-    @EnvironmentObject private var casting: CastCoordinator
-    @EnvironmentObject private var router: AppRouter
-    @EnvironmentObject private var env: AppEnvironment
-    @EnvironmentObject private var appSettings: SettingsStore
-    @State private var path = NavigationPath()
-
-    enum Destination: Hashable { case diary, profile, addons, stats, trakt, casting, settings, about }
-
-    var body: some View {
-        NavigationStack(path: $path) {
-            List {
-                Section {
-                    NavigationLink(value: Destination.profile) { ProfileHeaderRow() }
-                        .accessibilityIdentifier("more.profile")
-                }
-                Section {
-                    Button { router.universeSheet = true } label: { rowLabel("Universe", "sparkles.tv.fill", .purple, detail: nil) }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("more.universe")
-                    Button { router.liveSheet = true } label: { rowLabel("Live TV", "tv.fill", .red, detail: nil) }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("more.live")
-                    NavigationLink(value: Destination.diary) { rowLabel("Diario e statistiche", "book.closed.fill", .brown, detail: nil) }
-                        .accessibilityIdentifier("more.diary")
-                }
-                Section {
-                    NavigationLink(value: Destination.addons) {
-                        rowLabel("Addon", "puzzlepiece.extension.fill", .indigo,
-                                 detail: addons.addons.isEmpty ? "Nessuno" : "\(addons.enabledAddons.count) attivi")
-                    }
-                    .accessibilityIdentifier("more.addons")
-                    NavigationLink(value: Destination.stats) {
-                        rowLabel("Statistiche", "chart.bar.fill", .orange, detail: nil)
-                    }
-                    .accessibilityIdentifier("more.stats")
-                    if appSettings.value.content.trakt.enabled {
-                        NavigationLink(value: Destination.trakt) {
-                            rowLabel("Trakt", "play.square.stack.fill", .red, detail: env.trakt.user?.username)
-                        }
-                        .accessibilityIdentifier("more.trakt")
-                    }
-                    NavigationLink(value: Destination.casting) {
-                        rowLabel("Casting", "tv.and.mediabox.fill", .teal, detail: casting.statusSummary)
-                    }
-                    .accessibilityIdentifier("more.casting")
-                }
-                Section {
-                    NavigationLink(value: Destination.settings) {
-                        rowLabel("Impostazioni", "gearshape.fill", .gray, detail: nil)
-                    }
-                    .accessibilityIdentifier("more.settings")
-                    NavigationLink(value: Destination.about) {
-                        rowLabel("Informazioni e licenze", "info.circle.fill", .blue, detail: nil)
-                    }
-                    .accessibilityIdentifier("more.about")
-                }
-            }
-            .navigationTitle("Altro")
-            .navigationDestination(for: Destination.self) { destination in
-                switch destination {
-                case .diary: DiaryView()
-                case .profile: ProfileView()
-                case .addons: AddonsView()
-                case .stats: StatsView()
-                case .trakt: TraktCatalogView(trakt: env.trakt)
-                case .casting: CastView()
-                case .settings: SettingsRootView()
-                case .about: AboutView()
-                }
-            }
-            .onChange(of: router.pendingAddonInput) { _, input in
-                if input != nil && path.isEmpty { path.append(Destination.addons) }
-            }
-            .onAppear {
-                if router.pendingAddonInput != nil && path.isEmpty { path.append(Destination.addons) }
-            }
-        }
-    }
-
-    private func rowLabel(_ title: String, _ icon: String, _ color: Color, detail: String?) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 30, height: 30)
-                .background(color.gradient, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            Text(title)
-            Spacer()
-            if let detail = detail { Text(detail).font(.footnote).foregroundStyle(Color.aetherSecondary) }
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
 struct SettingsRootView: View {
     @EnvironmentObject private var env: AppEnvironment
 
     var body: some View {
         List {
-            Section {
+            Section(header: Text("Aspetto e riproduzione")) {
                 link("Aspetto", "paintpalette.fill", .pink) { AppearanceSettingsView() }
-                link("Theater Mode", "film.stack.fill", .yellow) { TheaterSettingsView() }
                 link("Riproduzione", "play.rectangle.fill", .orange) { PlaybackSettingsView() }
                 link("Intelligenza delle fonti", "wand.and.stars", .purple) { SourceScoringSettingsView() }
-                link("Contenuti e scoperta", "square.grid.2x2.fill", .green) { ContentSettingsView() }
+            }
+            Section(header: Text("Contenuti")) {
+                link("Addon", "puzzlepiece.extension.fill", .indigo) { AddonsView() }
+                link("Cataloghi e scoperta", "square.grid.2x2.fill", .green) { ContentSettingsView() }
                 link("Live TV", "tv.fill", .red) { LiveTVSettingsView() }
                 link("Ricerca avanzata", "sparkle.magnifyingglass", .mint) { AdvancedSearchSettingsView() }
-                link("Indicizzazione", "magnifyingglass.circle.fill", .indigo) { IndexingSettingsView() }
-                link("Trakt", "play.square.stack.fill", .red) { TraktSettingsView(trakt: env.trakt) }
-                link("Casting", "tv.and.mediabox.fill", .teal) { CastingSettingsView() }
-                link("Servizi", "key.fill", .purple) { ServicesSettingsView() }
+                link("Indicizzazione", "magnifyingglass.circle.fill", .blue) { IndexingSettingsView() }
             }
-            Section {
-                link("Archiviazione", "internaldrive.fill", .brown) { StorageSettingsView() }
+            Section(header: Text("Account e servizi")) {
+                link("Servizi e chiavi", "key.fill", .purple) { ServicesSettingsView() }
+                link("Trakt", "play.square.stack.fill", .red) { TraktSettingsView(trakt: env.trakt) }
                 link("Sincronizzazione", "icloud.fill", .cyan) { SyncSettingsView() }
                 link("Account e dati", "person.crop.circle.fill", .blue) { AccountDataSettingsView() }
+            }
+            Section(header: Text("Dispositivo")) {
+                link("Casting", "tv.and.mediabox.fill", .teal) { CastingSettingsView() }
+                link("Archiviazione", "internaldrive.fill", .brown) { StorageSettingsView() }
                 link("Funzioni extra", "sparkles", .cyan) { ExtrasSettingsView() }
                 link("Avanzate", "wrench.and.screwdriver.fill", .gray) { AdvancedSettingsView() }
+            }
+            Section {
+                link("Informazioni e licenze", "info.circle.fill", .blue) { AboutView() }
             }
         }
         .navigationTitle("Impostazioni")
@@ -141,90 +52,6 @@ struct SettingsRootView: View {
             }
         }
         .accessibilityIdentifier("settings.\(title)")
-    }
-}
-
-// MARK: - Appearance
-
-struct AppearanceSettingsView: View {
-    @EnvironmentObject private var settings: SettingsStore
-    @EnvironmentObject private var env: AppEnvironment
-
-    var body: some View {
-        Form {
-            Section(header: Text("Interfaccia"), footer: Text(settings.value.appearance.interfaceMode.explanation + " Passando da una all'altra non perdi nulla: libreria, cronologia, diario e impostazioni sono gli stessi, e tornando alla Classica ritrovi tema, colori e aspetto che avevi.")) {
-                Picker("Interfaccia", selection: Binding(get: { settings.value.appearance.interfaceMode },
-                                                         set: { settings.value.appearance.switchInterface(to: $0) })) {
-                    ForEach(InterfaceMode.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("settings.interface")
-            }
-            Section {
-                NavigationLink {
-                    AppIconSettingsView()
-                } label: {
-                    Label("Icona dell'app", systemImage: "app.badge.fill")
-                }
-            }
-            Section(header: Text("Tema")) {
-                Picker("Tema", selection: settings.binding(\.appearance.theme)) {
-                    ForEach(ThemeMode.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("settings.theme")
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Colore d'accento")
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 12) {
-                        ForEach(AccentChoice.allCases, id: \.self) { choice in
-                            Button {
-                                settings.value.appearance.accent = choice
-                            } label: {
-                                Circle().fill(Theme.accent(for: choice).gradient)
-                                    .frame(width: 38, height: 38)
-                                    .overlay(Circle().stroke(Color.primary, lineWidth: settings.value.appearance.accent == choice ? 3 : 0).padding(-4))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(choice.title)
-                            .accessibilityAddTraits(settings.value.appearance.accent == choice ? .isSelected : [])
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-            Section(header: Text("Stile dell'app"),
-                    footer: Text("Colori, sfondo e atmosfera, più le modalità Dynamic Cinematic UI e AMOLED.")) {
-                NavigationLink {
-                    StyleSettingsView()
-                } label: {
-                    Label("Stile e grafica", systemImage: "sparkles")
-                }
-                .accessibilityIdentifier("settings.style")
-            }
-            Section(header: Text("Home"),
-                    footer: Text("Sezioni e carosello della Home, dimensione e densità delle schede. Nomi e ordine dei cataloghi sono in Contenuti e scoperta; badge e formato delle sorgenti in Riproduzione.")) {
-                NavigationLink {
-                    HomeLayoutSettingsView()
-                } label: {
-                    Label("Personalizza la Home", systemImage: "rectangle.3.group")
-                }
-                .accessibilityIdentifier("settings.homeLayout")
-                Picker("Dimensione delle schede", selection: settings.binding(\.appearance.posterSize)) {
-                    ForEach(PosterSize.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                Picker("Densità", selection: settings.binding(\.appearance.density)) {
-                    ForEach(CatalogDensity.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-            }
-            Section(header: Text("Effetti"), footer: Text("Con gli effetti ridotti il vetro liquido viene sostituito da superfici opache e lo sfondo diventa uniforme. Aether rispetta anche «Riduci trasparenza» e «Riduci movimento» di iOS.")) {
-                Toggle("Animazioni", isOn: settings.binding(\.appearance.animationsEnabled))
-                Toggle("Riduci gli effetti visivi", isOn: settings.binding(\.appearance.reduceVisualEffects))
-                Toggle("Titoli come scheda a comparsa (scorri in basso per chiudere)", isOn: settings.binding(\.appearance.detailAsCard))
-                Toggle("Zoom dalla locandina (iOS 18 o più recente)", isOn: settings.binding(\.appearance.zoomTransition))
-                    .accessibilityIdentifier("settings.reduceEffects")
-            }
-        }
-        .navigationTitle("Aspetto")
     }
 }
 
@@ -572,16 +399,15 @@ struct StorageSettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var downloads: DownloadManager
+    @EnvironmentObject private var library: LibraryModel
     @State private var report: AppEnvironment.StorageReport?
     @State private var message: String?
 
     var body: some View {
         Form {
             Section(header: Text("Spazio utilizzato")) {
-                LabeledContent("Immagini", value: Format.bytes(report?.images ?? 0))
-                LabeledContent("Metadati e cataloghi", value: Format.bytes(report?.metadata ?? 0))
-                LabeledContent("Download", value: Format.bytes(report?.downloads ?? 0))
-                LabeledContent("Spazio libero", value: Format.bytes(AppPaths.availableCapacity()))
+                StorageOverview(report: report, items: downloads.items, history: library.history, refresh: { await refresh() })
+                    .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
             }
             Section(header: Text("Cache")) {
                 Picker("Limite cache immagini", selection: settings.binding(\.storage.imageCacheLimitMB)) {

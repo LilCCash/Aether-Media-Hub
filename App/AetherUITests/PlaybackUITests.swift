@@ -431,7 +431,7 @@ final class PlaybackUITests: AetherUITestCase {
     // 9k. The recommended subtitles addon is offered in the Addons screen until it is installed
     func testOpenSubtitlesIsRecommendedUntilAnAddonWithItsIdIsInstalled() {
         launch()
-        openTab("Altro")
+        openTab("Profilo")
         let addons = element("more.addons")
         XCTAssertTrue(addons.waitForExistence(timeout: 10))
         addons.tap()

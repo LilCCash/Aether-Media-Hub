@@ -104,7 +104,7 @@ struct AetherBackdrop: View {
             } else {
                 Color(scheme == .dark ? UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: 1) : UIColor.systemGroupedBackground)
             }
-            if !settings.reduceEffects && settings.value.appearance.showHalos {
+            if !settings.reduceEffects {
                 washes
             }
             if style.cinematic && style.mood, let color = mood.shown {

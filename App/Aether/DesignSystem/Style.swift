@@ -20,27 +20,27 @@ enum AetherTypography {
 /// (see `ThemedRoot`), so sheets and full-screen covers get it too.
 struct AetherStyle: Equatable {
     var palette: AppPalette = .aether
-    var backdrop: BackdropStyle = .aurora
-    var chrome: CardChrome = .standard
-    var posterRadius: CGFloat = 14
+    var backdrop: BackdropStyle = .spotlight
+    var chrome: CardChrome = .glow
+    var posterRadius: CGFloat = 20
     var titleFont: TitleFont = .rounded
     /// Dynamic Cinematic UI and its two options; true black background.
-    var cinematic = false
-    var mood = false
-    var motion = false
+    var cinematic = true
+    var mood = true
+    var motion = true
     var amoled = false
 
     init() {}
 
     init(_ appearance: AppearanceSettings) {
         palette = appearance.palette
-        backdrop = appearance.dynamicCinematic && appearance.backdrop == .aurora ? .spotlight : appearance.backdrop
-        chrome = appearance.dynamicCinematic && appearance.showHalos && appearance.cardChrome == .standard ? .glow : appearance.cardChrome
+        backdrop = appearance.backdrop
+        chrome = appearance.cardChrome
         cinematic = appearance.dynamicCinematic
-        mood = appearance.dynamicCinematic && appearance.cinematicMood
-        motion = appearance.dynamicCinematic && appearance.cinematicMotion
+        mood = appearance.dynamicCinematic
+        motion = appearance.dynamicCinematic && appearance.animationsEnabled
         amoled = appearance.amoled
-        posterRadius = CGFloat(appearance.cornerStyle.radius) + (appearance.dynamicCinematic ? 4 : 0)
+        posterRadius = CGFloat(appearance.cornerStyle.radius)
         titleFont = appearance.titleFont
     }
 

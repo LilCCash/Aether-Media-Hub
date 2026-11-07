@@ -554,9 +554,9 @@ final class StreamPickerModel: ObservableObject {
         OrientationController.restore()
     }
 
-    /// Puts the player's black page (logo, progress) on screen at once, over the list, turning the screen only once. Not in Theater Mode.
+    /// Puts the player's black page (logo, progress) on screen at once, over the list, turning the screen only once.
     private func beginLaunch(env: AppEnvironment, dismiss: @escaping () -> Void) {
-        guard !env.router.theater, env.settings.value.playback.instantLaunchPage else { return }
+        guard env.settings.value.playback.instantLaunchPage else { return }
         endLaunch()
         let page = PlayerLaunch(meta: request.meta) { [weak self] in self?.cancelResolution() }
         page.resolution = resolution

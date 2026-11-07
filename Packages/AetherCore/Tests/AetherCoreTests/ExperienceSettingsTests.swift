@@ -192,16 +192,15 @@ final class ExperienceSettingsTests: XCTestCase {
 
     func testCinematicAndAmoledDefaultOffAndSurviveARoundTrip() throws {
         var settings = AppSettings()
-        XCTAssertFalse(settings.appearance.dynamicCinematic)
+        XCTAssertTrue(settings.appearance.dynamicCinematic)
         XCTAssertFalse(settings.appearance.amoled)
-        settings.appearance.dynamicCinematic = true
         settings.appearance.amoled = true
-        settings.appearance.cinematicMotion = false
+        settings.appearance.haptics = false
         let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
         XCTAssertTrue(decoded.appearance.dynamicCinematic)
         XCTAssertTrue(decoded.appearance.amoled)
-        XCTAssertFalse(decoded.appearance.cinematicMotion)
-        XCTAssertTrue(decoded.appearance.cinematicMood)
+        XCTAssertFalse(decoded.appearance.haptics)
+        XCTAssertTrue(decoded.appearance.dynamicCinematic)
     }
 
     func testImportedBadgesParseAndMatchSources() {

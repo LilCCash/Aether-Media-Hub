@@ -88,7 +88,7 @@ extension AetherUITestCase {
     // MARK: Addons
 
     func openAddonsList() {
-        openTab("Altro")
+        openTab("Profilo")
         if element("addons.add").waitForExistence(timeout: 3) { return }
         let addons = element("more.addons")
         XCTAssertTrue(addons.waitForExistence(timeout: 10), "the addons entry is missing")
@@ -146,7 +146,7 @@ extension AetherUITestCase {
     /// Altro > Impostazioni > Aspetto > Categorie di Scopri.
     func openDiscoverSettingsViaSettings() {
         openMoreRoot()
-        element("more.settings").tap()
+        element("profile.settings").tap()
         let appearance = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Aspetto'")).firstMatch
         XCTAssertTrue(appearance.waitForExistence(timeout: 10), "Aspetto is missing from the settings")
         appearance.tap()
@@ -383,7 +383,7 @@ final class SearchFilterAddonsUITests: AetherUITestCase {
         XCTAssertEqual(filterMenuValue("search.type"), "Sport")
         XCTAssertTrue(element("search.unsupported").waitForExistence(timeout: 10))
         // The choice survives a visit to another tab: when it is gone later, that is the app dropping it, not a fresh screen.
-        openTab("Altro")
+        openTab("Profilo")
         openTab("Cerca")
         XCTAssertEqual(filterMenuValue("search.type"), "Sport", "the choice should survive a tab switch")
 
@@ -581,7 +581,7 @@ final class DiscoverCategoriesUITests: AetherUITestCase {
         XCTAssertTrue(element("discover.type.movie").waitForExistence(timeout: 20))
         waitUntil(20, "the hidden type must not be a chip any more") { !self.element("discover.type.series").exists }
 
-        openTab("Altro")
+        openTab("Profilo")
         let again = settingsSwitch("settings.discover.type.series")
         XCTAssertFalse(isOn(again), "the setting is still off when the page is reopened")
         again.tap()

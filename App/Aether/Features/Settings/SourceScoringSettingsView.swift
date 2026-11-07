@@ -5,6 +5,7 @@ import AetherCore
 /// (a source that cannot be played stays at the bottom whatever the weights say).
 struct SourceScoringSettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var addons: AddonStore
 
     private var scoring: Binding<SourceScoring> {
         Binding(get: { settings.value.playback.sourceScoring }, set: { settings.value.playback.sourceScoring = $0 })
@@ -30,12 +31,40 @@ struct SourceScoringSettingsView: View {
                 Text("HDR e audio vengono letti dal nome della release: sono etichette, non misure. Aether non può sapere cosa mostrerà davvero il tuo schermo finché il file non parte.")
             }
             Section {
-                Button("Ripristina i criteri") { settings.value.playback.sourceScoring = SourceScoring() }
-                    .disabled(scoring.wrappedValue.isNeutral)
+                Toggle("Impara da come vanno le riproduzioni", isOn: scoring.learnsFromPlayback)
+                ForEach(learned, id: \.id) { row in
+                    HStack {
+                        Text(row.name)
+                        Spacer()
+                        Text(row.bonus > 0 ? "affidabile" : (row.bonus < 0 ? "problemi frequenti" : "in prova"))
+                            .font(.footnote).foregroundStyle(row.bonus > 0 ? Color.green : (row.bonus < 0 ? Color.orange : Color.aetherSecondary))
+                    }
+                }
+                if !scoring.wrappedValue.reliability.isEmpty {
+                    Button("Dimentica quello che ha imparato", role: .destructive) { settings.value.playback.sourceScoring.reliability = SourceReliability() }
+                }
+            } header: { Text("Apprendimento") } footer: {
+                Text("Se le sorgenti di un addon partono quasi sempre salgono nella lista, se spesso falliscono scendono. Resta tutto sul telefono e conta solo dopo almeno tre riproduzioni.")
+            }
+            Section {
+                Button("Ripristina i criteri") {
+                    var fresh = SourceScoring()
+                    fresh.learnsFromPlayback = settings.value.playback.sourceScoring.learnsFromPlayback
+                    fresh.reliability = settings.value.playback.sourceScoring.reliability
+                    settings.value.playback.sourceScoring = fresh
+                }
+                .disabled(scoring.wrappedValue.isNeutral)
             }
         }
         .navigationTitle("Intelligenza delle fonti")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var learned: [(id: String, name: String, bonus: Int)] {
+        let rel = settings.value.playback.sourceScoring.reliability
+        return rel.tallies.keys.sorted().map { key in
+            (key, addons.addons.first { $0.id.uuidString == key }?.displayName ?? "Addon rimosso", rel.bonus(addonID: key))
+        }
     }
 
     private func weightPicker(_ title: String, _ value: Binding<Int>, includeIgnore: Bool = true) -> some View {

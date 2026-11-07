@@ -223,46 +223,27 @@ final class ContentSyncTests: XCTestCase {
     }
 }
 
-final class InterfaceModeTests: XCTestCase {
-    func testClassicIsTheDefaultAndKeepsTheOldLook() {
+final class AppearanceMigrationTests: XCTestCase {
+    func testNewInstallStartsWithTheProLook() {
         let a = AppearanceSettings()
-        XCTAssertEqual(a.interfaceMode, .classic)
-        XCTAssertEqual(a.currentLook, AppearanceSettings.classicLookDefaults)
-        XCTAssertEqual(a.homeSections.first { $0.id == "universes" }?.isVisible, false)
+        XCTAssertEqual(a.theme, .dark); XCTAssertEqual(a.heroStyle, .fullBleed); XCTAssertEqual(a.cardChrome, .glow)
+        XCTAssertTrue(a.homeSections.first { $0.id == HomeSectionConfig.universes }?.isVisible ?? false)
     }
 
-    func testSwitchingToProAndBackRestoresWhatTheViewerHad() {
-        var a = AppearanceSettings()
-        a.theme = .light
-        a.accent = .jade
-        a.heroStyle = .card
-        a.cardChrome = .outline
-        a.cornerStyle = .sharp
-        a.palette = .ocean
-        a.posterSize = .large
-        let before = a
-        a.switchInterface(to: .pro)
-        XCTAssertEqual(a.currentLook, AppearanceSettings.proLook)
-        XCTAssertEqual(a.interfaceMode, .pro)
-        XCTAssertEqual(a.palette, .ocean, "what Pro does not own stays")
-        XCTAssertEqual(a.posterSize, .large)
-        a.switchInterface(to: .pro)
-        a.switchInterface(to: .classic)
-        XCTAssertEqual(a, before, "back to Classic is exactly what it was")
+    func testOldSettingsAreBroughtToTheNewLookOnce() throws {
+        let old = Data(#"{"theme":"light","accent":"gold","cardChrome":"outline","greetingName":"Anna","greetingEnabled":true}"#.utf8)
+        let a = try JSONDecoder().decode(AppearanceSettings.self, from: old)
+        XCTAssertEqual(a.theme, .dark); XCTAssertEqual(a.accent, .nebula); XCTAssertEqual(a.greetingName, "Anna")
+        let back = try JSONDecoder().decode(AppearanceSettings.self, from: JSONEncoder().encode({ var x = a; x.theme = .light; return x }()))
+        XCTAssertEqual(back.theme, .light)
     }
 
-    func testTheModeSurvivesARoundTripAndOldFilesAreClassic() throws {
+    func testPresetsChangeTheLookAndResetComesBack() {
         var a = AppearanceSettings()
-        a.theme = .light
-        a.switchInterface(to: .pro)
-        let back = try JSONDecoder().decode(AppearanceSettings.self, from: JSONEncoder().encode(a))
-        XCTAssertEqual(back.interfaceMode, .pro)
-        XCTAssertEqual(back.classicLook?.theme, .light)
-        XCTAssertEqual(try JSONDecoder().decode(AppearanceSettings.self, from: Data("{}".utf8)).interfaceMode, .classic)
-        var b = back
-        b.switchInterface(to: .classic)
-        XCTAssertEqual(b.theme, .light)
-        XCTAssertNil(b.classicLook)
+        LookPreset.minimal.apply(to: &a)
+        XCTAssertEqual(a.backdrop, .plain); XCTAssertFalse(a.dynamicCinematic)
+        a.resetLook()
+        XCTAssertEqual(a, AppearanceSettings())
     }
 }
 

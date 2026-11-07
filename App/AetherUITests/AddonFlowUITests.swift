@@ -3,7 +3,7 @@ import XCTest
 /// Scenarios 1, 2 and 13 of the test plan: installing, rejecting and living with unavailable addons.
 final class AddonFlowUITests: AetherUITestCase {
     private func openInstallSheet() {
-        openTab("Altro")
+        openTab("Profilo")
         let addons = element("more.addons")
         XCTAssertTrue(addons.waitForExistence(timeout: 10))
         addons.tap()

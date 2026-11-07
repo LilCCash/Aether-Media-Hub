@@ -122,18 +122,18 @@ enum InterfaceStyle {
 }
 
 struct RootView: View {
-    /// The bar of the system (iOS 26 draws it in Liquid Glass). Classic: five items as always. Pro: four on the left and the search apart on the
-    /// right, as the system does for a tab with the search role (before iOS 18 the five items).
+    /// The bar of the system (iOS 26 draws it in Liquid Glass): four items on the left and the search apart on the right, as the
+    /// system does for a tab with the search role (before iOS 18 the five items in a row).
     @ViewBuilder
     private var tabs: some View {
-        if settings.isPro, #available(iOS 18.0, *) {
-            proTabs
+        if #available(iOS 18.0, *) {
+            modernTabs
         } else {
-            classicTabs
+            legacyTabs
         }
     }
 
-    private var classicTabs: some View {
+    private var legacyTabs: some View {
         TabView(selection: $router.tab) {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house.fill") }
@@ -147,19 +147,19 @@ struct RootView: View {
             SearchView()
                 .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
                 .tag(AppTab.search)
-            MoreView()
-                .tabItem { Label("Altro", systemImage: "ellipsis.circle.fill") }
-                .tag(AppTab.more)
+            ProfileTabView()
+                .tabItem { Label("Profilo", systemImage: "person.crop.circle.fill") }
+                .tag(AppTab.profile)
         }
     }
 
     @available(iOS 18.0, *)
-    private var proTabs: some View {
+    private var modernTabs: some View {
         TabView(selection: $router.tab) {
             Tab("Home", systemImage: "house.fill", value: AppTab.home) { HomeView() }
             Tab("Scopri", systemImage: "safari.fill", value: AppTab.discover) { DiscoverView() }
             Tab("Libreria", systemImage: "books.vertical.fill", value: AppTab.library) { LibraryView() }
-            Tab("Altro", systemImage: "ellipsis.circle.fill", value: AppTab.more) { MoreView() }
+            Tab("Profilo", systemImage: "person.crop.circle.fill", value: AppTab.profile) { ProfileTabView() }
             Tab("Cerca", systemImage: "magnifyingglass", value: AppTab.search, role: .search) { SearchView() }
         }
     }
@@ -176,6 +176,7 @@ struct RootView: View {
         tabs
         .tint(settings.accentColor)
         .onChange(of: router.tab) { old, new in
+            Haptics.select()
             // Universe and Live TV are not in the bar: a request for them (a shortcut) opens them as full pages over the tabs.
             if new == .universe { router.tab = old == .universe ? .home : old; router.universeSheet = true }
             if new == .live { router.tab = old == .live ? .home : old; router.liveSheet = true }
@@ -202,7 +203,7 @@ struct RootView: View {
                     }
                 case "app.aether.search": router.tab = .search
                 case "app.aether.library": router.tab = .library
-                case "app.aether.downloads": router.tab = .more
+                case "app.aether.downloads": router.tab = .library
                 default:
                     // «Cerca in Aether» from Siri or Spotlight: the words come after the prefix.
                     if type.hasPrefix("detail:") {
@@ -243,9 +244,7 @@ struct RootView: View {
             if phase == .background { Task { await FolderSyncService.shared.syncIfDue(env: env, minimumInterval: 30) } }
             env.relay.appPhaseChanged(phase)
         }
-        // While Theater Mode is open it presents the player itself (one full-screen cover cannot present another from the same view).
-        .landscapePlayer(Binding(get: { router.theater ? nil : router.player }, set: { router.player = $0 }), showsLaunch: !router.theater)
-        .fullScreenCover(isPresented: $router.theater) { TheaterView() }
+        .landscapePlayer($router.player, showsLaunch: true)
         .sheet(isPresented: $extras.showingWhatsNew) { WhatsNewSheet() }
         .sheet(item: Binding(get: { settings.value.appearance.detailAsCard ? router.detail : nil }, set: { router.detail = $0 })) { route in
             NavigationStack { DetailView(route: route).zoomDestination(id: route.id) }

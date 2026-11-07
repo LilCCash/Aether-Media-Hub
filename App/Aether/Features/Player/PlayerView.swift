@@ -13,7 +13,6 @@ struct PlayerView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @AppStorage(TheaterPrefs.palette) private var theaterPalette = 0
     @StateObject private var volume = SystemVolume()
     @StateObject private var scrubPreview = ScrubPreviewProvider()
     @State private var controlsVisible = true
@@ -31,6 +30,8 @@ struct PlayerView: View {
     /// The panel on the right edge (subtitles, audio, sources), which keeps the picture visible behind it.
     @State private var panel: PlayerPanel?
     @State private var closing = false
+    @State private var showOpening = false
+    @State private var showCredits = false
     @State private var pauseVisible = false
     @StateObject private var pauseInfo = PauseInfoModel()
     @State private var importingSubtitle = false
@@ -76,10 +77,7 @@ struct PlayerView: View {
         _model = StateObject(wrappedValue: PlayerViewModel(request: request, env: env))
     }
 
-    /// Opened from Theater Mode: the colour chosen there tints the controls, so the screen does not change character.
-    private var fromTheater: Bool { router.theater }
     private var accent: Color {
-        if fromTheater { return TheaterPalette.color(theaterPalette) }
         if settings.value.advanced.extras.posterTint, let tinted = model.posterAccent { return tinted }
         return settings.accentColor
     }
@@ -127,6 +125,8 @@ struct PlayerView: View {
     }
 
     private func playingChanged(_ playing: Bool) {
+        // While the opening is on, the film waits behind it.
+        if showOpening && playing { model.engine.pause(); return }
         if playing {
             pauseVisible = false
             scheduleHide()
@@ -142,7 +142,20 @@ struct PlayerView: View {
     }
 
     private func finishedChanged(_ finished: Bool) {
-        if finished { close() }
+        guard finished else { return }
+        if settings.value.appearance.creditsExperience && !model.snapshot.isLive { withAnimation { showCredits = true } } else { close() }
+    }
+
+    /// The opening is for a film that starts from the beginning, not for one that is resumed halfway.
+    private func openingWanted() -> Bool {
+        guard settings.value.appearance.cinematicOpening, !model.snapshot.isLive else { return false }
+        let resumed = env.library.history.contains { $0.metaID == model.meta.id && !$0.isCompleted && $0.position > 30 }
+        return !resumed
+    }
+
+    private func openingFinished() {
+        showOpening = false
+        if !model.isOpeningSource && !model.snapshot.isPlaying { model.engine.play() }
     }
 
     private func sheetChanged(_ value: PlayerSheet?) {
@@ -176,6 +189,15 @@ struct PlayerView: View {
     private var presented: some View {
         stage
             .background(Color.black)
+            .overlay {
+                if showOpening { CinematicOpeningView(title: model.meta.name, onFinish: openingFinished).transition(.opacity) }
+                if showCredits {
+                    CreditsExperienceView(meta: model.meta, onClose: { close() }, onOpen: { route in
+                        router.afterPlayer = { router.detail = route }
+                        close()
+                    })
+                }
+            }
             .statusBarHidden(true)
             .persistentSystemOverlays(.hidden)
             .preferredColorScheme(.dark)
@@ -229,6 +251,7 @@ struct PlayerView: View {
         case .episodes: PlayerEpisodesSheet(model: model)
         case .info: PlayerInfoSheet(model: model)
         case .companion: CompanionSheet(meta: model.meta)
+        case .chat: WatchChatSheet()
         case .more: PlayerMoreSheet(model: model, openPanel: { openPanel($0) }, importSubtitle: { importingSubtitle = true }, show: { self.sheet = $0 })
         case .cast:
             PlayerCastSheet(airPlayNote: model.engine.kind == .mpv
@@ -306,7 +329,6 @@ struct PlayerView: View {
             }
             // The "interactive" glass shimmer restarts every time the playhead moves (four times a second) and swallowed taps.
             .environment(\.aetherGlassInteractive, false)
-            .environment(\.playerAccent, fromTheater ? accent : nil)
         }
     }
 
@@ -335,6 +357,7 @@ struct PlayerView: View {
             try? await Task.sleep(nanoseconds: 600_000_000)
             if !Task.isCancelled, UIDevice.current.orientation.isLandscape { OrientationController.set(.allButUpsideDown) }
         }
+        if openingWanted() { showOpening = true }
         model.start()
         casting.onRemoteSessionEnded = { position, reason in
             model.castDidEnd(position: position, resumeLocally: settings.value.casting.resumeLocallyOnDisconnect)
@@ -612,13 +635,6 @@ struct PlayerView: View {
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
-            if fromTheater {
-                // A breath of the Theater colour at the foot and the head of the picture.
-                LinearGradient(colors: [accent.opacity(0.0), accent.opacity(0.28)], startPoint: .center, endPoint: .bottom)
-                    .ignoresSafeArea().allowsHitTesting(false)
-                LinearGradient(colors: [accent.opacity(0.16), .clear], startPoint: .top, endPoint: .center)
-                    .ignoresSafeArea().allowsHitTesting(false)
-            }
             VStack(spacing: 0) {
                 topBar
                 Spacer(minLength: 0)
@@ -637,9 +653,6 @@ struct PlayerView: View {
             GlassIconButton(systemName: "chevron.down", accessibilityLabel: "Chiudi il player") { close() }
                 .accessibilityIdentifier("player.close")
             VStack(alignment: .leading, spacing: 2) {
-                if fromTheater {
-                    Text("THEATER MODE").font(.system(size: 9, weight: .bold)).tracking(3).foregroundStyle(accent)
-                }
                 Text(model.title).font(.headline).lineLimit(1)
                 if let subtitle = model.episodeSubtitle(), !subtitle.isEmpty {
                     Text(subtitle).font(.caption).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
