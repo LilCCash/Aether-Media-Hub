@@ -5,7 +5,7 @@ import Foundation
 /// separately, in the widget), then the list SideStore puts in Info.plist (`ALTAppGroups`), then the name we asked for. The first one that
 /// opens a container wins; without any, nothing is shared and everything that needs it quietly does nothing.
 enum AppGroup {
-    static let fallback = "group.app.aether.mediahub.pro"
+    static let fallback = "group.app.aether.mediahub"
 
     /// The groups the signature gives this bundle, from `embedded.mobileprovision`.
     static var profileGroups: [String] {

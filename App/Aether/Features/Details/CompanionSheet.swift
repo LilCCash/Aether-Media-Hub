@@ -10,7 +10,7 @@ struct CompanionSheet: View {
     @EnvironmentObject private var library: LibraryModel
     @EnvironmentObject private var router: AppRouter
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("aether.pro.companion.level") private var levelRaw = SpoilerLevel.none.rawValue
+    @AppStorage("aether.companion.level") private var levelRaw = SpoilerLevel.none.rawValue
     @State private var rich: TitleRichDetails?
     @State private var question = ""
     @State private var answer: String?

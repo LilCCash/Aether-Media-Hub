@@ -1,21 +1,18 @@
-Aether Pro: nuova grafica
-- Dock a capsula di vetro (Home, Scopri, Libreria, Cerca, Altro). Universe e Live TV sono pulsanti in alto a sinistra nella Home, Theater accanto; in alto a destra Cast e il tuo profilo. Logo Aether al centro.
-- Tema scuro, accento viola «Nebulosa», card arrotondate con alone, pagina titolo cinematografica (i colori del film riempiono lo schermo) e hero a tutto schermo con «Dettagli» e «+» per la watchlist.
-- Scheda film e serie: al posto del nome compare il logo del film (se manca, il nome); generi come chip sotto il titolo (una volta sola); valutazioni, trama che si espande, e schede Episodi / Info / Trailer / Contenuti correlati; tocco lungo su un episodio per la trama completa.
-Universe, persone, diario
-- 14 universi con film e serie in griglia di locandine, ordine di uscita, ordine della storia (editoriale) e il tuo, percentuale, titoli mancanti, «prossimo da vedere», segui.
-- Persone: foto, ruoli, biografia, «Film principali» e filmografia con filtri; ricerca di persone e di universi.
-- Timeline di visione: quello che guardi nel player e quello che scrivi nel diario (voto a mezze stelle, nota, rewatch), con statistiche per anno.
-Libreria e consigli
-- Visti, Abbandonati, Collezioni tue; lista Aether o Trakt; «Scelti per te» in Home dai generi e dai voti del gioco dei gusti.
-Riproduzione
-- Companion (dal menu del player e dalla scheda): chi c'è nel film e dove sta nell'universo, con tre livelli di spoiler.
-- Modalità Cinema: scheda del film prima della riproduzione e solo l'immagine e la barra mentre scorre.
-- Impostazioni ▸ Intelligenza delle fonti: pesi per risoluzione, HDR, audio, dimensione e codec.
-- Download a schede «In corso / Completati», con «Metti in pausa tutti».
-Sincronizzazione
-- Impostazioni ▸ Sincronizzazione: scegli una cartella (iCloud Drive o altra) e i tuoi dispositivi uniscono libreria, cronologia, diario, collezioni e voti. Nessun server. Handoff della scheda titolo tra dispositivi.
-Profilo e inviti
-- Profilo con foto, generi e gioco dei gusti; inviti a guardare qualcosa; trailer dentro l'app.
-Widget e Live TV
-- Widget Citazioni, Titolo in evidenza e Statistiche; schermata di pausa; Live TV con playlist M3U.
+Interfaccia Pro (Impostazioni ▸ Aspetto ▸ Interfaccia: Classica / Pro)
+- Un solo interruttore: Pro cambia l'aspetto e la struttura (tema scuro, accento viola, card di vetro con alone, pagina titolo cinematografica, hero a tutto schermo, schede nella pagina del film, barra di sistema in Liquid Glass con la ricerca separata a destra). Tornando alla Classica ritrovi tema, colori e aspetto esattamente come li avevi; libreria, cronologia e impostazioni sono sempre gli stessi.
+- Universe e Live TV sono pulsanti in alto in Scopri (e voci in Altro).
+Nuove funzioni (in entrambe le interfacce)
+- Universe: 14 universi con film e serie, ordine di uscita, ordine della storia (editoriale) e il tuo, percentuale, titoli mancanti, attori che tornano, universi collegati.
+- Persone: foto in bolla, ruoli, biografia, premi (Wikidata), «Film principali», filmografia con filtri, collaborazioni. Cercando un nome (serve la chiave TMDB) compare la bolla della persona.
+- Timeline di visione e diario (voto a mezze stelle, nota, rewatch, statistiche), Visti, Abbandonati e Collezioni in Libreria, «Scelti per te» nella Home.
+- Companion con foto, cast, universo e livelli di spoiler; con una chiave AI puoi fargli domande sul film.
+- Modalità Cinema, anteprime dei fotogrammi sulla barra (file MP4/MOV con AVPlayer), opzioni del player in un foglio che non sfarfalla, tocco lungo su un episodio per la trama.
+- Picture in Picture anche con MPV (sperimentale, nelle impostazioni di Riproduzione).
+- Intelligenza delle fonti, sincronizzazione con una cartella (iCloud Drive o altra), handoff, download «In corso / Completati».
+- Inviti a guardare qualcosa fino a 6 al giorno, con frasi adatte all'ora (di default 4).
+- La ricerca non interroga più i cataloghi TV degli addon (davano «non è JSON»).
+- Il backup ora può portare anche le chiavi di Real-Debrid e dei servizi AI.
+Profilo e trailer
+- Profilo con foto, generi e gioco dei gusti; lista Aether o Trakt in Libreria; trailer dentro l'app.
+Widget e player
+- Widget Citazioni, Titolo in evidenza e Statistiche; schermata di pausa; il tasto Chiudi risponde subito; MKV scaricati letti anche da AVPlayer; Live TV con playlist M3U.

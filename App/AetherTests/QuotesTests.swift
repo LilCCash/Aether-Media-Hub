@@ -27,6 +27,6 @@ final class QuotesTests: XCTestCase {
         let decoded = try JSONDecoder().decode(WidgetSnapshot.self, from: old)
         XCTAssertNil(decoded.pool)
         XCTAssertNil(decoded.stats)
-        XCTAssertEqual(WidgetSnapshot.deepLink(type: "movie", id: "tt0068646")?.absoluteString, "aetherpro://detail/movie/tt0068646")
+        XCTAssertEqual(WidgetSnapshot.deepLink(type: "movie", id: "tt0068646")?.absoluteString, "aether://detail/movie/tt0068646")
     }
 }

@@ -204,7 +204,7 @@ jobs:
           fi
           [ -f "$APP/PrivacyInfo.xcprivacy" ] && check ok "privacy manifest present" || check bad "PrivacyInfo.xcprivacy is missing"
           SCHEMES=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes' "$INFO" 2>/dev/null || true)
-          echo "$SCHEMES" | grep -qw aetherpro && check ok "URL scheme aetherpro registered" || check bad "URL scheme aetherpro missing"
+          echo "$SCHEMES" | grep -qw aether && echo "$SCHEMES" | grep -qw stremio && check ok "URL schemes aether and stremio registered" || check bad "URL schemes aether/stremio missing"
           /usr/libexec/PlistBuddy -c 'Print :NSLocalNetworkUsageDescription' "$INFO" >/dev/null 2>&1 && check ok "local network usage description" || check bad "NSLocalNetworkUsageDescription missing"
 
           if codesign -dv "$APP" 2>&1 | grep -q "not signed at all"; then

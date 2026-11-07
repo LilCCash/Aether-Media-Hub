@@ -110,7 +110,7 @@ public enum AddonURL {
         if scheme == "stremio" {
             return try? parseInstallInput(link.absoluteString)
         }
-        if scheme == "aether" || scheme == "aetherpro" {
+        if scheme == "aether" {
             let host = link.host?.lowercased() ?? ""
             if host == "addon" || host == "install" {
                 if let components = URLComponents(url: link, resolvingAgainstBaseURL: false),

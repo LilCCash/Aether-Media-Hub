@@ -278,7 +278,7 @@ struct DetailView: View {
         }
         .accessibilityIdentifier("detail.screen")
         // Handoff: the same page opens on another device of the viewer.
-        .userActivity("app.aether.pro.title") { activity in
+        .userActivity("app.aether.title") { activity in
             activity.title = model.meta.name
             activity.isEligibleForHandoff = true
             activity.userInfo = ["type": model.meta.type, "id": model.meta.id]

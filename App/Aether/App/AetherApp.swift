@@ -215,7 +215,7 @@ struct RootView: View {
                 }
             }
         }
-        .onContinueUserActivity("app.aether.pro.title") { activity in
+        .onContinueUserActivity("app.aether.title") { activity in
             if let type = activity.userInfo?["type"] as? String, let id = activity.userInfo?["id"] as? String { router.detail = MetaRoute(type: type, id: id) }
         }
         .onContinueUserActivity(CSSearchableItemActionType) { activity in

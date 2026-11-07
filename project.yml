@@ -67,7 +67,7 @@ targets:
     info:
       path: App/Aether/Resources/Info.plist
       properties:
-        CFBundleDisplayName: Aether Pro
+        CFBundleDisplayName: Aether
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         AetherReleaseLabel: "$(AETHER_RELEASE_LABEL)"
@@ -86,12 +86,12 @@ targets:
         UIBackgroundModes: [audio]
         NSSupportsLiveActivities: true
         # SideStore renames the App Group for the viewer's team and rewrites this list with the real name.
-        ALTAppGroups: [group.app.aether.mediahub.pro]
+        ALTAppGroups: [group.app.aether.mediahub]
         ITSAppUsesNonExemptEncryption: false
         UIApplicationSupportsIndirectInputEvents: true
         # Lets the system offer «Cerca in Aether» under the results of its search (the words typed arrive as a search-continuation activity).
         CoreSpotlightContinuation: true
-        NSUserActivityTypes: [app.aether.pro.title]
+        NSUserActivityTypes: [app.aether.title]
         UIApplicationShortcutItems:
           - UIApplicationShortcutItemType: app.aether.continue
             UIApplicationShortcutItemTitle: Continua a guardare
@@ -106,9 +106,9 @@ targets:
             UIApplicationShortcutItemTitle: Altro e download
             UIApplicationShortcutItemIconSymbolName: arrow.down.circle.fill
         CFBundleURLTypes:
-          - CFBundleURLName: app.aether.pro.links
+          - CFBundleURLName: app.aether.links
             CFBundleTypeRole: Editor
-            CFBundleURLSchemes: [aetherpro]
+            CFBundleURLSchemes: [aether, stremio]
         NSLocalNetworkUsageDescription: "Aether usa la rete locale per trovare dispositivi Google Cast e DLNA, per raggiungere gli addon che ospiti nella tua rete e per passare al televisore, senza mostrargli la tua chiave, i video che la richiedono."
         LSApplicationQueriesSchemes:
           - vlc-x-callback
@@ -148,10 +148,10 @@ targets:
     info:
       path: App/AetherWidgets/Info.plist
       properties:
-        CFBundleDisplayName: Aether Pro Widget
+        CFBundleDisplayName: Aether Widget
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
-        ALTAppGroups: [group.app.aether.mediahub.pro]
+        ALTAppGroups: [group.app.aether.mediahub]
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 

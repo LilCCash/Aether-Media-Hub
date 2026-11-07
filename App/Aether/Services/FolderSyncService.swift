@@ -9,7 +9,7 @@ import AetherCore
 @MainActor
 final class FolderSyncService: ObservableObject {
     static let shared = FolderSyncService()
-    static let fileName = "Aether-Pro-Sync.json"
+    static let fileName = "Aether-Sync.json"
 
     @Published private(set) var folderName: String?
     @Published private(set) var status: String?
@@ -17,8 +17,8 @@ final class FolderSyncService: ObservableObject {
     @Published private(set) var lastSync: Date?
 
     private let defaults = UserDefaults.standard
-    private let bookmarkKey = "aether.pro.sync.bookmark"
-    private let lastKey = "aether.pro.sync.last"
+    private let bookmarkKey = "aether.sync.bookmark"
+    private let lastKey = "aether.sync.last"
     private var folder: URL?
 
     private init() {

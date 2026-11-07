@@ -65,7 +65,7 @@ struct WidgetSnapshot: Codable, Equatable {
     /// The address that opens a title in the app (handled by `AppRouter.handle(url:)`).
     static func deepLink(type: String, id: String, videoID: String? = nil) -> URL? {
         var components = URLComponents()
-        components.scheme = "aetherpro"
+        components.scheme = "aether"
         components.host = "detail"
         let parts = [type, id] + (videoID.map { [$0] } ?? [])
         components.path = "/" + parts.map { $0.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? $0 }.joined(separator: "/")
