@@ -125,6 +125,10 @@ struct PlayerView: View {
         model.networkChanged(isOnline: network.isOnline)
     }
 
+    private func rateLabel(_ rate: Float) -> String {
+        return rate == 1 ? "1×" : String(format: "%.2g×", Double(rate))
+    }
+
     private func readyChanged(_ ready: Bool) {
         if ready { scrubPreview.prepare(url: model.previewURL, headers: model.previewHeaders) }
     }
