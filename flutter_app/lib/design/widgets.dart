@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../app/transitions.dart';
 
 import '../core/model/meta.dart';
+import '../core/util/device_profile.dart';
 import 'glass.dart';
 import 'image_cache.dart';
 import 'light_theme.dart';
@@ -47,6 +48,11 @@ class PosterImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The efficient mode (weak phones) decodes smaller pictures, filters them more cheaply and skips the fade-in.
+    final efficient = AetherLook.of(context).noBlur;
+    final decodeWidth = DeviceProfile.current.veryWeak
+        ? (cacheWidth * 0.75).round()
+        : cacheWidth;
     final initials = title.trim().isEmpty
         ? '?'
         : title
@@ -93,11 +99,13 @@ class PosterImage extends StatelessWidget {
                 }(),
                 fit: fit,
                 alignment: alignment,
-                filterQuality: FilterQuality.high,
-                fadeInDuration: AetherTokens.medium,
+                filterQuality: efficient
+                    ? FilterQuality.low
+                    : FilterQuality.high,
+                fadeInDuration: efficient ? Duration.zero : AetherTokens.medium,
                 placeholder: (_, __) => placeholder(),
                 errorWidget: (_, __, ___) => placeholder(),
-                memCacheWidth: cacheWidth,
+                memCacheWidth: decodeWidth,
               ),
             ),
     );

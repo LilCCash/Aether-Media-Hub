@@ -654,7 +654,8 @@ class _Hero extends ConsumerWidget {
             child: KenBurns(
               enabled: ref.watch(
                 settingsProvider.select(
-                  (s) => s.animatedBackdrop && !look.reduceEffects,
+                  (s) =>
+                      s.animatedBackdrop && !look.reduceEffects && !look.noBlur,
                 ),
               ),
               child: PosterImage(

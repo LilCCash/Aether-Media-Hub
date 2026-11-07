@@ -49,7 +49,7 @@ class _LiquidDockState extends State<LiquidDock> {
   Widget build(BuildContext context) {
     final look = AetherLook.of(context);
     final n = widget.items.length;
-    final moving = look.animations && !look.reduceEffects;
+    final moving = look.animations && !look.reduceEffects && !look.noBlur;
     return LayoutBuilder(
       builder: (context, c) {
         final itemW = (c.maxWidth - 12) / n;
