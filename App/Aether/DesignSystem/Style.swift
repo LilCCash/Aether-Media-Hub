@@ -29,6 +29,7 @@ struct AetherStyle: Equatable {
     var mood = true
     var motion = true
     var amoled = false
+    var kenBurns = true
 
     init() {}
 
@@ -37,9 +38,10 @@ struct AetherStyle: Equatable {
         backdrop = appearance.backdrop
         chrome = appearance.cardChrome
         cinematic = appearance.dynamicCinematic
-        mood = appearance.dynamicCinematic
-        motion = appearance.dynamicCinematic && appearance.animationsEnabled
+        mood = appearance.dynamicCinematic && appearance.moodColors
+        motion = appearance.dynamicCinematic && appearance.cinematicMotion && appearance.animationsEnabled
         amoled = appearance.amoled
+        kenBurns = appearance.kenBurns && appearance.animationsEnabled
         posterRadius = CGFloat(appearance.cornerStyle.radius)
         titleFont = appearance.titleFont
     }

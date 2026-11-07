@@ -341,6 +341,7 @@ struct AmbientModeView: View {
     let backdrops: [String]
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.aetherStyle) private var style
     @State private var index = 0
     @State private var drifting = false
     @State private var lineIndex = 0
@@ -392,7 +393,7 @@ struct AmbientModeView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
-            withAnimation(.easeInOut(duration: 14).repeatForever(autoreverses: true)) { drifting = true }
+            if style.kenBurns { withAnimation(.easeInOut(duration: 14).repeatForever(autoreverses: true)) { drifting = true } }
         }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         .task {

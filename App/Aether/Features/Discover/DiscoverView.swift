@@ -465,7 +465,7 @@ struct DiscoverView: View {
             ZStack {
                 AetherBackdrop()
                 VStack(spacing: 0) {
-                    exploreStrip
+                    if settings.value.appearance.showExplore { exploreStrip }
                     if !types.isEmpty { controls(types) }
                     content(layout)
                 }

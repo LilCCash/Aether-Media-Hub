@@ -24,8 +24,10 @@ struct ProfileTabView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         header
-                        CinemaUniverseCard().onTapGesture { path.append(Destination.universe) }
-                            .accessibilityAddTraits(.isButton)
+                        if settings.value.appearance.showCinemaCard {
+                            CinemaUniverseCard().onTapGesture { path.append(Destination.universe) }
+                                .accessibilityAddTraits(.isButton)
+                        }
                         diaryPanel
                         tastePanel
                         if settings.value.content.trakt.enabled { traktPanel }

@@ -83,7 +83,7 @@ struct CinematicOpeningView: View {
         .contentShape(Rectangle())
         .onTapGesture { finish() }
         .task {
-            OpeningSound.shared.play()
+            if settings.value.appearance.openingSound { OpeningSound.shared.play() }
             withAnimation(.easeOut(duration: 1.6)) { phase = 1 }
             try? await Task.sleep(nanoseconds: 2_300_000_000)
             withAnimation(.easeIn(duration: 0.45)) { phase = 2 }
@@ -183,7 +183,7 @@ struct CreditsExperienceView: View {
         .preferredColorScheme(.dark)
         .transition(.opacity)
         .task {
-            if settings.animationsEnabled { withAnimation(.easeOut(duration: 3.5)) { rolled = true } }
+            if settings.animationsEnabled && settings.value.appearance.kenBurns { withAnimation(.easeOut(duration: 3.5)) { rolled = true } }
             let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
             similar = (await env.metadata.richDetails(for: meta, language: language))?.similar ?? []
         }

@@ -196,6 +196,20 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     /// At the end of the film the credits turn into a screen with the cast, a quote and what to watch next.
     public var creditsExperience: Bool = true
     public var reduceVisualEffects: Bool = false
+    /// Title page and Home: the background takes the colours of the artwork (needs the cinematic page).
+    public var moodColors: Bool = true
+    /// Title page: slow zoom of the picture and a soft fade when it opens (needs the cinematic page and the animations).
+    public var cinematicMotion: Bool = true
+    /// Pictures fade in when they arrive instead of appearing at once.
+    public var imageFades: Bool = true
+    /// Slow zoom and drift of the pictures in the discovery, the ambient mode and the end credits.
+    public var kenBurns: Bool = true
+    /// The original chime of the opening (the opening itself is `cinematicOpening`).
+    public var openingSound: Bool = true
+    /// The three shortcuts under the title of Scopri (discovery, calendar, AI picks).
+    public var showExplore: Bool = true
+    /// The «Il mio universo del cinema» card in the Profile.
+    public var showCinemaCard: Bool = true
     /// Raw ids of the hidden extras found so far (`AppSecret`).
     public var unlockedSecrets: [String] = []
 
@@ -206,6 +220,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         case cardChrome, cornerStyle, posterSize, density, showPosterRatings, titleFont
         case heroStyle, heroAutoScroll, heroInterval, homeSections, greetingEnabled, greetingName
         case animationsEnabled, haptics, detailAsCard, zoomTransition, dynamicCinematic, cinematicOpening, creditsExperience, reduceVisualEffects, unlockedSecrets
+        case moodColors, cinematicMotion, imageFades, kenBurns, openingSound, showExplore, showCinemaCard
     }
 
     private static func cleanHex(_ value: String?) -> String? {
@@ -256,6 +271,13 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         cinematicOpening = c.value(.cinematicOpening, default: false)
         creditsExperience = c.value(.creditsExperience, default: true)
         reduceVisualEffects = c.value(.reduceVisualEffects, default: false)
+        moodColors = c.value(.moodColors, default: true)
+        cinematicMotion = c.value(.cinematicMotion, default: true)
+        imageFades = c.value(.imageFades, default: true)
+        kenBurns = c.value(.kenBurns, default: true)
+        openingSound = c.value(.openingSound, default: true)
+        showExplore = c.value(.showExplore, default: true)
+        showCinemaCard = c.value(.showCinemaCard, default: true)
         // The secrets are read first: a palette that needs one is only honoured if it is unlocked.
         let chosen: AppPalette = c.value(.palette, default: .aether)
         palette = isAvailable(chosen) ? chosen : .aether

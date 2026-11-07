@@ -181,7 +181,7 @@ struct RemoteImage: View {
         Color.clear
             .overlay(alignment: alignment) { artwork }
             .clipped()
-            .animation(settings.animationsEnabled ? .easeOut(duration: 0.25) : nil, value: image != nil)
+            .animation(settings.animationsEnabled && settings.value.appearance.imageFades ? .easeOut(duration: 0.25) : nil, value: image != nil)
             .task(id: urlString) { await load() }
             .accessibilityHidden(true)
     }
@@ -192,7 +192,7 @@ struct RemoteImage: View {
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: contentMode)
-                .transition(settings.animationsEnabled ? .opacity : .identity)
+                .transition(settings.animationsEnabled && settings.value.appearance.imageFades ? .opacity : .identity)
         } else {
             ZStack {
                 Theme.fallbackGradient(for: placeholderSeed.isEmpty ? (urlString ?? "aether") : placeholderSeed)

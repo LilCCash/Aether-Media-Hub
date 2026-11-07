@@ -139,13 +139,14 @@ private struct DiscoveryPage: View {
     let open: () -> Void
     let similar: () -> Void
     @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.aetherStyle) private var style
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoomed = false
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             RemoteImage(urlString: card.backdropURL ?? card.posterURL, width: 1280, placeholderSeed: card.title)
-                .scaleEffect(zoomed && settings.animationsEnabled && !reduceMotion ? 1.12 : 1)
+                .scaleEffect(zoomed && style.kenBurns && !reduceMotion ? 1.12 : 1)
                 .blur(radius: card.backdropURL == nil ? 18 : 0)
                 .clipped()
             LinearGradient(colors: [.black.opacity(0.35), .clear, .black.opacity(0.92)], startPoint: .top, endPoint: .bottom)
@@ -171,7 +172,7 @@ private struct DiscoveryPage: View {
             .padding(.horizontal, 22)
             .padding(.bottom, 54)
         }
-        .onAppear { withAnimation(.easeInOut(duration: 14)) { zoomed = true } }
+        .onAppear { if style.kenBurns { withAnimation(.easeInOut(duration: 14)) { zoomed = true } } }
         .onDisappear { zoomed = false }
     }
 }

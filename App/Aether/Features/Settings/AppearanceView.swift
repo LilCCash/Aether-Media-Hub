@@ -23,6 +23,7 @@ struct AppearanceSettingsView: View {
             home
             motion
             cinema
+            shortcuts
             Section {
                 NavigationLink { AppIconSettingsView() } label: { Label("Icona dell'app", systemImage: "app.badge.fill") }
             }
@@ -219,6 +220,12 @@ struct AppearanceSettingsView: View {
             Toggle("Il titolo cresce dalla locandina (iOS 18+)", isOn: settings.binding(\.appearance.zoomTransition))
             Toggle("Pagina del film cinematografica", isOn: settings.binding(\.appearance.dynamicCinematic))
                 .accessibilityIdentifier("settings.style.cinematic")
+            if appearance.dynamicCinematic {
+                Toggle("Colori dell'artwork sullo sfondo", isOn: settings.binding(\.appearance.moodColors))
+                Toggle("Zoom lento e dissolvenza all'apertura", isOn: settings.binding(\.appearance.cinematicMotion))
+            }
+            Toggle("Immagini che sfumano all'arrivo", isOn: settings.binding(\.appearance.imageFades))
+            Toggle("Zoom lento nella Scoperta, nell'ambiente e nei titoli di coda", isOn: settings.binding(\.appearance.kenBurns))
             Toggle("Riduci gli effetti", isOn: settings.binding(\.appearance.reduceVisualEffects))
                 .accessibilityIdentifier("settings.reduceEffects")
         }
@@ -229,7 +236,19 @@ struct AppearanceSettingsView: View {
     private var cinema: some View {
         Section(header: Text("Cinema"), footer: Text("L'apertura è una breve animazione con un suono originale prima del film; i titoli di coda diventano una schermata con il cast, una citazione e cosa vedere dopo.")) {
             Toggle("Apertura cinematografica prima del film", isOn: settings.binding(\.appearance.cinematicOpening))
+            if appearance.cinematicOpening {
+                Toggle("Suono dell'apertura", isOn: settings.binding(\.appearance.openingSound))
+            }
             Toggle("Titoli di coda in scena", isOn: settings.binding(\.appearance.creditsExperience))
+        }
+    }
+
+    // MARK: Shortcuts
+
+    private var shortcuts: some View {
+        Section(header: Text("Scorciatoie"), footer: Text("Nascondi quello che non usi: le funzioni restano, spariscono solo i punti d'ingresso.")) {
+            Toggle("Scoperta, Calendario e Per te in Scopri", isOn: settings.binding(\.appearance.showExplore))
+            Toggle("«Il mio universo» nel Profilo", isOn: settings.binding(\.appearance.showCinemaCard))
         }
     }
 
