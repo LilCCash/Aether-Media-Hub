@@ -24,6 +24,14 @@ final class CardGridLayoutTests: XCTestCase {
         }
     }
 
+    /// «Continua» and «Abbandonati» in the Library: three cards a row, as the viewer asked.
+    func testContinueWatchingCardsAreThreePerRowOnEveryPhone() {
+        for width in phoneWidths {
+            let metrics = Grid.layout(containerWidth: width, margin: 16, spacing: 10, minColumns: 3, preferredWidth: 110)
+            XCTAssertEqual(metrics.columns, 3, "container \(width)")
+        }
+    }
+
     func testContinueWatchingBannersAreAtLeastTwoPerRow() {
         for width in phoneWidths {
             let metrics = Grid.layout(containerWidth: width, margin: 16, spacing: 14, minColumns: 2, preferredWidth: 240)
