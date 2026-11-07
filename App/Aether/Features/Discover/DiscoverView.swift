@@ -628,7 +628,6 @@ struct DiscoverView: View {
 
     // MARK: Content
 
-    @ViewBuilder
     /// Two ways of finding something that are not a list: the full-screen discovery and the calendar of what is coming out.
     private var exploreStrip: some View {
         HStack(spacing: 10) {
@@ -654,6 +653,7 @@ struct DiscoverView: View {
         .accessibilityIdentifier(id)
     }
 
+    @ViewBuilder
     private func content(_ layout: DiscoverLayoutState) -> some View {
         if !model.hasLoaded {
             ScrollView {
