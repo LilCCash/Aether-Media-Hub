@@ -21,7 +21,7 @@ final class FFmpegThumbnailer: @unchecked Sendable {
     private var generation = 0
     private var context: UnsafeMutablePointer<AVFormatContext>?
     private var decoder: UnsafeMutablePointer<AVCodecContext>?
-    private var scaler: OpaquePointer?
+    private var scaler: UnsafeMutablePointer<SwsContext>?
     private var scalerKey = ""
     private var videoIndex: Int32 = -1
     private var timeBase = AVRational(num: 1, den: 1000)
@@ -68,7 +68,7 @@ final class FFmpegThumbnailer: @unchecked Sendable {
     private func openIfNeeded() -> Bool {
         if attempted { return usable }
         attempted = true
-        var options: UnsafeMutablePointer<AVDictionary>?
+        var options: OpaquePointer?
         defer { av_dict_free(&options) }
         if !headers.isEmpty {
             let joined = headers.map { "\($0.key): \($0.value)\r\n" }.joined()
