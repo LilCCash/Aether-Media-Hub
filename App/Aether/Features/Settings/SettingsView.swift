@@ -98,7 +98,7 @@ struct PlaybackSettingsView: View {
                 if PlaybackEngineFactory.mpvAvailable {
                     Toggle("Picture in Picture anche con MPV (sperimentale)", isOn: settings.binding(\.playback.mpvPictureInPicture))
                         .accessibilityIdentifier("settings.mpvPiP")
-                    Text("MPV disegna il video con il processore invece che con la scheda grafica, così la finestra flottante può mostrarlo: niente HDR né Dolby Vision, più batteria, immagine ridotta a 1280 punti. Vale dal prossimo video. Se non funziona, MPV torna da solo all'uscita normale.")
+                    Text("MPV disegna il video con il processore invece che con la scheda grafica, così la finestra flottante può mostrarlo: più batteria, immagine ridotta a 1280 punti. I file HDR e Dolby Vision non possono passare di qui (i colori uscirebbero scuri e sbiaditi): appena MPV li riconosce si riaprono da soli sull'uscita normale, che li converte per lo schermo, e per quei file la finestra flottante non c'è. Vale dal prossimo video. Se non funziona, MPV torna da solo all'uscita normale.")
                         .font(.footnote).foregroundStyle(Color.aetherSecondary)
                 }
                 NavigationLink("Stato dei player e dello schermo") { PlayerStatusView() }

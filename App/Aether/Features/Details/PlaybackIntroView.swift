@@ -45,8 +45,10 @@ struct PlaybackIntroView: View {
                     .ignoresSafeArea().opacity(0.4).blur(radius: 4)
                 LinearGradient(colors: [.black.opacity(0.35), .black.opacity(0.92)], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
             }
-            VStack(spacing: 26) {
-                Spacer()
+            // The phone is sideways here (about 390 points tall): with the scene the logo and the gaps are smaller, so logo, plot,
+            // «Guarda» and «Annulla» all fit without being cut.
+            VStack(spacing: scene ? 14 : 26) {
+                Spacer(minLength: 8)
                 mark
                     .scaleEffect(zoomed || !animates ? 1 : 3.2)
                     .opacity(zoomed || !animates ? 1 : 0)
@@ -73,10 +75,10 @@ struct PlaybackIntroView: View {
                 }
                 .frame(minHeight: 56)
                 .animation(.easeOut(duration: 0.35), value: ready)
-                Spacer()
+                Spacer(minLength: 8)
                 if !starting {
                     Button("Annulla", action: cancel)
-                        .buttonStyle(.bordered).tint(.white).padding(.bottom, 26)
+                        .buttonStyle(.bordered).tint(.white).padding(.bottom, scene ? 12 : 26)
                         .accessibilityIdentifier("stream.debrid.cancel")
                 }
             }
@@ -111,7 +113,7 @@ struct PlaybackIntroView: View {
             }
             if let plot = meta.description, !plot.isEmpty {
                 Text(plot).font(.callout).foregroundStyle(.white.opacity(0.82)).multilineTextAlignment(.center)
-                    .lineLimit(4).frame(maxWidth: 560)
+                    .lineLimit(3).frame(maxWidth: 600)
             }
         }
         .opacity(zoomed || !animates ? 1 : 0)
@@ -121,10 +123,14 @@ struct PlaybackIntroView: View {
     @ViewBuilder
     private var mark: some View {
         if let logo = logo {
-            Image(uiImage: logo).resizable().scaledToFit().frame(maxWidth: 440, maxHeight: 200).accessibilityLabel(meta.name)
+            Image(uiImage: logo).resizable().scaledToFit()
+                .frame(maxWidth: scene ? 360 : 440, maxHeight: scene ? 110 : 200)
+                .shadow(color: .black.opacity(0.6), radius: 12)
+                .accessibilityLabel(meta.name)
         } else if lookupDone {
-            Text(meta.name).font(.system(size: 38, weight: .heavy, design: .serif)).foregroundStyle(.white)
-                .multilineTextAlignment(.center).lineLimit(3)
+            Text(meta.name).font(.system(size: scene ? 32 : 38, weight: .heavy, design: .serif)).foregroundStyle(.white)
+                .multilineTextAlignment(.center).lineLimit(scene ? 2 : 3)
+                .shadow(color: .black.opacity(0.6), radius: 10)
         } else {
             Color.clear.frame(height: 80)
         }

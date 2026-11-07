@@ -358,7 +358,7 @@ struct ContinueCard: View {
     /// The artwork with the play button and the progress bar, at its ratio: a fixed size in the Home rows, the column width in a grid.
     @ViewBuilder
     private var picture: some View {
-        let compact = (width ?? 160) < 150
+        let compact = (width ?? 0) < 150
         let overlay = ZStack(alignment: .bottomLeading) {
             LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
             VStack(alignment: .leading, spacing: compact ? 4 : 6) {

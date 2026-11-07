@@ -13,9 +13,17 @@ Ritocchi di questa build
 - Avvio della riproduzione: appena tocchi una fonte si apre il player nero con il logo che torna alla sua dimensione e, quando tutto è pronto, il tasto «Guarda». Si spegne a parte per film, episodi e canali live (Impostazioni ▸ Riproduzione).
 - Live TV: toccando un canale con più fonti scegli la fonte da un menu. Suono d'apertura più leggero (un riser breve). Titoli di coda con un pulsante a fine film, chiudendoli torni al player.
 - Opzioni del player a tendina che non sfarfalla. Anteprime dei fotogrammi più robuste. Persone nei risultati di ricerca, foto in bolla intere, Libreria con schede più larghe, titolo scritto nella scheda del film, scheda aperta anche a schermo intero (Aspetto), Scoperta con chiusura e copertine pronte, gioco dei gusti con anche i film vecchi.
-Correzioni
-- Universe: il Marvel Cinematic Universe ora comprende anche Werewolf by Night, lo Speciale di Natale dei Guardiani, I Am Groot, Echo, Daredevil: Born Again, Ironheart, Your Friendly Neighborhood Spider-Man, Eyes of Wakanda, Marvel Zombies, I Fantastici Quattro, Agents of S.H.I.E.L.D., Agent Carter e le serie Netflix; nuovo universo Spider-Man (tutti i film). Live TV: sonde brevi per partire prima, tempi nel registro. Impostazioni ▸ Avanzate ▸ Notifiche: notifica di prova. Lo zoom dalla locandina torna (titolo a schermo intero).
-- Avvio della riproduzione rivisto: la pagina nera col logo si apre subito sopra l'elenco delle fonti e mostra lei cosa sta facendo (non più sotto la fonte); il riser parte insieme al logo, «Guarda» porta dritti al film senza una seconda animazione. Con «Apertura cinematografica» (o «Modalità Cinema») la pagina mostra lo sfondo del film, anno, durata, generi e trama, più il tasto «Guarda». Colori con MPV: l'immagine esce sempre in SDR (i file HDR sono convertiti da MPV) e la decodifica hardware passa dalla copia. Canali live: si parte pochi istanti dopo la prima fonte trovata, senza aspettare gli addon lenti. Libreria: tre titoli per riga. Scheda del film: lo sfondo parte dal bordo alto della scheda (c'era uno spazio di 18 punti). MPV: uscita forzata in sRGB/BT.709.
+Correzioni di questa build
+- Libreria ▸ Continua e Abbandonati: schede orizzontali, tre per riga, larghe quanto lo schermo.
+- Player MPV: i file HDR e Dolby Vision non passano più dall'uscita «software» del Picture in Picture sperimentale (che li mostrava scuri e arancioni); si riaprono da soli sull'uscita normale, che li converte per lo schermo. L'uscita normale è sempre SDR (sRGB).
+- Zoom dalla locandina: la scheda cresce dalla locandina toccata, sia come scheda (foglio) sia a schermo intero, anche con la pagina del film cinematografica.
+- Scorri in basso dall'inizio della pagina per chiudere un titolo: scheda, schermo intero o pagina aperta in una scheda dell'app.
+- Universe: Spider-Man: Brand New Day (MCU e Spider-Man), Wonder Man e VisionQuest; MCU completo (speciali, serie Disney+ e Netflix); nuovo universo Spider-Man.
+- Live TV: si parte poco dopo la prima fonte trovata e il lettore fa una sonda breve; nel registro i tempi «Apertura:».
+- Impostazioni ▸ Avanzate ▸ Notifiche: notifica di prova.
+- Pagina di avvio: con sfondo e trama le misure si adattano allo schermo in orizzontale (niente tagli).
+Correzioni precedenti
+- Avvio della riproduzione: la pagina nera col logo si apre subito sopra l'elenco delle fonti e mostra lei cosa sta facendo; il riser parte insieme al logo, «Guarda» porta dritti al film. Con «Apertura cinematografica» (o «Modalità Cinema») la pagina mostra sfondo, anno, durata, generi e trama. Scheda del film: lo sfondo parte dal bordo alto.
 - Live TV: cataloghi che rispondevano con una pagina web invece dei dati ora si caricano (secondo tentativo come browser, messaggio chiaro se il servizio è offline).
 - Pulsanti di Scopri simmetrici. Nessuna voce ripetuta in più punti.
 Aggiornando, l'aspetto parte dal nuovo standard (nome, ordine della Home e libreria restano).
