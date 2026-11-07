@@ -375,7 +375,9 @@ final class MPVEngine: NSObject, PlaybackEngine {
         } else {
             container.attach(surface)
             surface.layoutIfNeeded()
-            surface.metalLayer.wantsExtendedDynamicRangeContent = MPVOptions.wantsExtendedDynamicRange(video: settings.video, device: device)
+            // Starts in plain SDR: the wide range is switched on only once the file proves to be HDR (see `video-params`). Leaving it on
+            // for ordinary pictures made their colours come out wrong on HDR screens.
+            surface.metalLayer.wantsExtendedDynamicRangeContent = false
             self.surface = surface
         }
 
@@ -392,6 +394,7 @@ final class MPVEngine: NSObject, PlaybackEngine {
             core.setOption("vo", "libmpv")
             core.setOption("hwdec", settings.video.hardwareDecoding ? "videotoolbox-copy" : "no")
         }
+        if !software { core.setOption("target-colorspace-hint", "no") }
         for pair in MPVOptions.subtitleStyleProperties(settings.subtitleStyle) { core.setOption(pair.name, pair.value) }
         for pair in MPVOptions.headerOptions(headers) { core.setOption(pair.name, pair.value) }
         if let start = startAt, start > 1 { core.setOption("start", String(format: "%.3f", start)) }
@@ -499,10 +502,23 @@ final class MPVEngine: NSObject, PlaybackEngine {
             onTracksChanged?()
             publishMediaInfo()
         case ("video-params", _):
+            matchOutputToPicture()
             publishMediaInfo()
         default:
             break
         }
+    }
+
+    /// HDR output only for a picture that is really HDR (PQ or HLG) on a screen that shows it; every other picture is drawn as plain SDR.
+    private func matchOutputToPicture() {
+        guard let core = core, let surface = surface else { return }
+        let transfer = (core.string("video-params/gamma") ?? "").lowercased()
+        let isHDR = transfer.contains("pq") || transfer.contains("hlg")
+        let wide = isHDR && MPVOptions.wantsExtendedDynamicRange(video: settings.video, device: device)
+        if surface.metalLayer.wantsExtendedDynamicRangeContent != wide {
+            surface.metalLayer.wantsExtendedDynamicRangeContent = wide
+        }
+        _ = core.setProperty("target-colorspace-hint", wide ? "yes" : "no")
     }
 
     private func refreshFlags() {

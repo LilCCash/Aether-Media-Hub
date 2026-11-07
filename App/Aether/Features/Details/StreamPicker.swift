@@ -858,7 +858,7 @@ struct StreamPickerSheet: View {
         var result: [PickerEntry] = []
         for (offset, item) in list.enumerated() {
             result.append(PickerEntry.stream(offset: offset, item: item))
-            if model.resolution?.itemID == item.id { result.append(PickerEntry.progress(itemID: item.id)) }
+            if model.resolution?.itemID == item.id, !model.usesLaunchPage { result.append(PickerEntry.progress(itemID: item.id)) }
             if model.rowFailure?.itemID == item.id { result.append(PickerEntry.failure(itemID: item.id)) }
         }
         return result

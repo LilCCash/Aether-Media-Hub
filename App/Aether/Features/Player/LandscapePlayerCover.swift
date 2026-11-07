@@ -90,13 +90,15 @@ struct LandscapePlayerCover: ViewModifier {
     /// The main screen also shows the page that stands in for the player while a source is prepared (Theater Mode has its own).
     var showsLaunch = false
     @EnvironmentObject private var env: AppEnvironment
+    // Observed on purpose: the page must appear the moment the router gets a launch, not at the next unrelated redraw of this screen.
+    @EnvironmentObject private var router: AppRouter
     @Environment(\.aetherStyle) private var style
     @Environment(\.imageLoader) private var loader
 
     func body(content: Content) -> some View {
         content.background(
             PlayerPresenter(item: item,
-                            launch: showsLaunch ? env.router.launch : nil,
+                            launch: showsLaunch ? router.launch : nil,
                             makeRoot: {
                                 AnyView(PlayerStage(env: env)
                                     .environmentObject(env)
@@ -145,7 +147,7 @@ private struct LaunchPage: View {
     @EnvironmentObject private var router: AppRouter
 
     var body: some View {
-        PlaybackIntroView(meta: launch.meta, intro: launch.intro, ready: launch.ready && router.player == nil,
+        PlaybackIntroView(meta: launch.meta, intro: launch.intro, resolution: launch.resolution, ready: launch.ready && router.player == nil,
                           starting: router.player != nil,
                           watch: {
                               guard let request = launch.pending else { return }
@@ -282,7 +284,9 @@ private struct PlayerPresenter: UIViewRepresentable {
                 if Task.isCancelled { return }
                 var top: UIViewController = base
                 while let next = top.presentedViewController, !next.isBeingDismissed { top = next }
-                let moving = top.isBeingPresented || top.isBeingDismissed || top.transitionCoordinator != nil
+                // Only a page that is really sliding in or out counts as moving. A transition coordinator can stay around on a sheet that
+                // is simply showing, and waiting for it made the black page give up and the old path (list, then player) take over.
+                let moving = top.isBeingPresented || top.isBeingDismissed
                 if !moving {
                     controller = host
                     top.present(host, animated: false)
@@ -292,6 +296,15 @@ private struct PlayerPresenter: UIViewRepresentable {
                     }
                 }
                 try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            // One last try, forced, over whatever is on top.
+            var last: UIViewController = base
+            while let next = last.presentedViewController { last = next }
+            controller = host
+            last.present(host, animated: false)
+            if host.presentingViewController != nil {
+                router?.note("Apertura: pagina del lettore presentata all'ultimo tentativo")
+                return
             }
             router?.note("Apertura: la pagina del lettore non è comparsa, riporto tutto com'era")
             // It never came up: leave everything as it was before the tap, so another tap works (no need to restart the app). The source

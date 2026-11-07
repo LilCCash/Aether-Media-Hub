@@ -30,7 +30,6 @@ struct PlayerView: View {
     /// The panel on the right edge (subtitles, audio, sources), which keeps the picture visible behind it.
     @State private var panel: PlayerPanel?
     @State private var closing = false
-    @State private var showOpening = false
     @State private var showCredits = false
     @State private var pauseVisible = false
     @StateObject private var pauseInfo = PauseInfoModel()
@@ -134,8 +133,6 @@ struct PlayerView: View {
     }
 
     private func playingChanged(_ playing: Bool) {
-        // While the opening is on, the film waits behind it.
-        if showOpening && playing { model.engine.pause(); return }
         if playing {
             pauseVisible = false
             scheduleHide()
@@ -155,18 +152,6 @@ struct PlayerView: View {
         // With the credits screen on, the film stays open at its end: a «Titoli di coda» button shows with the controls. Closing the credits
         // gives the picture back (it does not close the player).
         if settings.value.appearance.creditsExperience && !model.snapshot.isLive { showControls() } else { close() }
-    }
-
-    /// The opening is for a film that starts from the beginning, not for one that is resumed halfway.
-    private func openingWanted() -> Bool {
-        guard settings.value.appearance.cinematicOpening, !model.snapshot.isLive else { return false }
-        let resumed = env.library.history.contains { $0.metaID == model.meta.id && !$0.isCompleted && $0.position > 30 }
-        return !resumed
-    }
-
-    private func openingFinished() {
-        showOpening = false
-        if !model.isOpeningSource && !model.snapshot.isPlaying { model.engine.play() }
     }
 
     private func sheetChanged(_ value: PlayerSheet?) {
@@ -201,7 +186,6 @@ struct PlayerView: View {
         stage
             .background(Color.black)
             .overlay {
-                if showOpening { CinematicOpeningView(title: model.meta.name, onFinish: openingFinished).transition(.opacity) }
                 if showCredits {
                     CreditsExperienceView(meta: model.meta, onClose: { withAnimation { showCredits = false } }, onOpen: { route in
                         router.afterPlayer = { router.detail = route }
@@ -368,7 +352,6 @@ struct PlayerView: View {
             if !Task.isCancelled, UIDevice.current.orientation.isLandscape { OrientationController.set(.allButUpsideDown) }
         }
         scrubPreview.log = { [env] text in env.diagnostics.logDetached(.info, "player", text) }
-        if openingWanted() { showOpening = true }
         model.start()
         casting.onRemoteSessionEnded = { position, reason in
             model.castDidEnd(position: position, resumeLocally: settings.value.casting.resumeLocallyOnDisconnect)

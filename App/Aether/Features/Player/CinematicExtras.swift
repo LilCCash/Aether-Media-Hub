@@ -63,58 +63,6 @@ final class OpeningSound {
     }
 }
 
-// MARK: - Opening
-
-/// A few seconds before the film: the title comes out of the dark between two lines of light, with the chime. A tap skips it.
-struct CinematicOpeningView: View {
-    let title: String
-    let onFinish: () -> Void
-    @EnvironmentObject private var settings: SettingsStore
-    @State private var phase = 0
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            RadialGradient(colors: [settings.accentColor.opacity(0.4), .clear], center: .center, startRadius: 10, endRadius: 380)
-                .opacity(phase >= 1 ? 1 : 0).ignoresSafeArea()
-            VStack(spacing: 16) {
-                line
-                Text(title.uppercased())
-                    .font(.system(size: 30, weight: .heavy, design: .serif))
-                    .tracking(phase >= 1 ? 5 : 20)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white)
-                    .opacity(phase >= 1 ? 1 : 0)
-                    .padding(.horizontal, 40)
-                line
-            }
-        }
-        .opacity(phase >= 2 ? 0 : 1)
-        .contentShape(Rectangle())
-        .onTapGesture { finish() }
-        .task {
-            if settings.value.appearance.openingSound { OpeningSound.shared.play() }
-            withAnimation(.easeOut(duration: 1.6)) { phase = 1 }
-            try? await Task.sleep(nanoseconds: 1_700_000_000)
-            withAnimation(.easeIn(duration: 0.45)) { phase = 2 }
-            try? await Task.sleep(nanoseconds: 450_000_000)
-            finish()
-        }
-        .accessibilityLabel("Apertura: \(title). Tocca per saltare.")
-    }
-
-    private var line: some View {
-        Rectangle()
-            .fill(LinearGradient(colors: [.clear, settings.accentColor, .clear], startPoint: .leading, endPoint: .trailing))
-            .frame(width: phase >= 1 ? 340 : 0, height: 2)
-    }
-
-    private func finish() {
-        OpeningSound.shared.stop()
-        onFinish()
-    }
-}
-
 // MARK: - Credits experience
 
 /// When the film is over: the credits roll over a dark page with the people of the film, then a quote and what to watch next.

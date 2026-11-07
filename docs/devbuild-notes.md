@@ -14,6 +14,7 @@ Ritocchi di questa build
 - Live TV: toccando un canale con più fonti scegli la fonte da un menu. Suono d'apertura più leggero (un riser breve). Titoli di coda con un pulsante a fine film, chiudendoli torni al player.
 - Opzioni del player a tendina che non sfarfalla. Anteprime dei fotogrammi più robuste. Persone nei risultati di ricerca, foto in bolla intere, Libreria con schede più larghe, titolo scritto nella scheda del film, scheda aperta anche a schermo intero (Aspetto), Scoperta con chiusura e copertine pronte, gioco dei gusti con anche i film vecchi.
 Correzioni
+- Avvio della riproduzione rivisto: la pagina nera col logo si apre subito sopra l'elenco delle fonti e mostra lei cosa sta facendo (non più sotto la fonte); il riser parte insieme al logo, «Guarda» porta dritti al film senza una seconda animazione. Con «Apertura cinematografica» la pagina è la scena con luce e linee, più il tasto «Guarda». Colori del player: l'HDR si attiva solo per i video davvero HDR.
 - Live TV: cataloghi che rispondevano con una pagina web invece dei dati ora si caricano (secondo tentativo come browser, messaggio chiaro se il servizio è offline).
 - Pulsanti di Scopri simmetrici. Nessuna voce ripetuta in più punti.
 Aggiornando, l'aspetto parte dal nuovo standard (nome, ordine della Home e libreria restano).
