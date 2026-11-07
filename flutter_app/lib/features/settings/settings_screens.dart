@@ -893,6 +893,16 @@ class _AppearancePage extends ConsumerWidget {
               format: (v) =>
                   v < 0.1 ? 'Quasi invisibile' : '${(v * 100).round()}%',
             ),
+            ChoiceRow<String>(
+              title: 'Prestazioni (auto = leggero su telefoni deboli)',
+              value: s.performanceMode,
+              options: const {
+                'auto': 'Automatico',
+                'quality': 'Massima qualità',
+                'saver': 'Risparmio',
+              },
+              onChanged: (v) => n.update((x) => x.copyWith(performanceMode: v)),
+            ),
             SwitchRow(
               title: 'Riduci gli effetti',
               subtitle: 'Superfici opache, niente sfocature né animazioni',

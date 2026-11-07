@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/util/device_profile.dart';
 import '../data/prefs_ext.dart';
 import '../data/settings.dart';
 import '../design/palettes.dart';
@@ -123,6 +124,9 @@ class AetherApp extends ConsumerWidget {
     Color accent,
     AetherPalette palette,
   ) {
+    final efficient =
+        s.performanceMode == 'saver' ||
+        (s.performanceMode == 'auto' && DeviceProfile.current.weak);
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(
         textScaler: TextScaler.linear(
@@ -156,8 +160,9 @@ class AetherApp extends ConsumerWidget {
             ? null
             : colorFromHex(s.customBackgroundHex!),
         animations: s.animations,
-        liquid: s.liquidGlass,
+        liquid: s.liquidGlass && !efficient,
         compact: s.compact,
+        noBlur: efficient,
         child: _pipHost(
           DockOverlay(
             router: ref.read(routerProvider),

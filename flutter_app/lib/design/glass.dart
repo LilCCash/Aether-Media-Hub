@@ -83,11 +83,14 @@ class GlassSurface extends StatelessWidget {
           color: Colors.black.withValues(
             alpha: look.chrome == 'shadow' ? 0.55 : 0.26,
           ),
-          blurRadius: look.chrome == 'shadow' ? 30 : 22,
+          blurRadius: look.noBlur ? 12 : (look.chrome == 'shadow' ? 30 : 22),
           offset: const Offset(0, 10),
         ),
       if (look.chrome == 'glow')
-        BoxShadow(color: look.accent.withValues(alpha: 0.45), blurRadius: 22),
+        BoxShadow(
+          color: look.accent.withValues(alpha: 0.45),
+          blurRadius: look.noBlur ? 10 : 22,
+        ),
     ];
 
     Widget content = DecoratedBox(

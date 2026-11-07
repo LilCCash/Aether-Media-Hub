@@ -1,6 +1,8 @@
 package app.aether.aether_flutter
 
+import android.app.ActivityManager
 import android.app.PictureInPictureParams
+import android.content.Context
 import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -53,6 +55,24 @@ class MainActivity : FlutterActivity() {
                 "get" -> result.success(currentIconStyle())
                 "set" -> result.success(setIconStyle(call.argument<String>("style") ?: "Default"))
                 else -> result.notImplemented()
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.aether/device").setMethodCallHandler { call, result ->
+            if (call.method == "info") {
+                val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                val mem = ActivityManager.MemoryInfo()
+                am.getMemoryInfo(mem)
+                result.success(
+                    mapOf(
+                        "lowRam" to am.isLowRamDevice,
+                        "memoryClass" to am.memoryClass,
+                        "totalMb" to (mem.totalMem / (1024 * 1024)).toInt(),
+                        "cores" to Runtime.getRuntime().availableProcessors(),
+                        "sdk" to Build.VERSION.SDK_INT,
+                    ),
+                )
+            } else {
+                result.notImplemented()
             }
         }
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.aether/pip").also { ch ->

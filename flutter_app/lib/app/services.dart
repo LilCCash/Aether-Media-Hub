@@ -135,16 +135,15 @@ class AppServices {
       secrets: secrets,
       client: client,
     );
-    await addons.load();
     final library = LibraryRepository(store);
-    await library.load();
     final downloads = DownloadManager(
       store: store,
       directory: downloadsDir,
       dio: dio,
       policy: policy,
     );
-    await downloads.load();
+    // The three stores are independent: read together instead of one after the other.
+    await Future.wait([addons.load(), library.load(), downloads.load()]);
     WatchProgress.threshold = settings.watchedThreshold;
     AppLog.instance.enabled = settings.keepLog;
     AetherImageCache.configure(settings.imageCacheMB);

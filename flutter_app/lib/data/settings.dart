@@ -25,6 +25,7 @@ class AppSettings {
     this.hideAdultCatalogs = true,
     this.glassIntensity = 0.45,
     this.reduceEffects = false,
+    this.performanceMode = 'auto',
     this.amoled = false,
     this.accentHex = '#7C8CFF',
     this.cinematic = true,
@@ -61,6 +62,9 @@ class AppSettings {
   final bool hideAdultCatalogs;
   final double glassIntensity;
   final bool reduceEffects;
+
+  /// 'auto' (efficient on weak phones), 'quality' (always full effects), 'saver' (always efficient).
+  final String performanceMode;
   final bool amoled;
   final String accentHex;
   final bool cinematic;
@@ -99,6 +103,7 @@ class AppSettings {
     bool? hideAdultCatalogs,
     double? glassIntensity,
     bool? reduceEffects,
+    String? performanceMode,
     bool? amoled,
     String? accentHex,
     bool? cinematic,
@@ -135,6 +140,7 @@ class AppSettings {
     hideAdultCatalogs: hideAdultCatalogs ?? this.hideAdultCatalogs,
     glassIntensity: glassIntensity ?? this.glassIntensity,
     reduceEffects: reduceEffects ?? this.reduceEffects,
+    performanceMode: performanceMode ?? this.performanceMode,
     amoled: amoled ?? this.amoled,
     accentHex: accentHex ?? this.accentHex,
     cinematic: cinematic ?? this.cinematic,
@@ -177,6 +183,7 @@ class AppSettings {
     'hideAdultCatalogs': hideAdultCatalogs,
     'glassIntensity': glassIntensity,
     'reduceEffects': reduceEffects,
+    'performanceMode': performanceMode,
     'amoled': amoled,
     'accentHex': accentHex,
     'cinematic': cinematic,
@@ -238,6 +245,11 @@ class AppSettings {
       ),
       glassIntensity: clampD(m['glassIntensity'], 0.45, 0.0, 1.0),
       reduceEffects: asBool(m['reduceEffects']),
+      performanceMode: switch (m['performanceMode']) {
+        'quality' => 'quality',
+        'saver' => 'saver',
+        _ => 'auto',
+      },
       amoled: asBool(m['amoled']),
       accentHex: (hex != null && RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(hex))
           ? hex

@@ -4,16 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../../core/util/device_profile.dart';
 import 'playback_engine.dart';
 
 /// [PlaybackEngine] on media_kit (libmpv). Chosen because it plays the containers and codecs the addons really serve (MKV, AVI,
 /// HEVC, multiple audio and subtitle tracks, ASS) on both iOS and Android with one code path. See docs/research/decisions/ADR-002.
 class MediaKitEngine implements PlaybackEngine {
   MediaKitEngine() {
+    // libmpv starts with the first player, not with the app: a launch that never plays anything does not pay for it.
+    ensureInitialised();
+    // Demuxer cache: 64 MB where memory is plentiful, less where it is not (a bigger one only helps on bad networks).
+    final device = DeviceProfile.current;
+    final buffer = device.veryWeak ? 16 : (device.weak ? 32 : 64);
     _player = Player(
-      configuration: const PlayerConfiguration(
+      configuration: PlayerConfiguration(
         title: 'Aether',
-        bufferSize: 64 * 1024 * 1024,
+        bufferSize: buffer * 1024 * 1024,
       ),
     );
     _video = VideoController(

@@ -132,7 +132,10 @@ BoxDecoration _chrome(AetherLook look) {
       return BoxDecoration(
         borderRadius: r,
         boxShadow: [
-          BoxShadow(color: look.accent.withValues(alpha: 0.55), blurRadius: 16),
+          BoxShadow(
+            color: look.accent.withValues(alpha: 0.55),
+            blurRadius: look.noBlur ? 8 : 16,
+          ),
         ],
       );
     default:
