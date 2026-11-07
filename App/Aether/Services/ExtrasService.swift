@@ -162,7 +162,7 @@ final class ExtrasService: ObservableObject {
                 suggestions.append(InviteSuggestion(id: item.id, type: item.type, name: item.name, genre: title))
             }
         }
-        let alerts = InvitePlanner.plan(now: Date(), name: profile.displayName, perWeek: profile.invitesPerWeek, suggestions: suggestions)
+        let alerts = InvitePlanner.plan(now: Date(), name: profile.displayName, perDay: profile.invitesPerDay, suggestions: suggestions)
         await removePendingInvites(center)
         for alert in alerts {
             let content = UNMutableNotificationContent()

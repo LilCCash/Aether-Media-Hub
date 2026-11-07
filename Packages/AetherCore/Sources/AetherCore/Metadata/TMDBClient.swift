@@ -109,6 +109,16 @@ public struct TMDBClient: Sendable {
         return try await get("/search/person", query: [("query", text), ("language", language), ("include_adult", "false")])
     }
 
+    func personWikidataID(id: Int) async throws -> String? {
+        let ids: TMDBPersonExternalIDs = try await get("/person/\(id)/external_ids", query: [])
+        return ids.wikidataID
+    }
+
+    /// Who is in a film or a series (`credits`), with the ids of the people.
+    func creditsOf(kind: Kind, id: Int, language: String) async throws -> TMDBCredits {
+        return try await get("/\(kind.rawValue)/\(id)/credits", query: [("language", language)])
+    }
+
     func season(tvID: Int, number: Int, language: String) async throws -> TMDBSeason {
         return try await get("/tv/\(tvID)/season/\(number)", query: [("language", language)])
     }

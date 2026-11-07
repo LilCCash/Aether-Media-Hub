@@ -222,3 +222,46 @@ final class ContentSyncTests: XCTestCase {
         XCTAssertEqual(ContentSync.merge(local: merged, remote: tablet).diary.entries.count, 2)
     }
 }
+
+final class InterfaceModeTests: XCTestCase {
+    func testClassicIsTheDefaultAndKeepsTheOldLook() {
+        let a = AppearanceSettings()
+        XCTAssertEqual(a.interfaceMode, .classic)
+        XCTAssertEqual(a.currentLook, AppearanceSettings.classicLookDefaults)
+        XCTAssertEqual(a.homeSections.first { $0.id == "universes" }?.isVisible, false)
+    }
+
+    func testSwitchingToProAndBackRestoresWhatTheViewerHad() {
+        var a = AppearanceSettings()
+        a.theme = .light
+        a.accent = .jade
+        a.heroStyle = .card
+        a.cardChrome = .outline
+        a.cornerStyle = .sharp
+        a.palette = .ocean
+        a.posterSize = .large
+        let before = a
+        a.switchInterface(to: .pro)
+        XCTAssertEqual(a.currentLook, AppearanceSettings.proLook)
+        XCTAssertEqual(a.interfaceMode, .pro)
+        XCTAssertEqual(a.palette, .ocean, "what Pro does not own stays")
+        XCTAssertEqual(a.posterSize, .large)
+        a.switchInterface(to: .pro)
+        a.switchInterface(to: .classic)
+        XCTAssertEqual(a, before, "back to Classic is exactly what it was")
+    }
+
+    func testTheModeSurvivesARoundTripAndOldFilesAreClassic() throws {
+        var a = AppearanceSettings()
+        a.theme = .light
+        a.switchInterface(to: .pro)
+        let back = try JSONDecoder().decode(AppearanceSettings.self, from: JSONEncoder().encode(a))
+        XCTAssertEqual(back.interfaceMode, .pro)
+        XCTAssertEqual(back.classicLook?.theme, .light)
+        XCTAssertEqual(try JSONDecoder().decode(AppearanceSettings.self, from: Data("{}".utf8)).interfaceMode, .classic)
+        var b = back
+        b.switchInterface(to: .classic)
+        XCTAssertEqual(b.theme, .light)
+        XCTAssertNil(b.classicLook)
+    }
+}

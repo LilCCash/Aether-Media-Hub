@@ -69,7 +69,8 @@ final class ProfileTests: XCTestCase {
         let decoded = try JSONDecoder().decode(ProfileSettings.self, from: JSONEncoder().encode(profile))
         XCTAssertEqual(decoded, profile)
         XCTAssertEqual(try JSONDecoder().decode(ContentSettings.self, from: Data("{}".utf8)).profile, ProfileSettings())
-        XCTAssertEqual(try JSONDecoder().decode(ProfileSettings.self, from: Data("{\"invitesPerWeek\":99}".utf8)).invitesPerWeek, 4)
+        XCTAssertEqual(try JSONDecoder().decode(ProfileSettings.self, from: Data("{\"invitesPerDay\":99}".utf8)).invitesPerDay, 6)
+        XCTAssertEqual(try JSONDecoder().decode(ProfileSettings.self, from: Data("{\"invitesPerWeek\":2}".utf8)).invitesPerDay, 4, "an old file falls back to the default")
     }
 }
 
@@ -78,32 +79,44 @@ final class InvitePlannerTests: XCTestCase {
     // Monday 2 November 2026, 08:00.
     private var now: Date { ISO8601DateFormatter().date(from: "2026-11-02T08:00:00Z")! }
 
-    func testTwoAWeekFallOnFridayAndSunday() {
-        let alerts = InvitePlanner.plan(now: now, name: nil, perWeek: 2, suggestions: [], days: 14, calendar: utc)
-        XCTAssertEqual(alerts.count, 4)
-        XCTAssertEqual(alerts.map { utc.component(.weekday, from: $0.fire) }, [6, 1, 6, 1])
-        XCTAssertEqual(utc.component(.hour, from: alerts[0].fire), 20)
+    func testFourADayAreSpreadOverTheDayAndFillTheHorizon() {
+        let early = ISO8601DateFormatter().date(from: "2026-11-02T07:00:00Z")!
+        let alerts = InvitePlanner.plan(now: early, name: nil, perDay: 4, suggestions: [], calendar: utc)
+        // 10 days × 4 slots; the first slot is 2.5 hours away.
+        XCTAssertEqual(alerts.count, 40)
+        let hours = Set(alerts.prefix(4).map { utc.component(.hour, from: $0.fire) })
+        XCTAssertEqual(hours, [9, 13, 18, 21])
+        XCTAssertLessThanOrEqual(alerts.count, 60, "the system keeps 64 pending notifications")
+        XCTAssertEqual(Set(alerts.map { $0.id }).count, alerts.count)
+    }
+
+    func testTheLinesFitTheHourOfTheDay() {
+        let alerts = InvitePlanner.plan(now: now, name: nil, perDay: 4, suggestions: [], calendar: utc)
+        let morning = alerts.filter { utc.component(.hour, from: $0.fire) == 9 }
+        XCTAssertTrue(morning.allSatisfy { !$0.body.lowercased().contains("stasera") && !$0.body.lowercased().contains("dormire") })
+        let night = alerts.filter { utc.component(.hour, from: $0.fire) == 21 }
+        XCTAssertTrue(night.allSatisfy { !$0.body.lowercased().contains("buongiorno") && !$0.body.lowercased().contains("pausa pranzo") })
+        XCTAssertGreaterThan(Set(alerts.map { $0.body }).count, 6, "not always the same words")
     }
 
     func testTheNameNeverAppearsWithoutOne() {
-        let nameless = InvitePlanner.plan(now: now, name: nil, perWeek: 4, suggestions: [], calendar: utc)
+        let nameless = InvitePlanner.plan(now: now, name: nil, perDay: 6, suggestions: [], calendar: utc)
         XCTAssertFalse(nameless.contains { ($0.title + $0.body).contains("Ehi") || $0.title.contains(",") })
-        let named = InvitePlanner.plan(now: now, name: "Sara", perWeek: 4, suggestions: [], calendar: utc)
+        let named = InvitePlanner.plan(now: now, name: "Sara", perDay: 6, suggestions: [], calendar: utc)
         XCTAssertTrue(named.contains { $0.title == "Ehi Sara" && $0.body == "Cosa guardiamo?" })
-        XCTAssertFalse(nameless.map { $0.body }.isEmpty)
     }
 
-    func testAJustOpenedAppSkipsTheNextFewHoursAndWeekendsGetTheBingeLine() {
-        let friday = ISO8601DateFormatter().date(from: "2026-11-06T19:00:00Z")!    // slot 20:30 is under three hours away
-        let alerts = InvitePlanner.plan(now: friday, name: nil, perWeek: 1, suggestions: [], days: 2, calendar: utc)
-        XCTAssertTrue(alerts.isEmpty)
-        let all = InvitePlanner.plan(now: now, name: nil, perWeek: 4, suggestions: [], days: 14, calendar: utc)
-        XCTAssertTrue(all.contains { $0.body.contains("binge") })
+    func testAJustOpenedAppSkipsTheNextHourAndAHalf() {
+        let evening = ISO8601DateFormatter().date(from: "2026-11-06T20:00:00Z")!
+        let alerts = InvitePlanner.plan(now: evening, name: nil, perDay: 1, suggestions: [], days: 1, calendar: utc)
+        XCTAssertTrue(alerts.isEmpty, "the 20:30 slot is under 90 minutes away")
+        let weekend = InvitePlanner.plan(now: now, name: nil, perDay: 4, suggestions: [], days: 10, calendar: utc)
+        XCTAssertTrue(weekend.contains { $0.body.contains("binge") })
     }
 
     func testEveryOtherInvitationSuggestsATitleWithItsGenre() {
         let suggestions = [InviteSuggestion(id: "tt1", type: "movie", name: "Alien", genre: "Fantascienza")]
-        let alerts = InvitePlanner.plan(now: now, name: "Sara", perWeek: 4, suggestions: suggestions, days: 14, calendar: utc)
+        let alerts = InvitePlanner.plan(now: now, name: "Sara", perDay: 4, suggestions: suggestions, days: 5, calendar: utc)
         let suggested = alerts.filter { $0.metaID != nil }
         XCTAssertFalse(suggested.isEmpty)
         XCTAssertEqual(suggested[0].metaID, "tt1")

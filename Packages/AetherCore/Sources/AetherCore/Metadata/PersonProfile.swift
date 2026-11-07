@@ -57,6 +57,10 @@ public struct PersonProfile: Equatable, Sendable {
     /// "Acting", "Directing", … as TMDB names the main department, translated.
     public var profession: String?
     public var filmography: [PersonFilmographyEntry]
+    /// Filled in after the page opens (Wikidata); empty when there is nothing to say.
+    public var awards: [PersonAward] = []
+    /// Filled in after the page opens (TMDB credits of the best known titles).
+    public var collaborators: [PersonCollaborator] = []
 
     public var roles: [PersonRole] {
         let present = Set(filmography.flatMap { $0.roles })
@@ -181,5 +185,26 @@ public struct PersonSearchResult: Equatable, Identifiable, Sendable {
             let photo = hit.profilePath.flatMap { $0.hasPrefix("/") && !$0.contains("..") ? "https://image.tmdb.org/t/p/w185" + $0 : nil }
             return PersonSearchResult(id: id, name: name, photoURL: photo, profession: PersonProfile.professionName(hit.department))
         }
+    }
+}
+
+
+extension PersonProfile {
+    /// Counts, over the credits of some titles, who appears next to `personID`: the most frequent first, at least two titles together.
+    static func collaborators(of personID: Int, titles: [(title: String, credits: TMDBCredits)], limit: Int = 12) -> [PersonCollaborator] {
+        var table: [Int: PersonCollaborator] = [:]
+        for entry in titles {
+            let cast = entry.credits.cast.prefix(15)
+            guard cast.contains(where: { $0.id == personID }) else { continue }
+            for member in cast {
+                guard let id = member.id, id != personID, let name = member.name, !name.isEmpty else { continue }
+                var known = table[id] ?? PersonCollaborator(tmdbID: id, name: name, photoURL: PersonCredit.posterURL(member.profilePath).map { $0.replacingOccurrences(of: "/w342", with: "/w185") }, shared: [])
+                if !known.shared.contains(entry.title) { known.shared.append(entry.title) }
+                table[id] = known
+            }
+        }
+        return table.values.filter { $0.shared.count >= 2 && $0.photoURL != nil }
+            .sorted { $0.shared.count != $1.shared.count ? $0.shared.count > $1.shared.count : $0.name < $1.name }
+            .prefix(limit).map { $0 }
     }
 }

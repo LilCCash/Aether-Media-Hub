@@ -10,13 +10,13 @@ final class AppearanceCustomizationTests: XCTestCase {
 
     func testDefaultsKeepTheOneDotZeroLook() {
         let a = AppearanceSettings()
-        XCTAssertEqual(a.heroStyle, .fullBleed)
+        XCTAssertEqual(a.heroStyle, .card)
         XCTAssertTrue(a.heroAutoScroll)
         XCTAssertEqual(a.palette, .aether)
         XCTAssertEqual(a.backdrop, .aurora)
-        XCTAssertEqual(a.cardChrome, .glow)
-        XCTAssertEqual(a.cornerStyle, .rounded)
-        XCTAssertEqual(a.cornerStyle.radius, 20, "the rounded corners Aether Pro starts with")
+        XCTAssertEqual(a.cardChrome, .standard)
+        XCTAssertEqual(a.cornerStyle, .standard)
+        XCTAssertEqual(a.cornerStyle.radius, 14, "the radius posters have always had")
         XCTAssertEqual(a.titleFont, .rounded)
         XCTAssertFalse(a.greetingEnabled)
         XCTAssertTrue(a.unlockedSecrets.isEmpty)
@@ -63,7 +63,7 @@ final class AppearanceCustomizationTests: XCTestCase {
         {"theme":"dark","homeSections":[{"id":"catalogs","isVisible":false},{"id":"hero","isVisible":true},{"id":"watchlist","isVisible":true},{"id":"continue","isVisible":false},{"id":"nextUp","isVisible":true}]}
         """)
         XCTAssertEqual(a.homeSections.map { $0.id }, ["catalogs", "hero", "watchlist", "continue", "nextUp", "universes", "forYou"])
-        XCTAssertEqual(a.homeSections.map { $0.isVisible }, [false, true, true, false, true, true, true])
+        XCTAssertEqual(a.homeSections.map { $0.isVisible }, [false, true, true, false, true, false, false])
         XCTAssertEqual(a.theme, .dark)
     }
 
@@ -102,7 +102,7 @@ final class AppearanceCustomizationTests: XCTestCase {
         XCTAssertEqual(a.heroStyle, .fullBleed)
         XCTAssertEqual(a.palette, .ocean)
         XCTAssertEqual(a.backdrop, .flow)
-        XCTAssertEqual(a.cardChrome, .glow)
+        XCTAssertEqual(a.cardChrome, .standard)
         XCTAssertEqual(a.cornerStyle, .bubble)
         XCTAssertEqual(a.titleFont, .serif)
     }

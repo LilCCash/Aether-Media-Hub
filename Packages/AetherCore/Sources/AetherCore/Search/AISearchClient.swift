@@ -171,10 +171,26 @@ public struct AISearchClient: Sendable {
         }
     }
 
+    /// A free-text answer (the cinema assistant): the same providers and keys as the search, without asking for JSON.
+    public func ask(_ question: String, system: String, settings: AdvancedSearchSettings) async throws -> String {
+        let provider = settings.provider
+        let secret = key(provider)
+        if secret == nil && !provider.keyIsOptional { throw AISearchError.notConfigured }
+        let model = settings.model(for: provider)
+        guard !model.isEmpty else { throw AISearchError.notConfigured }
+        var response = try await send(provider: provider, model: model, key: secret, settings: settings, system: system, user: question, thinkingOff: true, jsonMode: false)
+        if provider == .google, response.statusCode == 400, Self.mentionsThinking(response.data) {
+            response = try await send(provider: provider, model: model, key: secret, settings: settings, system: system, user: question, thinkingOff: false, jsonMode: false)
+        }
+        if !(200..<300).contains(response.statusCode) { throw Self.error(status: response.statusCode, data: response.data) }
+        guard let text = Self.answerText(provider: provider, data: response.data), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AISearchError.unreadable }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func send(provider: AISearchProvider, model: String, key: String?, settings: AdvancedSearchSettings,
-                      system: String, user: String, thinkingOff: Bool) async throws -> HTTPResponse {
+                      system: String, user: String, thinkingOff: Bool, jsonMode: Bool = true) async throws -> HTTPResponse {
         let request = try Self.request(provider: provider, model: model, key: key, customBase: settings.customBaseURL,
-                                       system: system, user: user, timeout: TimeInterval(settings.aiTimeout), thinkingOff: thinkingOff)
+                                       system: system, user: user, timeout: TimeInterval(settings.aiTimeout), thinkingOff: thinkingOff, jsonMode: jsonMode)
         do {
             return try await http.send(request)
         } catch {
@@ -251,7 +267,7 @@ public struct AISearchClient: Sendable {
     // MARK: Richieste
 
     static func request(provider: AISearchProvider, model: String, key: String?, customBase: String,
-                        system: String, user: String, timeout: TimeInterval, thinkingOff: Bool = true) throws -> HTTPRequest {
+                        system: String, user: String, timeout: TimeInterval, thinkingOff: Bool = true, jsonMode: Bool = true) throws -> HTTPRequest {
         var headers = ["Content-Type": "application/json", "Accept": "application/json"]
         let url: URL
         let body: [String: Any]
@@ -265,8 +281,9 @@ public struct AISearchClient: Sendable {
         case .openai:
             url = URL(string: "https://api.openai.com/v1/chat/completions")!
             headers["Authorization"] = "Bearer " + (key ?? "")
-            body = ["model": model, "response_format": ["type": "json_object"],
-                    "messages": [["role": "system", "content": system], ["role": "user", "content": user]]]
+            var openAI: [String: Any] = ["model": model, "messages": [["role": "system", "content": system], ["role": "user", "content": user]]]
+            if jsonMode { openAI["response_format"] = ["type": "json_object"] }
+            body = openAI
         case .openrouter:
             url = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
             headers["Authorization"] = "Bearer " + (key ?? "")

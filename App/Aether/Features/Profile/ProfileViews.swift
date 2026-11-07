@@ -127,7 +127,7 @@ struct ProfileView: View {
             }
         }
         .onChange(of: settings.value.content.profile.inviteNotifications) { _, _ in Task { await env.extras.refreshInvites(force: true) } }
-        .onChange(of: settings.value.content.profile.invitesPerWeek) { _, _ in Task { await env.extras.refreshInvites(force: true) } }
+        .onChange(of: settings.value.content.profile.invitesPerDay) { _, _ in Task { await env.extras.refreshInvites(force: true) } }
         .onChange(of: settings.value.content.profile.name) { _, _ in Task { await env.extras.refreshInvites(force: true) } }
     }
 
@@ -238,11 +238,11 @@ struct ProfileView: View {
 
     private var invitesSection: some View {
         Section(header: Text("Inviti a guardare"),
-                footer: Text("Ogni tanto una notifica per ricordarti di guardare qualcosa: «Serata film?», un saluto con il tuo nome (solo se l'hai scritto) o un titolo che potrebbe piacerti in base ai generi scelti e ai tuoi voti. Si programmano sul telefono: apri Aether ogni tanto per tenerle aggiornate.")) {
+                footer: Text("Qualche notifica al giorno, ognuna adatta all'ora in cui arriva, per ricordarti di guardare qualcosa: «Serata film?», un saluto con il tuo nome (solo se l'hai scritto) o un titolo che potrebbe piacerti in base ai generi scelti e ai tuoi voti. Si programmano sul telefono: apri Aether ogni tanto per tenerle aggiornate.")) {
             Toggle("Ricevi inviti", isOn: settings.binding(\.content.profile.inviteNotifications))
                 .accessibilityIdentifier("profile.invites")
             if profile.inviteNotifications {
-                Stepper("\(profile.invitesPerWeek) a settimana", value: settings.binding(\.content.profile.invitesPerWeek), in: 1...4)
+                Stepper("\(profile.invitesPerDay) al giorno", value: settings.binding(\.content.profile.invitesPerDay), in: 1...6)
             }
         }
     }

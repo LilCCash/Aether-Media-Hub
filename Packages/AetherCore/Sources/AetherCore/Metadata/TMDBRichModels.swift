@@ -312,6 +312,16 @@ struct TMDBPersonDetails: Decodable {
     }
 }
 
+struct TMDBPersonExternalIDs: Decodable {
+    var wikidataID: String?
+    private enum CodingKeys: String, CodingKey { case wikidata_id }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let raw = c.flexString(.wikidata_id)
+        wikidataID = raw.flatMap { $0.range(of: "^Q[0-9]{1,12}$", options: .regularExpression) != nil ? $0 : nil }
+    }
+}
+
 struct TMDBPersonSearch: Decodable {
     var results: [TMDBPersonHit]
     private enum CodingKeys: String, CodingKey { case results }

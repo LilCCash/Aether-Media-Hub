@@ -409,7 +409,12 @@ public struct SearchPlan: Equatable, Sendable {
 
         var entries: [SearchPlanEntry] = []
         if !query.isEmpty {
-            let candidates = capabilities.catalogsToSearch(forType: typeID)
+            var candidates = capabilities.catalogsToSearch(forType: typeID)
+            // Searching every type does not ask the live-TV catalogs (channels, TV, events): they answer with pages that are not JSON and
+            // their results are not films. Live TV has its own screen; asking for the type «tv» or «channel» still searches them.
+            if typeID == nil {
+                candidates = candidates.filter { ContentTypes.canonicalID($0.catalog.type) != ContentType.tv && ContentTypes.canonicalID($0.catalog.type) != ContentType.channel }
+            }
             for ref in candidates {
                 var extra: [ExtraValue] = [ExtraValue(name: "search", value: query)]
                 var handling = SearchGenreHandling.notRequested

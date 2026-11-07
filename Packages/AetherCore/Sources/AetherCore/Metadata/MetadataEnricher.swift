@@ -365,6 +365,29 @@ public actor MetadataEnricher {
         }
     }
 
+    /// Who worked with the person in their best known titles (TMDB credits of up to six of them).
+    public func collaborators(of profile: PersonProfile, personID: Int, language: String) async -> [PersonCollaborator] {
+        guard let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb) else { return [] }
+        let top = profile.filmography.filter { $0.roles.contains(.actor) }.prefix(6)
+        var collected: [(title: String, credits: TMDBCredits)] = []
+        await withTaskGroup(of: (String, TMDBCredits)?.self) { group in
+            for entry in top {
+                group.addTask {
+                    guard let credits = try? await tmdb.creditsOf(kind: entry.isMovie ? .movie : .tv, id: entry.tmdbID, language: language) else { return nil }
+                    return (entry.title, credits)
+                }
+            }
+            for await item in group { if let item = item { collected.append((title: item.0, credits: item.1)) } }
+        }
+        return PersonProfile.collaborators(of: personID, titles: collected)
+    }
+
+    /// The Wikidata item of a person, if TMDB knows it.
+    public func wikidataID(personID: Int) async -> String? {
+        guard let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb) else { return nil }
+        return (try? await tmdb.personWikidataID(id: personID)) ?? nil
+    }
+
     /// People whose name matches (actors, directors…), the best known first. Empty without a key or on any error.
     public func searchPeople(_ text: String, language: String) async -> [PersonSearchResult] {
         guard text.count >= 3, let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb) else { return [] }

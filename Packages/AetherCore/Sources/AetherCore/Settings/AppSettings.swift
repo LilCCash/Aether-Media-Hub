@@ -129,7 +129,7 @@ public struct HomeSectionConfig: Codable, Hashable, Identifiable, Sendable {
 
     public static let defaultOrder: [HomeSectionConfig] = [
         HomeSectionConfig(id: hero), HomeSectionConfig(id: continueWatching), HomeSectionConfig(id: nextUp),
-        HomeSectionConfig(id: universes), HomeSectionConfig(id: forYou), HomeSectionConfig(id: watchlist), HomeSectionConfig(id: catalogs)
+        HomeSectionConfig(id: universes, isVisible: false), HomeSectionConfig(id: forYou, isVisible: false), HomeSectionConfig(id: watchlist), HomeSectionConfig(id: catalogs)
     ]
 
     public static func title(for id: String) -> String {
@@ -147,8 +147,8 @@ public struct HomeSectionConfig: Codable, Hashable, Identifiable, Sendable {
 }
 
 public struct AppearanceSettings: Codable, Equatable, Sendable {
-    public var theme: ThemeMode = .dark
-    public var accent: AccentChoice = .nebula
+    public var theme: ThemeMode = .system
+    public var accent: AccentChoice = .aurora
     /// Optional custom accent in #RRGGBB; nil keeps the selected preset.
     public var customAccentHex: String? = nil
     // 1.5
@@ -159,7 +159,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     /// The star badge with the rating on the posters.
     public var showPosterRatings: Bool = true
     /// Dynamic Cinematic UI: the whole app takes its atmosphere from the film being looked at.
-    public var dynamicCinematic: Bool = true
+    public var dynamicCinematic: Bool = false
     /// Cinematic: tint the background with the colours of the film's artwork.
     public var cinematicMood: Bool = true
     /// Cinematic: slow zoom of the artwork and a soft fade when a page opens (off with Reduce Motion / animations off).
@@ -180,19 +180,23 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var reduceVisualEffects: Bool = false
     public var homeSections: [HomeSectionConfig] = HomeSectionConfig.defaultOrder
     // 1.1
-    public var heroStyle: HeroStyle = .fullBleed
+    public var heroStyle: HeroStyle = .card
     /// The featured carousel turns pages by itself (still subject to Reduce Motion and the animations switch).
     public var heroAutoScroll: Bool = true
     public var palette: AppPalette = .aether
     public var backdrop: BackdropStyle = .aurora
-    public var cardChrome: CardChrome = .glow
-    public var cornerStyle: CornerStyle = .rounded
+    public var cardChrome: CardChrome = .standard
+    public var cornerStyle: CornerStyle = .standard
     public var titleFont: TitleFont = .rounded
     public var greetingEnabled: Bool = false
     /// Shown in the greeting. Stored in the settings backup like everything else, unencrypted.
     public var greetingName: String = ""
     /// Raw ids of the hidden extras found so far (`AppSecret`).
     public var unlockedSecrets: [String] = []
+    /// Classic keeps the look of Aether; Pro changes the look and the layout of the screens (the data and the features are the same).
+    public var interfaceMode: InterfaceMode = .classic
+    /// The look the viewer had in Classic, kept while Pro is on so that switching back restores it exactly.
+    public var classicLook: AppearanceLook?
 
     public init() {}
 
@@ -200,13 +204,15 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         case customBackgroundHex, backdropIntensity, showPosterRatings, dynamicCinematic, cinematicMood, cinematicMotion, amoled, showHalos, detailAsCard, zoomTransition, heroInterval
         case theme, accent, customAccentHex, posterSize, density, animationsEnabled, reduceVisualEffects, homeSections
         case heroStyle, heroAutoScroll, palette, backdrop, cardChrome, cornerStyle, titleFont
-        case greetingEnabled, greetingName, unlockedSecrets
+        case greetingEnabled, greetingName, unlockedSecrets, interfaceMode, classicLook
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        theme = c.value(.theme, default: .dark)
-        accent = c.value(.accent, default: .nebula)
+        theme = c.value(.theme, default: .system)
+        interfaceMode = c.value(.interfaceMode, default: .classic)
+        classicLook = c.lenient(AppearanceLook.self, forKey: .classicLook)
+        accent = c.value(.accent, default: .aurora)
         let customAccent: String? = c.lenient(String.self, forKey: .customAccentHex)
         customAccentHex = customAccent.flatMap { value in
             let hex = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
@@ -222,7 +228,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         let intensity: Double = c.value(.backdropIntensity, default: 1)
         backdropIntensity = intensity.isFinite ? min(1, max(0, intensity)) : 1
         showPosterRatings = c.value(.showPosterRatings, default: true)
-        dynamicCinematic = c.value(.dynamicCinematic, default: true)
+        dynamicCinematic = c.value(.dynamicCinematic, default: false)
         cinematicMood = c.value(.cinematicMood, default: true)
         cinematicMotion = c.value(.cinematicMotion, default: true)
         amoled = c.value(.amoled, default: false)
@@ -236,11 +242,11 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         reduceVisualEffects = c.value(.reduceVisualEffects, default: false)
         let stored = c.lossyArray(HomeSectionConfig.self, forKey: .homeSections)
         homeSections = AppearanceSettings.normalise(sections: stored)
-        heroStyle = c.value(.heroStyle, default: .fullBleed)
+        heroStyle = c.value(.heroStyle, default: .card)
         heroAutoScroll = c.value(.heroAutoScroll, default: true)
         backdrop = c.value(.backdrop, default: .aurora)
-        cardChrome = c.value(.cardChrome, default: .glow)
-        cornerStyle = c.value(.cornerStyle, default: .rounded)
+        cardChrome = c.value(.cardChrome, default: .standard)
+        cornerStyle = c.value(.cornerStyle, default: .standard)
         titleFont = c.value(.titleFont, default: .rounded)
         greetingEnabled = c.value(.greetingEnabled, default: false)
         let name: String = c.value(.greetingName, default: "")
@@ -837,5 +843,87 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public func networkPolicy(allowLoopback: Bool = false, resolver: HostResolving = SystemHostResolver()) -> NetworkPolicy {
         return NetworkPolicy(allowLocalNetwork: privacy.allowLocalNetwork, allowLoopback: allowLoopback,
                              requireHTTPSForPublicHosts: true, checkDNS: true, resolver: resolver)
+    }
+}
+
+
+// MARK: - Interface mode
+
+public enum InterfaceMode: String, Codable, CaseIterable, Sendable {
+    case classic, pro
+
+    public var title: String {
+        switch self {
+        case .classic: return "Classica"
+        case .pro: return "Pro"
+        }
+    }
+
+    public var explanation: String {
+        switch self {
+        case .classic: return "L'aspetto di sempre di Aether."
+        case .pro: return "Tema scuro, card di vetro con alone, pagina titolo cinematografica, hero a tutto schermo, schede nella pagina del film, barra con la ricerca separata."
+        }
+    }
+}
+
+/// The values of the look that the Pro mode changes (and the Classic mode gets back).
+public struct AppearanceLook: Codable, Equatable, Sendable {
+    public var theme: ThemeMode
+    public var accent: AccentChoice
+    public var heroStyle: HeroStyle
+    public var cardChrome: CardChrome
+    public var cornerStyle: CornerStyle
+    public var dynamicCinematic: Bool
+    public var universesVisible: Bool
+    public var forYouVisible: Bool
+}
+
+extension AppearanceSettings {
+    /// The look as it is now.
+    public var currentLook: AppearanceLook {
+        return AppearanceLook(theme: theme, accent: accent, heroStyle: heroStyle, cardChrome: cardChrome, cornerStyle: cornerStyle, dynamicCinematic: dynamicCinematic,
+                              universesVisible: homeSections.first { $0.id == HomeSectionConfig.universes }?.isVisible ?? false,
+                              forYouVisible: homeSections.first { $0.id == HomeSectionConfig.forYou }?.isVisible ?? false)
+    }
+
+    /// The look of Aether as it has always been.
+    public static var classicLookDefaults: AppearanceLook {
+        return AppearanceLook(theme: .system, accent: .aurora, heroStyle: .card, cardChrome: .standard, cornerStyle: .standard, dynamicCinematic: false,
+                              universesVisible: false, forYouVisible: false)
+    }
+
+    public static var proLook: AppearanceLook {
+        return AppearanceLook(theme: .dark, accent: .nebula, heroStyle: .fullBleed, cardChrome: .glow, cornerStyle: .rounded, dynamicCinematic: true,
+                              universesVisible: true, forYouVisible: true)
+    }
+
+    private mutating func apply(_ look: AppearanceLook) {
+        theme = look.theme
+        accent = look.accent
+        heroStyle = look.heroStyle
+        cardChrome = look.cardChrome
+        cornerStyle = look.cornerStyle
+        dynamicCinematic = look.dynamicCinematic
+        for index in homeSections.indices {
+            if homeSections[index].id == HomeSectionConfig.universes { homeSections[index].isVisible = look.universesVisible }
+            if homeSections[index].id == HomeSectionConfig.forYou { homeSections[index].isVisible = look.forYouVisible }
+        }
+    }
+
+    /// Switches the interface. Going to Pro remembers the Classic look (theme, accent, hero, cards, corners, cinematic page, the two new Home rows) and
+    /// puts the Pro one; going back puts the remembered look again, so nothing the viewer chose in Classic is lost and nothing leaks across.
+    /// Everything else (palette, fonts, poster size, sections order, library, settings) is untouched.
+    public mutating func switchInterface(to mode: InterfaceMode) {
+        guard mode != interfaceMode else { return }
+        switch mode {
+        case .pro:
+            classicLook = currentLook
+            apply(Self.proLook)
+        case .classic:
+            apply(classicLook ?? Self.classicLookDefaults)
+            classicLook = nil
+        }
+        interfaceMode = mode
     }
 }

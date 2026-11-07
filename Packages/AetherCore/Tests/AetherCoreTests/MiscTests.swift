@@ -133,7 +133,7 @@ final class RedactorAndLogTests: XCTestCase {
 final class SettingsTests: XCTestCase {
     func testDefaults() {
         let settings = AppSettings()
-        XCTAssertEqual(settings.appearance.theme, .dark)
+        XCTAssertEqual(settings.appearance.theme, .system)
         XCTAssertEqual(settings.playback.skipForwardSeconds, 10)
         XCTAssertTrue(settings.playback.autoplayNextEpisode)
         XCTAssertFalse(settings.privacy.allowLocalNetwork, "local network access is opt-in")
@@ -169,7 +169,7 @@ final class SettingsTests: XCTestCase {
          "privacy":"corrupted"}
         """
         let settings = try JSONDecoder.aether().decode(AppSettings.self, from: Data(json.utf8))
-        XCTAssertEqual(settings.appearance.theme, .dark, "unknown enum value falls back")
+        XCTAssertEqual(settings.appearance.theme, .system, "unknown enum value falls back")
         XCTAssertEqual(settings.appearance.posterSize, .large, "valid siblings are kept")
         XCTAssertEqual(settings.playback.skipForwardSeconds, 120, "values are clamped")
         XCTAssertEqual(settings.playback.skipBackSeconds, 5)

@@ -140,11 +140,12 @@ public struct ProfileSettings: Codable, Equatable, Sendable {
     public var skipped: [String] = []
     /// Occasional notifications that invite to watch something (never with the name when there is none).
     public var inviteNotifications: Bool = true
-    public var invitesPerWeek: Int = 2
+    /// Invitations a day (1...6).
+    public var invitesPerDay: Int = 4
 
     public init() {}
 
-    private enum CodingKeys: String, CodingKey { case name, avatar, genres, votes, skipped, inviteNotifications, invitesPerWeek }
+    private enum CodingKeys: String, CodingKey { case name, avatar, genres, votes, skipped, inviteNotifications, invitesPerDay }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -154,7 +155,7 @@ public struct ProfileSettings: Codable, Equatable, Sendable {
         votes = c.lossyArray(TasteVote.self, forKey: .votes)
         skipped = Array(c.stringList(.skipped).suffix(400))
         inviteNotifications = c.value(.inviteNotifications, default: true)
-        invitesPerWeek = min(4, max(1, c.value(.invitesPerWeek, default: 2) as Int))
+        invitesPerDay = min(6, max(1, c.value(.invitesPerDay, default: 4) as Int))
     }
 
     /// The name to use in a greeting; nil when none was set.
@@ -265,46 +266,83 @@ public struct InviteAlert: Equatable, Sendable {
 }
 
 public enum InvitePlanner {
-    /// Slots of the week (weekday 1 = Sunday … 7 = Saturday, hour, minute) for 1 to 4 invitations a week.
-    static func slots(perWeek: Int) -> [(weekday: Int, hour: Int, minute: Int)] {
-        let all: [(Int, Int, Int)] = [(4, 21, 0), (6, 20, 30), (7, 15, 30), (1, 18, 30)]
-        let chosen: [(Int, Int, Int)]
-        switch min(4, max(1, perWeek)) {
-        case 1: chosen = [all[1]]
-        case 2: chosen = [all[1], all[3]]
-        case 3: chosen = [all[0], all[1], all[3]]
-        default: chosen = all
+    /// The times of day (hour, minute) for 1 to 6 invitations a day: spread over the day, never in the small hours.
+    static func slots(perDay: Int) -> [(hour: Int, minute: Int)] {
+        switch min(6, max(1, perDay)) {
+        case 1: return [(20, 30)]
+        case 2: return [(13, 0), (21, 0)]
+        case 3: return [(9, 30), (16, 30), (21, 0)]
+        case 4: return [(9, 30), (13, 0), (18, 0), (21, 30)]
+        case 5: return [(8, 30), (11, 30), (15, 30), (19, 0), (22, 0)]
+        default: return [(8, 30), (11, 0), (13, 30), (16, 30), (19, 30), (22, 0)]
         }
-        return chosen.map { (weekday: $0.0, hour: $0.1, minute: $0.2) }
     }
 
-    /// The invitations for the next `days` days. The name is used only when there is one. Slots less than three hours away are skipped
-    /// (the viewer has just opened the app), and every other invitation suggests a title when there is one to suggest.
-    public static func plan(now: Date, name: String?, perWeek: Int, suggestions: [InviteSuggestion], days: Int = 14, calendar: Calendar = .current) -> [InviteAlert] {
-        let slots = slots(perWeek: perWeek)
+    enum DayPart { case morning, lunch, afternoon, evening, night }
+
+    static func part(hour: Int, minute: Int) -> DayPart {
+        let t = hour * 60 + minute
+        switch t {
+        case ..<(12 * 60): return .morning
+        case ..<(15 * 60): return .lunch
+        case ..<(18 * 60 + 30): return .afternoon
+        case ..<(21 * 60 + 15): return .evening
+        default: return .night
+        }
+    }
+
+    /// The lines for a moment of the day: each one fits the hour it is sent at.
+    static func lines(part: DayPart, weekend: Bool) -> [String] {
+        switch part {
+        case .morning:
+            return weekend ? ["Buongiorno! Colazione e un film?", "Sabato o domenica mattina: una serie con calma?"]
+                           : ["Buongiorno! Cosa guardiamo oggi?", "Un episodio col caffè?"]
+        case .lunch:
+            return weekend ? ["Dopo pranzo c'è tutto il tempo per un film.", "Giorno perfetto per il binge watching."]
+                           : ["Pausa pranzo: un episodio al volo?", "Hai mezz'ora? C'è una serie che ti aspetta."]
+        case .afternoon:
+            return weekend ? ["Pomeriggio libero: giorno perfetto per il binge watching.", "Cosa guardiamo questo pomeriggio?"]
+                           : ["Pomeriggio no? Rimedia con un buon film.", "Quando finisci, il divano ti aspetta."]
+        case .evening:
+            return ["Serata film?", "Cosa guardiamo stasera?", "Il divano ti aspetta: scegli qualcosa da guardare."]
+        case .night:
+            return ["Ancora un episodio prima di dormire?", "Un ultimo film della giornata?", "Notte da cinema: cosa guardiamo?"]
+        }
+    }
+
+    /// The invitations for the next `days` days (the system keeps at most 64 pending notifications, so the default horizon shrinks as the
+    /// number a day grows). The name is used only when there is one. Slots less than 90 minutes away are skipped (the viewer has just
+    /// opened the app), and every other invitation suggests a title when there is one to suggest.
+    public static func plan(now: Date, name: String?, perDay: Int, suggestions: [InviteSuggestion], days: Int? = nil, calendar: Calendar = .current) -> [InviteAlert] {
+        let slots = slots(perDay: perDay)
+        let horizon = days ?? max(2, 40 / max(1, slots.count))
         let start = calendar.startOfDay(for: now)
         var alerts: [InviteAlert] = []
         var counter = 0
-        for offset in 0..<max(0, days) {
+        for offset in 0..<max(0, horizon) {
             guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
             let weekday = calendar.component(.weekday, from: day)
-            for slot in slots where slot.weekday == weekday {
-                guard let fire = calendar.date(bySettingHour: slot.hour, minute: slot.minute, second: 0, of: day), fire > now.addingTimeInterval(3 * 3600) else { continue }
-                let weekend = weekday == 1 || weekday == 7
-                var generic: [(title: String, body: String)] = [
-                    ("Aether", "Serata film?"),
-                    ("Aether", "Cosa guardiamo stasera?"),
-                    ("Aether", "Il divano ti aspetta: scegli qualcosa da guardare."),
-                ]
-                if weekend { generic.append(("Aether", "Giorno perfetto per il binge watching.")) }
-                if let name = name { generic.append(("Ehi \(name)", "Cosa guardiamo?")) }
+            let weekend = weekday == 1 || weekday == 7
+            for slot in slots {
+                guard let fire = calendar.date(bySettingHour: slot.hour, minute: slot.minute, second: 0, of: day), fire > now.addingTimeInterval(90 * 60) else { continue }
+                let dayPart = part(hour: slot.hour, minute: slot.minute)
                 let id = "aether.invite.\(Int(fire.timeIntervalSince1970))"
                 if !suggestions.isEmpty, counter % 2 == 1 {
                     let pick = suggestions[(counter / 2) % suggestions.count]
-                    alerts.append(InviteAlert(id: id, title: name.map { "\($0), ti potrebbe piacere" } ?? "Ti potrebbe piacere", body: "«\(pick.name)» · per chi ama \(pick.genre.lowercased())",
+                    let lead: String
+                    switch dayPart {
+                    case .morning: lead = "Per iniziare bene la giornata"
+                    case .lunch: lead = "Per la pausa"
+                    case .afternoon: lead = "Per il pomeriggio"
+                    case .evening: lead = "Per stasera"
+                    case .night: lead = "Prima di dormire"
+                    }
+                    alerts.append(InviteAlert(id: id, title: name.map { "\($0), \(lead.lowercased())" } ?? lead, body: "«\(pick.name)» · per chi ama \(pick.genre.lowercased())",
                                               fire: fire, type: pick.type, metaID: pick.id))
                 } else {
-                    let message = generic[(counter + offset) % generic.count]
+                    var pool = lines(part: dayPart, weekend: weekend).map { (title: "Aether", body: $0) }
+                    if let name = name { pool.append((title: "Ehi \(name)", body: "Cosa guardiamo?")) }
+                    let message = pool[(counter + offset) % pool.count]
                     alerts.append(InviteAlert(id: id, title: message.title, body: message.body, fire: fire, type: nil, metaID: nil))
                 }
                 counter += 1
