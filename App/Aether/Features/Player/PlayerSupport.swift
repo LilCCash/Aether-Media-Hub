@@ -138,6 +138,8 @@ struct PlayerScrubber: View {
     var onSeek: (Double) -> Void
     /// The picture for the position being slid to (nil when none can be made) and the callback that asks for it.
     var previewImage: UIImage? = nil
+    /// A picture is being made: the bubble keeps its size and shows a placeholder, so it does not jump when the picture arrives.
+    var previewLoading = false
     var onPreview: ((Double?) -> Void)? = nil
 
     @State private var dragFraction: Double?
@@ -147,7 +149,8 @@ struct PlayerScrubber: View {
     /// The bubble above the thumb: the picture of that moment (when there is one) and its time.
     @ViewBuilder
     private func preview(fraction: Double, width: CGFloat) -> some View {
-        let bubbleWidth: CGFloat = previewImage == nil ? 64 : 168
+        let hasFrame = previewImage != nil || previewLoading
+        let bubbleWidth: CGFloat = hasFrame ? 168 : 64
         let x = min(max(0, width * fraction - bubbleWidth / 2), max(0, width - bubbleWidth))
         VStack(spacing: 4) {
             if let image = previewImage {
@@ -155,11 +158,19 @@ struct PlayerScrubber: View {
                     .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white.opacity(0.7), lineWidth: 1.5))
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 2)
             }
+            if previewImage == nil && previewLoading {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.black.opacity(0.6))
+                    ProgressView().tint(.white)
+                }
+                .frame(width: 168, height: 94)
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white.opacity(0.4), lineWidth: 1.5))
+            }
             Text(Format.duration(fraction * duration)).font(.caption.monospacedDigit().weight(.bold))
                 .padding(.horizontal, 8).padding(.vertical, 3).background(.black.opacity(0.65), in: Capsule())
         }
         .frame(width: bubbleWidth)
-        .offset(x: x, y: previewImage == nil ? -34 : -124)
+        .offset(x: x, y: hasFrame ? -124 : -34)
         .allowsHitTesting(false)
     }
 

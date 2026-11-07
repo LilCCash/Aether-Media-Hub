@@ -466,6 +466,7 @@ struct DetailSheet: View {
     var body: some View {
         NavigationStack {
             DetailView(route: route)
+                .environment(\.pullToDismiss, { dismiss() })
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button { dismiss() } label: { Image(systemName: "xmark.circle.fill").symbolRenderingMode(.hierarchical) }

@@ -84,7 +84,14 @@ final class FFmpegThumbnailer: @unchecked Sendable {
         queue.async { [self] in _ = openIfNeeded() }
     }
 
+    private static func describe(_ code: Int32) -> String {
+        var buffer = [CChar](repeating: 0, count: 128)
+        av_strerror(code, &buffer, buffer.count)
+        return String(cString: buffer)
+    }
+
     private func openNow() -> Bool {
+        avformat_network_init()
         var options: OpaquePointer?
         defer { av_dict_free(&options) }
         if !headers.isEmpty {
@@ -96,9 +103,11 @@ final class FFmpegThumbnailer: @unchecked Sendable {
         av_dict_set(&options, "probesize", "3000000", 0)
         av_dict_set(&options, "analyzeduration", "2000000", 0)
         var opened: UnsafeMutablePointer<AVFormatContext>?
-        guard avformat_open_input(&opened, address, nil, &options) >= 0, let ic = opened else { return false }
+        let status = avformat_open_input(&opened, address, nil, &options)
+        guard status >= 0, let ic = opened else { lastFailure = "apertura non riuscita (\(Self.describe(status)))"; return false }
         context = ic
-        guard avformat_find_stream_info(ic, nil) >= 0 else { closeEverything(); return false }
+        let info = avformat_find_stream_info(ic, nil)
+        guard info >= 0 else { lastFailure = "lettura del file non riuscita (\(Self.describe(info)))"; closeEverything(); return false }
         var chosen: Int32 = -1
         for index in 0..<Int(ic.pointee.nb_streams) {
             guard let stream = ic.pointee.streams[index], let parameters = stream.pointee.codecpar else { continue }
@@ -107,8 +116,12 @@ final class FFmpegThumbnailer: @unchecked Sendable {
                 break
             }
         }
-        guard chosen >= 0, let stream = ic.pointee.streams[Int(chosen)], let parameters = stream.pointee.codecpar,
-              let codec = avcodec_find_decoder(parameters.pointee.codec_id), let codecContext = avcodec_alloc_context3(codec) else { closeEverything(); return false }
+        guard chosen >= 0, let stream = ic.pointee.streams[Int(chosen)], let parameters = stream.pointee.codecpar else {
+            lastFailure = "nessun flusso video nel file"; closeEverything(); return false
+        }
+        guard let codec = avcodec_find_decoder(parameters.pointee.codec_id), let codecContext = avcodec_alloc_context3(codec) else {
+            lastFailure = "decodificatore non disponibile (codice \(parameters.pointee.codec_id.rawValue))"; closeEverything(); return false
+        }
         guard avcodec_parameters_to_context(codecContext, parameters) >= 0 else {
             var doomed: UnsafeMutablePointer<AVCodecContext>? = codecContext
             avcodec_free_context(&doomed)
@@ -205,10 +218,15 @@ final class FFmpegThumbnailer: @unchecked Sendable {
         target.pointee.height = Int32(height)
         guard av_frame_get_buffer(target, 0) >= 0 else { return nil }
         guard sws_scale_frame(scaler, target, frame) >= 0 else { return nil }
-        guard let base = target.pointee.data.0,
-              let bitmap = CGContext(data: base, width: width, height: height, bitsPerComponent: 8, bytesPerRow: Int(target.pointee.linesize.0),
-                                     space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
-              let image = bitmap.makeImage() else { return nil }
+        guard let base = target.pointee.data.0 else { return nil }
+        // The pixels are copied out before the frame is freed: a picture that pointed into the frame's memory would show garbage or nothing.
+        let stride = Int(target.pointee.linesize.0)
+        let bytes = Data(bytes: base, count: stride * height)
+        guard let provider = CGDataProvider(data: bytes as CFData),
+              let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: stride,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                                  provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { return nil }
         return UIImage(cgImage: image)
     }
 }

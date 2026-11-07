@@ -782,6 +782,7 @@ struct PlayerView: View {
                                },
                                onSeek: { model.seek(to: $0) },
                                previewImage: scrubPreview.image,
+                               previewLoading: scrubPreview.isLoading,
                                onPreview: { seconds in
                                    if let seconds = seconds {
                                        scrubPreview.request(at: seconds, url: model.previewURL, headers: model.previewHeaders, usesAVPlayer: model.engine.kind == .avPlayer)

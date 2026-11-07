@@ -168,6 +168,7 @@ struct LiveTVView: View {
     /// The sources an addon channel has, when it has more than one: the viewer picks.
     struct ChannelChoice: Identifiable {
         let id = UUID()
+        let channelID: String
         let meta: MetaItem
         let streams: [AddonStream]
     }
@@ -219,15 +220,6 @@ struct LiveTVView: View {
                         .aetherGlassCapsule().padding(.bottom, 16).transition(.opacity)
                 }
             }
-        }
-        .confirmationDialog("Scegli la fonte", isPresented: Binding(get: { choice != nil }, set: { if !$0 { choice = nil } }),
-                            titleVisibility: .visible, presenting: choice) { current in
-            ForEach(Array(current.streams.prefix(14).enumerated()), id: \.offset) { index, stream in
-                Button(sourceLabel(stream, index)) { playStream(stream, meta: current.meta) }
-            }
-            Button("Annulla", role: .cancel) {}
-        } message: { current in
-            Text("«\(current.meta.name)» ha più fonti.")
         }
         .task(id: sources.map { $0.id }) {
             if current?.id != model.selected, let first = current { model.selected = first.id }
@@ -300,6 +292,12 @@ struct LiveTVView: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
             ForEach(model.channels) { channel in
                 ChannelTile(channel: channel, isFavorite: liveSettings.isFavorite(channel.id.replacingOccurrences(of: "m3u:", with: "").replacingOccurrences(of: "addon:", with: "")),
+                            choice: choice?.channelID == channel.id ? choice : nil,
+                            sourceLabel: { sourceLabel($0, $1) },
+                            onChoose: { stream in
+                                if let current = choice { choice = nil; playStream(stream, meta: current.meta) }
+                            },
+                            onCloseChoice: { choice = nil },
                             onPlay: { play(channel) }, onFavorite: { toggleFavorite(channel) }, onCopy: { copy(channel) })
             }
         }
@@ -376,7 +374,7 @@ struct LiveTVView: View {
                 }
                 notice = nil
                 if found.isEmpty { show("Nessuna fonte per questo canale."); return }
-                if found.count == 1 { playStream(found[0], meta: meta) } else { choice = ChannelChoice(meta: meta, streams: found) }
+                if found.count == 1 { playStream(found[0], meta: meta) } else { choice = ChannelChoice(channelID: channel.id, meta: meta, streams: found) }
             }
         case .m3u(let item):
             guard let url = URL(string: item.url) else { return }
@@ -395,6 +393,11 @@ struct LiveTVView: View {
 private struct ChannelTile: View {
     let channel: LiveChannel
     let isFavorite: Bool
+    /// The sources of this channel when it has several: they open in a drop-down right at the tile.
+    var choice: LiveTVView.ChannelChoice?
+    var sourceLabel: (AddonStream, Int) -> String = { _, index in "Fonte \(index + 1)" }
+    var onChoose: (AddonStream) -> Void = { _ in }
+    var onCloseChoice: () -> Void = {}
     let onPlay: () -> Void
     let onFavorite: () -> Void
     let onCopy: () -> Void
@@ -447,6 +450,27 @@ private struct ChannelTile: View {
             }
         }
         .buttonStyle(.plain)
+        .popover(isPresented: Binding(get: { choice != nil }, set: { if !$0 { onCloseChoice() } }), attachmentAnchor: .point(.bottom), arrowEdge: .top) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Scegli la fonte").font(.footnote.weight(.semibold)).foregroundStyle(Color.aetherSecondary).padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 6)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array((choice?.streams ?? []).prefix(20).enumerated()), id: \.offset) { index, stream in
+                            Button { onChoose(stream) } label: {
+                                HStack { Text(sourceLabel(stream, index)).lineLimit(2).multilineTextAlignment(.leading); Spacer(minLength: 8)
+                                    Image(systemName: "play.fill").font(.caption).foregroundStyle(.tint) }
+                                    .padding(.horizontal, 16).padding(.vertical, 11).contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            Divider().padding(.leading, 16)
+                        }
+                    }
+                }
+                .frame(maxHeight: 300)
+            }
+            .frame(minWidth: 240, maxWidth: 320)
+            .presentationCompactAdaptation(.popover)
+        }
         .contextMenu {
             Button(action: onFavorite) { Label(isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti", systemImage: isFavorite ? "star.slash" : "star") }
             if case .m3u = channel.origin { Button(action: onCopy) { Label("Copia il link", systemImage: "link") } }

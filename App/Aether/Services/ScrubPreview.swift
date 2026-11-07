@@ -7,6 +7,7 @@ import UIKit
 @MainActor
 final class ScrubPreviewProvider: ObservableObject {
     @Published private(set) var image: UIImage?
+    @Published private(set) var isLoading = false
 
     private var thumbnailer: FFmpegThumbnailer?
     private var fallbackGenerator: AVAssetImageGenerator?
@@ -49,7 +50,8 @@ final class ScrubPreviewProvider: ObservableObject {
             fallbackGenerator = nil
         }
         let bucket = Int(seconds / 5)
-        if let hit = cache[bucket] { image = hit; return }
+        if let hit = cache[bucket] { image = hit; isLoading = false; return }
+        isLoading = true
         task?.cancel()
         task = Task { [weak self] in
             // Waits a moment: while the finger moves, only the last position is worth asking for.
@@ -60,6 +62,7 @@ final class ScrubPreviewProvider: ObservableObject {
             if let thumbnailer = self.thumbnailer { made = await thumbnailer.image(at: seconds) }
             if made == nil, usesAVPlayer { made = await self.fallbackImage(at: seconds, url: url, headers: headers) }
             if Task.isCancelled { return }
+            self.isLoading = false
             guard let picture = made else {
                 // No picture for this spot: the nearest one already made is better than an empty frame, and the reason goes to the log once.
                 if let nearest = self.cache.min(by: { abs($0.key - bucket) < abs($1.key - bucket) })?.value { self.image = nearest }
@@ -95,6 +98,7 @@ final class ScrubPreviewProvider: ObservableObject {
 
     func clear() {
         task?.cancel()
+        isLoading = false
         image = nil
     }
 }

@@ -165,6 +165,8 @@ struct DetailView: View {
     @Environment(\.aetherStyle) private var style
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoomed = false
+    @State private var atTop = true
+    @Environment(\.pullToDismiss) private var pullToDismiss
     @State private var revealed = false
     @StateObject private var model: DetailViewModel
     @State private var picker: StreamPickerRequest?
@@ -197,6 +199,11 @@ struct DetailView: View {
             AetherBackdrop(immersive: style.cinematic)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    // Where the page is scrolled to: at the top, a pull down is a request to close (when the page sits in a sheet that asks for it).
+                    Color.clear.frame(height: 0)
+                        .background(GeometryReader { proxy in
+                            Color.clear.preference(key: DetailScrollOffsetKey.self, value: proxy.frame(in: .named("detailScroll")).minY)
+                        })
                     proHeader
                     actions
                     ratingsRow
@@ -220,6 +227,11 @@ struct DetailView: View {
                 .opacity(style.cinematic && style.motion && !reduceMotion && !revealed ? 0 : 1)
                 .scaleEffect(style.cinematic && style.motion && !reduceMotion && !revealed ? 1.06 : 1, anchor: .top)
             }
+            .coordinateSpace(name: "detailScroll")
+            .onPreferenceChange(DetailScrollOffsetKey.self) { atTop = $0 > -2 }
+            .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { value in
+                if let close = pullToDismiss, atTop, value.translation.height > 110, abs(value.translation.width) < 90 { close() }
+            })
             .ignoresSafeArea(edges: .top)
         }
         .preferredColorScheme(style.cinematic ? .dark : nil)
@@ -1149,5 +1161,23 @@ private struct EpisodeDetailsSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+}
+
+
+private struct DetailScrollOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+private struct PullToDismissKey: EnvironmentKey {
+    static let defaultValue: (() -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    /// Set by a sheet that wants a pull down on the title page, when it is scrolled to the top, to close it.
+    var pullToDismiss: (() -> Void)? {
+        get { self[PullToDismissKey.self] }
+        set { self[PullToDismissKey.self] = newValue }
     }
 }
