@@ -23,13 +23,6 @@ final class DetailViewModel: ObservableObject {
 
     let route: MetaRoute
 
-    /// The page grows out of the poster (iOS 18, switch on): the cinematic fade-in is skipped then.
-    private var zoomsIn: Bool {
-        if #available(iOS 18.0, *) { return settings.value.appearance.zoomTransition }
-        return false
-    }
-    private var revealsCinematically: Bool { return style.cinematic && style.motion && !reduceMotion && !zoomsIn }
-
     init(route: MetaRoute) {
         self.route = route
         self.meta = route.preview ?? MetaItem(id: route.id, type: route.type, name: route.id)
@@ -196,6 +189,13 @@ struct DetailView: View {
     @State private var seasonBatchDownloadIDs = Set<UUID>()
     @State private var seasonDownloadMessage: String?
     @State private var episodeDetailsRequest: EpisodeDetailsRequest?
+
+    /// The page grows out of the poster (iOS 18, switch on): the cinematic fade-in is skipped then.
+    private var zoomsIn: Bool {
+        if #available(iOS 18.0, *) { return settings.value.appearance.zoomTransition }
+        return false
+    }
+    private var revealsCinematically: Bool { return style.cinematic && style.motion && !reduceMotion && !zoomsIn }
 
     init(route: MetaRoute) {
         self.route = route
