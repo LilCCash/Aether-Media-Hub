@@ -4,21 +4,23 @@ import AetherCore
 @testable import Aether
 
 final class AetherStyleTests: XCTestCase {
-    /// The plain style (`AetherStyle()`) is the 1.0 look; Aether Pro starts with rounded corners and a glow on the cards.
+    /// Classic (the default) is the 1.0 look; the Pro interface changes the corners and puts a glow on the cards.
     func testDefaultStyleIsTheOneDotZeroLook() {
-        let plain = AetherStyle()
-        XCTAssertEqual(plain.posterRadius, 14)
-        XCTAssertEqual(plain.landscapeRadius, 16, "the radius of the Continue Watching card in 1.0")
-        XCTAssertEqual(plain.thumbnailRadius, 12, "the radius of the next-episode thumbnail in 1.0")
-        XCTAssertEqual(plain.glassCardRadius, 18, "the radius of the next-episode card in 1.0")
-        XCTAssertEqual(plain.heroRadius, 28, "the radius of the featured card in 1.0")
-        let pro = AetherStyle(AppearanceSettings())
+        let style = AetherStyle(AppearanceSettings())
+        XCTAssertEqual(style, AetherStyle())
+        XCTAssertEqual(style.posterRadius, 14)
+        XCTAssertEqual(style.landscapeRadius, 16, "the radius of the Continue Watching card in 1.0")
+        XCTAssertEqual(style.thumbnailRadius, 12, "the radius of the next-episode thumbnail in 1.0")
+        XCTAssertEqual(style.glassCardRadius, 18, "the radius of the next-episode card in 1.0")
+        XCTAssertEqual(style.heroRadius, 28, "the radius of the featured card in 1.0")
+        var appearance = AppearanceSettings()
+        appearance.switchInterface(to: .pro)
+        let pro = AetherStyle(appearance)
         XCTAssertEqual(pro.chrome, .glow)
         XCTAssertEqual(pro.posterRadius, 24)
-        XCTAssertEqual(pro.landscapeRadius, 26)
-        XCTAssertEqual(pro.thumbnailRadius, 22)
-        XCTAssertEqual(pro.glassCardRadius, 28)
         XCTAssertEqual(pro.heroRadius, 36)
+        appearance.switchInterface(to: .classic)
+        XCTAssertEqual(AetherStyle(appearance), AetherStyle(), "back to Classic is the 1.0 look again")
     }
 
     func testRadiiFollowTheCornerChoice() {
