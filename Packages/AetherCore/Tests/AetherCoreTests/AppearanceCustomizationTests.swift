@@ -62,8 +62,8 @@ final class AppearanceCustomizationTests: XCTestCase {
         let a = try decode("""
         {"theme":"dark","homeSections":[{"id":"catalogs","isVisible":false},{"id":"hero","isVisible":true},{"id":"watchlist","isVisible":true},{"id":"continue","isVisible":false},{"id":"nextUp","isVisible":true}]}
         """)
-        XCTAssertEqual(a.homeSections.map { $0.id }, ["catalogs", "hero", "watchlist", "continue", "nextUp"])
-        XCTAssertEqual(a.homeSections.map { $0.isVisible }, [false, true, true, false, true])
+        XCTAssertEqual(a.homeSections.map { $0.id }, ["catalogs", "hero", "watchlist", "continue", "nextUp", "universes"])
+        XCTAssertEqual(a.homeSections.map { $0.isVisible }, [false, true, true, false, true, true])
         XCTAssertEqual(a.theme, .dark)
     }
 
@@ -118,8 +118,8 @@ final class AppearanceCustomizationTests: XCTestCase {
         settings.appearance.titleFont = .mono
         settings.appearance.greetingEnabled = true
         settings.appearance.greetingName = "Giulia"
-        settings.appearance.homeSections[3].style = .landscape
-        settings.appearance.homeSections[3].size = .large
+        settings.appearance.homeSections[4].style = .landscape
+        settings.appearance.homeSections[4].size = .large
         settings.appearance.homeSections[2].style = .poster
         let data = try JSONEncoder.aether().encode(settings)
         let decoded = try JSONDecoder.aether().decode(AppSettings.self, from: data)
@@ -182,7 +182,7 @@ final class AppearanceCustomizationTests: XCTestCase {
     func testMovingASectionDownAndUp() {
         let start = HomeSectionConfig.defaultOrder
         let down = HomeSectionOrdering.moved(start, id: "hero", by: 1)
-        XCTAssertEqual(ids(down), ["continue", "hero", "nextUp", "watchlist", "catalogs"])
+        XCTAssertEqual(ids(down), ["continue", "hero", "nextUp", "universes", "watchlist", "catalogs"])
         let up = HomeSectionOrdering.moved(down, id: "hero", by: -1)
         XCTAssertEqual(ids(up), ids(start))
     }
@@ -200,10 +200,10 @@ final class AppearanceCustomizationTests: XCTestCase {
 
     func testMovingKeepsEachSectionsChoices() {
         var start = HomeSectionConfig.defaultOrder
-        start[3].style = .landscape
-        start[3].size = .large
-        start[3].isVisible = false
-        let moved = HomeSectionOrdering.moved(start, id: "watchlist", by: -3)
+        start[4].style = .landscape
+        start[4].size = .large
+        start[4].isVisible = false
+        let moved = HomeSectionOrdering.moved(start, id: "watchlist", by: -4)
         XCTAssertEqual(moved.first?.id, "watchlist")
         XCTAssertEqual(moved.first?.style, .landscape)
         XCTAssertEqual(moved.first?.size, .large)

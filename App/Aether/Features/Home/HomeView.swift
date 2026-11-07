@@ -71,6 +71,7 @@ struct HomeView: View {
                 DetailView(route: route)
                     .zoomDestination(id: route.id)
             }
+            .navigationDestination(for: UniverseDefinition.self) { UniverseDetailView(universe: $0) }
             .refreshable { await model.reload(env: env, mode: .reload) }
             .task(id: ReloadKey(revision: addons.revision, token: network.reconnectToken, talkShows: settings.value.content.hiddenTalkScopes)) {
                 await model.reload(env: env, mode: .normal)
@@ -152,6 +153,8 @@ struct HomeView: View {
             if !model.nextUp.isEmpty {
                 NextUpRow(items: model.nextUp, style: style, size: size)
             }
+        case HomeSectionConfig.universes:
+            HomeUniverseRow()
         case HomeSectionConfig.watchlist:
             if !library.watchlist.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {

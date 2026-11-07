@@ -174,6 +174,7 @@ struct DetailView: View {
     @State private var descriptionExpanded = false
     @State private var openedSimilar: MetaRoute?
     @State private var openedPerson: PersonRoute?
+    @State private var openedUniverse: UniverseDefinition?
     @State private var similarProblem: String?
     /// True while TMDB is asked for the IMDb code of a similar title: more taps meanwhile would start more lookups.
     @State private var lookingUpSimilar = false
@@ -252,6 +253,7 @@ struct DetailView: View {
         }
         .navigationDestination(item: $openedSimilar) { DetailView(route: $0) }
         .navigationDestination(item: $openedPerson) { PersonFilmographyView(route: $0) }
+        .navigationDestination(item: $openedUniverse) { UniverseDetailView(universe: $0) }
         .alert("Titolo non disponibile", isPresented: Binding(get: { similarProblem != nil }, set: { if !$0 { similarProblem = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -720,6 +722,7 @@ struct DetailView: View {
             let shown = env.settings.value.content.ratings
             let chosen = model.ratings.filter { shown.sources.contains($0.source) && $0.display != nil }
             if !chosen.isEmpty { TitleRatingsSection(ratings: chosen) }
+            TitleUniverseSection(meta: model.meta) { openedUniverse = $0 }
             if !rich.cast.isEmpty && modules.cast {
                 TitleCastSection(people: rich.cast) { person in
                     if let id = person.tmdbPersonID { openedPerson = PersonRoute(personID: id, name: person.name) }

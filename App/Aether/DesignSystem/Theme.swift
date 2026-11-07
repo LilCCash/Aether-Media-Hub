@@ -7,6 +7,7 @@ import AetherCore
 enum Theme {
     static func accent(for choice: AccentChoice) -> Color {
         switch choice {
+        case .nebula: return Color(red: 0.55, green: 0.36, blue: 0.98)
         case .aurora: return Color(red: 0.43, green: 0.47, blue: 1.00)
         case .ember: return Color(red: 1.00, green: 0.48, blue: 0.27)
         case .jade: return Color(red: 0.18, green: 0.84, blue: 0.63)

@@ -16,10 +16,11 @@ public enum ThemeMode: String, Codable, CaseIterable, Sendable {
 }
 
 public enum AccentChoice: String, Codable, CaseIterable, Sendable {
-    case aurora, ember, jade, rose, sky, gold
+    case nebula, aurora, ember, jade, rose, sky, gold
 
     public var title: String {
         switch self {
+        case .nebula: return "Nebulosa"
         case .aurora: return "Aurora"
         case .ember: return "Brace"
         case .jade: return "Giada"
@@ -123,10 +124,11 @@ public struct HomeSectionConfig: Codable, Hashable, Identifiable, Sendable {
     public static let nextUp = "nextUp"
     public static let watchlist = "watchlist"
     public static let catalogs = "catalogs"
+    public static let universes = "universes"
 
     public static let defaultOrder: [HomeSectionConfig] = [
         HomeSectionConfig(id: hero), HomeSectionConfig(id: continueWatching), HomeSectionConfig(id: nextUp),
-        HomeSectionConfig(id: watchlist), HomeSectionConfig(id: catalogs)
+        HomeSectionConfig(id: universes), HomeSectionConfig(id: watchlist), HomeSectionConfig(id: catalogs)
     ]
 
     public static func title(for id: String) -> String {
@@ -134,6 +136,7 @@ public struct HomeSectionConfig: Codable, Hashable, Identifiable, Sendable {
         case hero: return "In evidenza"
         case continueWatching: return "Continua a guardare"
         case nextUp: return "Prossimi episodi"
+        case universes: return "Universe"
         case watchlist: return "Watchlist"
         case catalogs: return "Cataloghi degli addon"
         default: return id
@@ -143,7 +146,7 @@ public struct HomeSectionConfig: Codable, Hashable, Identifiable, Sendable {
 
 public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var theme: ThemeMode = .system
-    public var accent: AccentChoice = .aurora
+    public var accent: AccentChoice = .nebula
     /// Optional custom accent in #RRGGBB; nil keeps the selected preset.
     public var customAccentHex: String? = nil
     // 1.5
@@ -201,7 +204,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         theme = c.value(.theme, default: .system)
-        accent = c.value(.accent, default: .aurora)
+        accent = c.value(.accent, default: .nebula)
         let customAccent: String? = c.lenient(String.self, forKey: .customAccentHex)
         customAccentHex = customAccent.flatMap { value in
             let hex = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()

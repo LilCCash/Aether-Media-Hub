@@ -313,3 +313,43 @@ struct TMDBKeyHint: View {
             .accessibilityIdentifier("detail.tmdbHint")
     }
 }
+
+
+/// The universes a title belongs to (with the progress in each) and the button that writes the viewing in the diary.
+struct TitleUniverseSection: View {
+    let meta: MetaItem
+    let open: (UniverseDefinition) -> Void
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var library: LibraryModel
+
+    var body: some View {
+        let universes = UniverseCatalog.universes(containing: meta.id)
+        VStack(alignment: .leading, spacing: 10) {
+            TitleSectionHeader(title: universes.isEmpty ? "Il tuo diario" : "Universe e diario")
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(universes) { universe in
+                    let watched = Set(WatchedTitles.sources(library: library, diary: settings.value.content.diary).keys)
+                    let progress = UniverseProgress.compute(universe, order: .release, watchedIDs: watched)
+                    Button { open(universe) } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "sparkles.tv.fill").font(.title3).foregroundStyle(Color.accentColor)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(universe.name).font(.subheadline.weight(.semibold))
+                                ProgressView(value: progress.fraction)
+                                Text("\(progress.watched) di \(progress.total) visti").font(.caption).foregroundStyle(Color.aetherSecondary)
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Color.aetherSecondary)
+                        }
+                        .padding(12)
+                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("detail.universe.\(universe.id)")
+                }
+                DiaryButton(meta: meta)
+            }
+            .padding(.horizontal, Theme.pageMargin)
+        }
+    }
+}

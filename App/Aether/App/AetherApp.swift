@@ -129,9 +129,9 @@ struct RootView: View {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house.fill") }
                 .tag(AppTab.home)
-            DiscoverView()
-                .tabItem { Label("Scopri", systemImage: "safari.fill") }
-                .tag(AppTab.discover)
+            UniverseHubView()
+                .tabItem { Label("Universe", systemImage: "sparkles.tv.fill") }
+                .tag(AppTab.universe)
             if showsLiveTab {
                 LiveTVView()
                     .tabItem { Label("Live TV", systemImage: "tv.fill") }
@@ -154,6 +154,14 @@ struct RootView: View {
             // A request for the Search tab (a shortcut, a Spotlight result) while it is not in the bar opens it as a page.
             if new == .search && showsLiveTab { router.tab = old == .search ? .home : old; router.searchSheet = true }
             if new == .live && !showsLiveTab { router.tab = .home }
+            if new == .discover { router.tab = old == .discover ? .home : old; router.discoverSheet = true }
+        }
+        .sheet(isPresented: $router.discoverSheet) {
+            DiscoverView()
+                .overlay(alignment: .topTrailing) {
+                    Button { router.discoverSheet = false } label: { Image(systemName: "xmark.circle.fill").font(.title2).symbolRenderingMode(.hierarchical) }
+                        .padding(16).accessibilityLabel("Chiudi Scopri")
+                }
         }
         .sheet(isPresented: $router.searchSheet) {
             SearchView()

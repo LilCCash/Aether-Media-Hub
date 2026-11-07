@@ -9,7 +9,7 @@ struct MoreView: View {
     @EnvironmentObject private var appSettings: SettingsStore
     @State private var path = NavigationPath()
 
-    enum Destination: Hashable { case profile, addons, stats, trakt, casting, settings, about }
+    enum Destination: Hashable { case diary, profile, addons, stats, trakt, casting, settings, about }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -17,6 +17,13 @@ struct MoreView: View {
                 Section {
                     NavigationLink(value: Destination.profile) { ProfileHeaderRow() }
                         .accessibilityIdentifier("more.profile")
+                }
+                Section {
+                    Button { router.discoverSheet = true } label: { rowLabel("Scopri", "safari.fill", .blue, detail: nil) }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("more.discover")
+                    NavigationLink(value: Destination.diary) { rowLabel("Diario e statistiche", "book.closed.fill", .brown, detail: nil) }
+                        .accessibilityIdentifier("more.diary")
                 }
                 if appSettings.value.content.liveTV.showTab {
                     Section {
@@ -60,6 +67,7 @@ struct MoreView: View {
             .navigationTitle("Altro")
             .navigationDestination(for: Destination.self) { destination in
                 switch destination {
+                case .diary: DiaryView()
                 case .profile: ProfileView()
                 case .addons: AddonsView()
                 case .stats: StatsView()
