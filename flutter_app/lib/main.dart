@@ -6,6 +6,7 @@ import 'app/app.dart';
 import 'app/providers.dart';
 import 'app/services.dart';
 import 'core/util/device_profile.dart';
+import 'data/prefs_ext.dart';
 import 'design/liquid.dart';
 
 Future<void> main() async {
