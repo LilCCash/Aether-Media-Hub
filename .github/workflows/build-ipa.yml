@@ -115,7 +115,9 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Aether.xcarchive" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            CURRENT_PROJECT_VERSION="${{ github.run_number }}" 2>&1 | tee "$RUNNER_TEMP/archive.log" | tail -25
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" > "$RUNNER_TEMP/archive.log" 2>&1 \
+            || { echo "--- errors ---"; grep -E "error:|Stack dump|Please submit" "$RUNNER_TEMP/archive.log" | sort -u | head -40; tail -15 "$RUNNER_TEMP/archive.log"; exit 65; }
+          tail -5 "$RUNNER_TEMP/archive.log"
 
       # The debug symbols of exactly this build: without them a crash log of this build cannot be read later.
       - name: Pack the debug symbols
