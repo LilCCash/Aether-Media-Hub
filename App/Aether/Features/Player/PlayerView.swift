@@ -229,7 +229,7 @@ struct PlayerView: View {
         case .episodes: PlayerEpisodesSheet(model: model)
         case .info: PlayerInfoSheet(model: model)
         case .companion: CompanionSheet(meta: model.meta)
-        case .more: PlayerMoreSheet(model: model, openPanel: { openPanel($0) }, importSubtitle: { importingSubtitle = true }, show: { sheet = $0 })
+        case .more: PlayerMoreSheet(model: model, openPanel: { openPanel($0) }, importSubtitle: { importingSubtitle = true }, show: { self.sheet = $0 })
         case .cast:
             PlayerCastSheet(airPlayNote: model.engine.kind == .mpv
                                 ? "Con questo file (motore MPV) AirPlay invia solo l'audio. Per il video usa Google Cast o DLNA qui sotto."
