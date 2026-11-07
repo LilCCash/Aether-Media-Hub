@@ -117,6 +117,7 @@ struct SettingsRootView: View {
             }
             Section {
                 link("Archiviazione", "internaldrive.fill", .brown) { StorageSettingsView() }
+                link("Sincronizzazione", "icloud.fill", .cyan) { SyncSettingsView() }
                 link("Account e dati", "person.crop.circle.fill", .blue) { AccountDataSettingsView() }
                 link("Funzioni extra", "sparkles", .cyan) { ExtrasSettingsView() }
                 link("Avanzate", "wrench.and.screwdriver.fill", .gray) { AdvancedSettingsView() }
@@ -231,6 +232,10 @@ struct PlaybackSettingsView: View {
 
     var body: some View {
         Form {
+            Section(header: Text("Modalità Cinema"), footer: Text("Prima del film compare la sua locandina panoramica con il logo, e mentre scorre restano solo l'immagine e la barra: sottotitoli, audio e il resto sono nel menu con i tre puntini. Si accende anche da lì.")) {
+                Toggle("Modalità Cinema", isOn: settings.binding(\.playback.cinemaMode))
+                    .accessibilityIdentifier("settings.cinema")
+            }
             Section(header: Text("Sorgenti"), footer: Text("Come sono scritte le righe dell'elenco delle sorgenti: badge (4K, HDR, audio…), logo dell'addon, formato del testo e badge importati da un link.")) {
                 NavigationLink {
                     StreamDisplaySettingsView()

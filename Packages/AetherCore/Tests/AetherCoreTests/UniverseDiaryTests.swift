@@ -161,3 +161,64 @@ final class CollectionsTests: XCTestCase {
         XCTAssertTrue(settings.collections.isEmpty)
     }
 }
+
+final class CompanionTests: XCTestCase {
+    private func ironMan() -> MetaItem {
+        var meta = MetaItem(id: "tt0371746", type: "movie", name: "Iron Man", description: "Trama.", releaseInfo: "2008", imdbRating: "7.9", runtime: "126 min",
+                            genres: ["Azione"], cast: ["A", "B"], directors: ["Jon Favreau"], language: "English", awards: "N/A")
+        meta.writers = []
+        return meta
+    }
+
+    func testNoSpoilerLevelOnlyShowsWhoAndWhere() {
+        let cards = CompanionPlanner.cards(for: ironMan(), level: .none)
+        XCTAssertEqual(cards.map { $0.id }, ["basics", "directors", "cast", "universe"])
+        XCTAssertTrue(cards.last?.lines.first?.hasPrefix("1° titolo di Marvel Cinematic Universe") ?? false)
+        XCTAssertFalse(cards.contains { $0.id == "plot" })
+    }
+
+    func testDeeperLevelsAddMoreAndSkipEmptyData() {
+        let context = CompanionPlanner.cards(for: ironMan(), level: .context)
+        XCTAssertTrue(context.contains { $0.id == "production" })
+        XCTAssertFalse(context.first { $0.id == "production" }?.lines.contains { $0.hasPrefix("Premi") } ?? true, "N/A is not an award")
+        let deep = CompanionPlanner.cards(for: ironMan(), level: .deep, watched: ["tt0800080"])
+        XCTAssertEqual(deep.first { $0.id == "around" }?.lines, ["Dopo: The Incredible Hulk (visto)"])
+        XCTAssertEqual(deep.last?.id, "plot")
+    }
+
+    func testATitleOutsideEveryUniverseHasNoUniverseCard() {
+        var meta = ironMan()
+        meta.id = "tt9999999"
+        XCTAssertFalse(CompanionPlanner.cards(for: meta, level: .deep).contains { $0.id == "universe" || $0.id == "around" })
+    }
+}
+
+final class ContentSyncTests: XCTestCase {
+    func testTwoDevicesMergeWithoutLoss() {
+        var phone = ContentSettings(), tablet = ContentSettings()
+        var shared = DiaryEntry(id: "x", metaID: "tt1", type: "movie", name: "A", watchedAt: Date(timeIntervalSince1970: 100), note: "")
+        phone.diary.add(shared)
+        shared.note = "bello"
+        shared.watchedAt = Date(timeIntervalSince1970: 200)
+        tablet.diary.add(shared)
+        tablet.diary.add(DiaryEntry(id: "y", metaID: "tt2", type: "movie", name: "B", watchedAt: Date(timeIntervalSince1970: 50)))
+        let list = phone.collections.create(name: "Notte")!
+        phone.collections.add(CollectionItem(id: "tt1", type: "movie", name: "A"), to: list.id)
+        let other = tablet.collections.create(name: "notte")!
+        tablet.collections.add(CollectionItem(id: "tt2", type: "movie", name: "B"), to: other.id)
+        phone.universes.toggleFollow("mcu")
+        tablet.universes.toggleFollow("alien")
+        phone.profile.vote(TasteVote(id: "tt3", type: "movie", name: "C", verdict: .like, votedAt: Date(timeIntervalSince1970: 10)))
+        tablet.profile.vote(TasteVote(id: "tt3", type: "movie", name: "C", verdict: .dislike, votedAt: Date(timeIntervalSince1970: 20)))
+
+        let merged = ContentSync.merge(local: phone, remote: tablet)
+        XCTAssertEqual(merged.diary.entries.count, 2)
+        XCTAssertEqual(merged.diary.entries.first { $0.id == "x" }?.note, "bello")
+        XCTAssertEqual(merged.collections.collections.count, 1, "same name, same list")
+        XCTAssertEqual(Set(merged.collections.collections[0].items.map { $0.id }), ["tt1", "tt2"])
+        XCTAssertEqual(Set(merged.universes.followed), ["mcu", "alien"])
+        XCTAssertEqual(merged.profile.votes.first?.verdict, .dislike)
+        // The same merge twice changes nothing more.
+        XCTAssertEqual(ContentSync.merge(local: merged, remote: tablet).diary.entries.count, 2)
+    }
+}

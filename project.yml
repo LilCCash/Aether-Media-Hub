@@ -91,6 +91,7 @@ targets:
         UIApplicationSupportsIndirectInputEvents: true
         # Lets the system offer «Cerca in Aether» under the results of its search (the words typed arrive as a search-continuation activity).
         CoreSpotlightContinuation: true
+        NSUserActivityTypes: [app.aether.pro.title]
         UIApplicationShortcutItems:
           - UIApplicationShortcutItemType: app.aether.continue
             UIApplicationShortcutItemTitle: Continua a guardare

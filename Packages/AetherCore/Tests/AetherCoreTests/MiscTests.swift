@@ -140,7 +140,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(settings.privacy.recordHistory)
         XCTAssertFalse(settings.advanced.useExternalStreamingServer)
         XCTAssertEqual(settings.appearance.homeSections.map { $0.id },
-                       ["hero", "continue", "nextUp", "universes", "watchlist", "catalogs"])
+                       ["hero", "continue", "nextUp", "universes", "forYou", "watchlist", "catalogs"])
     }
 
     func testRoundTripPreservesEverything() throws {
@@ -176,7 +176,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings.playback.subtitleStyle.sizePercent, 200)
         XCTAssertEqual(settings.playback.subtitleStyle.backgroundOpacity, 1)
         XCTAssertEqual(settings.privacy, PrivacySettings(), "a corrupted group resets to defaults")
-        XCTAssertEqual(settings.appearance.homeSections.map { $0.id }, ["catalogs", "hero", "continue", "nextUp", "universes", "watchlist"],
+        XCTAssertEqual(settings.appearance.homeSections.map { $0.id }, ["catalogs", "hero", "continue", "nextUp", "universes", "forYou", "watchlist"],
                        "known sections keep their order, unknown ones vanish, missing ones are appended")
         XCTAssertEqual(settings.appearance.homeSections.first?.isVisible, false)
     }

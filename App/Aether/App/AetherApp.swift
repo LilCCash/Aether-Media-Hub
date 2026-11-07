@@ -191,6 +191,9 @@ struct RootView: View {
                 }
             }
         }
+        .onContinueUserActivity("app.aether.pro.title") { activity in
+            if let type = activity.userInfo?["type"] as? String, let id = activity.userInfo?["id"] as? String { router.detail = MetaRoute(type: type, id: id) }
+        }
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
             if let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
                let route = SpotlightIndexer.route(forIdentifier: identifier) {
@@ -212,7 +215,8 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { env.persistForBackground() }
-            if phase == .active { env.extras.appBecameActive() }
+            if phase == .active { env.extras.appBecameActive(); Task { await FolderSyncService.shared.syncIfDue(env: env) } }
+            if phase == .background { Task { await FolderSyncService.shared.syncIfDue(env: env, minimumInterval: 30) } }
             env.relay.appPhaseChanged(phase)
         }
         // While Theater Mode is open it presents the player itself (one full-screen cover cannot present another from the same view).

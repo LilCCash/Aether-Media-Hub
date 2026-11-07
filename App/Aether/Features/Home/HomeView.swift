@@ -159,6 +159,8 @@ struct HomeView: View {
             }
         case HomeSectionConfig.universes:
             HomeUniverseRow()
+        case HomeSectionConfig.forYou:
+            HomeForYouRow(style: style == .landscape ? .landscape : .poster, size: size)
         case HomeSectionConfig.watchlist:
             if !library.watchlist.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {

@@ -227,6 +227,7 @@ struct PlayerView: View {
         switch sheet {
         case .episodes: PlayerEpisodesSheet(model: model)
         case .info: PlayerInfoSheet(model: model)
+        case .companion: CompanionSheet(meta: model.meta)
         case .cast:
             PlayerCastSheet(airPlayNote: model.engine.kind == .mpv
                                 ? "Con questo file (motore MPV) AirPlay invia solo l'audio. Per il video usa Google Cast o DLNA qui sotto."
@@ -698,6 +699,8 @@ struct PlayerView: View {
             }
             Button { importingSubtitle = true } label: { Label("Importa sottotitoli…", systemImage: "doc.badge.plus") }
             Button { sheet = .info } label: { Label("Informazioni sulla sorgente", systemImage: "info.circle") }
+            Button { sheet = .companion } label: { Label("Companion: chi c'è nel film", systemImage: "person.2.crop.square.stack") }
+            Toggle(isOn: settings.binding(\.playback.cinemaMode)) { Label("Modalità Cinema", systemImage: "film") }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 17, weight: .semibold))
@@ -778,6 +781,7 @@ struct PlayerView: View {
                 .foregroundStyle(.white.opacity(0.85))
                 .accessibilityHidden(true)
             }
+            if !playbackSettings.cinemaMode {
             HStack(spacing: 10) {
                 bottomButton("lock.fill", "Blocca i controlli") { isLocked = true; controlsVisible = false }
                 if model.playbackRate != 1 {
@@ -794,6 +798,7 @@ struct PlayerView: View {
                     actionRow(compact: true)
                 }
                 .layoutPriority(1)
+            }
             }
         }
     }

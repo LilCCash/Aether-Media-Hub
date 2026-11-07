@@ -125,10 +125,11 @@ public struct HomeSectionConfig: Codable, Hashable, Identifiable, Sendable {
     public static let watchlist = "watchlist"
     public static let catalogs = "catalogs"
     public static let universes = "universes"
+    public static let forYou = "forYou"
 
     public static let defaultOrder: [HomeSectionConfig] = [
         HomeSectionConfig(id: hero), HomeSectionConfig(id: continueWatching), HomeSectionConfig(id: nextUp),
-        HomeSectionConfig(id: universes), HomeSectionConfig(id: watchlist), HomeSectionConfig(id: catalogs)
+        HomeSectionConfig(id: universes), HomeSectionConfig(id: forYou), HomeSectionConfig(id: watchlist), HomeSectionConfig(id: catalogs)
     ]
 
     public static func title(for id: String) -> String {
@@ -137,6 +138,7 @@ public struct HomeSectionConfig: Codable, Hashable, Identifiable, Sendable {
         case continueWatching: return "Continua a guardare"
         case nextUp: return "Prossimi episodi"
         case universes: return "Universe"
+        case forYou: return "Scelti per te"
         case watchlist: return "Watchlist"
         case catalogs: return "Cataloghi degli addon"
         default: return id
@@ -512,6 +514,8 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     /// Offers "Salta intro" / "Salta riassunto" on episodes IntroDB knows the timing of. Looking it up sends the show's IMDb
     /// code, the season and the episode to introdb.app (no account, no key).
     public var skipSegmentsEnabled: Bool = true
+    /// Cinema mode: a title card before the film and, while it plays, only the picture and the bar (the rest is in the menu).
+    public var cinemaMode: Bool = false
     /// The viewer's criteria for ranking sources (HDR, audio, size, codec).
     public var sourceScoring = SourceScoring()
 
@@ -523,7 +527,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly, instantLaunchPage
-        case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering, convertMatroskaForAVPlayer, sourceScoring
+        case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering, convertMatroskaForAVPlayer, sourceScoring, cinemaMode
     }
 
     public init(from decoder: Decoder) throws {
@@ -566,6 +570,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         holdToSpeed = c.value(.holdToSpeed, default: true)
         holdSpeed = min(4, max(1.25, c.value(.holdSpeed, default: 2.0)))
         skipSegmentsEnabled = c.value(.skipSegmentsEnabled, default: true)
+        cinemaMode = c.value(.cinemaMode, default: false)
         sourceScoring = c.value(.sourceScoring, default: SourceScoring())
     }
 }

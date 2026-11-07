@@ -8,6 +8,7 @@ struct PlaybackPreparingView: View {
     let resolution: DebridRowResolution?
     let cancel: () -> Void
     @EnvironmentObject private var env: AppEnvironment
+    @EnvironmentObject private var settings: SettingsStore
     @State private var logo: UIImage?
     @State private var lookupDone = false
 
@@ -22,6 +23,11 @@ struct PlaybackPreparingView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
+            if settings.value.playback.cinemaMode {
+                RemoteImage(urlString: meta.background ?? meta.poster, width: 1200, placeholderSeed: meta.name)
+                    .ignoresSafeArea().opacity(0.35).blur(radius: 6)
+                LinearGradient(colors: [.black.opacity(0.2), .black.opacity(0.85)], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
+            }
             VStack(spacing: 22) {
                 Spacer()
                 if let logo = logo {
@@ -33,6 +39,10 @@ struct PlaybackPreparingView: View {
                     titleText
                 } else {
                     Color.clear.frame(height: 60)
+                }
+                if settings.value.playback.cinemaMode {
+                    Text([meta.releaseInfo, meta.genres.prefix(3).joined(separator: " · ")].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "   ·   "))
+                        .font(.footnote.weight(.semibold)).tracking(1.5).foregroundStyle(.white.opacity(0.7))
                 }
                 VStack(spacing: 14) {
                     if let fraction = resolution?.determinateFraction {

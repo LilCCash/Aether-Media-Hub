@@ -351,7 +351,9 @@ struct TitleUniverseSection: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("detail.universe.\(universe.id)")
                 }
-                if showsActions { HStack(spacing: 10) { DiaryButton(meta: meta); AddToCollectionMenu(meta: meta) } }
+                if showsActions {
+                    ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 10) { DiaryButton(meta: meta); AddToCollectionMenu(meta: meta); CompanionButton(meta: meta) } }
+                }
             }
             .padding(.horizontal, Theme.pageMargin)
         }

@@ -7,10 +7,20 @@ struct DownloadsView: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var router: AppRouter
 
-    private var visibleItems: [DownloadItem] {
+    @State private var tab: Tab = .active
+
+    private enum Tab: String, CaseIterable { case active = "In corso", done = "Completati" }
+
+    private var matching: [DownloadItem] {
         downloads.items.filter { item in
             (filter.isEmpty || MetaDeduper.normalise(item.title).contains(MetaDeduper.normalise(filter)))
         }
+    }
+
+    private var activeItems: [DownloadItem] { return matching.filter { $0.state != .completed } }
+
+    private var visibleItems: [DownloadItem] {
+        return tab == .active ? activeItems : matching.filter { $0.state == .completed }
     }
 
     private var titleIDs: [String] {
@@ -23,6 +33,7 @@ struct DownloadsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            tabs
             storageHeader
             if visibleItems.isEmpty {
                 ScrollView {
@@ -40,6 +51,24 @@ struct DownloadsView: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .accessibilityIdentifier("downloads.list")
+            }
+            if tab == .active, activeItems.contains(where: { $0.state == .downloading || $0.state == .queued }) {
+                Button {
+                    for item in activeItems where item.state == .downloading || item.state == .queued { downloads.pause(item.id) }
+                } label: {
+                    Label("Metti in pausa tutti", systemImage: "pause.fill").frame(maxWidth: .infinity).padding(.vertical, 4)
+                }
+                .buttonStyle(SecondaryActionButtonStyle())
+                .padding(.horizontal, Theme.pageMargin).padding(.vertical, 8)
+                .accessibilityIdentifier("downloads.pauseAll")
+            } else if tab == .active, activeItems.contains(where: { $0.state == .paused }) {
+                Button {
+                    for item in activeItems where item.state == .paused { downloads.resume(item.id) }
+                } label: {
+                    Label("Riprendi tutti", systemImage: "play.fill").frame(maxWidth: .infinity).padding(.vertical, 4)
+                }
+                .buttonStyle(SecondaryActionButtonStyle())
+                .padding(.horizontal, Theme.pageMargin).padding(.vertical, 8)
             }
         }
     }
@@ -105,6 +134,28 @@ struct DownloadsView: View {
         let parts = id.split(separator: ":", omittingEmptySubsequences: false)
         guard parts.count >= 3, let season = Int(parts[parts.count - 2]), season >= 0 else { return 0 }
         return season
+    }
+
+    private var tabs: some View {
+        HStack(spacing: 24) {
+            ForEach(Tab.allCases, id: \.self) { item in
+                let count = item == .active ? activeItems.count : matching.count - activeItems.count
+                Button { withAnimation(.snappy) { tab = item } } label: {
+                    VStack(spacing: 6) {
+                        HStack(spacing: 6) {
+                            Text(item.rawValue).font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
+                            if count > 0 { Text("\(count)").font(.caption2.weight(.bold)).padding(.horizontal, 6).padding(.vertical, 1).background(Color.accentColor.opacity(0.3), in: Capsule()) }
+                        }
+                        .foregroundStyle(tab == item ? Color.primary : Color.aetherSecondary)
+                        Capsule().fill(tab == item ? Color.accentColor : Color.clear).frame(height: 3)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(tab == item ? .isSelected : [])
+            }
+            Spacer()
+        }
+        .padding(.horizontal, Theme.pageMargin).padding(.top, 4)
     }
 
     private var storageHeader: some View {

@@ -266,6 +266,12 @@ struct DetailView: View {
             Text(similarProblem ?? "")
         }
         .accessibilityIdentifier("detail.screen")
+        // Handoff: the same page opens on another device of the viewer.
+        .userActivity("app.aether.pro.title") { activity in
+            activity.title = model.meta.name
+            activity.isEligibleForHandoff = true
+            activity.userInfo = ["type": model.meta.type, "id": model.meta.id]
+        }
     }
 
     // MARK: Header
@@ -968,6 +974,11 @@ struct DetailView: View {
                         episodeDetailsRequest = EpisodeDetailsRequest(video: video)
                     }
                     .accessibilityIdentifier("episode.\(video.id)")
+                    // Long press: the whole plot of the episode and its details, without hunting for the small button.
+                    .onLongPressGesture(minimumDuration: 0.45) {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        episodeDetailsRequest = EpisodeDetailsRequest(video: video)
+                    }
                 }
             }
             .padding(.horizontal, Theme.pageMargin)
