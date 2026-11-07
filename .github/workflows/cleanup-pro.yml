@@ -1,6 +1,9 @@
 name: Cleanup Pro releases
-# One-off: removes the release and the tag of the retired "Aether Pro" builds (devbuilds-pro). Run by hand, then this file is deleted.
+# One-off: removes the release and the tag of the retired "Aether Pro" builds (devbuilds-pro). Runs once on the push that adds it, then this file is deleted.
 on:
+  push:
+    branches: [aether-swift-features]
+    paths: [.github/workflows/cleanup-pro.yml]
   workflow_dispatch:
 permissions:
   contents: write
