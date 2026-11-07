@@ -15,6 +15,7 @@ struct PlayerView: View {
 
     @AppStorage(TheaterPrefs.palette) private var theaterPalette = 0
     @StateObject private var volume = SystemVolume()
+    @StateObject private var scrubPreview = ScrubPreviewProvider()
     @State private var controlsVisible = true
     /// «Salta intro», «Salta riassunto» and the next-episode card: they leave a second after the controls do.
     @State private var extrasVisible = true
@@ -228,6 +229,7 @@ struct PlayerView: View {
         case .episodes: PlayerEpisodesSheet(model: model)
         case .info: PlayerInfoSheet(model: model)
         case .companion: CompanionSheet(meta: model.meta)
+        case .more: PlayerMoreSheet(model: model, openPanel: { openPanel($0) }, importSubtitle: { importingSubtitle = true }, show: { sheet = $0 })
         case .cast:
             PlayerCastSheet(airPlayNote: model.engine.kind == .mpv
                                 ? "Con questo file (motore MPV) AirPlay invia solo l'audio. Per il video usa Google Cast o DLNA qui sotto."
@@ -672,36 +674,7 @@ struct PlayerView: View {
     }
 
     private var moreMenu: some View {
-        Menu {
-            Menu {
-                Picker("Velocità", selection: Binding(get: { model.playbackRate }, set: { model.setRate($0) })) {
-                    ForEach([Float(0.5), 0.75, 1, 1.25, 1.5, 2], id: \.self) { rate in
-                        Text(rateLabel(rate)).tag(rate)
-                    }
-                }
-            } label: { Label("Velocità (\(rateLabel(model.playbackRate)))", systemImage: "speedometer") }
-            Menu {
-                Button("Disattivato") { model.setSleepTimer(minutes: nil) }
-                ForEach([15, 30, 45, 60, 90], id: \.self) { minutes in
-                    Button("\(minutes) minuti") { model.setSleepTimer(minutes: minutes) }
-                }
-            } label: { Label("Timer di spegnimento", systemImage: "moon.zzz") }
-            Button {
-                model.toggleFill()
-            } label: {
-                Label(model.isFill ? "Adatta allo schermo" : "Riempi lo schermo", systemImage: model.isFill ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-            }
-            if !model.alternatives.isEmpty {
-                Button { openPanel(.sources) } label: { Label("Cambia sorgente", systemImage: "arrow.triangle.2.circlepath") }
-            }
-            if model.sharePlayAvailable {
-                Button { model.startWatchTogether() } label: { Label("Guarda insieme (SharePlay)", systemImage: "shareplay") }
-            }
-            Button { importingSubtitle = true } label: { Label("Importa sottotitoli…", systemImage: "doc.badge.plus") }
-            Button { sheet = .info } label: { Label("Informazioni sulla sorgente", systemImage: "info.circle") }
-            Button { sheet = .companion } label: { Label("Companion: chi c'è nel film", systemImage: "person.2.crop.square.stack") }
-            Toggle(isOn: settings.binding(\.playback.cinemaMode)) { Label("Modalità Cinema", systemImage: "film") }
-        } label: {
+        Button { sheet = .more } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 44, height: 44)
@@ -771,7 +744,15 @@ struct PlayerView: View {
                                    isScrubbing = editing
                                    if editing { hideTask?.cancel() } else { scheduleHide() }
                                },
-                               onSeek: { model.seek(to: $0) })
+                               onSeek: { model.seek(to: $0) },
+                               previewImage: scrubPreview.image,
+                               onPreview: { seconds in
+                                   if let seconds = seconds {
+                                       scrubPreview.request(at: seconds, url: model.previewURL, headers: model.previewHeaders, usesAVPlayer: model.engine.kind == .avPlayer)
+                                   } else {
+                                       scrubPreview.clear()
+                                   }
+                               })
                 HStack {
                     Text(Format.duration(position))
                     Spacer()
@@ -820,18 +801,11 @@ struct PlayerView: View {
                     .accessibilityLabel("Sorgenti")
                     .accessibilityIdentifier("player.sources")
             }
-            Menu {
-                Picker("Velocità", selection: Binding(get: { model.playbackRate }, set: { model.setRate($0) })) {
-                    ForEach([Float(0.5), 0.75, 1, 1.25, 1.5, 2], id: \.self) { rate in
-                        Text(rateLabel(rate)).tag(rate)
-                    }
-                }
-            } label: {
-                actionLabel("speedometer", "Velocità", compact: compact)
-            }
-            .accessibilityLabel("Velocità di riproduzione")
-            .accessibilityValue(rateLabel(model.playbackRate))
-            .accessibilityIdentifier("player.speed")
+            Button { sheet = .more } label: { actionLabel("speedometer", "Velocità", compact: compact) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Velocità di riproduzione")
+                .accessibilityValue(rateLabel(model.playbackRate))
+                .accessibilityIdentifier("player.speed")
             Button { model.toggleFill() } label: {
                 actionLabel(model.isFill ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
                             model.isFill ? "Adatta" : "Riempi", compact: compact)

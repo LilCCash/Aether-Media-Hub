@@ -469,6 +469,15 @@ struct DiscoverView: View {
             .navigationTitle("Scopri")
             .navigationDestination(for: MetaRoute.self) { DetailView(route: $0).zoomDestination(id: $0.id) }
             .toolbar {
+                // Universe and Live TV live here, with the other ways of finding something to watch.
+                ToolbarItemGroup(placement: .topBarLeading) {
+                    Button { router.universeSheet = true } label: { Label("Universe", systemImage: "sparkles.tv.fill").labelStyle(.titleAndIcon).font(.subheadline.weight(.semibold)) }
+                        .buttonStyle(.bordered).tint(settings.accentColor)
+                        .accessibilityIdentifier("discover.universe")
+                    Button { router.liveSheet = true } label: { Label("Live TV", systemImage: "tv.fill").labelStyle(.titleAndIcon).font(.subheadline.weight(.semibold)) }
+                        .buttonStyle(.bordered).tint(settings.accentColor)
+                        .accessibilityIdentifier("discover.live")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     if model.hasLoaded && !model.capabilities.availableTypes.isEmpty {
                         Button {

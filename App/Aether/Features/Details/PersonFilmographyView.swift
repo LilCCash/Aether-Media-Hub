@@ -21,8 +21,9 @@ struct PersonFilmographyView: View {
     @State private var filter = PersonFilter()
     @State private var bioExpanded = false
     @State private var sub: Sub = .filmography
+    @State private var collaboratorsLoaded = false
 
-    private enum Sub: String, CaseIterable { case filmography = "Filmografia", biography = "Biografia" }
+    private enum Sub: String, CaseIterable { case filmography = "Filmografia", biography = "Biografia", collaborations = "Collaborazioni" }
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 14, alignment: .top)]
 
@@ -40,6 +41,8 @@ struct PersonFilmographyView: View {
                         subTabs
                         if sub == .biography {
                             biographyPage(profile)
+                        } else if sub == .collaborations {
+                            collaborationsPage(profile)
                         } else {
                             mainFilms(profile)
                             filters(profile)
@@ -62,6 +65,7 @@ struct PersonFilmographyView: View {
         .navigationTitle(route.name)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $openedTitle) { DetailView(route: $0) }
+        .navigationDestination(for: PersonRoute.self) { PersonFilmographyView(route: $0) }
         .alert("Titolo non trovato", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -71,21 +75,24 @@ struct PersonFilmographyView: View {
         .accessibilityIdentifier("person.filmography")
     }
 
+    /// The person in a bubble (not a picture across the screen): the photo in a round frame with the accent ring, then name, roles and life.
     private func header(_ profile: PersonProfile) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            RemoteImage(urlString: profile.photoURL, width: 700, contentMode: .fill, alignment: .top, placeholderSeed: profile.name, systemPlaceholder: "person.fill")
-                .frame(height: 320).frame(maxWidth: .infinity).clipped()
-            LinearGradient(colors: [.clear, .black.opacity(0.88)], startPoint: .center, endPoint: .bottom)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(profile.name).font(.system(size: 30, weight: .heavy, design: .rounded))
-                if !profile.roles.isEmpty { Text(profile.roles.map { $0.title }.joined(separator: " · ")).font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.85)) }
-                else if let job = profile.profession { Text(job).font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.85)) }
-                if let life = profile.lifeLine() { Text(life).font(.caption).foregroundStyle(.white.opacity(0.75)) }
-                if let place = profile.placeOfBirth { Text(place).font(.caption).foregroundStyle(.white.opacity(0.65)).lineLimit(1) }
-            }
-            .foregroundStyle(.white).padding(16)
+        VStack(spacing: 10) {
+            RemoteImage(urlString: profile.photoURL, width: 400, contentMode: .fill, alignment: .top, placeholderSeed: profile.name, systemPlaceholder: "person.fill")
+                .frame(width: 148, height: 148)
+                .clipShape(Circle())
+                .overlay(Circle().strokeBorder(LinearGradient(colors: [Color.accentColor, .white.opacity(0.4)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 3))
+                .shadow(color: Color.accentColor.opacity(0.45), radius: 18, y: 6)
+                .accessibilityLabel("Foto di \(profile.name)")
+            Text(profile.name).font(.system(size: 28, weight: .heavy, design: .rounded)).multilineTextAlignment(.center)
+            if !profile.roles.isEmpty { Text(profile.roles.map { $0.title }.joined(separator: " · ")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.accentColor) }
+            else if let job = profile.profession { Text(job).font(.subheadline.weight(.semibold)).foregroundStyle(Color.accentColor) }
+            if let life = profile.lifeLine() { Text(life).font(.caption).foregroundStyle(Color.aetherSecondary) }
+            if let place = profile.placeOfBirth { Text(place).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(1) }
         }
-        .frame(height: 320).clipShape(RoundedRectangle(cornerRadius: 0))
+        .frame(maxWidth: .infinity)
+        .padding(.top, 16)
+        .padding(.horizontal, Theme.pageMargin)
     }
 
     private var subTabs: some View {
@@ -128,10 +135,47 @@ struct PersonFilmographyView: View {
                 Text(profile.biography).font(.body).foregroundStyle(Color.primary.opacity(0.88))
             }
             VStack(alignment: .leading, spacing: 8) {
+                if !profile.awards.isEmpty {
+                    Text("Premi").font(.title3.weight(.bold)).padding(.top, 6)
+                    ForEach(profile.awards) { award in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "trophy.fill").foregroundStyle(.yellow).font(.footnote)
+                            Text(award.line).font(.subheadline)
+                        }
+                    }
+                }
                 if let life = profile.lifeLine() { fact("Nato", life) }
                 if let place = profile.placeOfBirth { fact("Luogo", place) }
                 if !profile.roles.isEmpty { fact("Ruoli", profile.roles.map { $0.title }.joined(separator: ", ")) }
                 fact("Titoli", "\(profile.filmography.count)")
+            }
+        }
+        .padding(.horizontal, Theme.pageMargin)
+    }
+
+    private func collaborationsPage(_ profile: PersonProfile) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if profile.collaborators.isEmpty {
+                Text(collaboratorsLoaded ? "Non trovo persone con almeno due titoli in comune tra i più noti." : "Cerco chi ha lavorato con \(profile.name)…")
+                    .font(.subheadline).foregroundStyle(Color.aetherSecondary)
+                if !collaboratorsLoaded { ProgressView() }
+            } else {
+                Text("Compare spesso insieme a").font(.title3.weight(.bold))
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 14, alignment: .top)], spacing: 16) {
+                    ForEach(profile.collaborators) { person in
+                        NavigationLink(value: PersonRoute(personID: person.tmdbID, name: person.name)) {
+                            VStack(spacing: 6) {
+                                RemoteImage(urlString: person.photoURL, width: 200, placeholderSeed: person.name, systemPlaceholder: "person.fill")
+                                    .frame(width: 80, height: 80).clipShape(Circle())
+                                    .overlay(Circle().strokeBorder(.white.opacity(0.2), lineWidth: 1))
+                                Text(person.name).font(.caption.weight(.semibold)).lineLimit(2).multilineTextAlignment(.center)
+                                Text("\(person.shared.count) titoli insieme").font(.caption2).foregroundStyle(Color.aetherSecondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(person.name), \(person.shared.count) titoli insieme: " + person.shared.joined(separator: ", "))
+                    }
+                }
             }
         }
         .padding(.horizontal, Theme.pageMargin)
@@ -223,6 +267,18 @@ struct PersonFilmographyView: View {
         profile = await env.metadata.personProfile(personID: route.personID, name: route.name, language: language,
                                                    hideTalkShows: env.settings.value.content.hiddenTalkScopes.contains(.cast))
         isLoading = false
+        guard let loaded = profile else { return }
+        // The extras arrive after the page is already on screen.
+        async let collaborators = env.metadata.collaborators(of: loaded, personID: route.personID, language: language)
+        async let wikidata = env.metadata.wikidataID(personID: route.personID)
+        let wikidataItem = await wikidata
+        if let id = wikidataItem {
+            let awards = await WikidataClient(http: env.http).awards(wikidataID: id, language: language)
+            profile?.awards = awards
+        }
+        let foundCollaborators = await collaborators
+        profile?.collaborators = foundCollaborators
+        collaboratorsLoaded = true
     }
 
     private func open(_ credit: PersonFilmographyEntry) {

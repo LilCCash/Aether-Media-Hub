@@ -151,6 +151,8 @@ struct UniverseCard: View {
 
 struct UniverseDetailView: View {
     let universe: UniverseDefinition
+    @EnvironmentObject private var env: AppEnvironment
+    @State private var recurring: [(name: String, count: Int)] = []
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var library: LibraryModel
     @EnvironmentObject private var router: AppRouter
@@ -204,6 +206,8 @@ struct UniverseDetailView: View {
                         header
                         controls.padding(.horizontal, Theme.pageMargin)
                         grid
+                        recurringCast
+                        linkedUniverses
                     }
                     .padding(.bottom, 30)
                 }
@@ -220,6 +224,7 @@ struct UniverseDetailView: View {
             }
         }
         .onAppear { order = settings.value.content.universes.lastOrder[universe.id] ?? .release }
+        .task(id: universe.id) { await loadRecurring() }
         .onChange(of: order) { _, new in
             settings.value.content.universes.lastOrder[universe.id] = new
             if new != .custom { editing = false }
@@ -355,6 +360,83 @@ struct UniverseDetailView: View {
             }
         }
         .padding(.horizontal, Theme.pageMargin)
+    }
+
+    /// The actors who come back in the titles of this universe (from the cast the addons give), each one a door to the search for the person.
+    @ViewBuilder
+    private var recurringCast: some View {
+        if !recurring.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("🎭 Attori che tornano").font(.title3.weight(.bold))
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(recurring, id: \.name) { person in
+                            Button {
+                                router.pendingSearch = person.name
+                                router.universeSheet = false
+                                router.tab = .search
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "person.fill")
+                                    Text(person.name).font(.subheadline.weight(.semibold))
+                                    Text("\(person.count)").font(.caption2.weight(.bold)).padding(.horizontal, 6).padding(.vertical, 1).background(.white.opacity(0.2), in: Capsule())
+                                }
+                                .padding(.horizontal, 12).padding(.vertical, 8)
+                                .background(.thinMaterial, in: Capsule())
+                                .overlay(Capsule().strokeBorder(.white.opacity(0.15), lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Cerca la persona")
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, Theme.pageMargin)
+        }
+    }
+
+    @ViewBuilder
+    private var linkedUniverses: some View {
+        let linked = UniverseCatalog.linked(to: universe.id)
+        if !linked.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("🔗 Universi collegati").font(.title3.weight(.bold))
+                ForEach(linked, id: \.universe.id) { item in
+                    NavigationLink(value: item.universe) {
+                        HStack(spacing: 12) {
+                            RemoteImage(urlString: UniverseArt.background(item.universe.hero), width: 300, contentMode: .fill, placeholderSeed: item.universe.name, systemPlaceholder: "sparkles")
+                                .frame(width: 96, height: 60).clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.universe.name).font(.subheadline.weight(.bold))
+                                Text(item.note).font(.caption).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.leading)
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Color.aetherSecondary)
+                        }
+                        .padding(12)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, Theme.pageMargin)
+        }
+    }
+
+    private func loadRecurring() async {
+        let films = Array(universe.films.prefix(10))
+        let service = env.service
+        var counts: [String: Int] = [:]
+        await withTaskGroup(of: [String].self) { group in
+            for entry in films {
+                group.addTask {
+                    let fallback = MetaItem(id: entry.id, type: entry.type, name: entry.name)
+                    return await service.meta(type: entry.type, id: entry.id, fallback: fallback).meta.cast.prefix(6).map { $0 }
+                }
+            }
+            for await names in group { for name in names { counts[name, default: 0] += 1 } }
+        }
+        recurring = counts.filter { $0.value >= 2 }.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.prefix(12).map { (name: $0.key, count: $0.value) }
     }
 
     private func open(_ entry: UniverseEntry) {

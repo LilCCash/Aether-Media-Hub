@@ -140,7 +140,27 @@ public struct UniverseSettings: Codable, Equatable, Sendable {
     }
 }
 
+/// Two universes that touch, with the reason (only links that are plain facts).
+public struct UniverseLink: Equatable, Sendable {
+    public var first: String
+    public var second: String
+    public var note: String
+}
+
 public enum UniverseCatalog {
+    /// Crossovers: titles that belong to the story of both universes.
+    public static let links: [UniverseLink] = [
+        UniverseLink(first: "alien", second: "predator", note: "Crossover: Alien vs. Predator (2004) e Aliens vs. Predator 2 (2007) uniscono i due universi."),
+    ]
+
+    /// The universes linked to `id`, with the note of the link.
+    public static func linked(to id: String) -> [(universe: UniverseDefinition, note: String)] {
+        return links.compactMap { link in
+            let otherID = link.first == id ? link.second : (link.second == id ? link.first : nil)
+            guard let other = otherID, let universe = universe(id: other) else { return nil }
+            return (universe, link.note)
+        }
+    }
     public static func universe(id: String) -> UniverseDefinition? { return all.first { $0.id == id } }
 
     /// The universes an IMDb id belongs to (a title may be in more than one).

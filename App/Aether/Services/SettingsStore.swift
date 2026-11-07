@@ -80,6 +80,9 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    /// The Pro interface is on (the look and the layout of some screens; the data and the features are the same in both).
+    var isPro: Bool { return value.appearance.interfaceMode == .pro }
+
     var accentColor: Color { value.appearance.customAccentHex.map { Color(hex: $0) } ?? Theme.accent(for: value.appearance.accent) }
 
     var animationsEnabled: Bool { value.appearance.animationsEnabled }

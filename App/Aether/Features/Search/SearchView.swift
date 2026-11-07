@@ -731,10 +731,23 @@ struct SearchView: View {
                     .accessibilityIdentifier("search.empty")
             }
         }
-        ForEach(model.failedResults) { result in
-            InlineErrorView(message: "\(result.addonName) · \(result.title): \(result.error?.message ?? "errore")")
-        }
+        failureNotice
         footnotes
+    }
+
+    /// One line for the addons that did not answer well, not one box for each of their catalogs.
+    @ViewBuilder
+    private var failureNotice: some View {
+        let failed = model.failedResults
+        if !failed.isEmpty {
+            let addons = Array(Set(failed.map { $0.addonName })).sorted()
+            let notJSON = failed.filter { ($0.error?.message ?? "").contains("non è JSON") }.count
+            let reason = notJSON == failed.count ? "hanno risposto con una pagina che non è un catalogo (di solito il server dell'addon è spento, sovraccarico o blocca le richieste)" : (failed.first?.error?.message ?? "errore")
+            InlineErrorView(message: addons.count == 1
+                            ? "L'addon \(addons[0]) non ha risposto in \(failed.count) cataloghi: \(reason)."
+                            : "\(addons.count) addon (\(addons.joined(separator: ", "))) non hanno risposto: \(reason).")
+                .accessibilityIdentifier("search.failures")
+        }
     }
 
     @ViewBuilder

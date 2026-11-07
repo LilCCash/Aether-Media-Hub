@@ -265,3 +265,15 @@ final class InterfaceModeTests: XCTestCase {
         XCTAssertNil(b.classicLook)
     }
 }
+
+final class UniverseLinkTests: XCTestCase {
+    func testLinksPointToRealUniversesAndWorkBothWays() {
+        for link in UniverseCatalog.links {
+            XCTAssertNotNil(UniverseCatalog.universe(id: link.first))
+            XCTAssertNotNil(UniverseCatalog.universe(id: link.second))
+        }
+        XCTAssertEqual(UniverseCatalog.linked(to: "alien").map { $0.universe.id }, ["predator"])
+        XCTAssertEqual(UniverseCatalog.linked(to: "predator").map { $0.universe.id }, ["alien"])
+        XCTAssertTrue(UniverseCatalog.linked(to: "mcu").isEmpty)
+    }
+}

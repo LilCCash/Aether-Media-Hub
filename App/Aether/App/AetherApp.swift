@@ -122,15 +122,18 @@ enum InterfaceStyle {
 }
 
 struct RootView: View {
-    @EnvironmentObject private var env: AppEnvironment
-    @EnvironmentObject private var settings: SettingsStore
-    @EnvironmentObject private var router: AppRouter
-    @EnvironmentObject private var library: LibraryModel
-    @EnvironmentObject private var extras: ExtrasService
-    @Environment(\.scenePhase) private var scenePhase
-    @Namespace private var titleZoom
+    /// The bar of the system (iOS 26 draws it in Liquid Glass). Classic: five items as always. Pro: four on the left and the search apart on the
+    /// right, as the system does for a tab with the search role (before iOS 18 the five items).
+    @ViewBuilder
+    private var tabs: some View {
+        if settings.isPro, #available(iOS 18.0, *) {
+            proTabs
+        } else {
+            classicTabs
+        }
+    }
 
-    var body: some View {
+    private var classicTabs: some View {
         TabView(selection: $router.tab) {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house.fill") }
@@ -148,8 +151,29 @@ struct RootView: View {
                 .tabItem { Label("Altro", systemImage: "ellipsis.circle.fill") }
                 .tag(AppTab.more)
         }
-        .toolbar(.hidden, for: .tabBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) { AetherDock(selection: $router.tab) }
+    }
+
+    @available(iOS 18.0, *)
+    private var proTabs: some View {
+        TabView(selection: $router.tab) {
+            Tab("Home", systemImage: "house.fill", value: AppTab.home) { HomeView() }
+            Tab("Scopri", systemImage: "safari.fill", value: AppTab.discover) { DiscoverView() }
+            Tab("Libreria", systemImage: "books.vertical.fill", value: AppTab.library) { LibraryView() }
+            Tab("Altro", systemImage: "ellipsis.circle.fill", value: AppTab.more) { MoreView() }
+            Tab("Cerca", systemImage: "magnifyingglass", value: AppTab.search, role: .search) { SearchView() }
+        }
+    }
+
+    @EnvironmentObject private var env: AppEnvironment
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var library: LibraryModel
+    @EnvironmentObject private var extras: ExtrasService
+    @Environment(\.scenePhase) private var scenePhase
+    @Namespace private var titleZoom
+
+    var body: some View {
+        tabs
         .tint(settings.accentColor)
         .onChange(of: router.tab) { old, new in
             // Universe and Live TV are not in the bar: a request for them (a shortcut) opens them as full pages over the tabs.
@@ -238,21 +262,5 @@ struct RootView: View {
                     }
             }
         }
-    }
-}
-
-
-/// The round close button over a page opened above the tabs.
-struct SheetCloseButton: View {
-    let label: String
-    let action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "xmark").font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
-                .frame(width: 34, height: 34).background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().strokeBorder(.white.opacity(0.2), lineWidth: 1))
-        }
-        .padding(.trailing, 16).padding(.top, 8)
-        .accessibilityLabel(label)
     }
 }

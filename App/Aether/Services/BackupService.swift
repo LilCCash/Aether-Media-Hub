@@ -104,6 +104,10 @@ struct BackupPreview: Equatable {
 /// Local backup / restore / export. Nothing leaves the device unless the user shares the file.
 @MainActor
 enum BackupService {
+    /// The services whose key can travel in a backup (only if the viewer chooses so): debrid, metadata and the AI providers of the search and the companion.
+    static let keyedServices: [(String, ServiceKind)] = [("torbox", .torbox), ("realdebrid", .realdebrid), ("tmdb", .tmdb), ("tvdb", .tvdb), ("fanart", .fanart), ("mdblist", .mdblist),
+        ("aiAnthropic", .aiAnthropic), ("aiOpenAI", .aiOpenAI), ("aiGoogle", .aiGoogle), ("aiOpenRouter", .aiOpenRouter), ("aiCustom", .aiCustom)]
+
     static func makeBackup(env: AppEnvironment, includeAddonURLs: Bool, includeSettings: Bool = true, includeServiceKeys: Bool = false) async throws -> URL {
         let library = await env.libraryStore.snapshot()
         var addonEntries: [BackupAddon] = []
@@ -160,7 +164,7 @@ enum BackupService {
         }
         var keysRestored: [String] = []
         if let keys = backup.serviceKeys {
-            let services: [(String, ServiceKind)] = [("torbox", .torbox), ("tmdb", .tmdb), ("tvdb", .tvdb), ("fanart", .fanart), ("mdblist", .mdblist)]
+            let services = BackupService.keyedServices
             for (name, kind) in services {
                 guard let secret = keys[name], !secret.isEmpty else { continue }
                 do {
@@ -179,7 +183,7 @@ enum BackupService {
     /// The keys the viewer chose to carry in a backup (plain text in the file: the screen says so).
     private static func serviceKeys(env: AppEnvironment) -> [String: String]? {
         var keys: [String: String] = [:]
-        let services: [(String, ServiceKind)] = [("torbox", .torbox), ("tmdb", .tmdb), ("tvdb", .tvdb), ("fanart", .fanart), ("mdblist", .mdblist)]
+        let services = BackupService.keyedServices
         for (name, kind) in services {
             if let secret = env.credentials.secret(for: kind) { keys[name] = secret }
         }

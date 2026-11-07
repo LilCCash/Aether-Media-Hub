@@ -59,6 +59,9 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var skipSegments = EpisodeSkipSegments.none
     @Published private(set) var sourceName: String
     @Published private(set) var currentVideo: Video?
+    /// The address and headers handed to the engine, kept to cut the little pictures of the progress bar (not published: the screen does not follow them).
+    private(set) var previewURL: URL?
+    private(set) var previewHeaders: [String: String] = [:]
     @Published private(set) var meta: MetaItem
     @Published private(set) var audioTracks: [EngineTrack] = []
     @Published private(set) var subtitleOptions: [SubtitleOption] = []
@@ -429,6 +432,8 @@ final class PlayerViewModel: ObservableObject {
         }
         engine.setExternalPlaybackAllowed(!externalPlaybackBlockedForKey && !externalVideoWaitsForWiFi)
         loadStartPosition = start ?? 0
+        previewURL = loadURL
+        previewHeaders = loadHeaders
         engine.load(url: loadURL, headers: loadHeaders, startAt: start, autoplay: true)
         isOpeningSource = false
         if start != nil && (start ?? 0) > 1 { statusMessage = "Riprendo da \(Format.duration(start ?? 0))" }
@@ -625,6 +630,8 @@ final class PlayerViewModel: ObservableObject {
                 self.conversionLease = lease
                 if let plan = lease.remuxPlan { self.conversionPlan = plan }
                 self.engine.setExternalPlaybackAllowed(!self.externalPlaybackBlockedForKey)
+                self.previewURL = lease.url
+                self.previewHeaders = [:]
                 self.engine.load(url: lease.url, headers: [:], startAt: position > 1 ? position : nil, autoplay: wasPlaying)
                 if let old = self.conversion {
                     self.env.localRemux.close(old)

@@ -152,6 +152,14 @@ struct AppearanceSettingsView: View {
 
     var body: some View {
         Form {
+            Section(header: Text("Interfaccia"), footer: Text(settings.value.appearance.interfaceMode.explanation + " Passando da una all'altra non perdi nulla: libreria, cronologia, diario e impostazioni sono gli stessi, e tornando alla Classica ritrovi tema, colori e aspetto che avevi.")) {
+                Picker("Interfaccia", selection: Binding(get: { settings.value.appearance.interfaceMode },
+                                                         set: { settings.value.appearance.switchInterface(to: $0) })) {
+                    ForEach(InterfaceMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("settings.interface")
+            }
             Section {
                 NavigationLink {
                     AppIconSettingsView()
@@ -783,7 +791,7 @@ struct AccountDataSettingsView: View {
                 Text("Aether non invia nessun dato a server propri: niente analytics, niente crash reporting. Le richieste partono verso gli addon che installi, verso gli indirizzi delle immagini e dei video che questi restituiscono, verso IntroDB per i tempi di «Salta intro» (codice IMDb, stagione ed episodio; si spegne in Riproduzione ▸ Episodi) e, solo se inserisci una tua chiave in Servizi, verso TorBox, TMDB e TheTVDB. Per cercare i sottotitoli gli addon di sottotitoli ricevono il nome del file e, quando è calcolabile, l'impronta (hash) del video.")
                     .font(.footnote).foregroundStyle(Color.aetherSecondary)
             }
-            Section(header: Text("Backup e ripristino"), footer: Text("Il backup contiene libreria, cronologia, impostazioni e l'elenco degli addon. Gli indirizzi degli addon e le chiavi dei servizi (TorBox, TMDB, TheTVDB, fanart.tv) sono personali: inclusi solo se lo scegli, e il file non è cifrato. Ripristinando un backup con le chiavi, i servizi si configurano da soli.")) {
+            Section(header: Text("Backup e ripristino"), footer: Text("Il backup contiene libreria, cronologia, impostazioni e l'elenco degli addon. Gli indirizzi degli addon e le chiavi dei servizi (TorBox, Real-Debrid, TMDB, TheTVDB, fanart.tv, MDBList, AI) sono personali: inclusi solo se lo scegli, e il file non è cifrato. Ripristinando un backup con le chiavi, i servizi si configurano da soli.")) {
                 Toggle("Includi gli indirizzi degli addon", isOn: $includeURLs)
                 Toggle("Includi le chiavi dei servizi", isOn: $includeKeys)
                     .accessibilityIdentifier("backup.includeKeys")

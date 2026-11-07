@@ -7,7 +7,9 @@ struct SearchExtrasSection: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var library: LibraryModel
+    @EnvironmentObject private var router: AppRouter
     @State private var people: [PersonSearchResult] = []
+    @State private var missingKey = false
 
     var body: some View {
         let universes = UniverseCatalog.search(query)
@@ -29,6 +31,16 @@ struct SearchExtrasSection: View {
                     }
                 }
                 .accessibilityIdentifier("search.universes")
+            }
+            if missingKey && query.count >= 3 {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Per vedere anche attori e registi serve la chiave TMDB (è gratuita).", systemImage: "person.crop.circle.badge.questionmark").font(.footnote.weight(.semibold))
+                    Button("Aggiungila in Altro ▸ Impostazioni ▸ Servizi") { router.tab = .more }.font(.footnote)
+                }
+                .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .padding(.horizontal, Theme.pageMargin)
+                .accessibilityIdentifier("search.peopleKey")
             }
             if !people.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
@@ -55,7 +67,10 @@ struct SearchExtrasSection: View {
         }
         .task(id: query) {
             people = []
+            missingKey = false
             guard query.count >= 3 else { return }
+            let configured = await env.metadata.tmdbConfigured
+            if !configured { missingKey = true; return }
             try? await Task.sleep(nanoseconds: 600_000_000)
             guard !Task.isCancelled else { return }
             let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)

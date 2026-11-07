@@ -136,10 +136,32 @@ struct PlayerScrubber: View {
     let accent: Color
     var onEditingChanged: (Bool) -> Void
     var onSeek: (Double) -> Void
+    /// The picture for the position being slid to (nil when none can be made) and the callback that asks for it.
+    var previewImage: UIImage? = nil
+    var onPreview: ((Double?) -> Void)? = nil
 
     @State private var dragFraction: Double?
 
     private func clamp(_ value: Double) -> Double { min(1, max(0, value)) }
+
+    /// The bubble above the thumb: the picture of that moment (when there is one) and its time.
+    @ViewBuilder
+    private func preview(fraction: Double, width: CGFloat) -> some View {
+        let bubbleWidth: CGFloat = previewImage == nil ? 64 : 168
+        let x = min(max(0, width * fraction - bubbleWidth / 2), max(0, width - bubbleWidth))
+        VStack(spacing: 4) {
+            if let image = previewImage {
+                Image(uiImage: image).resizable().scaledToFill().frame(width: 168, height: 94).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white.opacity(0.7), lineWidth: 1.5))
+                    .shadow(color: .black.opacity(0.5), radius: 6, y: 2)
+            }
+            Text(Format.duration(fraction * duration)).font(.caption.monospacedDigit().weight(.bold))
+                .padding(.horizontal, 8).padding(.vertical, 3).background(.black.opacity(0.65), in: Capsule())
+        }
+        .frame(width: bubbleWidth)
+        .offset(x: x, y: previewImage == nil ? -34 : -124)
+        .allowsHitTesting(false)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -155,6 +177,9 @@ struct PlayerScrubber: View {
                     .frame(width: thumb, height: thumb)
                     .shadow(color: .black.opacity(0.4), radius: 3, y: 1)
                     .offset(x: width * playedFraction - thumb / 2)
+                if let fraction = dragFraction {
+                    preview(fraction: fraction, width: width)
+                }
             }
             .frame(width: width, height: proxy.size.height, alignment: .leading)
             .contentShape(Rectangle())
@@ -163,10 +188,12 @@ struct PlayerScrubber: View {
                     .onChanged { value in
                         if dragFraction == nil { onEditingChanged(true) }
                         dragFraction = clamp(value.location.x / width)
+                        onPreview?(clamp(value.location.x / width) * duration)
                     }
                     .onEnded { value in
                         let fraction = clamp(value.location.x / width)
                         dragFraction = nil
+                        onPreview?(nil)
                         onSeek(fraction * duration)
                         onEditingChanged(false)
                     }
@@ -195,6 +222,6 @@ func skipSymbol(seconds: Int, forward: Bool) -> String {
 }
 
 enum PlayerSheet: String, Identifiable {
-    case episodes, info, cast, companion
+    case episodes, info, cast, companion, more
     var id: String { rawValue }
 }

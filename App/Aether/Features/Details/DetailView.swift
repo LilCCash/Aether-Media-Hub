@@ -197,12 +197,23 @@ struct DetailView: View {
             AetherBackdrop(immersive: style.cinematic)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    header
-                    actions
-                    ratingsRow
-                    infoBlock
-                    tabStrip
-                    tabContent
+                    if settings.isPro {
+                        proHeader
+                        actions
+                        ratingsRow
+                        infoBlock
+                        tabStrip
+                        tabContent
+                    } else {
+                        classicHeader
+                        actions
+                        infoBlock
+                        if model.isSeries { episodes }
+                        if !model.meta.cast.isEmpty || !model.meta.directors.isEmpty || !(model.rich?.creators.isEmpty ?? true) { credits }
+                        classicRichSections
+                        if !model.failures.isEmpty && model.hadDetailProvider && model.providerName == nil { failureNote }
+                        footer
+                    }
                     if !model.failures.isEmpty && model.hadDetailProvider && model.providerName == nil { failureNote }
                     footer
                 }
@@ -289,7 +300,7 @@ struct DetailView: View {
         }
     }
 
-    private var header: some View {
+    private var proHeader: some View {
         ZStack(alignment: .bottomLeading) {
             headerArtwork
                 .frame(maxWidth: .infinity)
@@ -306,6 +317,13 @@ struct DetailView: View {
                 .overlay(
                     LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .init(x: 0.5, y: 0.3))
                 )
+            HStack(alignment: .bottom, spacing: 14) {
+                // The poster, as in the classic page.
+                RemoteImage(urlString: posterOverrides.url(for: model.meta.id) ?? model.meta.poster, width: 260, placeholderSeed: model.meta.name)
+                    .frame(width: 112, height: 112 / CGFloat(model.meta.posterShape.aspectRatio))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.22), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.4), radius: 14, y: 8)
             VStack(alignment: .leading, spacing: 10) {
                 // The film's logo in place of its name; without a logo, the name.
                 Group {
@@ -338,8 +356,90 @@ struct DetailView: View {
                     }
                 }
             }
+            Spacer(minLength: 0)
+            }
             .padding(.horizontal, Theme.pageMargin)
             .padding(.bottom, 6)
+        }
+    }
+
+    /// The page header of the Classic interface, as it has always been.
+    private var classicHeader: some View {
+        ZStack(alignment: .bottomLeading) {
+            headerArtwork
+                .frame(maxWidth: .infinity)
+                .frame(height: style.cinematic ? 470 : 330)
+                .scaleEffect(style.cinematic && style.motion && !reduceMotion && zoomed ? 1.2 : 1)
+                .animation(style.motion && !reduceMotion ? .easeInOut(duration: 16) : nil, value: zoomed)
+                .clipped()
+                .onAppear { zoomed = true }
+                .mask(
+                    LinearGradient(stops: style.cinematic
+                                   ? [.init(color: .black, location: 0), .init(color: .black, location: 0.45), .init(color: .clear, location: 1)]
+                                   : [.init(color: .black, location: 0), .init(color: .black, location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                )
+                .overlay(
+                    LinearGradient(colors: [.clear, Color(UIColor.systemBackground).opacity(0.0), Color(UIColor.systemBackground).opacity(style.cinematic ? 0 : 0.95)],
+                                   startPoint: .top, endPoint: .bottom)
+                )
+            HStack(alignment: .bottom, spacing: 14) {
+                RemoteImage(urlString: posterOverrides.url(for: model.meta.id) ?? model.meta.poster, width: 220, placeholderSeed: model.meta.name)
+                    .frame(width: 104, height: 104 / CGFloat(model.meta.posterShape.aspectRatio))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .shadow(color: .black.opacity(0.35), radius: 12, y: 6)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(model.meta.name)
+                        .font(.aetherTitle(26))
+                        .lineLimit(3)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("detail.title")
+                    classicMetaLine
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, Theme.pageMargin)
+            .padding(.bottom, 4)
+        }
+    }
+
+    private var classicMetaLine: some View {
+        HStack(spacing: 8) {
+            if let year = model.meta.releaseInfo { Text(year) }
+            if let runtime = model.meta.runtime { Text("· \(runtime)") }
+            if let rating = model.meta.imdbRating { Label(rating, systemImage: "star.fill").labelStyle(.titleAndIcon).foregroundStyle(.yellow) }
+        }
+        .font(.system(.footnote, design: AetherTypography.design).weight(.medium))
+        .foregroundStyle(Color.aetherSecondary)
+    }
+
+    /// Every TMDB section in one column, as the Classic page has them.
+    @ViewBuilder
+    private var classicRichSections: some View {
+        if let rich = model.rich {
+            let modules = env.settings.value.content.titleModules
+            let shown = env.settings.value.content.ratings
+            let chosen = model.ratings.filter { shown.sources.contains($0.source) && $0.display != nil }
+            if !chosen.isEmpty { TitleRatingsSection(ratings: chosen) }
+            TitleUniverseSection(meta: model.meta) { openedUniverse = $0 }
+            if !rich.cast.isEmpty && modules.cast {
+                TitleCastSection(people: rich.cast) { person in
+                    if let id = person.tmdbPersonID { openedPerson = PersonRoute(personID: id, name: person.name) }
+                }
+            }
+            if !rich.trailers.isEmpty && modules.trailers { TitleTrailersSection(trailers: rich.trailers) }
+            if !model.sagaFilms.isEmpty, let saga = rich.collection {
+                TitleSimilarSection(titles: model.sagaFilms, heading: saga.name, identifier: "detail.saga", open: openSimilar)
+            }
+            if !rich.companies.isEmpty && modules.companies { TitleCompaniesSection(companies: rich.companies) }
+            if (rich.budget != nil || rich.revenue != nil) && modules.financials { TitleFinancialsSection(budget: rich.budget, revenue: rich.revenue) }
+            let rows = rich.detailRows()
+            if !rows.isEmpty && modules.facts { TitleFactsSection(rows: rows) }
+            if !rich.similar.isEmpty && modules.similar { TitleSimilarSection(titles: similarTitles(rich), open: openSimilar) }
+        } else if model.suggestsTMDBKey {
+            TMDBKeyHint()
+        } else {
+            TitleUniverseSection(meta: model.meta) { openedUniverse = $0 }
         }
     }
 
@@ -668,7 +768,14 @@ struct DetailView: View {
 
     private var infoBlock: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let description = model.meta.description, !description.isEmpty {
+            if !settings.isPro, !model.meta.genres.isEmpty { GenreChips(genres: model.meta.genres) }
+            if let description = model.meta.description, !description.isEmpty, !settings.isPro {
+                Text(description)
+                    .font(.body)
+                    .lineLimit(descriptionExpanded ? nil : 5)
+                    .onTapGesture { withAnimation { descriptionExpanded.toggle() } }
+                    .accessibilityHint(descriptionExpanded ? "Tocca per ridurre" : "Tocca per leggere tutto")
+            } else if let description = model.meta.description, !description.isEmpty {
                 Button { withAnimation { descriptionExpanded.toggle() } } label: {
                     HStack(alignment: .top, spacing: 8) {
                         Text(description).font(.body).foregroundStyle(Color.primary.opacity(0.88))

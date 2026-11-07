@@ -46,21 +46,43 @@ struct HomeView: View {
                 let metas = model.heroItems + library.continueWatching.map { $0.asMeta } + library.nextUpSeeds.map { $0.asMeta }
                 FanartLogoStore.shared.prefetch(metas, env: env)
             }
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Home")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .principal) { AetherWordmark() }
-                ToolbarItemGroup(placement: .topBarLeading) {
-                    homeButton("sparkles.tv.fill", "Universe", id: "home.universe") { router.universeSheet = true }
-                    homeButton("tv.fill", "Live TV", id: "home.live") { router.liveSheet = true }
-                    homeButton("film", "Apri Theater Mode", id: "home.theater") { router.theater = true }
-                }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    homeButton("tv.and.mediabox", "Trasmetti su un dispositivo", id: "home.cast") { showingCast = true }
-                    Button { showingProfile = true } label: {
-                        AvatarView(avatarID: settings.value.content.profile.avatar, size: 30)
+                if settings.isPro {
+                    ToolbarItem(placement: .topBarLeading) {
+                        homeButton("film", "Apri Theater Mode", id: "home.theater") { router.theater = true }
                     }
-                    .accessibilityLabel("Profilo")
-                    .accessibilityIdentifier("home.profile")
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        homeButton("tv.and.mediabox", "Trasmetti su un dispositivo", id: "home.cast") { showingCast = true }
+                        Button { showingProfile = true } label: {
+                            AvatarView(avatarID: settings.value.content.profile.avatar, size: 30)
+                        }
+                        .accessibilityLabel("Profilo")
+                        .accessibilityIdentifier("home.profile")
+                    }
+                } else {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            router.theater = true
+                        } label: {
+                            Label("Theater Mode", systemImage: "film")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(settings.accentColor)
+                        .accessibilityLabel("Apri Theater Mode")
+                        .accessibilityIdentifier("home.theater")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showingCast = true
+                        } label: {
+                            Image(systemName: "tv.and.mediabox")
+                        }
+                        .accessibilityLabel("Trasmetti su un dispositivo")
+                        .accessibilityIdentifier("home.cast")
+                    }
                 }
             }
             .navigationDestination(for: MetaRoute.self) { route in
