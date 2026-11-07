@@ -14,7 +14,7 @@ L'app ora è una sola («Aether»): l'interfaccia Pro è un interruttore in Impo
 | Intelligenza delle fonti | 🟡 | Pesi configurabili; HDR e audio dal nome della release (etichette, non misure). |
 | Companion + domande all'AI | 🟡 | Fatti da metadati e universi; l'AI usa la tua chiave. |
 | Modalità Cinema | 🟡 | Scheda prima del film e controlli minimi. |
-| Anteprime sulla barra di avanzamento | 🟡 | Solo AVPlayer con file diretti (MP4/MOV) o scaricati; con HLS, file convertiti e MPV compare solo il tempo. |
+| Anteprime sulla barra di avanzamento | 🟡 | FFmpeg (già nell'app) legge il fotogramma chiave dal file ORIGINALE: vale per MKV, AVI, TS, WebM, HLS e MP4, con AVPlayer e con MPV. Mai provato su dispositivo; l'HDR può apparire spento e un 4K ad alto bitrate può tardare. Se FFmpeg non riesce, AVFoundation (solo AVPlayer e file semplici). |
 | Opzioni del player (foglio) | ✅ | Sostituisce il menu che sfarfallava. |
 | PiP con MPV | 🟡 | Sperimentale, spento di default: renderer software di libmpv su `AVSampleBufferDisplayLayer`; niente HDR. Mai provato su dispositivo. |
 | Sincronizzazione | 🟡 | Un file in una cartella scelta (iCloud Drive o altro): unisce libreria, cronologia, diario, collezioni, voti. Non è CloudKit. Mai provata con due dispositivi. |
@@ -22,4 +22,3 @@ L'app ora è una sola («Aether»): l'interfaccia Pro è un interruttore in Impo
 | Handoff | 🟡 | Dalla pagina titolo. |
 | Backup con chiavi | ✅ | Ora anche Real-Debrid e le chiavi AI (solo se scegli di includerle). |
 | Misurare il file prima di avviarlo | ☐ | HDR e audio restano dedotti dal nome. |
-| Anteprime dei fotogrammi con MPV | ☐ | Servirebbe un decodificatore separato. |

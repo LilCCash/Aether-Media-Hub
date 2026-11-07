@@ -6,7 +6,7 @@ Nuove funzioni (in entrambe le interfacce)
 - Persone: foto in bolla, ruoli, biografia, premi (Wikidata), «Film principali», filmografia con filtri, collaborazioni. Cercando un nome (serve la chiave TMDB) compare la bolla della persona.
 - Timeline di visione e diario (voto a mezze stelle, nota, rewatch, statistiche), Visti, Abbandonati e Collezioni in Libreria, «Scelti per te» nella Home.
 - Companion con foto, cast, universo e livelli di spoiler; con una chiave AI puoi fargli domande sul film.
-- Modalità Cinema, anteprime dei fotogrammi sulla barra (file MP4/MOV con AVPlayer), opzioni del player in un foglio che non sfarfalla, tocco lungo su un episodio per la trama.
+- Modalità Cinema, anteprime dei fotogrammi sulla barra su tutti i file e con entrambi i player (MKV, AVI, TS, HLS, MP4: le legge FFmpeg dal file originale), opzioni del player in un foglio che non sfarfalla, tocco lungo su un episodio per la trama.
 - Picture in Picture anche con MPV (sperimentale, nelle impostazioni di Riproduzione).
 - Intelligenza delle fonti, sincronizzazione con una cartella (iCloud Drive o altra), handoff, download «In corso / Completati».
 - Inviti a guardare qualcosa fino a 6 al giorno, con frasi adatte all'ora (di default 4).
