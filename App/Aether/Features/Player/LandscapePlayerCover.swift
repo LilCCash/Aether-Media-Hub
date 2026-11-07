@@ -249,9 +249,18 @@ private struct PlayerPresenter: UIViewRepresentable {
             // The player of a title opened without a launch page waits for a sheet that is still leaving; the launch page does not wait
             // for the list to be gone: it goes over it, at once.
             if !immediate {
+                // Only a page that is moving (a list closing after a tap) is waited for. A page that simply stays open, such as Live TV
+                // or Universe shown over the tabs, used to be waited for until the time ran out: four seconds of nothing before every
+                // channel started.
                 for _ in 0..<40 {
                     if Task.isCancelled { return }
-                    if base.presentedViewController == nil && !base.isBeingPresented && !base.isBeingDismissed { break }
+                    var moving = base.isBeingPresented || base.isBeingDismissed
+                    var page: UIViewController = base
+                    while let next = page.presentedViewController {
+                        if next.isBeingPresented || next.isBeingDismissed { moving = true }
+                        page = next
+                    }
+                    if !moving { break }
                     try? await Task.sleep(nanoseconds: 100_000_000)
                 }
             }
