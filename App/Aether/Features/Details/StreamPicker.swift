@@ -29,7 +29,8 @@ extension AppEnvironment {
             addonOrder: addons.addons.map { $0.id.uuidString },
             ordering: value.playback.streamOrdering,
             streamingServer: server,
-            capabilities: capabilities)
+            capabilities: capabilities,
+            scoring: value.playback.sourceScoring)
     }
 
     func bingeGroup(forMeta metaID: String) -> String? {

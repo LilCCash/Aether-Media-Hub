@@ -83,3 +83,43 @@ final class UniverseDiaryTests: XCTestCase {
         XCTAssertTrue(old.universes.followed.isEmpty)
     }
 }
+
+final class SourceScoringTests: XCTestCase {
+    private func stream(_ name: String, size: Int64? = nil) -> AddonStream {
+        return AddonStream(source: .url("https://example.com/\(name.replacingOccurrences(of: " ", with: "_")).mp4"), name: name, details: name,
+                           behaviorHints: StreamBehaviorHints(videoSize: size))
+    }
+
+    func testNeutralScoringChangesNothing() {
+        let a = stream("Film 1080p"), b = stream("Film 2160p HDR10")
+        let base = StreamSelector.rank([a, b], preferences: StreamPreferences())
+        let same = StreamSelector.rank([a, b], preferences: StreamPreferences(scoring: SourceScoring()))
+        XCTAssertEqual(base.map { $0.stream.name }, same.map { $0.stream.name })
+        XCTAssertTrue(SourceScoring().isNeutral)
+    }
+
+    func testHDRWeightPromotesAHDRSource() {
+        let plain = stream("Film 1080p x264"), dv = stream("Film 1080p DV HDR10 x265")
+        var scoring = SourceScoring()
+        scoring.hdr = 3
+        let ranked = StreamSelector.rank([plain, dv], preferences: StreamPreferences(scoring: scoring))
+        XCTAssertEqual(ranked.first?.stream.name, "Film 1080p DV HDR10 x265")
+    }
+
+    func testSizeAndCodecPreferences() {
+        let big = stream("Film 1080p x264", size: 20 * 1_073_741_824), small = stream("Film 1080p x264 b", size: 2 * 1_073_741_824)
+        var scoring = SourceScoring()
+        scoring.size = .smaller
+        scoring.sizeWeight = 3
+        XCTAssertEqual(StreamSelector.rank([big, small], preferences: StreamPreferences(scoring: scoring)).first?.stream.name, "Film 1080p x264 b")
+        scoring.size = .larger
+        XCTAssertEqual(StreamSelector.rank([small, big], preferences: StreamPreferences(scoring: scoring)).first?.stream.name, "Film 1080p x264")
+    }
+
+    func testOldSettingsStillDecodeAndBadWeightsAreClamped() throws {
+        let old = try JSONDecoder().decode(SourceScoring.self, from: Data(#"{"video":9,"hdr":-2,"size":"nonsense"}"#.utf8))
+        XCTAssertEqual(old.video, 3)
+        XCTAssertEqual(old.hdr, 0)
+        XCTAssertEqual(old.size, .none)
+    }
+}

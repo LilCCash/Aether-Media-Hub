@@ -29,10 +29,12 @@ public struct StreamPreferences: Sendable, Equatable {
     public var streamingServer: URL?
     /// Engines present in this build: decides whether MKV & co. count as playable.
     public var capabilities: PlaybackCapabilities
+    /// The viewer's own criteria (HDR, audio, size, codec). Neutral by default.
+    public var scoring: SourceScoring
 
     public init(qualityCap: VideoQualityCap = .auto, preferredLanguage: String? = nil, preferLanguage: Bool = true,
                 addonOrder: [String] = [], ordering: StreamOrdering = .best, streamingServer: URL? = nil,
-                capabilities: PlaybackCapabilities = .avPlayerOnly) {
+                capabilities: PlaybackCapabilities = .avPlayerOnly, scoring: SourceScoring = SourceScoring()) {
         self.qualityCap = qualityCap
         self.preferredLanguage = preferredLanguage
         self.preferLanguage = preferLanguage
@@ -40,6 +42,7 @@ public struct StreamPreferences: Sendable, Equatable {
         self.ordering = ordering
         self.streamingServer = streamingServer
         self.capabilities = capabilities
+        self.scoring = scoring
     }
 }
 
@@ -78,6 +81,7 @@ public enum StreamSelector {
                 if info.kind == .hls { score += 15 }
                 if !info.warnings.isEmpty { score -= 25 }
                 if info.needsHeaders { score -= 10 }
+                score += preferences.scoring.bonus(for: info)
             }
             if let addonID = stream.addonID, let order = preferences.addonOrder.firstIndex(of: addonID) {
                 score += max(0, 8 - order)

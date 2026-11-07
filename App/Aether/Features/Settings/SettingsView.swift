@@ -110,6 +110,7 @@ struct SettingsRootView: View {
                 link("Aspetto", "paintpalette.fill", .pink) { AppearanceSettingsView() }
                 link("Theater Mode", "film.stack.fill", .yellow) { TheaterSettingsView() }
                 link("Riproduzione", "play.rectangle.fill", .orange) { PlaybackSettingsView() }
+                link("Intelligenza delle fonti", "wand.and.stars", .purple) { SourceScoringSettingsView() }
                 link("Contenuti e scoperta", "square.grid.2x2.fill", .green) { ContentSettingsView() }
                 link("Live TV", "tv.fill", .red) { LiveTVSettingsView() }
                 link("Ricerca avanzata", "sparkle.magnifyingglass", .mint) { AdvancedSearchSettingsView() }
