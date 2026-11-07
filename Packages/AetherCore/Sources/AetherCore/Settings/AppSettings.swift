@@ -522,6 +522,8 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var skipSegmentsEnabled: Bool = true
     /// Cinema mode: a title card before the film and, while it plays, only the picture and the bar (the rest is in the menu).
     public var cinemaMode: Bool = false
+    /// Experimental: MPV draws in software so that its picture can go in the floating window (Picture in Picture). No HDR, more battery.
+    public var mpvPictureInPicture: Bool = false
     /// The viewer's criteria for ranking sources (HDR, audio, size, codec).
     public var sourceScoring = SourceScoring()
 
@@ -533,7 +535,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly, instantLaunchPage
-        case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering, convertMatroskaForAVPlayer, sourceScoring, cinemaMode
+        case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering, convertMatroskaForAVPlayer, sourceScoring, cinemaMode, mpvPictureInPicture
     }
 
     public init(from decoder: Decoder) throws {
@@ -577,6 +579,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         holdSpeed = min(4, max(1.25, c.value(.holdSpeed, default: 2.0)))
         skipSegmentsEnabled = c.value(.skipSegmentsEnabled, default: true)
         cinemaMode = c.value(.cinemaMode, default: false)
+        mpvPictureInPicture = c.value(.mpvPictureInPicture, default: false)
         sourceScoring = c.value(.sourceScoring, default: SourceScoring())
     }
 }

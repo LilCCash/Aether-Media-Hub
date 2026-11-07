@@ -268,6 +268,12 @@ struct PlaybackSettingsView: View {
                     Toggle("Converti i file MKV per AVPlayer", isOn: settings.binding(\.playback.convertMatroskaForAVPlayer))
                         .accessibilityIdentifier("settings.convertMKV")
                 }
+                if PlaybackEngineFactory.mpvAvailable {
+                    Toggle("Picture in Picture anche con MPV (sperimentale)", isOn: settings.binding(\.playback.mpvPictureInPicture))
+                        .accessibilityIdentifier("settings.mpvPiP")
+                    Text("MPV disegna il video con il processore invece che con la scheda grafica, così la finestra flottante può mostrarlo: niente HDR né Dolby Vision, più batteria, immagine ridotta a 1280 punti. Vale dal prossimo video. Se non funziona, MPV torna da solo all'uscita normale.")
+                        .font(.footnote).foregroundStyle(Color.aetherSecondary)
+                }
                 NavigationLink("Stato dei player e dello schermo") { PlayerStatusView() }
             }
             Section(header: Text("Video"),

@@ -277,3 +277,17 @@ final class UniverseLinkTests: XCTestCase {
         XCTAssertTrue(UniverseCatalog.linked(to: "mcu").isEmpty)
     }
 }
+
+final class PlaybackFlagsTests: XCTestCase {
+    func testNewPlaybackSwitchesAreOffAndSurviveARoundTrip() throws {
+        var playback = PlaybackSettings()
+        XCTAssertFalse(playback.cinemaMode)
+        XCTAssertFalse(playback.mpvPictureInPicture)
+        playback.cinemaMode = true
+        playback.mpvPictureInPicture = true
+        let back = try JSONDecoder().decode(PlaybackSettings.self, from: JSONEncoder().encode(playback))
+        XCTAssertTrue(back.cinemaMode)
+        XCTAssertTrue(back.mpvPictureInPicture)
+        XCTAssertFalse(try JSONDecoder().decode(PlaybackSettings.self, from: Data("{}".utf8)).mpvPictureInPicture)
+    }
+}

@@ -1,6 +1,8 @@
 #if canImport(Libmpv)
 import UIKit
 import QuartzCore
+import AVFoundation
+import AVKit
 import Libmpv
 import AetherCore
 
@@ -123,6 +125,13 @@ final class MPVCore: @unchecked Sendable {
     init?() {
         guard let created = mpv_create() else { return nil }
         handle = created
+    }
+
+    /// The libmpv handle for the render API (nil once the instance has been destroyed).
+    var rawHandle: OpaquePointer? {
+        lock.lock()
+        defer { lock.unlock() }
+        return destroyed ? nil : handle
     }
 
     // MARK: Options (before initialize)
@@ -315,6 +324,14 @@ final class MPVEngine: NSObject, PlaybackEngine {
 
     private var core: MPVCore?
     private var surface: MPVSurfaceView?
+    // Experimental Picture in Picture (software picture): see MPVSoftwareVideo.swift.
+    private var softwareView: MPVSoftwareVideoView?
+    private var softwareRenderer: MPVSoftwareRenderer?
+    private var pictureInPicture: MPVPictureInPicture?
+    private var softwareUnavailable = false
+    private var pictureInPictureActive = false
+    private var pictureInPicturePossible = false
+    private var usesSoftwareVideo: Bool { return settings.mpvPictureInPicture && !headlessVideo && !softwareUnavailable && AVPictureInPictureController.isPictureInPictureSupported() }
     private var positionTimer: Timer?
     private var recentLog: [String] = []
     private var desiredRate: Float = 1
@@ -349,19 +366,31 @@ final class MPVEngine: NSObject, PlaybackEngine {
         mediaInfo = nil
         snapshot = EngineSnapshot(rate: desiredRate)
 
+        let software = usesSoftwareVideo
         let surface = MPVSurfaceView(frame: container.bounds)
-        container.attach(surface)
-        surface.layoutIfNeeded()
-        surface.metalLayer.wantsExtendedDynamicRangeContent = MPVOptions.wantsExtendedDynamicRange(video: settings.video, device: device)
-        self.surface = surface
+        if software {
+            let view = MPVSoftwareVideoView(frame: container.bounds)
+            container.attach(view)
+            softwareView = view
+        } else {
+            container.attach(surface)
+            surface.layoutIfNeeded()
+            surface.metalLayer.wantsExtendedDynamicRangeContent = MPVOptions.wantsExtendedDynamicRange(video: settings.video, device: device)
+            self.surface = surface
+        }
 
         guard let core = MPVCore() else {
             onFailure?(PlaybackFailure(kind: .unknown, detail: "Impossibile creare il motore MPV."))
             return
         }
-        core.setWindow(surface.metalLayer)
+        if !software { core.setWindow(surface.metalLayer) }
         for pair in MPVOptions.initialOptions(video: settings.video, device: device, headlessVideo: headlessVideo) {
             core.setOption(pair.name, pair.value)
+        }
+        if software {
+            // The software renderer draws through libmpv's own output, not through a Metal layer.
+            core.setOption("vo", "libmpv")
+            core.setOption("hwdec", settings.video.hardwareDecoding ? "videotoolbox-copy" : "no")
         }
         for pair in MPVOptions.subtitleStyleProperties(settings.subtitleStyle) { core.setOption(pair.name, pair.value) }
         for pair in MPVOptions.headerOptions(headers) { core.setOption(pair.name, pair.value) }
@@ -393,6 +422,20 @@ final class MPVEngine: NSObject, PlaybackEngine {
             core.observe(name, format)
         }
         self.core = core
+        if software {
+            guard let view = softwareView, let context = core.makeSoftwareRenderContext() else {
+                // This build of libmpv cannot render in software: back to the normal output, once, and remember it.
+                softwareUnavailable = true
+                recentLog.append("PiP MPV: il renderer software non è disponibile, uso l'uscita normale.")
+                destroyCore()
+                load(url: url, headers: headers, startAt: startAt, autoplay: autoplay)
+                return
+            }
+            softwareRenderer = MPVSoftwareRenderer(layer: view.displayLayer, context: context, sourceSize: { [weak core] in
+                (Int(core?.int("dwidth") ?? 0), Int(core?.int("dheight") ?? 0))
+            })
+            setUpPictureInPicture(layer: view.displayLayer)
+        }
         applyVideoDetached()
         core.command(["loadfile", url.absoluteString, "replace"], async: true)
         startPositionTimer()
@@ -602,11 +645,49 @@ final class MPVEngine: NSObject, PlaybackEngine {
 
     // MARK: Picture in Picture / background
 
-    var supportsPictureInPicture: Bool { false }
-    var pictureInPictureAvailability: PictureInPictureAvailability { .engineUnsupported(engine: kind.displayName) }
-    func startPictureInPicture() {}
-    func stopPictureInPicture() {}
-    func setAutoPictureInPicture(_ enabled: Bool) {}
+    var supportsPictureInPicture: Bool { return pictureInPicture != nil }
+    var pictureInPictureAvailability: PictureInPictureAvailability {
+        guard pictureInPicture != nil else { return .engineUnsupported(engine: kind.displayName) }
+        return pictureInPicturePossible ? .available : .notReadyYet
+    }
+
+    func startPictureInPicture() {
+        guard let pip = pictureInPicture, pip.controller.isPictureInPicturePossible else { return }
+        pip.controller.startPictureInPicture()
+    }
+
+    func stopPictureInPicture() { pictureInPicture?.controller.stopPictureInPicture() }
+
+    func setAutoPictureInPicture(_ enabled: Bool) { pictureInPicture?.controller.canStartPictureInPictureAutomaticallyFromInline = enabled }
+
+    private func setUpPictureInPicture(layer: AVSampleBufferDisplayLayer) {
+        guard let pip = MPVPictureInPicture(layer: layer) else { return }
+        let core = self.core
+        pip.delegate.setPlaying = { [weak self] playing in
+            DispatchQueue.main.async { MainActor.assumeIsolated { if playing { self?.play() } else { self?.pause() } } }
+        }
+        pip.delegate.skip = { [weak self] seconds in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.seek(by: seconds) } }
+        }
+        pip.delegate.isPaused = { [weak core] in core?.flag("pause") ?? false }
+        pip.delegate.duration = { [weak core] in core?.double("duration") ?? 0 }
+        pip.delegate.onActiveChanged = { [weak self] active in
+            DispatchQueue.main.async { MainActor.assumeIsolated {
+                self?.pictureInPictureActive = active
+                self?.snapshot.isPictureInPictureActive = active
+                self?.applyVideoDetached()
+            } }
+        }
+        pip.onPossibleChanged = { [weak self] possible in
+            DispatchQueue.main.async { MainActor.assumeIsolated {
+                self?.pictureInPicturePossible = possible
+                self?.snapshot.isPictureInPicturePossible = possible
+            } }
+        }
+        pictureInPicture = pip
+        pictureInPicturePossible = pip.controller.isPictureInPicturePossible
+        snapshot.isPictureInPicturePossible = pictureInPicturePossible
+    }
 
     func setVideoDetached(_ detached: Bool) {
         videoDetached = detached
@@ -615,7 +696,9 @@ final class MPVEngine: NSObject, PlaybackEngine {
 
     /// Metal work is not allowed while the app is in the background: stop decoding/drawing video, keep the sound.
     private func applyVideoDetached() {
-        core?.setProperty("vid", videoDetached ? "no" : "auto")
+        // With the software picture the window keeps drawing in the background while it is open; without it, the picture stops and only the sound goes on.
+        let detach = videoDetached && !(softwareRenderer != nil && pictureInPictureActive)
+        core?.setProperty("vid", detach ? "no" : "auto")
     }
 
     // MARK: Teardown
@@ -623,12 +706,21 @@ final class MPVEngine: NSObject, PlaybackEngine {
     private func destroyCore() {
         positionTimer?.invalidate()
         positionTimer = nil
+        // The render context goes first: libmpv cannot be destroyed while one is still attached to it.
+        softwareRenderer?.stop()
+        softwareRenderer = nil
+        pictureInPicture?.controller.stopPictureInPicture()
+        pictureInPicture = nil
+        pictureInPictureActive = false
+        pictureInPicturePossible = false
         if let core = core {
             let layerKeepAlive = surface
-            core.shutdown { DispatchQueue.main.async { _ = layerKeepAlive } }
+            let viewKeepAlive = softwareView
+            core.shutdown { DispatchQueue.main.async { _ = layerKeepAlive; _ = viewKeepAlive } }
         }
         core = nil
         surface = nil
+        softwareView = nil
     }
 
     func teardown() {
