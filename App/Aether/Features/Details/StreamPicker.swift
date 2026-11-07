@@ -507,6 +507,13 @@ final class StreamPickerModel: ObservableObject {
         handingOver = true
         if env.router.launch != nil {
             // The black page is already up over the list: the player takes its place there, and the list leaves when the player closes.
+            if let page = env.router.launch, page.intro {
+                // The start screen waits for the viewer: the source is ready, «Guarda» starts the film.
+                page.resolution = nil
+                page.pending = player
+                page.ready = true
+                return
+            }
             env.router.play(player)
             return
         }
@@ -556,9 +563,9 @@ final class StreamPickerModel: ObservableObject {
 
     /// Puts the player's black page (logo, progress) on screen at once, over the list, turning the screen only once.
     private func beginLaunch(env: AppEnvironment, dismiss: @escaping () -> Void) {
-        guard env.settings.value.playback.instantLaunchPage else { return }
         endLaunch()
         let page = PlayerLaunch(meta: request.meta) { [weak self] in self?.cancelResolution() }
+        page.intro = env.settings.value.playback.introEnabled(forType: request.meta.type)
         page.resolution = resolution
         launch = page
         launchRouter = env.router

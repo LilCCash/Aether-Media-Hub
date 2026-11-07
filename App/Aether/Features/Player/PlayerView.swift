@@ -99,6 +99,7 @@ struct PlayerView: View {
         lifecycle
             .onChange(of: network.reconnectToken) { _, _ in networkChanged() }
             .onChange(of: model.snapshot.isPlaying) { _, value in playingChanged(value) }
+            .onChange(of: model.snapshot.isReady) { _, value in readyChanged(value) }
         .task { if settings.value.advanced.extras.pauseScreen { await pauseInfo.load(meta: model.meta, env: env) } }
             .onChange(of: model.didFinish) { _, value in finishedChanged(value) }
             .onChange(of: volume.level) { _, value in volumeButtonPressed(value) }
@@ -124,6 +125,10 @@ struct PlayerView: View {
         model.networkChanged(isOnline: network.isOnline)
     }
 
+    private func readyChanged(_ ready: Bool) {
+        if ready { scrubPreview.prepare(url: model.previewURL, headers: model.previewHeaders) }
+    }
+
     private func playingChanged(_ playing: Bool) {
         // While the opening is on, the film waits behind it.
         if showOpening && playing { model.engine.pause(); return }
@@ -143,7 +148,9 @@ struct PlayerView: View {
 
     private func finishedChanged(_ finished: Bool) {
         guard finished else { return }
-        if settings.value.appearance.creditsExperience && !model.snapshot.isLive { withAnimation { showCredits = true } } else { close() }
+        // With the credits screen on, the film stays open at its end: a «Titoli di coda» button shows with the controls. Closing the credits
+        // gives the picture back (it does not close the player).
+        if settings.value.appearance.creditsExperience && !model.snapshot.isLive { showControls() } else { close() }
     }
 
     /// The opening is for a film that starts from the beginning, not for one that is resumed halfway.
@@ -192,7 +199,7 @@ struct PlayerView: View {
             .overlay {
                 if showOpening { CinematicOpeningView(title: model.meta.name, onFinish: openingFinished).transition(.opacity) }
                 if showCredits {
-                    CreditsExperienceView(meta: model.meta, onClose: { close() }, onOpen: { route in
+                    CreditsExperienceView(meta: model.meta, onClose: { withAnimation { showCredits = false } }, onOpen: { route in
                         router.afterPlayer = { router.detail = route }
                         close()
                     })
@@ -252,7 +259,6 @@ struct PlayerView: View {
         case .info: PlayerInfoSheet(model: model)
         case .companion: CompanionSheet(meta: model.meta)
         case .chat: WatchChatSheet()
-        case .more: PlayerMoreSheet(model: model, openPanel: { openPanel($0) }, importSubtitle: { importingSubtitle = true }, show: { self.sheet = $0 })
         case .cast:
             PlayerCastSheet(airPlayNote: model.engine.kind == .mpv
                                 ? "Con questo file (motore MPV) AirPlay invia solo l'audio. Per il video usa Google Cast o DLNA qui sotto."
@@ -357,6 +363,7 @@ struct PlayerView: View {
             try? await Task.sleep(nanoseconds: 600_000_000)
             if !Task.isCancelled, UIDevice.current.orientation.isLandscape { OrientationController.set(.allButUpsideDown) }
         }
+        scrubPreview.log = { [env] text in env.diagnostics.logDetached(.info, "player", text) }
         if openingWanted() { showOpening = true }
         model.start()
         casting.onRemoteSessionEnded = { position, reason in
@@ -643,6 +650,15 @@ struct PlayerView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
             centerControls
+            if model.didFinish && !model.snapshot.isPlaying && settings.value.appearance.creditsExperience && !model.snapshot.isLive {
+                VStack {
+                    Spacer()
+                    Button { withAnimation { showCredits = true } } label: { Label("Titoli di coda", systemImage: "list.bullet.rectangle") }
+                        .buttonStyle(SecondaryActionButtonStyle())
+                        .accessibilityIdentifier("player.credits")
+                    Spacer().frame(height: 110)
+                }
+            }
         }
         .foregroundStyle(.white)
         .tint(.white)
@@ -687,19 +703,26 @@ struct PlayerView: View {
     }
 
     private var moreMenu: some View {
-        Button { sheet = .more } label: {
+        moreMenuView(label: AnyView(
             Image(systemName: "ellipsis")
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
-                .aetherGlass(in: Circle(), interactive: true)
-        }
-        .accessibilityLabel("Altre opzioni")
-        .accessibilityIdentifier("player.more")
+                .aetherGlass(in: Circle(), interactive: true)), identifier: "player.more")
     }
 
-    private func rateLabel(_ rate: Float) -> String {
-        rate == 1 ? "Normale" : String(format: "%.2g×", Double(rate))
+    /// The options of the player as a drop-down menu. It is `Equatable` on purpose: the player redraws every half second, and a menu rebuilt
+    /// under the finger blinks; this one is only rebuilt when something it shows really changes.
+    private func moreMenuView(label: AnyView, identifier: String) -> some View {
+        PlayerMoreMenu(model: model,
+                       state: PlayerMoreMenu.State(rate: model.playbackRate, fill: model.isFill, cinema: playbackSettings.cinemaMode,
+                                                   alternatives: !model.alternatives.isEmpty, sharePlay: model.sharePlayAvailable,
+                                                   chat: env.watchTogether.isActive, sleeping: model.sleepRemaining != nil),
+                       label: label, identifier: identifier,
+                       openPanel: { openPanel($0) }, importSubtitle: { importingSubtitle = true },
+                       show: { self.sheet = $0 },
+                       toggleCinema: { settings.value.playback.cinemaMode.toggle() })
+            .equatable()
     }
 
     private var centerControls: some View {
@@ -814,11 +837,9 @@ struct PlayerView: View {
                     .accessibilityLabel("Sorgenti")
                     .accessibilityIdentifier("player.sources")
             }
-            Button { sheet = .more } label: { actionLabel("speedometer", "Velocità", compact: compact) }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Velocità di riproduzione")
+            moreMenuView(label: AnyView(actionLabel("speedometer", "Velocità", compact: compact)), identifier: "player.speed")
+                .accessibilityLabel("Velocità e opzioni")
                 .accessibilityValue(rateLabel(model.playbackRate))
-                .accessibilityIdentifier("player.speed")
             Button { model.toggleFill() } label: {
                 actionLabel(model.isFill ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
                             model.isFill ? "Adatta" : "Riempi", compact: compact)

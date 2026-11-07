@@ -1,0 +1,18 @@
+name: Cleanup Pro releases
+# One-off: removes the release and the tag of the retired "Aether Pro" builds (devbuilds-pro). Run by hand, then this file is deleted.
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete the devbuilds-pro release and its tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release list --limit 100 | grep -i "pro" || true
+          gh release delete devbuilds-pro --cleanup-tag --yes || echo "nothing to delete"
+          gh release list --limit 100 | grep -ci "pro" || true

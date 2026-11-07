@@ -13,7 +13,9 @@ struct SearchExtrasSection: View {
 
     var body: some View {
         let universes = UniverseCatalog.search(query)
-        Group {
+        // A real container, not a Group: on a Group with nothing in it (no universe, no person yet) the `.task` below never ran, so the
+        // people were never searched.
+        VStack(alignment: .leading, spacing: 22) {
             if !universes.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     SectionHeader(title: "Universe")
@@ -50,8 +52,7 @@ struct SearchExtrasSection: View {
                             ForEach(people) { person in
                                 NavigationLink(value: PersonRoute(personID: person.id, name: person.name)) {
                                     VStack(spacing: 6) {
-                                        RemoteImage(urlString: person.photoURL, width: 160, placeholderSeed: person.name, systemPlaceholder: "person.fill")
-                                            .frame(width: 76, height: 76).clipShape(Circle())
+                                        PersonPhoto(urlString: person.photoURL, name: person.name, size: 76)
                                         Text(person.name).font(.caption.weight(.semibold)).lineLimit(2).multilineTextAlignment(.center).frame(width: 84)
                                         if let job = person.profession { Text(job).font(.caption2).foregroundStyle(Color.aetherSecondary).lineLimit(1) }
                                     }

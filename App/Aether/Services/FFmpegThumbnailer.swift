@@ -26,8 +26,11 @@ final class FFmpegThumbnailer: @unchecked Sendable {
     private var videoIndex: Int32 = -1
     private var timeBase = AVRational(num: 1, den: 1000)
     private var startTime: Int64 = 0
-    private var attempted = false
+    private var failures = 0
+    private var lastAttempt = Date.distantPast
     private var usable = false
+    /// Why the last picture could not be made (for the diagnostic log).
+    private(set) var lastFailure: String?
 
     init(url: URL, headers: [String: String]) {
         self.address = url.isFileURL ? url.path : url.absoluteString
@@ -65,9 +68,23 @@ final class FFmpegThumbnailer: @unchecked Sendable {
 
     // MARK: Opening
 
+    /// Opens the file; a failure is tried again a little later (the network can be slow or drop at the first try), at most four times.
     private func openIfNeeded() -> Bool {
-        if attempted { return usable }
-        attempted = true
+        if usable { return true }
+        guard failures < 4, Date().timeIntervalSince(lastAttempt) > 2.5 else { return false }
+        lastAttempt = Date()
+        if openNow() { return true }
+        failures += 1
+        lastFailure = lastFailure ?? "apertura del file non riuscita"
+        return false
+    }
+
+    /// Opens the file ahead of the first slide, so the first picture does not wait for the connection.
+    func warmUp() {
+        queue.async { [self] in _ = openIfNeeded() }
+    }
+
+    private func openNow() -> Bool {
         var options: OpaquePointer?
         defer { av_dict_free(&options) }
         if !headers.isEmpty {
@@ -98,7 +115,8 @@ final class FFmpegThumbnailer: @unchecked Sendable {
             closeEverything()
             return false
         }
-        codecContext.pointee.thread_count = 2
+        // One thread: with several, the decoder holds frames back until later packets arrive, and with only key frames being decoded they never did.
+        codecContext.pointee.thread_count = 1
         codecContext.pointee.skip_frame = AVDISCARD_NONKEY
         codecContext.pointee.skip_loop_filter = AVDISCARD_ALL
         guard avcodec_open2(codecContext, codec, nil) >= 0 else {
@@ -132,7 +150,10 @@ final class FFmpegThumbnailer: @unchecked Sendable {
         guard openIfNeeded(), let ic = context, let codec = decoder else { return nil }
         let numerator = Double(timeBase.num == 0 ? 1 : timeBase.num)
         let target = startTime + Int64(seconds * Double(timeBase.den) / numerator)
-        if av_seek_frame(ic, videoIndex, target, 1) < 0 { return nil }   // 1 = backward: the key frame at or before the time
+        if av_seek_frame(ic, videoIndex, target, 1) < 0 {   // 1 = backward: the key frame at or before the time
+            lastFailure = "il file non permette di spostarsi"
+            return nil
+        }
         avcodec_flush_buffers(codec)
 
         var scratchPacket = av_packet_alloc()
@@ -153,7 +174,13 @@ final class FFmpegThumbnailer: @unchecked Sendable {
             if avcodec_send_packet(codec, packet) < 0 { continue }
             if avcodec_receive_frame(codec, frame) >= 0 { decoded = true; break }
         }
-        guard decoded, frame.pointee.width > 0, frame.pointee.height > 0 else { return nil }
+        if !decoded {
+            // The decoder may still hold the frame: ask it to hand over what it has.
+            avcodec_send_packet(codec, nil)
+            if avcodec_receive_frame(codec, frame) >= 0 { decoded = true }
+            avcodec_flush_buffers(codec)
+        }
+        guard decoded, frame.pointee.width > 0, frame.pointee.height > 0 else { lastFailure = "nessun fotogramma decodificato"; return nil }
         return picture(from: frame, maxWidth: maxWidth)
     }
 
@@ -190,6 +217,8 @@ final class FFmpegThumbnailer: @unchecked Sendable {
     static let isAvailable = false
     init(url: URL, headers: [String: String]) {}
     func close() {}
+    func warmUp() {}
+    var lastFailure: String? { return nil }
     func image(at seconds: Double, maxWidth: Int = 320) async -> UIImage? { return nil }
 }
 #endif

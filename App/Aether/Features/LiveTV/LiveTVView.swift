@@ -163,6 +163,14 @@ struct LiveTVView: View {
     @EnvironmentObject private var playlists: LivePlaylistService
     @StateObject private var model = LiveTVModel()
     @State private var notice: String?
+    @State private var choice: ChannelChoice?
+
+    /// The sources an addon channel has, when it has more than one: the viewer picks.
+    struct ChannelChoice: Identifiable {
+        let id = UUID()
+        let meta: MetaItem
+        let streams: [AddonStream]
+    }
 
     private var liveSettings: LiveTVSettings { return settings.value.content.liveTV }
     private var sources: [LiveSource] { return model.sources(env: env, addons: addons, settings: liveSettings) }
@@ -211,6 +219,15 @@ struct LiveTVView: View {
                         .aetherGlassCapsule().padding(.bottom, 16).transition(.opacity)
                 }
             }
+        }
+        .confirmationDialog("Scegli la fonte", isPresented: Binding(get: { choice != nil }, set: { if !$0 { choice = nil } }),
+                            titleVisibility: .visible, presenting: choice) { current in
+            ForEach(Array(current.streams.prefix(14).enumerated()), id: \.offset) { index, stream in
+                Button(sourceLabel(stream, index)) { playStream(stream, meta: current.meta) }
+            }
+            Button("Annulla", role: .cancel) {}
+        } message: { current in
+            Text("«\(current.meta.name)» ha più fonti.")
         }
         .task(id: sources.map { $0.id }) {
             if current?.id != model.selected, let first = current { model.selected = first.id }
@@ -338,10 +355,29 @@ struct LiveTVView: View {
         Task { try? await Task.sleep(nanoseconds: 2_200_000_000); withAnimation { notice = nil } }
     }
 
+    private func sourceLabel(_ stream: AddonStream, _ index: Int) -> String {
+        let name = [stream.addonName, stream.name].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        return name.isEmpty ? "Fonte \(index + 1)" : name
+    }
+
+    private func playStream(_ stream: AddonStream, meta: MetaItem) {
+        router.playWithIntro(PlayerRequest(meta: meta, video: nil, source: .stream(stream), alternatives: []), enabled: settings.value.playback.introLive)
+    }
+
     private func play(_ channel: LiveChannel) {
         switch channel.origin {
         case .addon(let meta):
-            router.detail = MetaRoute(type: meta.type, id: meta.id, preview: meta)
+            show("Cerco le fonti di «\(meta.name)»…")
+            Task {
+                var found: [AddonStream] = []
+                var seen = Set<String>()
+                for await batch in env.service.streams(type: meta.type, videoID: meta.id) {
+                    for stream in batch.streams where seen.insert(stream.id).inserted { found.append(stream) }
+                }
+                notice = nil
+                if found.isEmpty { show("Nessuna fonte per questo canale."); return }
+                if found.count == 1 { playStream(found[0], meta: meta) } else { choice = ChannelChoice(meta: meta, streams: found) }
+            }
         case .m3u(let item):
             guard let url = URL(string: item.url) else { return }
             Task {
@@ -349,7 +385,7 @@ struct LiveTVView: View {
                 let hints = StreamBehaviorHints(proxyRequestHeaders: item.requestHeaders)
                 let stream = AddonStream(source: .url(item.url), name: item.name, behaviorHints: hints)
                 let meta = MetaItem(id: "live:" + item.id, type: "tv", name: item.name, poster: item.logo)
-                router.play(PlayerRequest(meta: meta, video: nil, source: .stream(stream), alternatives: []))
+                router.playWithIntro(PlayerRequest(meta: meta, video: nil, source: .stream(stream), alternatives: []), enabled: settings.value.playback.introLive)
             }
         }
     }

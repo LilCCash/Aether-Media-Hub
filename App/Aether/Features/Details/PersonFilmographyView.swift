@@ -78,9 +78,7 @@ struct PersonFilmographyView: View {
     /// The person in a bubble (not a picture across the screen): the photo in a round frame with the accent ring, then name, roles and life.
     private func header(_ profile: PersonProfile) -> some View {
         VStack(spacing: 10) {
-            RemoteImage(urlString: profile.photoURL, width: 400, contentMode: .fill, alignment: .top, placeholderSeed: profile.name, systemPlaceholder: "person.fill")
-                .frame(width: 148, height: 148)
-                .clipShape(Circle())
+            PersonPhoto(urlString: profile.photoURL, name: profile.name, size: 148)
                 .overlay(Circle().strokeBorder(LinearGradient(colors: [Color.accentColor, .white.opacity(0.4)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 3))
                 .shadow(color: Color.accentColor.opacity(0.45), radius: 18, y: 6)
                 .accessibilityLabel("Foto di \(profile.name)")
@@ -165,8 +163,7 @@ struct PersonFilmographyView: View {
                     ForEach(profile.collaborators) { person in
                         NavigationLink(value: PersonRoute(personID: person.tmdbID, name: person.name)) {
                             VStack(spacing: 6) {
-                                RemoteImage(urlString: person.photoURL, width: 200, placeholderSeed: person.name, systemPlaceholder: "person.fill")
-                                    .frame(width: 80, height: 80).clipShape(Circle())
+                                PersonPhoto(urlString: person.photoURL, name: person.name, size: 80)
                                     .overlay(Circle().strokeBorder(.white.opacity(0.2), lineWidth: 1))
                                 Text(person.name).font(.caption.weight(.semibold)).lineLimit(2).multilineTextAlignment(.center)
                                 Text("\(person.shared.count) titoli insieme").font(.caption2).foregroundStyle(Color.aetherSecondary)
@@ -293,5 +290,23 @@ struct PersonFilmographyView: View {
             let preview = MetaItem(id: imdb, type: credit.metaType, name: credit.title, poster: credit.posterURL)
             openedTitle = MetaRoute(type: credit.metaType, id: imdb, preview: preview)
         }
+    }
+}
+
+/// A person's photo in a bubble without cutting the face: the whole portrait sits in the circle, over a soft blur of itself that fills the sides.
+struct PersonPhoto: View {
+    let urlString: String?
+    let name: String
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            RemoteImage(urlString: urlString, width: 120, contentMode: .fill, alignment: .top, placeholderSeed: name, systemPlaceholder: "person.fill")
+                .blur(radius: 12)
+                .opacity(0.8)
+            RemoteImage(urlString: urlString, width: max(size * 2.6, 200), contentMode: .fit, placeholderSeed: name, systemPlaceholder: "person.fill")
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
     }
 }

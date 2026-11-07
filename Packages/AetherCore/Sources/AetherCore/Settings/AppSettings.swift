@@ -531,7 +531,12 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var landscapeOnly: Bool = true
     /// The black page with the film's logo opens at once, over the source list, and stays until the picture runs. Off (the default until it
     /// has proved itself on every phone): the older way, the list closes first and then the player opens.
-    public var instantLaunchPage: Bool = false
+    public var instantLaunchPage: Bool = true
+    /// The start screen of a film, a series episode or a live channel: black page, the logo zooming out, then a «Guarda» button once the
+    /// source is ready. Off for a kind: the page still opens at once but the picture starts by itself.
+    public var introMovies: Bool = true
+    public var introSeries: Bool = true
+    public var introLive: Bool = false
     public var gesturesEnabled: Bool = true
     public var watchedThreshold: Double = 0.9
     public var video: VideoOutputSettings = VideoOutputSettings()
@@ -560,7 +565,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         case engine, liveEngine, episodeSwitch, preferPack, preferDownloaded, liveContainerBundleID, liveContainerScheme, liveContainerPlayer, autoResume, resumeRewindSeconds, skipBackSeconds, skipForwardSeconds, autoplayNextEpisode
         case nextEpisodeCountdownSeconds, preferredAudioLanguage, preferredSubtitleLanguage, subtitleStyle
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
-        case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly, instantLaunchPage
+        case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly, instantLaunchPage, introMovies, introSeries, introLive
         case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering, convertMatroskaForAVPlayer, sourceScoring, cinemaMode, mpvPictureInPicture
     }
 
@@ -594,7 +599,10 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         convertMatroskaForAVPlayer = c.value(.convertMatroskaForAVPlayer, default: false)
         controlsAutoHideSeconds = min(15, max(2, c.value(.controlsAutoHideSeconds, default: 4)))
         landscapeOnly = c.value(.landscapeOnly, default: true)
-        instantLaunchPage = c.value(.instantLaunchPage, default: false)
+        instantLaunchPage = c.value(.instantLaunchPage, default: true)
+        introMovies = c.value(.introMovies, default: true)
+        introSeries = c.value(.introSeries, default: true)
+        introLive = c.value(.introLive, default: false)
         gesturesEnabled = c.value(.gesturesEnabled, default: true)
         watchedThreshold = min(0.99, max(0.5, c.value(.watchedThreshold, default: 0.9)))
         video = c.value(.video, default: VideoOutputSettings())

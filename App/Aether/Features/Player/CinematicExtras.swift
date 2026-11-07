@@ -20,26 +20,36 @@ final class OpeningSound {
 
     func stop() { player?.stop(); player = nil }
 
-    /// 16-bit mono WAV, 44.1 kHz, about 2.6 seconds.
+    /// 16-bit mono WAV, 44.1 kHz, 1.7 seconds: a light riser. Air (filtered noise whose brightness opens up) and a thin rising tone that swell
+    /// together and let go in a soft tail. Made here, sample by sample: nothing is taken from a film or a song.
     static func wav() -> Data? {
         let rate = 44_100.0
-        let seconds = 2.6
+        let seconds = 1.7
+        let rise = 1.35
         let count = Int(rate * seconds)
         var samples = [Int16](repeating: 0, count: count)
-        let notes: [(freq: Double, start: Double, gain: Double)] = [(261.63, 0.00, 0.30), (392.00, 0.28, 0.26), (523.25, 0.56, 0.24), (659.25, 0.84, 0.16)]
+        var seed: UInt32 = 0x2F6E_2B1
+        var low = 0.0
+        var phase = 0.0
         for index in 0..<count {
             let t = Double(index) / rate
-            var value = 0.0
-            for note in notes where t >= note.start {
-                let local = t - note.start
-                let envelope = min(1, local / 0.02) * exp(-local * 1.9)
-                value += note.gain * envelope * (sin(2 * .pi * note.freq * local) + 0.35 * sin(4 * .pi * note.freq * local))
-            }
-            // The swell: a low tone that opens and closes over the whole length.
-            let swell = sin(.pi * t / seconds)
-            value += 0.12 * swell * swell * sin(2 * .pi * 65.41 * t)
-            let fade = min(1, (seconds - t) / 0.4)
-            samples[index] = Int16(max(-1, min(1, value * fade)) * 30_000)
+            // Noise (a simple linear generator is plenty for air) through a low-pass that opens from 400 Hz to 7 kHz.
+            seed = seed &* 1_664_525 &+ 1_013_904_223
+            let noise = Double(Int32(bitPattern: seed)) / Double(Int32.max)
+            let progress = min(1, t / rise)
+            let cutoff = 400 + 6_600 * progress * progress
+            let alpha = 1 - exp(-2 * .pi * cutoff / rate)
+            low += alpha * (noise - low)
+            // A thin tone gliding from 330 Hz to 990 Hz.
+            let freq = 330 + 660 * progress * progress
+            phase += 2 * .pi * freq / rate
+            let tone = sin(phase) * 0.5 + sin(phase * 2) * 0.12
+            // Swell up to the top of the riser, then a quick soft release.
+            let swell = t < rise ? pow(progress, 2.2) : exp(-(t - rise) * 9)
+            let attack = min(1, t / 0.05)
+            let fade = min(1, (seconds - t) / 0.15)
+            let value = (low * 0.55 + tone * 0.16) * swell * attack * fade
+            samples[index] = Int16(max(-1, min(1, value)) * 28_000)
         }
         var data = Data()
         func append<T: FixedWidthInteger>(_ value: T) { var little = value.littleEndian; withUnsafeBytes(of: &little) { data.append(contentsOf: $0) } }
@@ -85,7 +95,7 @@ struct CinematicOpeningView: View {
         .task {
             if settings.value.appearance.openingSound { OpeningSound.shared.play() }
             withAnimation(.easeOut(duration: 1.6)) { phase = 1 }
-            try? await Task.sleep(nanoseconds: 2_300_000_000)
+            try? await Task.sleep(nanoseconds: 1_700_000_000)
             withAnimation(.easeIn(duration: 0.45)) { phase = 2 }
             try? await Task.sleep(nanoseconds: 450_000_000)
             finish()

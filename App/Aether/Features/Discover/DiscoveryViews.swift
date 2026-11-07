@@ -23,6 +23,7 @@ final class CinematicDiscoveryModel: ObservableObject {
     /// The film whose similar titles are on screen; nil for the general feed.
     @Published var seed: DiscoveryCard?
     private var trail: [(cards: [DiscoveryCard], seed: DiscoveryCard?)] = []
+    private var prefetching: Task<Void, Never>?
 
     var canGoBack: Bool { return !trail.isEmpty }
 
@@ -38,6 +39,21 @@ final class CinematicDiscoveryModel: ObservableObject {
         seed = nil
         trail = []
         loading = false
+        prefetch(env: env)
+    }
+
+    /// Fetches the pictures of all the pages now, so a page that comes into view already has its picture.
+    private func prefetch(env: AppEnvironment) {
+        let urls = cards.compactMap { URL(string: $0.backdropURL ?? $0.posterURL ?? "") }
+        let loader = env.images
+        let pixels = Int(DiscoveryPage.pictureWidth * UIScreen.main.scale)
+        prefetching?.cancel()
+        prefetching = Task {
+            for url in urls {
+                if Task.isCancelled { return }
+                _ = await loader.image(for: url, maxPixel: pixels)
+            }
+        }
     }
 
     func showSimilar(to card: DiscoveryCard, env: AppEnvironment) async {
@@ -52,6 +68,7 @@ final class CinematicDiscoveryModel: ObservableObject {
             trail.append((cards, seed))
             cards = [card] + similar
             seed = card
+            prefetch(env: env)
         }
         loading = false
     }
@@ -117,7 +134,7 @@ struct CinematicDiscoveryView: View {
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(true)
-        .sheet(item: $route) { route in NavigationStack { DetailView(route: route) } }
+        .sheet(item: $route) { route in DetailSheet(route: route) }
         .task { if model.cards.isEmpty { await model.loadFeed(env: env) } }
         .animation(settings.animationsEnabled ? .easeInOut(duration: 0.3) : nil, value: model.seed?.id)
     }
@@ -133,7 +150,7 @@ struct CinematicDiscoveryView: View {
     }
 }
 
-private struct DiscoveryPage: View {
+struct DiscoveryPage: View {
     let card: DiscoveryCard
     let opening: Bool
     let open: () -> Void
@@ -142,10 +159,11 @@ private struct DiscoveryPage: View {
     @Environment(\.aetherStyle) private var style
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoomed = false
+    static let pictureWidth: CGFloat = 700
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            RemoteImage(urlString: card.backdropURL ?? card.posterURL, width: 1280, placeholderSeed: card.title)
+            RemoteImage(urlString: card.backdropURL ?? card.posterURL, width: DiscoveryPage.pictureWidth, placeholderSeed: card.title)
                 .scaleEffect(zoomed && style.kenBurns && !reduceMotion ? 1.12 : 1)
                 .blur(radius: card.backdropURL == nil ? 18 : 0)
                 .clipped()
@@ -283,7 +301,7 @@ struct ReleaseCalendarView: View {
             .navigationTitle("Calendario uscite")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Fine") { dismiss() }.fontWeight(.semibold) } }
-            .sheet(item: $route) { route in NavigationStack { DetailView(route: route) } }
+            .sheet(item: $route) { route in DetailSheet(route: route) }
             .task {
                 let language = MetadataEnricher.tmdbLanguage(preferred: env.settings.value.content.preferredLanguage)
                 let region = Locale.current.region?.identifier ?? "IT"
@@ -434,6 +452,32 @@ struct AIDiscoverySheet: View {
             problem = error.message
         } catch {
             problem = "Non riesco a contattare il servizio AI."
+        }
+    }
+}
+
+
+/// A title page opened from the discovery or the calendar: with a close button and the grabber, and a swipe down from the top edge closes it
+/// (the page scrolls under the finger everywhere else).
+struct DetailSheet: View {
+    let route: MetaRoute
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            DetailView(route: route)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { dismiss() } label: { Image(systemName: "xmark.circle.fill").symbolRenderingMode(.hierarchical) }
+                            .accessibilityLabel("Chiudi")
+                            .accessibilityIdentifier("detail.close")
+                    }
+                }
+        }
+        .presentationDragIndicator(.visible)
+        .overlay(alignment: .top) {
+            Color.clear.frame(height: 48).contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 20).onEnded { if $0.translation.height > 60 { dismiss() } })
         }
     }
 }

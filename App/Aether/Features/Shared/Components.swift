@@ -68,12 +68,9 @@ struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
                                               minColumns: minColumns, preferredWidth: preferredWidth)
         let columns: [GridItem] = Array(repeating: GridItem(.fixed(metrics.cardWidth), spacing: spacing, alignment: .top),
                                         count: metrics.columns)
+        // The width is measured on the whole grid, which takes everything the screen offers: measured on a thin strip inside it, the columns
+        // were computed from a width the cards themselves had shrunk, and the cards came out narrower than the screen allows.
         return VStack(spacing: 0) {
-            Color.clear
-                .frame(height: 0)
-                .background(GeometryReader { proxy in
-                    Color.clear.preference(key: CardGridWidthKey.self, value: proxy.size.width)
-                })
             LazyVGrid(columns: columns, alignment: .center, spacing: rowSpacing) {
                 ForEach(items) { item in
                     content(item, metrics.cardWidth)
@@ -81,6 +78,10 @@ struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
             }
             .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity)
+        .background(GeometryReader { proxy in
+            Color.clear.preference(key: CardGridWidthKey.self, value: proxy.size.width)
+        })
         .onPreferenceChange(CardGridWidthKey.self) { width in
             if width > 0, abs(width - containerWidth) > 0.5 { containerWidth = width }
         }

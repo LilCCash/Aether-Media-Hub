@@ -145,9 +145,17 @@ private struct LaunchPage: View {
     @EnvironmentObject private var router: AppRouter
 
     var body: some View {
-        PlaybackPreparingView(meta: launch.meta, resolution: launch.resolution) {
-            if router.player != nil { router.player = nil } else { launch.cancel() }
-        }
+        PlaybackIntroView(meta: launch.meta, intro: launch.intro, ready: launch.ready && router.player == nil,
+                          starting: router.player != nil,
+                          watch: {
+                              guard let request = launch.pending else { return }
+                              launch.pending = nil
+                              launch.ready = false
+                              router.play(request)
+                          },
+                          cancel: {
+                              if router.player != nil { router.player = nil } else { launch.cancel() }
+                          })
     }
 }
 

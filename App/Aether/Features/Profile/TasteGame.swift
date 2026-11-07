@@ -29,7 +29,7 @@ final class TasteGameModel: ObservableObject {
         let found = await TasteSource.fetch(env: env, addons: addons, genres: genres)
         let watched = Set(library.history.map { $0.metaID })
         let known = Set(deck.map { $0.id })
-        deck += TasteEngine.deck(found.shuffled(), profile: profile, excluding: watched.union(known))
+        deck += TasteEngine.deck(TasteSource.varied(found), profile: profile, excluding: watched.union(known))
     }
 
     /// The film is taken off the pile; returns it so the caller can record the verdict.

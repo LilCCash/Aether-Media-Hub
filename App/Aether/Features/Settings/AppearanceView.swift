@@ -216,7 +216,10 @@ struct AppearanceSettingsView: View {
         Section(header: Text("Movimento"), footer: Text("Con «Riduci gli effetti» lo sfondo diventa uniforme e il vetro opaco. Aether rispetta anche «Riduci movimento» e «Riduci trasparenza» di iOS.")) {
             Toggle("Animazioni", isOn: settings.binding(\.appearance.animationsEnabled))
             Toggle("Feedback tattile", isOn: settings.binding(\.appearance.haptics))
-            Toggle("Titoli a comparsa (scorri in basso per chiudere)", isOn: settings.binding(\.appearance.detailAsCard))
+            Picker("Apri i titoli come", selection: settings.binding(\.appearance.detailAsCard)) {
+                Text("Scheda (scorri in basso per chiudere)").tag(true)
+                Text("Schermo intero").tag(false)
+            }
             Toggle("Il titolo cresce dalla locandina (iOS 18+)", isOn: settings.binding(\.appearance.zoomTransition))
             Toggle("Pagina del film cinematografica", isOn: settings.binding(\.appearance.dynamicCinematic))
                 .accessibilityIdentifier("settings.style.cinematic")

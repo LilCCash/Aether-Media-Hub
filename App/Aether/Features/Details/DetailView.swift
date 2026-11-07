@@ -200,6 +200,15 @@ struct DetailView: View {
                     proHeader
                     actions
                     ratingsRow
+                    // The title written plainly: the logo above is a picture and is sometimes hard to read.
+                    if titleLogo != nil {
+                        Text(model.meta.name)
+                            .font(.aetherTitle(26))
+                            .lineLimit(3)
+                            .padding(.horizontal, Theme.pageMargin)
+                            .padding(.top, 6)
+                            .accessibilityAddTraits(.isHeader)
+                    }
                     infoBlock
                     tabStrip
                     tabContent
@@ -295,9 +304,12 @@ struct DetailView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: style.cinematic ? 500 : 400)
                 .scaleEffect(style.cinematic && style.motion && !reduceMotion && zoomed ? 1.2 : 1)
-                .animation(style.motion && !reduceMotion ? .easeInOut(duration: 16) : nil, value: zoomed)
                 .clipped()
-                .onAppear { zoomed = true }
+                // Explicit animation, not an `.animation` modifier: that one also animated the width of the picture while the card was
+                // still growing to its size, and the artwork filled in slowly from one side.
+                .onAppear {
+                    if style.motion && !reduceMotion { withAnimation(.easeInOut(duration: 16)) { zoomed = true } }
+                }
                 // The artwork dissolves into the page (a mask): the film's colours flow into the background with no seam.
                 .mask(
                     LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.5), .init(color: .clear, location: 1)],

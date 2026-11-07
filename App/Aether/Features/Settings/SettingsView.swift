@@ -145,7 +145,9 @@ struct PlaybackSettingsView: View {
                 }
                 .disabled(!settings.value.playback.holdToSpeed)
                 Toggle("Riproduci sempre in orizzontale", isOn: settings.binding(\.playback.landscapeOnly))
-                Toggle("Pagina nera con logo subito all'apertura", isOn: settings.binding(\.playback.instantLaunchPage))
+                Toggle("Schermata d'avvio dei film (logo e «Guarda»)", isOn: settings.binding(\.playback.introMovies))
+                Toggle("Schermata d'avvio degli episodi", isOn: settings.binding(\.playback.introSeries))
+                Toggle("Schermata d'avvio dei canali live", isOn: settings.binding(\.playback.introLive))
             }
             Section(header: Text("Cambio episodio"), footer: Text("Quando nel player scegli un altro episodio. «Mostra l'elenco delle fonti» apre la lista delle fonti di quell'episodio; il salto automatico a fine episodio non si ferma mai a chiedere. Con «Usa prima il pack» un episodio che è nello stesso file (una stagione completa) si apre subito, senza cercare. Con «Apri prima gli episodi scaricati» un episodio già nei Download si apre dal file, anche offline; spegnila per scegliere sempre tra le fonti.")) {
                 Picker("Cambiando episodio", selection: settings.binding(\.playback.episodeSwitch)) {

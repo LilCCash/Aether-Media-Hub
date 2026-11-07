@@ -53,6 +53,11 @@ final class PlayerLaunch: ObservableObject, Identifiable {
     let id = UUID()
     let meta: MetaItem
     @Published var resolution: DebridRowResolution?
+    /// Everything is ready and the player waits for the «Guarda» button.
+    @Published var ready = false
+    /// Show the logo zooming out and wait for «Guarda» (off: the film starts as soon as it is ready).
+    var intro = true
+    var pending: PlayerRequest?
     /// Stops waiting for the link (the viewer pressed «Annulla»).
     let cancel: () -> Void
 
@@ -111,6 +116,15 @@ final class AppRouter: ObservableObject {
 
     func play(_ request: PlayerRequest) {
         player = request
+    }
+
+    /// Starts playing: with the start screen of its kind it opens black at once, shows the logo and waits for «Guarda»; without, plays.
+    func playWithIntro(_ request: PlayerRequest, enabled: Bool) {
+        guard enabled, launch == nil else { play(request); return }
+        let page = PlayerLaunch(meta: request.meta, cancel: { [weak self] in self?.launch = nil })
+        page.pending = request
+        page.ready = true
+        launch = page
     }
 
     /// Handles `aether://…` and `stremio://…` links.
