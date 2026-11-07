@@ -59,9 +59,10 @@ public enum MPVOptions {
     /// Properties that may also be changed while a file is playing.
     public static func runtimeProperties(video: VideoOutputSettings, device: DeviceVideoCapabilities) -> [Pair] {
         var pairs: [Pair] = []
-        // Zero-copy VideoToolbox first; if the video output cannot import its frames, VideoToolbox with a copy to system
-        // memory (still hardware decoding), and only then software decoding.
-        pairs.append(Pair("hwdec", video.hardwareDecoding ? "videotoolbox,videotoolbox-copy" : "no"))
+        // Hardware decoding with a copy to system memory. The zero-copy path hands the Vulkan renderer (MoltenVK) the decoder's own
+        // YCbCr surfaces, and there the colours came out wrong (tinted or washed out); the copy is still hardware decoding and converts
+        // the colours the standard way.
+        pairs.append(Pair("hwdec", video.hardwareDecoding ? "videotoolbox-copy" : "no"))
         // Let the display receive the HDR signal only when it can show it and the user did not ask for SDR.
         let passHDR = video.hdrMode == .auto && device.hasHDRDisplay
         pairs.append(Pair("target-colorspace-hint", passHDR ? "yes" : "no"))

@@ -519,6 +519,7 @@ final class MPVEngine: NSObject, PlaybackEngine {
             surface.metalLayer.wantsExtendedDynamicRangeContent = wide
         }
         _ = core.setProperty("target-colorspace-hint", wide ? "yes" : "no")
+        recentLog.append("Immagine: trasferimento \(transfer.isEmpty ? "?" : transfer), primari \(core.string("video-params/primaries") ?? "?"), matrice \(core.string("video-params/colormatrix") ?? "?"), decoder \(core.string("hwdec-current") ?? "?"), HDR in uscita \(wide ? "sì" : "no")")
     }
 
     private func refreshFlags() {

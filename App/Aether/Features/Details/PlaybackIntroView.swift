@@ -39,20 +39,19 @@ struct PlaybackIntroView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            if cinematic && intro {
-                // «Apertura cinematografica»: the scene of the opening (a glow and two lines of light) around the title.
-                RadialGradient(colors: [settings.accentColor.opacity(0.4), .clear], center: .center, startRadius: 10, endRadius: 380)
-                    .opacity(zoomed || !animates ? 1 : 0).ignoresSafeArea()
-                    .animation(animates ? .easeOut(duration: 1.8) : nil, value: zoomed)
+            if scene {
+                // The scene of the film: its backdrop, dimmed, under everything.
+                RemoteImage(urlString: meta.background ?? meta.poster, width: 1400, placeholderSeed: meta.name)
+                    .ignoresSafeArea().opacity(0.4).blur(radius: 4)
+                LinearGradient(colors: [.black.opacity(0.35), .black.opacity(0.92)], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
             }
             VStack(spacing: 26) {
                 Spacer()
-                if cinematic && intro { line }
                 mark
                     .scaleEffect(zoomed || !animates ? 1 : 3.2)
                     .opacity(zoomed || !animates ? 1 : 0)
                     .animation(animates ? .easeOut(duration: 2.2) : nil, value: zoomed)
-                if cinematic && intro { line }
+                if scene { info }
                 ZStack {
                     if ready && intro {
                         Button { Haptics.tap(); OpeningSound.shared.stop(); watch() } label: { Label("Guarda", systemImage: "play.fill").frame(minWidth: 150) }
@@ -99,13 +98,24 @@ struct PlaybackIntroView: View {
         .task { await loadLogo() }
     }
 
-    private var cinematic: Bool { return settings.value.appearance.cinematicOpening }
+    /// The rich page (backdrop, year, genres, plot) is for «Apertura cinematografica» and «Modalità Cinema».
+    private var scene: Bool { return intro && (settings.value.appearance.cinematicOpening || settings.value.playback.cinemaMode) }
 
-    private var line: some View {
-        Rectangle()
-            .fill(LinearGradient(colors: [.clear, settings.accentColor, .clear], startPoint: .leading, endPoint: .trailing))
-            .frame(width: zoomed || !animates ? 340 : 0, height: 2)
-            .animation(animates ? .easeOut(duration: 1.6) : nil, value: zoomed)
+    /// Year, length and genres on one line, then the plot: what the viewer is about to watch.
+    private var info: some View {
+        VStack(spacing: 10) {
+            let facts = [meta.releaseInfo, meta.runtime, meta.genres.prefix(3).joined(separator: " · ")]
+                .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "   ·   ")
+            if !facts.isEmpty {
+                Text(facts).font(.footnote.weight(.semibold)).tracking(1.2).foregroundStyle(.white.opacity(0.75))
+            }
+            if let plot = meta.description, !plot.isEmpty {
+                Text(plot).font(.callout).foregroundStyle(.white.opacity(0.82)).multilineTextAlignment(.center)
+                    .lineLimit(4).frame(maxWidth: 560)
+            }
+        }
+        .opacity(zoomed || !animates ? 1 : 0)
+        .animation(animates ? .easeOut(duration: 1.6).delay(0.8) : nil, value: zoomed)
     }
 
     @ViewBuilder
@@ -113,7 +123,7 @@ struct PlaybackIntroView: View {
         if let logo = logo {
             Image(uiImage: logo).resizable().scaledToFit().frame(maxWidth: 440, maxHeight: 200).accessibilityLabel(meta.name)
         } else if lookupDone {
-            Text(cinematic && intro ? meta.name.uppercased() : meta.name).font(.system(size: 38, weight: .heavy, design: .serif)).foregroundStyle(.white)
+            Text(meta.name).font(.system(size: 38, weight: .heavy, design: .serif)).foregroundStyle(.white)
                 .multilineTextAlignment(.center).lineLimit(3)
         } else {
             Color.clear.frame(height: 80)
