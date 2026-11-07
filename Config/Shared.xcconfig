@@ -1,7 +1,8 @@
 // Shared build settings. Override per developer in Config/Signing.local.xcconfig (git-ignored):
 //   DEVELOPMENT_TEAM = ABCDE12345
 //   APP_BUNDLE_ID = com.yourname.aether
-APP_BUNDLE_ID = app.aether.mediahub
+// Aether Pro: its own identity, so that it installs next to Aether and never replaces it.
+APP_BUNDLE_ID = app.aether.mediahub.pro
 DEVELOPMENT_TEAM =
 MARKETING_VERSION = 1.5
 // Pre-release label shown in Settings > Informazioni ("Beta 1", "rev2"…); empty for an official release. It is not part of the version number iOS compares.

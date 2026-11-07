@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Publishes an Aether IPA to the rolling "devbuilds" release and adds it to the SideStore/AltStore source.
+"""Publishes an Aether Pro IPA to the rolling "devbuilds-pro" release and adds it to the SideStore/AltStore source.
 
 Run by the Build IPA workflow (GH_TOKEN, GH_REPO, SHA in the environment; the IPA is Aether-unsigned.ipa in the current folder).
-The source is the release asset `source.json`; every build keeps its own asset `Aether-devbuild-<build>.ipa`.
+The source is the release asset `source.json`; every build keeps its own asset `AetherPro-devbuild-<build>.ipa`.
 """
 import json, os, plistlib, shutil, subprocess, sys, tempfile, zipfile
 from datetime import datetime, timezone
 
-TAG = "devbuilds"
+TAG = "devbuilds-pro"
 IPA = sys.argv[1] if len(sys.argv) > 1 else "Aether-unsigned.ipa"
 repo = os.environ["GH_REPO"]
 sha = os.environ.get("SHA", "")
@@ -33,7 +33,7 @@ min_os = info.get("MinimumOSVersion", "17.0")
 size = os.path.getsize(IPA)
 
 work = tempfile.mkdtemp()
-asset = os.path.join(work, f"Aether-devbuild-{build}.ipa")
+asset = os.path.join(work, f"AetherPro-devbuild-{build}.ipa")
 shutil.copyfile(IPA, asset)
 
 if os.environ.get("RESET_SOURCE") == "true":
@@ -41,12 +41,12 @@ if os.environ.get("RESET_SOURCE") == "true":
     gh("release", "delete", TAG, "--cleanup-tag", "--yes", check=False)
 
 if gh("release", "view", TAG, check=False).returncode != 0:
-    gh("release", "create", TAG, "--prerelease", "--title", "Aether devbuilds (SideStore)", "--target", sha or "main",
-       "--notes", "Build di sviluppo non firmate per SideStore. Aggiungi la source: "
+    gh("release", "create", TAG, "--prerelease", "--title", "Aether Pro builds (SideStore)", "--target", sha or "main",
+       "--notes", "Build non firmate di Aether Pro per SideStore. Aggiungi la source: "
                   f"https://github.com/{repo}/releases/download/{TAG}/source.json")
 gh("release", "upload", TAG, asset, "--clobber")
 if os.path.exists("Aether-dSYMs.zip"):
-    symbols = os.path.join(work, f"Aether-devbuild-{build}.dSYM.zip")
+    symbols = os.path.join(work, f"AetherPro-devbuild-{build}.dSYM.zip")
     shutil.copyfile("Aether-dSYMs.zip", symbols)
     gh("release", "upload", TAG, symbols, "--clobber")
 
@@ -66,10 +66,10 @@ version = {
     "version": marketing,
     "buildVersion": build,
     "date": now,
-    "downloadURL": f"{base}/Aether-devbuild-{build}.ipa",
+    "downloadURL": f"{base}/AetherPro-devbuild-{build}.ipa",
     "size": size,
     "minOSVersion": str(min_os),
-    "localizedDescription": f"devbuild · build {build}" + (f" · commit {sha[:7]}" if sha else "") + (f"\n{note}" if note else ""),
+    "localizedDescription": f"Aether Pro · build {build}" + (f" · commit {sha[:7]}" if sha else "") + (f"\n{note}" if note else ""),
 }
 
 app = (source.get("apps") or [{}])[0]
@@ -77,11 +77,11 @@ versions = [v for v in app.get("versions", []) if str(v.get("buildVersion")) != 
 versions.append(version)
 versions.sort(key=lambda v: int(str(v.get("buildVersion", "0")) or 0), reverse=True)
 app.update({
-    "name": "Aether",
+    "name": "Aether Pro",
     "bundleIdentifier": bundle_id,
     "developerName": "Aether",
-    "subtitle": "Media hub",
-    "localizedDescription": "Build di sviluppo di Aether, una per ogni compilazione: il numero di build è nella descrizione di ogni versione.",
+    "subtitle": "Media hub Pro",
+    "localizedDescription": "Aether Pro: un'app separata da Aether (altro bundle, altri dati), una build per ogni compilazione: il numero di build è nella descrizione di ogni versione.",
     "iconURL": app.get("iconURL") or icon,
     "tintColor": "7C5CFF",
     "category": "entertainment",
@@ -95,10 +95,10 @@ app.update({
     "versionDescription": versions[0]["localizedDescription"],
 })
 source.update({
-    "name": "Aether",
+    "name": "Aether Pro",
     "identifier": f"{bundle_id}.devbuilds",
-    "subtitle": "Tutte le build di Aether",
-    "description": "Le build non firmate di Aether, con il numero di build.",
+    "subtitle": "Tutte le build di Aether Pro",
+    "description": "Le build non firmate di Aether Pro, con il numero di build.",
     "iconURL": app["iconURL"],
     "website": f"https://github.com/{repo}",
     "sourceURL": f"{base}/source.json",

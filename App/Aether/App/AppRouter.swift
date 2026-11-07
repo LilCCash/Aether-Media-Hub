@@ -111,7 +111,7 @@ final class AppRouter: ObservableObject {
             tab = .more
             return
         }
-        if scheme == "stremio" || scheme == "aether" {
+        if scheme == "stremio" || scheme == "aether" || scheme == "aetherpro" {
             let components = url.pathComponents.filter { $0 != "/" }
             // stremio:///detail/{type}/{id}[/{videoId}]
             if (url.host?.lowercased() ?? components.first?.lowercased()) == "detail" || components.first == "detail" {

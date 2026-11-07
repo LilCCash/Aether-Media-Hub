@@ -67,7 +67,7 @@ targets:
     info:
       path: App/Aether/Resources/Info.plist
       properties:
-        CFBundleDisplayName: Aether
+        CFBundleDisplayName: Aether Pro
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         AetherReleaseLabel: "$(AETHER_RELEASE_LABEL)"
@@ -86,7 +86,7 @@ targets:
         UIBackgroundModes: [audio]
         NSSupportsLiveActivities: true
         # SideStore renames the App Group for the viewer's team and rewrites this list with the real name.
-        ALTAppGroups: [group.app.aether.mediahub]
+        ALTAppGroups: [group.app.aether.mediahub.pro]
         ITSAppUsesNonExemptEncryption: false
         UIApplicationSupportsIndirectInputEvents: true
         # Lets the system offer «Cerca in Aether» under the results of its search (the words typed arrive as a search-continuation activity).
@@ -105,9 +105,9 @@ targets:
             UIApplicationShortcutItemTitle: Altro e download
             UIApplicationShortcutItemIconSymbolName: arrow.down.circle.fill
         CFBundleURLTypes:
-          - CFBundleURLName: app.aether.links
+          - CFBundleURLName: app.aether.pro.links
             CFBundleTypeRole: Editor
-            CFBundleURLSchemes: [aether, stremio]
+            CFBundleURLSchemes: [aetherpro]
         NSLocalNetworkUsageDescription: "Aether usa la rete locale per trovare dispositivi Google Cast e DLNA, per raggiungere gli addon che ospiti nella tua rete e per passare al televisore, senza mostrargli la tua chiave, i video che la richiedono."
         LSApplicationQueriesSchemes:
           - vlc-x-callback
@@ -147,10 +147,10 @@ targets:
     info:
       path: App/AetherWidgets/Info.plist
       properties:
-        CFBundleDisplayName: Aether Widget
+        CFBundleDisplayName: Aether Pro Widget
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
-        ALTAppGroups: [group.app.aether.mediahub]
+        ALTAppGroups: [group.app.aether.mediahub.pro]
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
