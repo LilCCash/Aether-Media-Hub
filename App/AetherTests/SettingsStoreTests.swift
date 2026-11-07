@@ -88,6 +88,8 @@ final class SettingsStoreTests: XCTestCase {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = SettingsStore(defaults: defaults)
+        XCTAssertEqual(store.colorScheme, .dark, "Aether Pro starts dark")
+        store.value.appearance.theme = .system
         XCTAssertNil(store.colorScheme)
         store.value.appearance.theme = .light
         XCTAssertEqual(store.colorScheme, .light)
