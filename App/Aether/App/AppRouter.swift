@@ -100,6 +100,8 @@ final class AppRouter: ObservableObject {
     /// What to do once the player closes (closing the source list that is still under it).
     var afterPlayer: (() -> Void)?
     @Published var detail: MetaRoute?
+    /// The poster a title page was opened from (one title can be in several rows): the page zooms out of that one.
+    var zoomSourceID: String?
     @Published var pendingAddonInput: String?
     /// A page of the Profile tab that something else asked for (the addons, the services, the settings); consumed by the tab.
     @Published var profileRoute: ProfileRoute?

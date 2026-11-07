@@ -113,10 +113,13 @@ struct LibraryView: View {
             } else {
                 ScrollView {
                     // At least two cards per row, sized to the columns so that both sides have the same margin.
-                    AdaptiveCardGrid(items: items, minColumns: 3, preferredWidth: 110, spacing: 8, rowSpacing: 16, margin: 12) { item, cardWidth in
-                        // Poster-shaped cards: three to a row they are much taller than the wide banners, so they stay readable.
-                        ContinueCard(progress: item, width: cardWidth, cardStyle: .poster)
+                    // Three wide cards a row, sized by the grid itself: every column takes a third of the row, edge to edge.
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3), spacing: 18) {
+                        ForEach(items) { item in
+                            ContinueCard(progress: item, width: nil, cardStyle: .landscape)
+                        }
                     }
+                    .padding(.horizontal, Theme.pageMargin)
                     .padding(.vertical, Theme.pageMargin)
                 }
             }
@@ -149,10 +152,13 @@ struct LibraryView: View {
                 emptyState("pause.circle", "Nessun titolo abbandonato", "Quello che inizi e lasci per più di un mese compare qui.")
             } else {
                 ScrollView {
-                    AdaptiveCardGrid(items: items, minColumns: 3, preferredWidth: 110, spacing: 8, rowSpacing: 16, margin: 12) { item, cardWidth in
-                        // Poster-shaped cards: three to a row they are much taller than the wide banners, so they stay readable.
-                        ContinueCard(progress: item, width: cardWidth, cardStyle: .poster)
+                    // Three wide cards a row, sized by the grid itself: every column takes a third of the row, edge to edge.
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3), spacing: 18) {
+                        ForEach(items) { item in
+                            ContinueCard(progress: item, width: nil, cardStyle: .landscape)
+                        }
                     }
+                    .padding(.horizontal, Theme.pageMargin)
                     .padding(.vertical, Theme.pageMargin)
                 }
             }

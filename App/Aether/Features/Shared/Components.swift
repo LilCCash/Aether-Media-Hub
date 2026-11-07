@@ -35,11 +35,6 @@ struct SectionHeader: View {
 
 // MARK: - Symmetric card grid
 
-private struct CardGridWidthKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
 /// A grid whose cards fill every row symmetrically: at least `minColumns` columns, the same margin on both sides, and cards
 /// sized to the column (an adaptive grid with a fixed card width left the spare room of each column on one side).
 struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
@@ -68,9 +63,15 @@ struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
                                               minColumns: minColumns, preferredWidth: preferredWidth)
         let columns: [GridItem] = Array(repeating: GridItem(.fixed(metrics.cardWidth), spacing: spacing, alignment: .top),
                                         count: metrics.columns)
-        // The width is measured on the whole grid, which takes everything the screen offers: measured on a thin strip inside it, the columns
-        // were computed from a width the cards themselves had shrunk, and the cards came out narrower than the screen allows.
+        // The width is measured on an empty strip that takes the whole width offered to the grid, before any card is laid out: measured on
+        // the grid itself, a first layout made for the wrong width could keep the grid narrower than the screen.
         return VStack(spacing: 0) {
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: 0)
+                .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in
+                    if width > 0, abs(width - containerWidth) > 0.5 { containerWidth = width }
+                }
             LazyVGrid(columns: columns, alignment: .center, spacing: rowSpacing) {
                 ForEach(items) { item in
                     content(item, metrics.cardWidth)
@@ -79,12 +80,6 @@ struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
             .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
-        .background(GeometryReader { proxy in
-            Color.clear.preference(key: CardGridWidthKey.self, value: proxy.size.width)
-        })
-        .onPreferenceChange(CardGridWidthKey.self) { width in
-            if width > 0, abs(width - containerWidth) > 0.5 { containerWidth = width }
-        }
     }
 }
 

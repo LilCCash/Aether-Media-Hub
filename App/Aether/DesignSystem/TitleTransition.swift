@@ -27,15 +27,21 @@ private struct ZoomSource: ViewModifier {
     }
 }
 
-/// The title page that grows out of the poster with the same id.
+/// The title page that grows out of the poster it was opened from (the exact card that was tapped, when the title is in several rows).
 private struct ZoomDestination: ViewModifier {
     let id: String
     @Environment(\.zoomNamespace) private var namespace
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var router: AppRouter
+
+    private var sourceID: String {
+        if let tapped = router.zoomSourceID, tapped.hasPrefix(id + "#") { return tapped }
+        return id
+    }
 
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *), settings.value.appearance.zoomTransition, let namespace = namespace {
-            content.navigationTransition(.zoom(sourceID: id, in: namespace))
+            content.navigationTransition(.zoom(sourceID: sourceID, in: namespace))
         } else {
             content
         }
@@ -53,6 +59,8 @@ struct TitleLink<Label: View>: View {
     private let label: () -> Label
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var router: AppRouter
+    /// This card's own zoom id: the same title in two rows must not share one, or the page would grow out of the wrong card.
+    @State private var token = UUID().uuidString
 
     init(route: MetaRoute, @ViewBuilder label: @escaping () -> Label) {
         self.route = route
@@ -60,13 +68,15 @@ struct TitleLink<Label: View>: View {
     }
 
     var body: some View {
+        let sourceID = route.id + "#" + token
         if settings.value.appearance.detailAsCard {
-            Button { Haptics.tap(); router.detail = route } label: { label().contentShape(Rectangle()) }
+            Button { Haptics.tap(); router.zoomSourceID = sourceID; router.detail = route } label: { label().contentShape(Rectangle()) }
                 .buttonStyle(.pressable)
-                .zoomSource(id: route.id)
+                .zoomSource(id: sourceID)
         } else {
             NavigationLink(value: route) { label() }
-                .zoomSource(id: route.id)
+                .simultaneousGesture(TapGesture().onEnded { router.zoomSourceID = sourceID })
+                .zoomSource(id: sourceID)
         }
     }
 }

@@ -213,14 +213,14 @@ struct AppearanceSettingsView: View {
     // MARK: Motion
 
     private var motion: some View {
-        Section(header: Text("Movimento"), footer: Text("Con «Riduci gli effetti» lo sfondo diventa uniforme e il vetro opaco. Aether rispetta anche «Riduci movimento» e «Riduci trasparenza» di iOS. Lo zoom dalla locandina funziona solo con il titolo a schermo intero: con lo zoom acceso la scheda si apre a schermo intero (con la X per chiudere); spegnilo per avere la scheda che si chiude scorrendo in basso.")) {
+        Section(header: Text("Movimento"), footer: Text("Con «Riduci gli effetti» lo sfondo diventa uniforme e il vetro opaco. Aether rispetta anche «Riduci movimento» e «Riduci trasparenza» di iOS.")) {
             Toggle("Animazioni", isOn: settings.binding(\.appearance.animationsEnabled))
             Toggle("Feedback tattile", isOn: settings.binding(\.appearance.haptics))
             Picker("Apri i titoli come", selection: settings.binding(\.appearance.detailAsCard)) {
                 Text("Scheda (scorri in basso per chiudere)").tag(true)
                 Text("Schermo intero").tag(false)
             }
-            Toggle("Il titolo cresce dalla locandina (iOS 18+, a schermo intero)", isOn: settings.binding(\.appearance.zoomTransition))
+            Toggle("Il titolo cresce dalla locandina (iOS 18+)", isOn: settings.binding(\.appearance.zoomTransition))
             Toggle("Pagina del film cinematografica", isOn: settings.binding(\.appearance.dynamicCinematic))
                 .accessibilityIdentifier("settings.style.cinematic")
             if appearance.dynamicCinematic {

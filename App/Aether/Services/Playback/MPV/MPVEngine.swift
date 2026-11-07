@@ -334,7 +334,11 @@ final class MPVEngine: NSObject, PlaybackEngine {
     private var softwareUnavailable = false
     private var pictureInPictureActive = false
     private var pictureInPicturePossible = false
-    private var usesSoftwareVideo: Bool { return settings.mpvPictureInPicture && !headlessVideo && !softwareUnavailable && AVPictureInPictureController.isPictureInPictureSupported() }
+    private var usesSoftwareVideo: Bool { return settings.mpvPictureInPicture && !headlessVideo && !softwareUnavailable && !hdrNeedsGPU && AVPictureInPictureController.isPictureInPictureSupported() }
+    /// The software picture (used for the experimental Picture in Picture) cannot convert HDR or Dolby Vision: an HDR file reopens on
+    /// the normal output, which converts it to the screen. Without this the picture came out dark and orange (PQ shown as if it were SDR).
+    private var hdrNeedsGPU = false
+    private var lastLoad: (url: URL, headers: [String: String])?
     private var positionTimer: Timer?
     private var recentLog: [String] = []
     private var desiredRate: Float = 1
@@ -361,6 +365,8 @@ final class MPVEngine: NSObject, PlaybackEngine {
 
     func load(url: URL, headers: [String: String], startAt: Double?, autoplay: Bool) {
         destroyCore()
+        if lastLoad?.url != url { hdrNeedsGPU = false }
+        lastLoad = (url, headers)
         self.autoplay = autoplay
         didEnd = false
         isLoaded = false
@@ -527,6 +533,21 @@ final class MPVEngine: NSObject, PlaybackEngine {
 
     /// HDR output only for a picture that is really HDR (PQ or HLG) on a screen that shows it; every other picture is drawn as plain SDR.
     private func matchOutputToPicture() {
+        if softwareView != nil, let core = core, !hdrNeedsGPU {
+            let transfer = (core.string("video-params/gamma") ?? "").lowercased()
+            let matrix = (core.string("video-params/colormatrix") ?? "").lowercased()
+            if transfer.contains("pq") || transfer.contains("hlg") || matrix.contains("dolby") {
+                hdrNeedsGPU = true
+                recentLog.append("Immagine HDR (\(transfer), \(matrix)): riapro con l'uscita normale, che la converte per lo schermo (niente PiP per questo file).")
+                if let last = lastLoad {
+                    let position = core.double("time-pos") ?? 0
+                    let wasPlaying = !(core.flag("pause") ?? false)
+                    destroyCore()
+                    load(url: last.url, headers: last.headers, startAt: position > 1 ? position : nil, autoplay: wasPlaying)
+                }
+                return
+            }
+        }
         guard let core = core, let surface = surface else { return }
         let transfer = (core.string("video-params/gamma") ?? "").lowercased()
         let isHDR = transfer.contains("pq") || transfer.contains("hlg")

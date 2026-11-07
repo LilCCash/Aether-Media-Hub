@@ -308,16 +308,16 @@ struct ContinueWatchingRow: View {
 
 struct ContinueCard: View {
     let progress: PlaybackProgress
-    /// Card width; the picture is 16:9 (2:3 for the poster style). Home rows size it from the section's size, the Library
-    /// grid from its columns.
-    var width: CGFloat = 240
+    /// Card width; the picture is 16:9 (2:3 for the poster style). Home rows size it from the section's size. Nil: the card takes the
+    /// width its grid column offers (the Library), so a row of three always fills the screen edge to edge.
+    var width: CGFloat? = 240
     var cardStyle: HomeCardStyle = .landscape
     @EnvironmentObject private var env: AppEnvironment
     @Environment(\.aetherStyle) private var style
     @State private var picker: StreamPickerRequest?
 
     private var isPortrait: Bool { cardStyle == .poster }
-    private var imageHeight: CGFloat { isPortrait ? width * 1.5 : width * 9 / 16 }
+    private var ratio: CGFloat { isPortrait ? 2.0 / 3.0 : 16.0 / 9.0 }
     private var radius: CGFloat { isPortrait ? style.posterRadius : style.landscapeRadius }
     private var artwork: String? { isPortrait ? (progress.poster ?? progress.background) : (progress.background ?? progress.poster) }
 
@@ -326,24 +326,15 @@ struct ContinueCard: View {
             picker = StreamPickerRequest(meta: progress.asMeta, video: video, resumeAt: progress.position)
         } label: {
             VStack(alignment: .leading, spacing: 6) {
-                ZStack(alignment: .bottomLeading) {
-                    RemoteImage(urlString: artwork, width: isPortrait ? max(160, width) : max(280, width), placeholderSeed: progress.title)
-                        .frame(width: width, height: imageHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-                    LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
-                        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-                    VStack(alignment: .leading, spacing: 6) {
-                        Image(systemName: "play.fill").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
-                            .padding(8).aetherGlass(in: Circle())
-                        ProgressBar(value: progress.fraction)
-                    }
-                    .padding(10)
-                }
-                .frame(width: width, height: imageHeight)
-                // The wide card had no hairline in 1.0; the poster-shaped one is framed like every poster.
-                .aetherCardChrome(cornerRadius: radius, hairline: isPortrait)
-                Text(progress.title).font(.system(.footnote, design: AetherTypography.design).weight(.semibold)).lineLimit(1).frame(width: width, alignment: .leading)
-                Text(subtitle).font(.aetherCaption()).foregroundStyle(Color.aetherSecondary).lineLimit(1).frame(width: width, alignment: .leading)
+                picture
+                    // The wide card had no hairline in 1.0; the poster-shaped one is framed like every poster.
+                    .aetherCardChrome(cornerRadius: radius, hairline: isPortrait)
+                Text(progress.title).font(.system(.footnote, design: AetherTypography.design).weight(.semibold)).lineLimit(1)
+                    .frame(width: width, alignment: .leading)
+                    .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
+                Text(subtitle).font(.aetherCaption()).foregroundStyle(Color.aetherSecondary).lineLimit(1)
+                    .frame(width: width, alignment: .leading)
+                    .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
             }
         }
         .buttonStyle(.plain)
@@ -362,6 +353,37 @@ struct ContinueCard: View {
             StreamPickerSheet(request: request)
         }
         .accessibilityLabel("\(progress.title), \(subtitle). Tocca per riprendere.")
+    }
+
+    /// The artwork with the play button and the progress bar, at its ratio: a fixed size in the Home rows, the column width in a grid.
+    @ViewBuilder
+    private var picture: some View {
+        let compact = (width ?? 160) < 150
+        let overlay = ZStack(alignment: .bottomLeading) {
+            LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
+            VStack(alignment: .leading, spacing: compact ? 4 : 6) {
+                Image(systemName: "play.fill").font(.system(size: compact ? 10 : 13, weight: .bold)).foregroundStyle(.white)
+                    .padding(compact ? 6 : 8).aetherGlass(in: Circle())
+                ProgressBar(value: progress.fraction)
+            }
+            .padding(compact ? 7 : 10)
+        }
+        if let width = width {
+            ZStack(alignment: .bottomLeading) {
+                RemoteImage(urlString: artwork, width: isPortrait ? max(160, width) : max(280, width), placeholderSeed: progress.title)
+                    .frame(width: width, height: width / ratio)
+                overlay
+            }
+            .frame(width: width, height: width / ratio)
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        } else {
+            Color.clear
+                .aspectRatio(ratio, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .overlay { RemoteImage(urlString: artwork, width: isPortrait ? 300 : 420, placeholderSeed: progress.title) }
+                .overlay(alignment: .bottomLeading) { overlay }
+                .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        }
     }
 
     private var video: Video? {

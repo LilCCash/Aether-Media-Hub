@@ -172,13 +172,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var titleZoom
 
-    /// The title opens as a card (a sheet) only when the poster zoom is off: iOS can grow a page out of a poster for a full-screen page
-    /// or a push, not for a sheet, so with the zoom on the title opens full screen.
-    private var detailAsSheet: Bool {
-        guard settings.value.appearance.detailAsCard else { return false }
-        if #available(iOS 18.0, *), settings.value.appearance.zoomTransition { return false }
-        return true
-    }
+    private var detailAsSheet: Bool { return settings.value.appearance.detailAsCard }
 
     var body: some View {
         tabs
@@ -255,12 +249,14 @@ struct RootView: View {
         .landscapePlayer($router.player, showsLaunch: true)
         .sheet(isPresented: $extras.showingWhatsNew) { WhatsNewSheet() }
         .sheet(item: Binding(get: { detailAsSheet ? router.detail : nil }, set: { router.detail = $0 })) { route in
-            NavigationStack { DetailView(route: route).zoomDestination(id: route.id) }
+            // The zoom is set on the presented page itself (the stack), not inside it: inside, iOS took it for a push and ignored it.
+            NavigationStack { DetailView(route: route) }
+                .zoomDestination(id: route.id)
         }
         .fullScreenCover(item: Binding(get: { detailAsSheet ? nil : router.detail }, set: { router.detail = $0 })) { route in
             NavigationStack {
                 DetailView(route: route)
-                    .zoomDestination(id: route.id)
+                    .environment(\.pullToDismiss, { router.detail = nil })
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Button { router.detail = nil } label: { Image(systemName: "xmark") }
@@ -268,6 +264,7 @@ struct RootView: View {
                         }
                     }
             }
+            .zoomDestination(id: route.id)
         }
     }
 }

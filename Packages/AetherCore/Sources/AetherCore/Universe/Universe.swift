@@ -150,7 +150,7 @@ public struct UniverseLink: Equatable, Sendable {
 public enum UniverseCatalog {
     /// Crossovers: titles that belong to the story of both universes.
     public static let links: [UniverseLink] = [
-        UniverseLink(first: "mcu", second: "spiderman", note: "I tre film con Tom Holland e la serie animata fanno parte di entrambi gli universi."),
+        UniverseLink(first: "mcu", second: "spiderman", note: "I quattro film con Tom Holland e la serie animata fanno parte di entrambi gli universi."),
         UniverseLink(first: "alien", second: "predator", note: "Crossover: Alien vs. Predator (2004) e Aliens vs. Predator 2 (2007) uniscono i due universi."),
     ]
 
@@ -222,6 +222,7 @@ public enum UniverseCatalog {
             ("tt14513804", "Captain America: Brave New World", 2025, false),
             ("tt20969586", "Thunderbolts*", 2025, false),
             ("tt10676052", "The Fantastic Four: First Steps", 2025, false),
+            ("tt22084616", "Spider-Man: Brand New Day", 2026, false),
             ("tt2364582", "Agents of S.H.I.E.L.D.", 2013, true),
             ("tt3475734", "Agent Carter", 2015, true),
             ("tt3322312", "Daredevil", 2015, true),
@@ -247,6 +248,8 @@ public enum UniverseCatalog {
             ("tt16027074", "Your Friendly Neighborhood Spider-Man", 2025, true),
             ("tt13968252", "Eyes of Wakanda", 2025, true),
             ("tt16027014", "Marvel Zombies", 2025, true),
+            ("tt21066182", "Wonder Man", 2026, true),
+            ("tt23112594", "VisionQuest", 2026, true),
         ],
         chronological: ["tt0458339", "tt4154664", "tt0371746", "tt1228705", "tt0800080", "tt0800369", "tt0848228", "tt1981115", "tt1300854", "tt1843866", "tt2015381", "tt3896198", "tt2395427", "tt0478970", "tt3498820", "tt3480822", "tt1825683", "tt2250912", "tt3501632", "tt1211837", "tt4154756", "tt5095030", "tt4154796", "tt9140560", "tt6320628", "tt10872600"],
         chronologicalNote: "Ordine cronologico ricostruito da fonti editoriali: può differire dalle timeline pubblicate dagli studi."),
@@ -269,6 +272,7 @@ public enum UniverseCatalog {
             ("tt8790086", "Kraven the Hunter", 2024, false),
             ("tt16366836", "Venom: The Last Dance", 2024, false),
             ("tt16027074", "Your Friendly Neighborhood Spider-Man", 2025, true),
+            ("tt22084616", "Spider-Man: Brand New Day", 2026, false),
         ],
         chronological: nil,
         chronologicalNote: nil),

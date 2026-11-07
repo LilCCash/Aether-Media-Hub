@@ -23,6 +23,13 @@ final class DetailViewModel: ObservableObject {
 
     let route: MetaRoute
 
+    /// The page grows out of the poster (iOS 18, switch on): the cinematic fade-in is skipped then.
+    private var zoomsIn: Bool {
+        if #available(iOS 18.0, *) { return settings.value.appearance.zoomTransition }
+        return false
+    }
+    private var revealsCinematically: Bool { return style.cinematic && style.motion && !reduceMotion && !zoomsIn }
+
     init(route: MetaRoute) {
         self.route = route
         self.meta = route.preview ?? MetaItem(id: route.id, type: route.type, name: route.id)
@@ -167,6 +174,7 @@ struct DetailView: View {
     @State private var zoomed = false
     @State private var atTop = true
     @Environment(\.pullToDismiss) private var pullToDismiss
+    @Environment(\.dismiss) private var dismissPage
     @State private var revealed = false
     @StateObject private var model: DetailViewModel
     @State private var picker: StreamPickerRequest?
@@ -224,14 +232,18 @@ struct DetailView: View {
                     footer
                 }
                 .padding(.bottom, 40)
-                // Cinematic reveal: the page fades in and settles instead of just sliding in.
-                .opacity(style.cinematic && style.motion && !reduceMotion && !revealed ? 0 : 1)
-                .scaleEffect(style.cinematic && style.motion && !reduceMotion && !revealed ? 1.06 : 1, anchor: .top)
+                // Cinematic reveal: the page fades in and settles instead of just sliding in. Not when the page grows out of the poster:
+                // it would be invisible for the whole zoom.
+                .opacity(revealsCinematically && !revealed ? 0 : 1)
+                .scaleEffect(revealsCinematically && !revealed ? 1.06 : 1, anchor: .top)
             }
             .coordinateSpace(name: "detailScroll")
             .onPreferenceChange(DetailScrollOffsetKey.self) { atTop = $0 > -2 }
             .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { value in
-                if let close = pullToDismiss, atTop, value.translation.height > 110, abs(value.translation.width) < 90 { close() }
+                // At the top of the page a pull down closes it, whether it is a card, a full-screen page or a page pushed in a tab.
+                guard atTop, value.translation.height > 110, abs(value.translation.width) < 90 else { return }
+                Haptics.tap()
+                if let close = pullToDismiss { close() } else { dismissPage() }
             })
             .ignoresSafeArea(edges: .top)
         }
