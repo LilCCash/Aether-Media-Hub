@@ -10,7 +10,7 @@ final class AppearanceCustomizationTests: XCTestCase {
 
     func testDefaultsKeepTheOneDotZeroLook() {
         let a = AppearanceSettings()
-        XCTAssertEqual(a.heroStyle, .card)
+        XCTAssertEqual(a.heroStyle, .fullBleed)
         XCTAssertTrue(a.heroAutoScroll)
         XCTAssertEqual(a.palette, .aether)
         XCTAssertEqual(a.backdrop, .aurora)

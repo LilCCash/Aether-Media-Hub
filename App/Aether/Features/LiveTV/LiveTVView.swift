@@ -154,6 +154,8 @@ final class LiveTVModel: ObservableObject {
 }
 
 struct LiveTVView: View {
+    /// Set when Live TV is a page above the tabs (the close button at the top left).
+    var onClose: (() -> Void)? = nil
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var addons: AddonStore
@@ -189,6 +191,11 @@ struct LiveTVView: View {
             }
             .navigationTitle("Live TV")
             .toolbar {
+                if let onClose = onClose {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: onClose) { Image(systemName: "xmark") }.accessibilityLabel("Chiudi Live TV")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink { LiveTVSettingsView() } label: { Image(systemName: "slider.horizontal.3") }
                         .accessibilityLabel("Impostazioni di Live TV")

@@ -39,6 +39,8 @@ private extension UniverseDefinition {
 
 /// The «Universe» tab: every universe with its progress; the ones the viewer follows first.
 struct UniverseHubView: View {
+    /// Set when the hub is a page above the tabs: a close button at the top left (the pushed pages keep their own back button).
+    var onClose: (() -> Void)? = nil
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var library: LibraryModel
     @EnvironmentObject private var router: AppRouter
@@ -86,6 +88,13 @@ struct UniverseHubView: View {
                 }
             }
             .navigationTitle("Universe")
+            .toolbar {
+                if let onClose = onClose {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: onClose) { Image(systemName: "xmark") }.accessibilityLabel("Chiudi Universe")
+                    }
+                }
+            }
             .navigationDestination(for: String.self) { id in
                 if let universe = UniverseCatalog.universe(id: id) { UniverseDetailView(universe: universe) }
             }
@@ -172,21 +181,33 @@ struct UniverseDetailView: View {
     var body: some View {
         ZStack {
             AetherBackdrop()
-            List {
-                Section { header.listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
-                Section {
-                    controls.listRowBackground(Color.clear)
-                }
-                Section {
-                    ForEach(shown) { entry in row(entry) }
+            if editing {
+                List {
+                    Section { controls.listRowBackground(Color.clear) }
+                    Section {
+                        ForEach(shown) { entry in
+                            HStack(spacing: 12) {
+                                RemoteImage(urlString: UniverseArt.poster(entry.id), width: 120, placeholderSeed: entry.name, systemPlaceholder: "film")
+                                    .frame(width: 40, height: 60).clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                Text(entry.name).font(.subheadline.weight(.semibold)).lineLimit(2)
+                            }
+                        }
                         .onMove { source, destination in moveEntries(source, destination) }
-                } header: {
-                    Text(order.title + " · " + universe.trust(of: order).label).font(.caption).textCase(nil)
+                    } header: { Text("Trascina per riordinare").font(.caption).textCase(nil) }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .environment(\.editMode, .constant(.active))
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        header
+                        controls.padding(.horizontal, Theme.pageMargin)
+                        grid
+                    }
+                    .padding(.bottom, 30)
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .environment(\.editMode, .constant(editing ? .active : .inactive))
         }
         .navigationTitle(universe.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -208,20 +229,24 @@ struct UniverseDetailView: View {
     private var header: some View {
         ZStack(alignment: .bottomLeading) {
             LinearGradient(colors: universe.gradient, startPoint: .topLeading, endPoint: .bottomTrailing)
-            RemoteImage(urlString: UniverseArt.background(universe.hero), width: 800, contentMode: .fill, placeholderSeed: universe.name, systemPlaceholder: "sparkles")
-            LinearGradient(colors: [.clear, .black.opacity(0.9)], startPoint: .top, endPoint: .bottom)
+            RemoteImage(urlString: UniverseArt.background(universe.hero), width: 900, contentMode: .fill, placeholderSeed: universe.name, systemPlaceholder: "sparkles")
+            LinearGradient(colors: [.black.opacity(0.25), .clear, .black.opacity(0.9)], startPoint: .top, endPoint: .bottom)
             VStack(alignment: .leading, spacing: 8) {
-                Text(universe.name).font(.system(size: 30, weight: .heavy, design: .rounded))
-                Text(universe.summary).font(.subheadline).foregroundStyle(.white.opacity(0.88))
+                Text(universe.name).font(.system(size: 30, weight: .heavy, design: .rounded)).shadow(color: .black.opacity(0.5), radius: 6)
+                Text(universe.summary).font(.subheadline).foregroundStyle(.white.opacity(0.9))
                 HStack(spacing: 14) {
-                    stat("\(universe.entries.count)", "contenuti")
                     stat("\(universe.films.count)", "film")
                     stat("\(universe.series.count)", "serie")
                     if let years = universe.years { stat("\(years.lowerBound)–\(years.upperBound)", "anni") }
-                }
-                HStack(spacing: 10) {
-                    ProgressView(value: progress.fraction).tint(.white)
-                    Text("\(progress.percent)%").font(.subheadline.weight(.bold))
+                    Spacer(minLength: 0)
+                    ZStack {
+                        Circle().stroke(.white.opacity(0.25), lineWidth: 5)
+                        Circle().trim(from: 0, to: progress.fraction).stroke(Color.white, style: StrokeStyle(lineWidth: 5, lineCap: .round)).rotationEffect(.degrees(-90))
+                        Text("\(progress.percent)%").font(.caption.weight(.bold))
+                    }
+                    .frame(width: 50, height: 50)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(progress.percent) per cento visto")
                 }
                 if let next = progress.next {
                     Button { open(next) } label: {
@@ -235,7 +260,7 @@ struct UniverseDetailView: View {
             .foregroundStyle(.white)
             .padding(16)
         }
-        .frame(minHeight: 330)
+        .frame(height: 340)
         .clipped()
     }
 
@@ -248,10 +273,23 @@ struct UniverseDetailView: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Picker("Ordine", selection: $order) {
-                ForEach(UniverseOrder.allCases.filter { $0 != .chronological || universe.hasChronological }, id: \.self) { Text($0.title).tag($0) }
+            // The order is chosen from a menu, as in the concept: «In ordine cronologico ⌄».
+            Menu {
+                Picker("Ordine", selection: $order) {
+                    ForEach(UniverseOrder.allCases.filter { $0 != .chronological || universe.hasChronological }, id: \.self) { Text($0.title).tag($0) }
+                }
+            } label: {
+                HStack {
+                    Text("In " + order.title.lowercased()).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Image(systemName: "chevron.down").font(.footnote.weight(.bold))
+                }
+                .padding(.horizontal, 14).frame(height: 44)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.15), lineWidth: 1))
             }
-            .pickerStyle(.segmented)
+            .foregroundStyle(Color.primary)
+            Text(universe.trust(of: order).label).font(.caption).foregroundStyle(Color.aetherSecondary)
             if order == .chronological, let note = universe.chronologicalNote {
                 Text(note).font(.caption).foregroundStyle(Color.aetherSecondary)
             }
@@ -263,40 +301,60 @@ struct UniverseDetailView: View {
                     }
                 }
             }
-            Picker("Mostra", selection: $filter) { ForEach(Filter.allCases) { Text($0.rawValue).tag($0) } }
-                .pickerStyle(.segmented)
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func row(_ entry: UniverseEntry) -> some View {
-        let source = sources[entry.id]
-        return HStack(spacing: 12) {
-            Button { open(entry) } label: {
-                HStack(spacing: 12) {
-                    RemoteImage(urlString: UniverseArt.poster(entry.id), width: 140, placeholderSeed: entry.name, systemPlaceholder: "film")
-                        .frame(width: 52, height: 78).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(entry.name).font(.headline).lineLimit(2).multilineTextAlignment(.leading)
-                        Text("\(entry.year) · \(entry.isSeries ? "Serie" : "Film")").font(.caption).foregroundStyle(Color.aetherSecondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Filter.allCases) { item in
+                        Button { withAnimation(.snappy) { filter = item } } label: {
+                            Text(item.rawValue).font(.subheadline.weight(.semibold)).padding(.horizontal, 14).padding(.vertical, 7)
+                                .background(filter == item ? Color.accentColor : Color.primary.opacity(0.1), in: Capsule())
+                                .foregroundStyle(filter == item ? Color.white : Color.primary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    Spacer(minLength: 0)
                 }
             }
-            .buttonStyle(.plain)
-            Button { toggleWatched(entry, source: source) } label: {
-                Image(systemName: source == nil ? "circle" : "checkmark.circle.fill")
-                    .font(.title2).foregroundStyle(source == nil ? Color.aetherSecondary : Color.green)
+        }
+    }
+
+    /// Three posters a row, each with its place in the order and a check when it has been seen.
+    private var grid: some View {
+        let ordered = shown
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12, alignment: .top)], spacing: 16) {
+            ForEach(Array(ordered.enumerated()), id: \.element.id) { index, entry in
+                let source = sources[entry.id]
+                Button { open(entry) } label: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ZStack(alignment: .topLeading) {
+                            RemoteImage(urlString: UniverseArt.poster(entry.id), width: 300, placeholderSeed: entry.name, systemPlaceholder: "film")
+                                .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.12), lineWidth: 1))
+                            Text("\(index + 1)").font(.caption2.weight(.heavy)).padding(.horizontal, 7).padding(.vertical, 3)
+                                .background(.black.opacity(0.6), in: Capsule()).foregroundStyle(.white).padding(6)
+                            if source != nil {
+                                VStack { Spacer(); HStack { Spacer()
+                                    Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(.green, .white).padding(6)
+                                } }
+                            }
+                            if entry.isSeries {
+                                VStack { HStack { Spacer(); Text("SERIE").font(.system(size: 8, weight: .heavy)).padding(.horizontal, 5).padding(.vertical, 2)
+                                    .background(Color.accentColor, in: Capsule()).foregroundStyle(.white).padding(6) }; Spacer() }
+                            }
+                        }
+                        Text(entry.name).font(.caption.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
+                        Text(String(entry.year)).font(.caption2).foregroundStyle(Color.aetherSecondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button { toggleWatched(entry, source: source) } label: { Label(source == nil ? "Segna come visto" : "Togli il segno di visto", systemImage: "checkmark.circle") }
+                    Button { open(entry) } label: { Label("Apri la scheda", systemImage: "info.circle") }
+                }
+                .accessibilityLabel("\(index + 1). \(entry.name), \(entry.year)" + (source != nil ? ", visto" : ""))
+                .accessibilityHint("Apre la scheda; tieni premuto per segnarlo come visto")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(source == nil ? "Segna come visto" : "Visto")
-            .accessibilityHint(source == .history ? "Visto con il player; si toglie dalla cronologia" : "")
         }
-        .padding(.vertical, 2)
-        .contextMenu {
-            Button { toggleWatched(entry, source: source) } label: { Label(source == nil ? "Segna come visto" : "Togli il segno di visto", systemImage: "checkmark.circle") }
-            Button { open(entry) } label: { Label("Apri la scheda", systemImage: "info.circle") }
-        }
+        .padding(.horizontal, Theme.pageMargin)
     }
 
     private func open(_ entry: UniverseEntry) {

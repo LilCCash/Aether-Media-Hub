@@ -318,14 +318,18 @@ struct TMDBKeyHint: View {
 /// The universes a title belongs to (with the progress in each) and the button that writes the viewing in the diary.
 struct TitleUniverseSection: View {
     let meta: MetaItem
+    /// Which part is drawn: the universes the title belongs to, the diary and collection buttons, or both.
+    var showsUniverses = true
+    var showsActions = true
     let open: (UniverseDefinition) -> Void
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var library: LibraryModel
 
     var body: some View {
-        let universes = UniverseCatalog.universes(containing: meta.id)
+        let universes = showsUniverses ? UniverseCatalog.universes(containing: meta.id) : []
+        if universes.isEmpty && !showsActions { EmptyView() } else {
         VStack(alignment: .leading, spacing: 10) {
-            TitleSectionHeader(title: universes.isEmpty ? "Il tuo diario" : "Universe e diario")
+            if showsUniverses && !universes.isEmpty { TitleSectionHeader(title: "Universi") } else if showsActions { TitleSectionHeader(title: "Il tuo diario") }
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(universes) { universe in
                     let watched = Set(WatchedTitles.sources(library: library, diary: settings.value.content.diary).keys)
@@ -347,9 +351,10 @@ struct TitleUniverseSection: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("detail.universe.\(universe.id)")
                 }
-                HStack(spacing: 10) { DiaryButton(meta: meta); AddToCollectionMenu(meta: meta) }
+                if showsActions { HStack(spacing: 10) { DiaryButton(meta: meta); AddToCollectionMenu(meta: meta) } }
             }
             .padding(.horizontal, Theme.pageMargin)
+        }
         }
     }
 }

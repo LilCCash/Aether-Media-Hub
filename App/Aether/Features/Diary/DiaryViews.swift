@@ -24,59 +24,127 @@ struct StarsView: View {
 struct DiaryView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var library: LibraryModel
     @State private var year: Int?
     @State private var editing: DiaryEntry?
+    @State private var shownCount = 30
 
     private var diary: DiarySettings { return settings.value.content.diary }
     private var years: [Int] { return DiaryStats.years(diary.entries) }
     private var stats: DiaryStats { return DiaryStats.compute(diary.entries, year: year) }
-    private var shown: [DiaryEntry] {
-        guard let year = year else { return diary.timeline }
-        return diary.timeline.filter { Calendar.current.component(.year, from: $0.watchedAt) == year }
+    /// One dot of the timeline: a viewing written in the diary, or something watched with the player (finished or not).
+    private struct Moment: Identifiable {
+        var id: String
+        var date: Date
+        var name: String
+        var poster: String?
+        var type: String
+        var metaID: String
+        var detail: String
+        var progress: Double
+        var entry: DiaryEntry?
     }
-    private var months: [(String, [DiaryEntry])] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "it_IT")
-        formatter.dateFormat = "LLLL yyyy"
-        var order: [String] = []
-        var groups: [String: [DiaryEntry]] = [:]
-        for entry in shown {
-            let key = formatter.string(from: entry.watchedAt).capitalized
-            if groups[key] == nil { order.append(key) }
-            groups[key, default: []].append(entry)
+
+    private var moments: [Moment] {
+        let calendar = Calendar.current
+        var list: [Moment] = diary.timeline.map { entry in
+            Moment(id: entry.id, date: entry.watchedAt, name: entry.name, poster: entry.poster, type: entry.type, metaID: entry.metaID,
+                   detail: entry.runtimeMinutes.map { "\($0 / 60)h \($0 % 60)m" } ?? "", progress: 1, entry: entry)
         }
-        return order.map { ($0, groups[$0] ?? []) }
+        for item in library.history {
+            // A viewing the diary already holds for the same title and day is not shown twice.
+            if diary.entries.contains(where: { $0.metaID == item.metaID && calendar.isDate($0.watchedAt, inSameDayAs: item.updatedAt) }) { continue }
+            let value = item.isCompleted ? 1 : item.fraction
+            list.append(Moment(id: "h-" + item.id, date: item.updatedAt, name: item.title + (item.episodeLabel.map { " · \($0)" } ?? ""),
+                               poster: item.poster, type: item.type, metaID: item.metaID, detail: "\(Int(value * 100))%", progress: value, entry: nil))
+        }
+        list.sort { $0.date > $1.date }
+        guard let year = year else { return list }
+        return list.filter { calendar.component(.year, from: $0.date) == year }
     }
 
     var body: some View {
         ZStack {
             AetherBackdrop()
-            if diary.entries.isEmpty {
+            if diary.entries.isEmpty && library.history.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "book.closed").font(.system(size: 48)).foregroundStyle(Color.aetherSecondary)
-                    Text("Il diario è vuoto").font(.title3.weight(.bold))
-                    Text("Apri la scheda di un film o di una serie e tocca «Segna nel diario» per scrivere quando l'hai visto, il voto e una nota. Il segno di visto negli universi compare qui.")
+                    Text("La timeline è vuota").font(.title3.weight(.bold))
+                    Text("Quello che guardi nel player compare qui da solo. Con «Segna nel diario» sulla scheda di un titolo aggiungi data, voto e una nota; il segno di visto negli universi finisce qui.")
                         .font(.subheadline).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.center).padding(.horizontal, 32)
                 }
             } else {
-                List {
-                    Section { statsCard.listRowBackground(Color.clear).listRowInsets(EdgeInsets()) }
-                    ForEach(months, id: \.0) { month, entries in
-                        Section(month) {
-                            ForEach(entries) { entry in
-                                row(entry)
-                                    .swipeActions { Button(role: .destructive) { settings.value.content.diary.remove(id: entry.id) } label: { Label("Elimina", systemImage: "trash") } }
-                            }
-                        }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        statsCard.padding(.horizontal, Theme.pageMargin)
+                        timeline
                     }
+                    .padding(.bottom, 30)
                 }
-                .listStyle(.insetGrouped)
-                .scrollContentBackground(.hidden)
             }
         }
-        .navigationTitle("Diario")
+        .navigationTitle("Timeline di visione")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editing) { entry in NavigationStack { DiaryEntryEditor(entry: entry) } }
+    }
+
+    private var timeline: some View {
+        let items = moments
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
+        formatter.dateFormat = "d MMM yyyy"
+        let visible = Array(items.prefix(shownCount))
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(visible.enumerated()), id: \.element.id) { index, moment in
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(spacing: 0) {
+                        Circle().fill(Color.accentColor).frame(width: 10, height: 10).padding(.top, 22)
+                        Rectangle().fill(Color.accentColor.opacity(0.35)).frame(width: 2).frame(maxHeight: .infinity)
+                            .opacity(index == visible.count - 1 ? 0 : 1)
+                    }
+                    .frame(width: 12)
+                    Button {
+                        if let entry = moment.entry { editing = entry } else { router.detail = MetaRoute(type: moment.type, id: moment.metaID) }
+                    } label: {
+                        HStack(spacing: 12) {
+                            RemoteImage(urlString: moment.poster, width: 120, placeholderSeed: moment.name, systemPlaceholder: "film")
+                                .frame(width: 50, height: 74).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(moment.name).font(.headline).lineLimit(2).multilineTextAlignment(.leading)
+                                Text("Visto il " + formatter.string(from: moment.date) + (moment.detail.isEmpty || moment.entry == nil ? "" : " · " + moment.detail))
+                                    .font(.caption).foregroundStyle(Color.aetherSecondary)
+                                if moment.entry != nil { StarsView(rating: moment.entry?.rating) }
+                                if let note = moment.entry?.note, !note.isEmpty { Text(note).font(.footnote).lineLimit(2).foregroundStyle(Color.aetherSecondary) }
+                            }
+                            Spacer(minLength: 0)
+                            ZStack {
+                                Circle().stroke(Color.primary.opacity(0.15), lineWidth: 3)
+                                Circle().trim(from: 0, to: moment.progress).stroke(moment.progress >= 1 ? Color.green : Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
+                                if moment.progress >= 1 { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.green) }
+                                else { Text(moment.detail).font(.system(size: 9, weight: .bold)) }
+                            }
+                            .frame(width: 34, height: 34)
+                        }
+                        .padding(12)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button { router.detail = MetaRoute(type: moment.type, id: moment.metaID) } label: { Label("Apri la scheda", systemImage: "info.circle") }
+                        if let entry = moment.entry {
+                            Button(role: .destructive) { settings.value.content.diary.remove(id: entry.id) } label: { Label("Elimina dal diario", systemImage: "trash") }
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+                .padding(.horizontal, Theme.pageMargin)
+            }
+            if items.count > shownCount {
+                Button { shownCount += 30 } label: { Text("Visualizza tutta la cronologia").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 12) }
+                    .buttonStyle(SecondaryActionButtonStyle()).padding(.horizontal, Theme.pageMargin).padding(.top, 8)
+            }
+        }
     }
 
     private var statsCard: some View {

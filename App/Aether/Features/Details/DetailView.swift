@@ -175,6 +175,8 @@ struct DetailView: View {
     @State private var openedSimilar: MetaRoute?
     @State private var openedPerson: PersonRoute?
     @State private var openedUniverse: UniverseDefinition?
+    @State private var tab: DetailTab = .info
+    @State private var titleLogo: UIImage?
     @State private var similarProblem: String?
     /// True while TMDB is asked for the IMDb code of a similar title: more taps meanwhile would start more lookups.
     @State private var lookingUpSimilar = false
@@ -197,10 +199,10 @@ struct DetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     actions
+                    ratingsRow
                     infoBlock
-                    if model.isSeries { episodes }
-                    if !model.meta.cast.isEmpty || !model.meta.directors.isEmpty || !(model.rich?.creators.isEmpty ?? true) { credits }
-                    richSections
+                    tabStrip
+                    tabContent
                     if !model.failures.isEmpty && model.hadDetailProvider && model.providerName == nil { failureNote }
                     footer
                 }
@@ -230,6 +232,10 @@ struct DetailView: View {
             }
         }
         .task(id: network.reconnectToken) { await model.load(env: env) }
+        .task(id: model.meta.id) {
+            titleLogo = FanartLogoStore.shared.cached(model.meta.id)
+            if titleLogo == nil { titleLogo = await FanartLogoStore.shared.load(meta: model.meta, env: env) }
+        }
         // Buttons and highlights take the colour of the poster (switch: Funzioni extra ▸ Colori dalla locandina).
         .tint(settings.value.advanced.extras.posterTint ? posterAccent : nil)
         .task(id: model.meta.poster ?? model.meta.background) {
@@ -295,13 +301,24 @@ struct DetailView: View {
                     LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .init(x: 0.5, y: 0.3))
                 )
             VStack(alignment: .leading, spacing: 10) {
-                Text(model.meta.name)
-                    .font(.system(size: 36, weight: .heavy, design: AetherTypography.design))
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.7)
-                    .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("detail.title")
+                // The film's logo in place of its name; without a logo, the name.
+                Group {
+                    if let logo = titleLogo {
+                        Image(uiImage: logo).resizable().scaledToFit()
+                            .frame(maxWidth: 300, maxHeight: 120, alignment: .leading)
+                            .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+                            .accessibilityLabel(model.meta.name)
+                    } else {
+                        Text(model.meta.name)
+                            .font(.system(size: 36, weight: .heavy, design: AetherTypography.design))
+                            .lineLimit(3)
+                            .minimumScaleFactor(0.7)
+                            .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("detail.title")
                 metaLine
                 if !model.meta.genres.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -645,13 +662,16 @@ struct DetailView: View {
 
     private var infoBlock: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if !model.meta.genres.isEmpty { GenreChips(genres: model.meta.genres) }
             if let description = model.meta.description, !description.isEmpty {
-                Text(description)
-                    .font(.body)
-                    .lineLimit(descriptionExpanded ? nil : 5)
-                    .onTapGesture { withAnimation { descriptionExpanded.toggle() } }
-                    .accessibilityHint(descriptionExpanded ? "Tocca per ridurre" : "Tocca per leggere tutto")
+                Button { withAnimation { descriptionExpanded.toggle() } } label: {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(description).font(.body).foregroundStyle(Color.primary.opacity(0.88))
+                            .lineLimit(descriptionExpanded ? nil : 3).multilineTextAlignment(.leading)
+                        Image(systemName: descriptionExpanded ? "chevron.up" : "chevron.down").font(.footnote.weight(.bold)).foregroundStyle(Color.aetherSecondary).padding(.top, 4)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(descriptionExpanded ? "Tocca per ridurre" : "Tocca per leggere tutto")
             } else if model.isLoading {
                 SkeletonBlock(cornerRadius: 6).frame(height: 70)
             }
@@ -723,31 +743,108 @@ struct DetailView: View {
 
     // MARK: TMDB sections
 
+    private enum DetailTab: String, Hashable {
+        case episodes, info, trailers, related
+        var title: String {
+            switch self {
+            case .episodes: return "Episodi"
+            case .info: return "Info"
+            case .trailers: return "Trailer"
+            case .related: return "Contenuti correlati"
+            }
+        }
+    }
+
+    private var tabs: [DetailTab] { return model.isSeries ? [.episodes, .info, .trailers, .related] : [.info, .trailers, .related] }
+
+    private var tabStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 22) {
+                ForEach(tabs, id: \.self) { item in
+                    Button { withAnimation(.snappy) { tab = item } } label: {
+                        VStack(spacing: 6) {
+                            Text(item.title).font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
+                                .foregroundStyle(tab == item ? Color.primary : Color.aetherSecondary)
+                            Capsule().fill(tab == item ? Color.accentColor : Color.clear).frame(height: 3)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(tab == item ? .isSelected : [])
+                    .accessibilityIdentifier("detail.tab.\(item.rawValue)")
+                }
+            }
+            .padding(.horizontal, Theme.pageMargin)
+        }
+        .onAppear { if model.isSeries && tab == .info && !tabs.contains(.info) { tab = .episodes } }
+        .onChange(of: model.isSeries) { _, isSeries in if isSeries { tab = .episodes } }
+    }
+
     @ViewBuilder
-    private var richSections: some View {
+    private var tabContent: some View {
+        switch tab {
+        case .episodes:
+            if model.isSeries { episodes }
+        case .info:
+            if !model.meta.cast.isEmpty || !model.meta.directors.isEmpty || !(model.rich?.creators.isEmpty ?? true) { credits }
+            richInfo
+            TitleUniverseSection(meta: model.meta, showsUniverses: false) { _ in }
+        case .trailers:
+            richTrailers
+        case .related:
+            richRelated
+        }
+        if !model.failures.isEmpty && model.hadDetailProvider && model.providerName == nil { failureNote }
+        footer
+    }
+
+    /// The ratings as two glass tiles under the buttons.
+    @ViewBuilder
+    private var ratingsRow: some View {
+        let shown = env.settings.value.content.ratings
+        let chosen = model.ratings.filter { shown.sources.contains($0.source) && $0.display != nil }
+        if !chosen.isEmpty { TitleRatingsSection(ratings: chosen) }
+    }
+
+    @ViewBuilder
+    private var richInfo: some View {
         if let rich = model.rich {
             let modules = env.settings.value.content.titleModules
-            let shown = env.settings.value.content.ratings
-            let chosen = model.ratings.filter { shown.sources.contains($0.source) && $0.display != nil }
-            if !chosen.isEmpty { TitleRatingsSection(ratings: chosen) }
-            TitleUniverseSection(meta: model.meta) { openedUniverse = $0 }
             if !rich.cast.isEmpty && modules.cast {
                 TitleCastSection(people: rich.cast) { person in
                     if let id = person.tmdbPersonID { openedPerson = PersonRoute(personID: id, name: person.name) }
                 }
             }
-            if !rich.trailers.isEmpty && modules.trailers { TitleTrailersSection(trailers: rich.trailers) }
-            if !model.sagaFilms.isEmpty, let saga = rich.collection {
-                TitleSimilarSection(titles: model.sagaFilms, heading: saga.name, identifier: "detail.saga", open: openSimilar)
-            }
             if !rich.companies.isEmpty && modules.companies { TitleCompaniesSection(companies: rich.companies) }
             if (rich.budget != nil || rich.revenue != nil) && modules.financials { TitleFinancialsSection(budget: rich.budget, revenue: rich.revenue) }
             let rows = rich.detailRows()
             if !rows.isEmpty && modules.facts { TitleFactsSection(rows: rows) }
-            if !rich.similar.isEmpty && modules.similar { TitleSimilarSection(titles: similarTitles(rich), open: openSimilar) }
         } else if model.suggestsTMDBKey {
             TMDBKeyHint()
         }
+    }
+
+    @ViewBuilder
+    private var richTrailers: some View {
+        if let rich = model.rich, !rich.trailers.isEmpty, env.settings.value.content.titleModules.trailers {
+            TitleTrailersSection(trailers: rich.trailers)
+        } else {
+            Text("Nessun trailer disponibile per questo titolo.").font(.subheadline).foregroundStyle(Color.aetherSecondary).padding(.horizontal, Theme.pageMargin)
+        }
+    }
+
+    @ViewBuilder
+    private var richRelated: some View {
+        if let rich = model.rich {
+            let modules = env.settings.value.content.titleModules
+            if !model.sagaFilms.isEmpty, let saga = rich.collection {
+                TitleSimilarSection(titles: model.sagaFilms, heading: saga.name, identifier: "detail.saga", open: openSimilar)
+            }
+            if !rich.similar.isEmpty && modules.similar { TitleSimilarSection(titles: similarTitles(rich), open: openSimilar) }
+            if model.sagaFilms.isEmpty && rich.similar.isEmpty {
+                Text("Nessun contenuto correlato.").font(.subheadline).foregroundStyle(Color.aetherSecondary).padding(.horizontal, Theme.pageMargin)
+            }
+        }
+        TitleUniverseSection(meta: model.meta, showsActions: false) { openedUniverse = $0 }
     }
 
     /// The similar titles, without the talk shows when the viewer asked for that here.

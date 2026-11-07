@@ -75,10 +75,16 @@ struct HeroCarousel: View {
 /// Title, facts, description and the "Dettagli" button drawn over a hero picture. White: it always sits on a dark scrim.
 private struct HeroTextBlock: View {
     let meta: MetaItem
+    var showsButton = true
+    @EnvironmentObject private var env: AppEnvironment
+    @State private var storeLogo: UIImage?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let logo = meta.logo, !logo.isEmpty {
+            if let image = storeLogo {
+                Image(uiImage: image).resizable().scaledToFit().frame(maxWidth: 260, maxHeight: 84, alignment: .leading)
+                    .shadow(color: .black.opacity(0.5), radius: 8)
+            } else if let logo = meta.logo, !logo.isEmpty {
                 RemoteImage(urlString: logo, width: 400, contentMode: .fit, alignment: .leading)
                     .frame(width: 240, height: 72, alignment: .leading)
             } else {
@@ -94,14 +100,20 @@ private struct HeroTextBlock: View {
             if let description = meta.description, !description.isEmpty {
                 Text(description).font(.footnote).foregroundStyle(.white.opacity(0.9)).lineLimit(2)
             }
-            HStack(spacing: 10) {
-                Label("Dettagli", systemImage: "play.fill")
-                    .font(.system(.subheadline, design: AetherTypography.design).weight(.bold))
-                    .padding(.horizontal, 18).padding(.vertical, 10)
-                    .background(.white, in: Capsule())
-                    .foregroundStyle(.black)
+            if showsButton {
+                HStack(spacing: 10) {
+                    Label("Dettagli", systemImage: "play.fill")
+                        .font(.system(.subheadline, design: AetherTypography.design).weight(.bold))
+                        .padding(.horizontal, 18).padding(.vertical, 10)
+                        .background(.white, in: Capsule())
+                        .foregroundStyle(.black)
+                }
+                .padding(.top, 4)
             }
-            .padding(.top, 4)
+        }
+        .task(id: meta.id) {
+            storeLogo = FanartLogoStore.shared.cached(meta.id)
+            if storeLogo == nil { storeLogo = await FanartLogoStore.shared.load(meta: meta, env: env) }
         }
         .repaintsWithTitleFont()
     }
@@ -138,37 +150,63 @@ struct HeroCard: View {
 /// melting zone, on the dark scrim, so it stays readable in the light and dark appearance alike.
 struct HeroFullBleedCard: View {
     let meta: MetaItem
+    @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var library: LibraryModel
 
-    static let height: CGFloat = 500
+    static let height: CGFloat = 560
     /// The bottom stretch where the picture fades out; the text stays above it.
     static let fadeHeight: CGFloat = 70
 
     var body: some View {
-        TitleLink(route: MetaRoute(meta: meta)) {
-            ZStack(alignment: .bottomLeading) {
-                RemoteImage(urlString: meta.background ?? meta.poster, width: 1200, placeholderSeed: meta.name)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Self.height)
-                    .clipped()
-                LinearGradient(stops: [.init(color: .clear, location: 0.28),
-                                       .init(color: .black.opacity(0.62), location: 0.62),
-                                       .init(color: .black.opacity(0.92), location: 1)],
-                               startPoint: .top, endPoint: .bottom)
-                HeroTextBlock(meta: meta)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, Self.fadeHeight + 14)
+        ZStack(alignment: .bottomLeading) {
+            TitleLink(route: MetaRoute(meta: meta)) {
+                ZStack(alignment: .bottomLeading) {
+                    RemoteImage(urlString: meta.background ?? meta.poster, width: 1200, placeholderSeed: meta.name)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: Self.height)
+                        .clipped()
+                    LinearGradient(stops: [.init(color: .clear, location: 0.25),
+                                           .init(color: .black.opacity(0.55), location: 0.6),
+                                           .init(color: .black.opacity(0.92), location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                    HeroTextBlock(meta: meta, showsButton: false)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, Self.fadeHeight + 70)
+                }
+                .frame(height: Self.height)
             }
-            .frame(height: Self.height)
-            .mask(LinearGradient(stops: [.init(color: .clear, location: 0),
-                                         .init(color: .black, location: 0.05),
-                                         .init(color: .black, location: 1 - Self.fadeHeight / Self.height),
-                                         .init(color: .clear, location: 1)],
-                                 startPoint: .top, endPoint: .bottom))
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("In evidenza: \(meta.name)")
+            .accessibilityAddTraits(.isButton)
+            // The buttons are siblings of the link, not inside it: each one answers on its own.
+            HStack(spacing: 12) {
+                Button { router.detail = MetaRoute(meta: meta) } label: {
+                    Label("Dettagli", systemImage: "play.fill")
+                        .font(.system(.headline, design: AetherTypography.design).weight(.bold))
+                        .padding(.horizontal, 26).padding(.vertical, 13)
+                        .background(.white, in: Capsule()).foregroundStyle(.black)
+                }
+                .accessibilityIdentifier("hero.details")
+                Button { library.toggleWatchlist(meta) } label: {
+                    Image(systemName: library.watchlistIDs.contains(meta.id) ? "checkmark" : "plus")
+                        .font(.system(size: 18, weight: .bold)).foregroundStyle(.white)
+                        .frame(width: 48, height: 48)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().strokeBorder(.white.opacity(0.35), lineWidth: 1))
+                }
+                .accessibilityLabel(library.watchlistIDs.contains(meta.id) ? "Rimuovi dalla watchlist" : "Aggiungi alla watchlist")
+                .accessibilityIdentifier("hero.watchlist")
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, Self.fadeHeight - 10)
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("In evidenza: \(meta.name)")
-        .accessibilityAddTraits(.isButton)
+        .frame(height: Self.height)
+        .mask(LinearGradient(stops: [.init(color: .clear, location: 0),
+                                     .init(color: .black, location: 0.04),
+                                     .init(color: .black, location: 1 - Self.fadeHeight / Self.height),
+                                     .init(color: .clear, location: 1)],
+                             startPoint: .top, endPoint: .bottom))
     }
 }
 

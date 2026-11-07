@@ -145,7 +145,7 @@ public struct HomeSectionConfig: Codable, Hashable, Identifiable, Sendable {
 }
 
 public struct AppearanceSettings: Codable, Equatable, Sendable {
-    public var theme: ThemeMode = .system
+    public var theme: ThemeMode = .dark
     public var accent: AccentChoice = .nebula
     /// Optional custom accent in #RRGGBB; nil keeps the selected preset.
     public var customAccentHex: String? = nil
@@ -178,7 +178,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var reduceVisualEffects: Bool = false
     public var homeSections: [HomeSectionConfig] = HomeSectionConfig.defaultOrder
     // 1.1
-    public var heroStyle: HeroStyle = .card
+    public var heroStyle: HeroStyle = .fullBleed
     /// The featured carousel turns pages by itself (still subject to Reduce Motion and the animations switch).
     public var heroAutoScroll: Bool = true
     public var palette: AppPalette = .aether
@@ -203,7 +203,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        theme = c.value(.theme, default: .system)
+        theme = c.value(.theme, default: .dark)
         accent = c.value(.accent, default: .nebula)
         let customAccent: String? = c.lenient(String.self, forKey: .customAccentHex)
         customAccentHex = customAccent.flatMap { value in
@@ -234,7 +234,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         reduceVisualEffects = c.value(.reduceVisualEffects, default: false)
         let stored = c.lossyArray(HomeSectionConfig.self, forKey: .homeSections)
         homeSections = AppearanceSettings.normalise(sections: stored)
-        heroStyle = c.value(.heroStyle, default: .card)
+        heroStyle = c.value(.heroStyle, default: .fullBleed)
         heroAutoScroll = c.value(.heroAutoScroll, default: true)
         backdrop = c.value(.backdrop, default: .aurora)
         cardChrome = c.value(.cardChrome, default: .standard)

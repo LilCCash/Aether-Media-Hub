@@ -20,6 +20,9 @@ struct PersonFilmographyView: View {
     @State private var problem: String?
     @State private var filter = PersonFilter()
     @State private var bioExpanded = false
+    @State private var sub: Sub = .filmography
+
+    private enum Sub: String, CaseIterable { case filmography = "Filmografia", biography = "Biografia" }
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 14, alignment: .top)]
 
@@ -34,14 +37,19 @@ struct PersonFilmographyView: View {
                 } else if let profile = profile {
                     VStack(alignment: .leading, spacing: 18) {
                         header(profile)
-                        if !profile.biography.isEmpty { biography(profile.biography) }
-                        filters(profile)
-                        if shown.isEmpty {
-                            Text("Nessun titolo con questi filtri.").font(.subheadline).foregroundStyle(Color.aetherSecondary).frame(maxWidth: .infinity).padding(.top, 20)
+                        subTabs
+                        if sub == .biography {
+                            biographyPage(profile)
                         } else {
-                            Text("\(shown.count) titoli").font(.caption.weight(.semibold)).foregroundStyle(Color.aetherSecondary).padding(.horizontal, Theme.pageMargin)
-                            LazyVGrid(columns: columns, alignment: .leading, spacing: 18) { ForEach(shown) { credit in card(credit) } }
-                                .padding(.horizontal, Theme.pageMargin)
+                            mainFilms(profile)
+                            filters(profile)
+                            if shown.isEmpty {
+                                Text("Nessun titolo con questi filtri.").font(.subheadline).foregroundStyle(Color.aetherSecondary).frame(maxWidth: .infinity).padding(.top, 20)
+                            } else {
+                                Text("\(shown.count) titoli").font(.caption.weight(.semibold)).foregroundStyle(Color.aetherSecondary).padding(.horizontal, Theme.pageMargin)
+                                LazyVGrid(columns: columns, alignment: .leading, spacing: 18) { ForEach(shown) { credit in card(credit) } }
+                                    .padding(.horizontal, Theme.pageMargin)
+                            }
                         }
                     }
                     .padding(.bottom, 24)
@@ -78,6 +86,62 @@ struct PersonFilmographyView: View {
             .foregroundStyle(.white).padding(16)
         }
         .frame(height: 320).clipShape(RoundedRectangle(cornerRadius: 0))
+    }
+
+    private var subTabs: some View {
+        HStack(spacing: 24) {
+            ForEach(Sub.allCases, id: \.self) { item in
+                Button { withAnimation(.snappy) { sub = item } } label: {
+                    VStack(spacing: 6) {
+                        Text(item.rawValue).font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
+                            .foregroundStyle(sub == item ? Color.primary : Color.aetherSecondary)
+                        Capsule().fill(sub == item ? Color.accentColor : Color.clear).frame(height: 3)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(sub == item ? .isSelected : [])
+            }
+            Spacer()
+        }
+        .padding(.horizontal, Theme.pageMargin)
+    }
+
+    /// «Film principali»: the best known titles in a row, before the whole list.
+    @ViewBuilder
+    private func mainFilms(_ profile: PersonProfile) -> some View {
+        let main = Array(profile.filmography.filter { $0.isMovie }.prefix(10))
+        if main.count >= 3 {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Film principali").font(.title3.weight(.bold)).padding(.horizontal, Theme.pageMargin)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: 14) { ForEach(main) { credit in card(credit) } }.padding(.horizontal, Theme.pageMargin)
+                }
+            }
+        }
+    }
+
+    private func biographyPage(_ profile: PersonProfile) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if profile.biography.isEmpty {
+                Text("TMDB non ha una biografia di \(profile.name).").font(.subheadline).foregroundStyle(Color.aetherSecondary)
+            } else {
+                Text(profile.biography).font(.body).foregroundStyle(Color.primary.opacity(0.88))
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                if let life = profile.lifeLine() { fact("Nato", life) }
+                if let place = profile.placeOfBirth { fact("Luogo", place) }
+                if !profile.roles.isEmpty { fact("Ruoli", profile.roles.map { $0.title }.joined(separator: ", ")) }
+                fact("Titoli", "\(profile.filmography.count)")
+            }
+        }
+        .padding(.horizontal, Theme.pageMargin)
+    }
+
+    private func fact(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .top) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(Color.aetherSecondary).frame(width: 64, alignment: .leading)
+            Text(value).font(.subheadline)
+        }
     }
 
     private func biography(_ text: String) -> some View {

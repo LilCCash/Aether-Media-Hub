@@ -148,6 +148,8 @@ struct RootView: View {
                 .tabItem { Label("Altro", systemImage: "ellipsis.circle.fill") }
                 .tag(AppTab.more)
         }
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) { AetherDock(selection: $router.tab) }
         .tint(settings.accentColor)
         .onChange(of: router.tab) { old, new in
             // Universe and Live TV are not in the bar: a request for them (a shortcut) opens them as full pages over the tabs.
@@ -155,12 +157,10 @@ struct RootView: View {
             if new == .live { router.tab = old == .live ? .home : old; router.liveSheet = true }
         }
         .fullScreenCover(isPresented: $router.universeSheet) {
-            UniverseHubView()
-                .overlay(alignment: .topTrailing) { SheetCloseButton(label: "Chiudi Universe") { router.universeSheet = false } }
+            UniverseHubView(onClose: { router.universeSheet = false })
         }
         .fullScreenCover(isPresented: $router.liveSheet) {
-            LiveTVView()
-                .overlay(alignment: .topTrailing) { SheetCloseButton(label: "Chiudi Live TV") { router.liveSheet = false } }
+            LiveTVView(onClose: { router.liveSheet = false })
         }
         .environment(\.zoomNamespace, titleZoom)
         .preferredColorScheme(settings.colorScheme)
