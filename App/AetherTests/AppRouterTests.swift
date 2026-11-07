@@ -8,7 +8,8 @@ final class AppRouterTests: XCTestCase {
         let router = AppRouter()
         router.handle(url: URL(string: "stremio://addon.example.com/abc/manifest.json")!)
         XCTAssertEqual(router.pendingAddonInput, "https://addon.example.com/abc/manifest.json")
-        XCTAssertEqual(router.tab, .more)
+        XCTAssertEqual(router.tab, .profile)
+        XCTAssertEqual(router.profileRoute, .addons)
     }
 
     func testAetherInstallLink() {
