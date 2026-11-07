@@ -118,7 +118,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/player',
-        builder: (_, state) {
+        builder: (context, state) {
           final args = state.extra as PlayerArgs;
           // Every playback goes through the start screen (logo, «Guarda») unless it is off for this kind of title.
           final opens =
