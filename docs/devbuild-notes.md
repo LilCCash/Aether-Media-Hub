@@ -1,20 +1,18 @@
-Profilo (Altro ▸ Profilo)
-- Nome (facoltativo), foto profilo tra tante illustrazioni oppure una tua foto, generi preferiti.
-- «Gioco dei gusti»: schede grandi con locandina, trama, anno e cast; scorri a destra = mi piace, a sinistra = non mi piace, in alto = salta.
-- «I miei voti»: due elenchi (Mi piace / Non mi piace) per cambiare o togliere un voto.
-- Inviti a usare l'app: «Ehi Nome, cosa guardiamo?», «Serata film?», consigli in base ai tuoi generi. Interruttore e frequenza nel Profilo.
-Libreria e trailer
-- Con Trakt collegato e la sincronizzazione unita spenta, la Libreria ha un menu per scegliere tra lista Aether e lista Trakt.
-- I trailer si guardano dentro l'app, con il tasto per aprirli su YouTube.
-Widget
-- «Citazioni dei film»: frasi cult e recenti, ora leggibili anche nel formato piccolo e con le frecce per scorrere.
-- «Titolo in evidenza» sistemato nel formato piccolo; tutti i widget hanno anche il formato grande.
-- Nuovi: «Statistiche di visione» e «Titolo in evidenza». Funzioni extra ▸ «Stato del widget» mostra cosa ha dato la firma.
-Aggiornamenti
-- Il pulsante nel controllo aggiornamenti apre SideStore: installa dalla source, non dall'IPA nudo.
-Player
-- Schermata di pausa con logo, trama e cast (Funzioni extra).
-- Il tasto «Chiudi» risponde subito e scrive nel log quanto ci mette.
-- Gli MKV scaricati si convertono al volo anche per AVPlayer, senza rete.
+Aether Pro
+- Nuova barra: Home, Universe, Cerca, Libreria, Altro. «Scopri» è la prima voce di Altro. Nuovo accento viola «Nebulosa».
+- Universe: 14 universi (Marvel, Star Wars, Wizarding World, Terra di Mezzo, Alien, Predator, Jurassic, Fast & Furious, Mission: Impossible, James Bond, MonsterVerse, DC, Game of Thrones, The Walking Dead) con film e serie.
+- Ordine di uscita (certo), ordine della storia (editoriale, indicato come tale) e il tuo ordine personalizzato; percentuale di completamento, titoli mancanti, «prossimo da vedere», segui un universo.
+- Sezione «Universe» nella Home (si nasconde e si riordina come le altre) e universi nella ricerca.
+Persone
+- Scheda completa: foto, biografia, nascita, ruoli (attore, regista, sceneggiatore, produttore, compositore, fotografia), filmografia con filtri per ruolo, tipo, genere e periodo. Ricerca di persone.
+Diario e Libreria
+- Altro ▸ Diario e statistiche: linea del tempo, voto a mezze stelle, nota, rewatch, ore viste, generi e persone più presenti, grafico mensile.
+- Segna nel diario e Collezioni dalla scheda di ogni titolo. Libreria con Visti, Abbandonati e Collezioni tue.
+Fonti
+- Impostazioni ▸ Intelligenza delle fonti: pesi per risoluzione, HDR, audio, dimensione e codec. Con tutto su «Ignora» l'ordine resta quello di sempre.
+Profilo e inviti
+- Profilo con foto, generi e gioco dei gusti; inviti a guardare qualcosa con consigli per genere; lista Aether o Trakt in Libreria; trailer dentro l'app.
+Widget e player
+- Widget Citazioni, Titolo in evidenza e Statistiche anche nel formato grande. Schermata di pausa; il tasto Chiudi risponde subito; MKV scaricati letti anche da AVPlayer.
 Live TV
-- Voce «Live TV» nella barra (Impostazioni ▸ Live TV): playlist M3U, cataloghi scelti, gruppi, ricerca e preferiti.
+- Voce «Live TV» (Impostazioni ▸ Live TV): playlist M3U, cataloghi scelti, gruppi, ricerca e preferiti.

@@ -2,7 +2,7 @@ import SwiftUI
 import AetherCore
 
 enum LibrarySection: String, CaseIterable, Identifiable {
-    case continueWatching, watchlist, favorites, history, downloads, cloud
+    case continueWatching, watchlist, favorites, watched, abandoned, collections, history, downloads, cloud
     var id: String { rawValue }
 
     var title: String {
@@ -10,6 +10,9 @@ enum LibrarySection: String, CaseIterable, Identifiable {
         case .continueWatching: return "Continua"
         case .watchlist: return "Watchlist"
         case .favorites: return "Preferiti"
+        case .watched: return "Visti"
+        case .abandoned: return "Abbandonati"
+        case .collections: return "Collezioni"
         case .history: return "Cronologia"
         case .downloads: return "Download"
         case .cloud: return "Cloud"
@@ -41,12 +44,21 @@ struct LibraryView: View {
                     TraktCatalogView(trakt: env.trakt)
                 } else {
                 VStack(spacing: 0) {
-                    Picker("Sezione", selection: $section) {
-                        ForEach(LibrarySection.allCases) { Text($0.title).tag($0) }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(LibrarySection.allCases) { item in
+                                Button { withAnimation(.snappy) { section = item } } label: {
+                                    Text(item.title).font(.subheadline.weight(.semibold)).padding(.horizontal, 14).padding(.vertical, 7)
+                                        .background(section == item ? settings.accentColor : Color.primary.opacity(0.1), in: Capsule())
+                                        .foregroundStyle(section == item ? Color.white : Color.primary)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityAddTraits(section == item ? .isSelected : [])
+                            }
+                        }
+                        .padding(.horizontal, Theme.pageMargin)
+                        .padding(.vertical, 8)
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, Theme.pageMargin)
-                    .padding(.vertical, 8)
                     .accessibilityIdentifier("library.picker")
                     content
                 }
@@ -111,6 +123,39 @@ struct LibraryView: View {
             posterGrid(library.watchlist.filter { matches($0.name) }, empty: ("bookmark", "Watchlist vuota", "Aggiungi titoli dalla loro scheda con il segnalibro."))
         case .favorites:
             posterGrid(library.favorites.filter { matches($0.name) }, empty: ("heart", "Nessun preferito", "Tocca il cuore nella scheda di un titolo per salvarlo qui."))
+        case .watched:
+            let diary = settings.value.content.diary.timeline
+            let seen = Set(diary.map { $0.metaID })
+            let fromPlayer = library.history.filter { $0.isCompleted && !seen.contains($0.metaID) }
+            let entries = (diary.map { MetaItem(id: $0.metaID, type: $0.type, name: $0.name, poster: $0.poster) } + fromPlayer.map { $0.asMeta })
+                .filter { matches($0.name) }
+            if entries.isEmpty {
+                emptyState("checkmark.circle", "Niente di visto", "I titoli che finisci o segni nel diario compaiono qui.")
+            } else {
+                ScrollView {
+                    let width = CGFloat(settings.value.appearance.posterSize.rowWidth)
+                    AdaptiveCardGrid(items: entries, minColumns: 3, preferredWidth: width, spacing: 12, rowSpacing: 20) { meta, cardWidth in
+                        TitleLink(route: MetaRoute(meta: meta)) { PosterCard(meta: meta, width: cardWidth) }.buttonStyle(.plain)
+                    }
+                    .padding(.vertical, Theme.pageMargin)
+                }
+            }
+        case .abandoned:
+            // Started and not finished, untouched for a month: the viewer can pick them up again or let them go.
+            let cutoff = Date().addingTimeInterval(-30 * 24 * 3600)
+            let items = library.history.filter { !$0.isCompleted && $0.updatedAt < cutoff && matches($0.title) }
+            if items.isEmpty {
+                emptyState("pause.circle", "Nessun titolo abbandonato", "Quello che inizi e lasci per più di un mese compare qui.")
+            } else {
+                ScrollView {
+                    AdaptiveCardGrid(items: items, minColumns: 2, preferredWidth: 240, spacing: 14, rowSpacing: 18) { item, cardWidth in
+                        ContinueCard(progress: item, width: cardWidth)
+                    }
+                    .padding(.vertical, Theme.pageMargin)
+                }
+            }
+        case .collections:
+            CollectionsView()
         case .history:
             let items = library.history.filter { matches($0.title) }
             if items.isEmpty {

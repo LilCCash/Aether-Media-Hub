@@ -347,7 +347,7 @@ struct TitleUniverseSection: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("detail.universe.\(universe.id)")
                 }
-                DiaryButton(meta: meta)
+                HStack(spacing: 10) { DiaryButton(meta: meta); AddToCollectionMenu(meta: meta) }
             }
             .padding(.horizontal, Theme.pageMargin)
         }

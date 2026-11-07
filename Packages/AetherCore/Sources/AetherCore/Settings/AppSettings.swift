@@ -625,13 +625,15 @@ public struct ContentSettings: Codable, Equatable, Sendable {
     public var diary = DiarySettings()
     /// Universes: the viewer's own orders and the ones they follow.
     public var universes = UniverseSettings()
+    /// The viewer's own lists.
+    public var collections = CollectionsSettings()
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case preferredLanguage, catalogRefreshMinutes, hideAdultCatalogs, hideTalkShows, talkHome, talkDiscover, talkSearch, talkCast, talkSimilar, searchRemote, searchLocal
         case saveSearchHistory, searchSort, discoverTypes
-        case catalogLayout, streamDisplay, titleModules, ratings, advancedSearch, indexing, trakt, liveTV, profile, diary, universes
+        case catalogLayout, streamDisplay, titleModules, ratings, advancedSearch, indexing, trakt, liveTV, profile, diary, universes, collections
     }
 
     public init(from decoder: Decoder) throws {
@@ -661,6 +663,7 @@ public struct ContentSettings: Codable, Equatable, Sendable {
         profile = c.value(.profile, default: ProfileSettings())
         diary = c.value(.diary, default: DiarySettings())
         universes = c.value(.universes, default: UniverseSettings())
+        collections = c.value(.collections, default: CollectionsSettings())
     }
 }
 

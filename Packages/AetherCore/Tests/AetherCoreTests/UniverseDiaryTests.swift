@@ -140,3 +140,24 @@ final class UniverseSearchTests: XCTestCase {
         XCTAssertEqual(found.first?.profession, "Regista")
     }
 }
+
+final class CollectionsTests: XCTestCase {
+    func testCreateAddRemoveRename() throws {
+        var settings = CollectionsSettings()
+        let list = try XCTUnwrap(settings.create(name: "  Horror anni 80 "))
+        XCTAssertEqual(list.name, "Horror anni 80")
+        XCTAssertEqual(settings.create(name: "horror ANNI 80")?.id, list.id, "same name, same list")
+        XCTAssertNil(settings.create(name: "   "))
+        let item = CollectionItem(id: "tt1", type: "movie", name: "A")
+        settings.add(item, to: list.id)
+        settings.add(item, to: list.id)
+        XCTAssertEqual(settings.collections[0].items.count, 1)
+        XCTAssertEqual(settings.collections(containing: "tt1").map { $0.id }, [list.id])
+        settings.rename(id: list.id, to: "Notte")
+        XCTAssertEqual(settings.collections[0].name, "Notte")
+        settings.remove(itemID: "tt1", from: list.id)
+        XCTAssertTrue(settings.collections[0].items.isEmpty)
+        settings.delete(id: list.id)
+        XCTAssertTrue(settings.collections.isEmpty)
+    }
+}

@@ -1,0 +1,22 @@
+# Aether Pro — stato rispetto alla visione (branch `aether-pro`)
+
+Fatto vero = scritto e con test nel Core dove possibile. **Nulla è provato su un iPhone.** ✅ nel codice · 🟡 parziale · ☐ non fatto.
+
+| Area della visione | Stato | Note |
+|---|---|---|
+| Universe (14 universi, ordini, progresso, segui, ordine personale) | ✅ | Dati in `Universe/Universe.swift`, ogni ID confrontato con Cinemeta (nome e anno). L'ordine della storia è **editoriale**, non ufficiale; per gli universi senza ordine diverso vale l'uscita. Nessun grafo di relazioni tra personaggi. |
+| People (bio, ruoli, filmografia filtrabile, ricerca) | ✅ | TMDB. Premi e collaborazioni non fatti. |
+| Diario, voti, note, rewatch, statistiche | ✅ | Nelle impostazioni (quindi nei backup). |
+| Libreria: visti, abbandonati, collezioni | ✅ | «Abbandonati» = non finiti e fermi da 30 giorni. |
+| Home con sezione Universe, personalizzabile | ✅ | Le altre sezioni c'erano già. |
+| Ricerca di universi e persone | ✅ | Episodi e franchise non indicizzati. |
+| Source Intelligence con criteri | 🟡 | Pesi configurabili; HDR e audio **dal nome** della release (etichette, non misure). Nessuna misura del file prima di avviarlo. |
+| Provider TorBox e Real-Debrid | ✅ (già presenti) | Client in `Debrid/`. |
+| Player AVPlayer + MPV, skip intro, pausa, sottotitoli | ✅ (già presenti) | PiP con MPV non fatto. |
+| Download, widget, Live Activity, SharePlay, notifiche | ✅ (già presenti) | Limiti iOS e della firma gratuita. |
+| Design: palette Nebulosa, tab Universe | 🟡 | Liquid Glass usato dove già c'era; nessun rifacimento totale della grafica. |
+| Scheda episodio con trama in long-press | ☐ | Da verificare cosa c'è già. |
+| Sincronizzazione tra dispositivi | ☐ | CloudKit richiede account sviluppatore a pagamento (non con SideStore). Restano backup/ripristino da file; backend esterno da decidere. |
+| Movie Companion, Modalità Cinema dedicata | ☐ | La schermata di pausa e il Theater Mode sono i punti di partenza. |
+| AI (assistente, ricerca semantica) | ☐ | Esiste la ricerca avanzata con motore AI opzionale. |
+| Handoff, Spotlight esteso | ☐ | Spotlight e shortcut già presenti. |
