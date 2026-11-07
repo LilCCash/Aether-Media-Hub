@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 import AVKit
 import AetherCore
 
@@ -11,6 +12,7 @@ struct AdvancedSettingsView: View {
     @State private var logURL: URL?
     @State private var serverIssue: String?
     @State private var confirmingDirectLink = false
+    @State private var notificationStatus: String?
 
     /// Turning the switch on asks first; turning it off is immediate.
     private var directLinkBinding: Binding<Bool> {
@@ -42,6 +44,16 @@ struct AdvancedSettingsView: View {
                     Label(issue, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.orange)
                 }
             }
+            Section(header: Text("Notifiche"),
+                    footer: Text("Invia a questo telefono una notifica di prova tra qualche secondo, per vedere se arrivano e come appaiono (promemoria di uscita, download finiti, inviti). Se non compare nulla, controlla Impostazioni di iOS ▸ Notifiche ▸ Aether, o la modalità Non disturbare.")) {
+                Button { Task { await sendTestNotification() } } label: {
+                    Label("Invia una notifica di prova", systemImage: "bell.badge")
+                }
+                .accessibilityIdentifier("settings.testNotification")
+                if let status = notificationStatus {
+                    Text(status).font(.footnote).foregroundStyle(Color.aetherSecondary)
+                }
+            }
             Section(header: Text("Diagnostica"),
                     footer: Text("Il log resta sul dispositivo e non contiene indirizzi completi degli addon né chiavi: host, percorsi e parametri sensibili sono rimossi. Condividilo solo se vuoi.")) {
                 Toggle("Registro dettagliato", isOn: settings.binding(\.advanced.verboseLogging))
@@ -67,6 +79,33 @@ struct AdvancedSettingsView: View {
             Button("Annulla", role: .cancel) {}
         } message: {
             Text("Con questa opzione il link che Aether passa al televisore contiene la tua chiave TorBox. Chi controlla quel televisore, o legge il traffico della tua rete Wi-Fi, può usarla per scaricare a nome tuo finché non la sostituisci su TorBox. Con DLNA il link viaggia anche in chiaro. Aether ti chiederà conferma a ogni trasmissione.")
+        }
+    }
+
+    /// Asks for the permission when it is still missing, then schedules a notification in 4 seconds (shown as a banner even with the app open).
+    private func sendTestNotification() async {
+        let center = UNUserNotificationCenter.current()
+        var current = await center.notificationSettings()
+        if current.authorizationStatus == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+            current = await center.notificationSettings()
+        }
+        guard current.authorizationStatus == .authorized || current.authorizationStatus == .provisional || current.authorizationStatus == .ephemeral else {
+            notificationStatus = "Le notifiche di Aether sono spente in iOS: attivale da Impostazioni ▸ Notifiche ▸ Aether."
+            return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = "Aether"
+        content.subtitle = "Notifica di prova"
+        content.body = "Così appaiono i promemoria di uscita, i download finiti e gli inviti."
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: "aether.test.\(UUID().uuidString)", content: content,
+                                            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 4, repeats: false))
+        do {
+            try await center.add(request)
+            notificationStatus = "Inviata: arriva tra 4 secondi. Per vederla come sul blocco schermo, blocca il telefono adesso."
+        } catch {
+            notificationStatus = "Non riesco a programmare la notifica: \(error.localizedDescription)"
         }
     }
 

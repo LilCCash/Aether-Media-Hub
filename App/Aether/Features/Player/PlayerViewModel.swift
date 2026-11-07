@@ -194,6 +194,8 @@ final class PlayerViewModel: ObservableObject {
     private var playback: PlaybackSettings { env.settings.value.playback }
     /// The live channels (type «tv») have their own player choice and are never converted.
     private var isLiveContent: Bool { return meta.type == "tv" }
+    private var openStartedAt = Date()
+    private var firstFrameLogged = false
     private var engineChoice: PlayerEngineChoice { return isLiveContent ? playback.liveEngine : playback.engine }
 
     init(request: PlayerRequest, env: AppEnvironment) {
@@ -355,6 +357,8 @@ final class PlayerViewModel: ObservableObject {
     private func beginPlayback(startOverride: Double?) async {
         loadGeneration += 1
         let generation = loadGeneration
+        openStartedAt = Date()
+        firstFrameLogged = false
         isOpeningSource = true
         failure = nil
         failureExplanation = nil
@@ -433,6 +437,8 @@ final class PlayerViewModel: ObservableObject {
             closeConversion()
         }
         engine.setExternalPlaybackAllowed(!externalPlaybackBlockedForKey && !externalVideoWaitsForWiFi)
+        (engine as? LiveStreamHinting)?.setLiveStream(isLiveContent)
+        env.diagnostics.logDetached(.info, "player", String(format: "Apertura: la sorgente è pronta dopo %.1f s, avvio il motore %@", Date().timeIntervalSince(openStartedAt), engine.displayName))
         loadStartPosition = start ?? 0
         // The little pictures of the progress bar are cut from the original source, not from the local conversion.
         previewURL = url
@@ -825,7 +831,13 @@ final class PlayerViewModel: ObservableObject {
             scheduleStatusClear(after: 4)
             env.diagnostics.logDetached(.warning, "player", "Picture in Picture non avviato: \(failure)")
         }
-        if new.isReady && !wasReady { refreshTracks(); refreshPack() }
+        if new.isReady && !wasReady {
+            refreshTracks(); refreshPack()
+            if !firstFrameLogged {
+                firstFrameLogged = true
+                env.diagnostics.logDetached(.info, "player", String(format: "Apertura: pronto a riprodurre dopo %.1f s dall'avvio del lettore", Date().timeIntervalSince(openStartedAt)))
+            }
+        }
         if new.isPlaying != old.isPlaying { scrobbleTrakt(new.isPlaying ? .start : .pause) }
         if new.isExternalPlaybackActive != old.isExternalPlaybackActive {
             let where_ = conversionLease != nil ? "indirizzo Wi-Fi del ponte" : (conversion != nil ? "questo telefono (127.0.0.1)" : "indirizzo originale")

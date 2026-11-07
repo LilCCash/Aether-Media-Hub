@@ -32,6 +32,12 @@ struct EngineSnapshot: Equatable {
 /// (system player: HLS, MP4/MOV, true Dolby Vision) and `MPVEngine` (libmpv through MPVKit: MKV, AVI, TS, …).
 /// See docs/06-PLAYBACK.md for how the engine is chosen and what each one can honestly promise.
 @MainActor
+/// An engine that can start a live channel faster when it knows the stream is live (smaller probe, no waiting for a buffer).
+@MainActor
+protocol LiveStreamHinting: AnyObject {
+    func setLiveStream(_ live: Bool)
+}
+
 protocol PlaybackEngine: AnyObject {
     var kind: PlaybackEngineKind { get }
     var identifier: String { get }

@@ -325,6 +325,8 @@ final class MPVEngine: NSObject, PlaybackEngine {
 
     private var core: MPVCore?
     private var surface: MPVSurfaceView?
+    /// Set before `load` for a live channel: mpv then probes the stream briefly instead of reading megabytes before the first picture.
+    private var liveStream = false
     // Experimental Picture in Picture (software picture): see MPVSoftwareVideo.swift.
     private var softwareView: MPVSoftwareVideoView?
     private var softwareRenderer: MPVSoftwareRenderer?
@@ -394,6 +396,12 @@ final class MPVEngine: NSObject, PlaybackEngine {
             // The software renderer draws through libmpv's own output, not through a Metal layer.
             core.setOption("vo", "libmpv")
             core.setOption("hwdec", settings.video.hardwareDecoding ? "videotoolbox-copy" : "no")
+        }
+        if liveStream {
+            core.setOption("demuxer-lavf-probesize", "500000")
+            core.setOption("demuxer-lavf-analyzeduration", "1.5")
+            core.setOption("cache-pause-initial", "no")
+            core.setOption("cache-pause-wait", "0.5")
         }
         if !software {
             // The picture is always converted to what the screen layer is: sRGB / BT.709. Left to detect it, the renderer could take the
@@ -855,5 +863,8 @@ enum MPVFactsReader {
         default: return 0
         }
     }
+}
+extension MPVEngine: LiveStreamHinting {
+    func setLiveStream(_ live: Bool) { liveStream = live }
 }
 #endif

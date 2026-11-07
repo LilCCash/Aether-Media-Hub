@@ -433,3 +433,8 @@ extension AVPlayerEngine: AVPictureInPictureControllerDelegate {
         completionHandler(true)
     }
 }
+
+extension AVPlayerEngine: LiveStreamHinting {
+    /// A live channel starts as soon as the first data is there, instead of AVFoundation waiting to be sure it will not stall.
+    func setLiveStream(_ live: Bool) { player.automaticallyWaitsToMinimizeStalling = !live }
+}

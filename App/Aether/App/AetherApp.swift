@@ -172,6 +172,14 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var titleZoom
 
+    /// The title opens as a card (a sheet) only when the poster zoom is off: iOS can grow a page out of a poster for a full-screen page
+    /// or a push, not for a sheet, so with the zoom on the title opens full screen.
+    private var detailAsSheet: Bool {
+        guard settings.value.appearance.detailAsCard else { return false }
+        if #available(iOS 18.0, *), settings.value.appearance.zoomTransition { return false }
+        return true
+    }
+
     var body: some View {
         tabs
         .tint(settings.accentColor)
@@ -246,10 +254,10 @@ struct RootView: View {
         }
         .landscapePlayer($router.player, showsLaunch: true)
         .sheet(isPresented: $extras.showingWhatsNew) { WhatsNewSheet() }
-        .sheet(item: Binding(get: { settings.value.appearance.detailAsCard ? router.detail : nil }, set: { router.detail = $0 })) { route in
+        .sheet(item: Binding(get: { detailAsSheet ? router.detail : nil }, set: { router.detail = $0 })) { route in
             NavigationStack { DetailView(route: route).zoomDestination(id: route.id) }
         }
-        .fullScreenCover(item: Binding(get: { settings.value.appearance.detailAsCard ? nil : router.detail }, set: { router.detail = $0 })) { route in
+        .fullScreenCover(item: Binding(get: { detailAsSheet ? nil : router.detail }, set: { router.detail = $0 })) { route in
             NavigationStack {
                 DetailView(route: route)
                     .zoomDestination(id: route.id)
