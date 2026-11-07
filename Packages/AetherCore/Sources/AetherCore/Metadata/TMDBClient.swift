@@ -105,6 +105,10 @@ public struct TMDBClient: Sendable {
         return try await get("/person/\(id)", query: [("language", language)])
     }
 
+    func searchPeople(text: String, language: String) async throws -> TMDBPersonSearch {
+        return try await get("/search/person", query: [("query", text), ("language", language), ("include_adult", "false")])
+    }
+
     func season(tvID: Int, number: Int, language: String) async throws -> TMDBSeason {
         return try await get("/tv/\(tvID)/season/\(number)", query: [("language", language)])
     }

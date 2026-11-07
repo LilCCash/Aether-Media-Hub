@@ -165,3 +165,21 @@ enum TMDBGenreNames {
         14: "Fantasy", 36: "Storia", 27: "Horror", 10402: "Musica", 9648: "Mistero", 10749: "Romantico", 878: "Fantascienza", 53: "Thriller", 10752: "Guerra", 37: "Western",
         10759: "Azione e avventura", 10765: "Fantascienza e fantasy", 10768: "Guerra e politica", 10762: "Bambini"]
 }
+
+/// A person found by a search.
+public struct PersonSearchResult: Equatable, Identifiable, Sendable {
+    public var id: Int
+    public var name: String
+    public var photoURL: String?
+    public var profession: String?
+
+    static func make(from search: TMDBPersonSearch, limit: Int = 8) -> [PersonSearchResult] {
+        let usable = search.results.filter { $0.id != nil && !($0.name ?? "").isEmpty && $0.profilePath != nil }
+            .sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
+        return usable.prefix(limit).compactMap { hit in
+            guard let id = hit.id, let name = hit.name else { return nil }
+            let photo = hit.profilePath.flatMap { $0.hasPrefix("/") && !$0.contains("..") ? "https://image.tmdb.org/t/p/w185" + $0 : nil }
+            return PersonSearchResult(id: id, name: name, photoURL: photo, profession: PersonProfile.professionName(hit.department))
+        }
+    }
+}

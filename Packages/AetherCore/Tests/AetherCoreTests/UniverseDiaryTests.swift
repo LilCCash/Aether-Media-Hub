@@ -123,3 +123,20 @@ final class SourceScoringTests: XCTestCase {
         XCTAssertEqual(old.size, .none)
     }
 }
+
+final class UniverseSearchTests: XCTestCase {
+    func testSearchByUniverseOrTitle() {
+        XCTAssertEqual(UniverseCatalog.search("marvel").first?.id, "mcu")
+        XCTAssertEqual(UniverseCatalog.search("Prométhéus").first?.id, "alien")
+        XCTAssertTrue(UniverseCatalog.search("x").isEmpty)
+        XCTAssertTrue(UniverseCatalog.search("zzzzzz").isEmpty)
+        XCTAssertEqual(UniverseCatalog.search("star wars").first?.id, "starwars")
+    }
+
+    func testPeopleSearchKeepsTheBestKnownWithAPhoto() throws {
+        let json = #"{"results":[{"id":1,"name":"A","profile_path":"/a.jpg","known_for_department":"Acting","popularity":5},{"id":2,"name":"B","profile_path":null,"popularity":90},{"id":3,"name":"C","profile_path":"/c.jpg","known_for_department":"Directing","popularity":50}]}"#
+        let found = PersonSearchResult.make(from: try JSONDecoder().decode(TMDBPersonSearch.self, from: Data(json.utf8)))
+        XCTAssertEqual(found.map { $0.name }, ["C", "A"])
+        XCTAssertEqual(found.first?.profession, "Regista")
+    }
+}

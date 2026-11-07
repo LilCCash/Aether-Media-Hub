@@ -365,6 +365,19 @@ public actor MetadataEnricher {
         }
     }
 
+    /// People whose name matches (actors, directors…), the best known first. Empty without a key or on any error.
+    public func searchPeople(_ text: String, language: String) async -> [PersonSearchResult] {
+        guard text.count >= 3, let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb) else { return [] }
+        do {
+            return PersonSearchResult.make(from: try await tmdb.searchPeople(text: text, language: language))
+        } catch let error as MetadataError {
+            note(error, service: .tmdb)
+            return []
+        } catch {
+            return []
+        }
+    }
+
     /// The person's page: photo, biography, birth, and the whole career (acting, directing, writing, producing, music, photography). Nil when TMDB cannot say.
     public func personProfile(personID: Int, name: String, language: String, hideTalkShows: Bool = true) async -> PersonProfile? {
         guard let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb) else { return nil }

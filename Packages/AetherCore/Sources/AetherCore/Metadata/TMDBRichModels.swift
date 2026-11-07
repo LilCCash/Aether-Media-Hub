@@ -311,3 +311,29 @@ struct TMDBPersonDetails: Decodable {
         knownFor = c.flexString(.known_for_department)
     }
 }
+
+struct TMDBPersonSearch: Decodable {
+    var results: [TMDBPersonHit]
+    private enum CodingKeys: String, CodingKey { case results }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        results = c.lossyArray(TMDBPersonHit.self, forKey: .results)
+    }
+}
+
+struct TMDBPersonHit: Decodable {
+    var id: Int?
+    var name: String?
+    var profilePath: String?
+    var department: String?
+    var popularity: Double?
+    private enum CodingKeys: String, CodingKey { case id, name, profile_path, known_for_department, popularity }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.flexInt(.id)
+        name = c.flexString(.name)
+        profilePath = c.flexString(.profile_path)
+        department = c.flexString(.known_for_department)
+        popularity = try? c.decodeIfPresent(Double.self, forKey: .popularity)
+    }
+}

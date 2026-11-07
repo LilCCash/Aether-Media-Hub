@@ -148,6 +148,16 @@ public enum UniverseCatalog {
         return all.filter { universe in universe.entries.contains { $0.id == imdbID } }
     }
 
+    /// Universes whose name, or one of whose titles, contains the words (case and accents ignored), the name matches first.
+    public static func search(_ text: String) -> [UniverseDefinition] {
+        func fold(_ s: String) -> String { return s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US")) }
+        let needle = fold(text).trimmingCharacters(in: .whitespaces)
+        guard needle.count >= 2 else { return [] }
+        let byName = all.filter { fold($0.name).contains(needle) || fold($0.id) == needle }
+        let byTitle = all.filter { universe in !byName.contains(universe) && universe.entries.contains { fold($0.name).contains(needle) } }
+        return byName + byTitle
+    }
+
     /// The titles of the data below were matched one by one against Cinemeta (name and year); the orders of the story are editorial.
     public static let all: [UniverseDefinition] = [
     UniverseDefinition(id: "mcu", name: "Marvel Cinematic Universe", summary: "Il grande universo condiviso di supereroi: dagli Avengers ai Guardiani, dal multiverso agli spin-off in serie.", hero: "tt4154796",

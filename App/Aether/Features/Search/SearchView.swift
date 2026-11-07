@@ -507,6 +507,8 @@ struct SearchView: View {
             }
             .navigationTitle("Cerca")
             .navigationDestination(for: MetaRoute.self) { DetailView(route: $0).zoomDestination(id: $0.id) }
+            .navigationDestination(for: UniverseDefinition.self) { UniverseDetailView(universe: $0) }
+            .navigationDestination(for: PersonRoute.self) { PersonFilmographyView(route: $0) }
             .searchable(text: $model.query, placement: .navigationBarDrawer(displayMode: .always), prompt: model.searchPrompt)
             .autocorrectionDisabled()
             .onSubmit(of: .search) {
@@ -696,6 +698,7 @@ struct SearchView: View {
                 .padding(.horizontal, Theme.pageMargin)
                 .accessibilityIdentifier("search.hidden")
         }
+        SearchExtrasSection(query: model.normalisedQuery)
         advancedSection
         if !presentation.library.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
