@@ -159,7 +159,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     /// The star badge with the rating on the posters.
     public var showPosterRatings: Bool = true
     /// Dynamic Cinematic UI: the whole app takes its atmosphere from the film being looked at.
-    public var dynamicCinematic: Bool = false
+    public var dynamicCinematic: Bool = true
     /// Cinematic: tint the background with the colours of the film's artwork.
     public var cinematicMood: Bool = true
     /// Cinematic: slow zoom of the artwork and a soft fade when a page opens (off with Reduce Motion / animations off).
@@ -185,8 +185,8 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var heroAutoScroll: Bool = true
     public var palette: AppPalette = .aether
     public var backdrop: BackdropStyle = .aurora
-    public var cardChrome: CardChrome = .standard
-    public var cornerStyle: CornerStyle = .standard
+    public var cardChrome: CardChrome = .glow
+    public var cornerStyle: CornerStyle = .rounded
     public var titleFont: TitleFont = .rounded
     public var greetingEnabled: Bool = false
     /// Shown in the greeting. Stored in the settings backup like everything else, unencrypted.
@@ -222,7 +222,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         let intensity: Double = c.value(.backdropIntensity, default: 1)
         backdropIntensity = intensity.isFinite ? min(1, max(0, intensity)) : 1
         showPosterRatings = c.value(.showPosterRatings, default: true)
-        dynamicCinematic = c.value(.dynamicCinematic, default: false)
+        dynamicCinematic = c.value(.dynamicCinematic, default: true)
         cinematicMood = c.value(.cinematicMood, default: true)
         cinematicMotion = c.value(.cinematicMotion, default: true)
         amoled = c.value(.amoled, default: false)
@@ -239,8 +239,8 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         heroStyle = c.value(.heroStyle, default: .fullBleed)
         heroAutoScroll = c.value(.heroAutoScroll, default: true)
         backdrop = c.value(.backdrop, default: .aurora)
-        cardChrome = c.value(.cardChrome, default: .standard)
-        cornerStyle = c.value(.cornerStyle, default: .standard)
+        cardChrome = c.value(.cardChrome, default: .glow)
+        cornerStyle = c.value(.cornerStyle, default: .rounded)
         titleFont = c.value(.titleFont, default: .rounded)
         greetingEnabled = c.value(.greetingEnabled, default: false)
         let name: String = c.value(.greetingName, default: "")

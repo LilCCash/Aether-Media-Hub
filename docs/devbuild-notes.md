@@ -1,19 +1,21 @@
-Aether Pro
-- Grafica rinnovata: logo Aether in alto, accento viola «Nebulosa», pulsante principale bianco, barra in basso traslucida, schede titolo con grande immagine e titolo sopra, controlli del player a riquadri.
-- La barra in basso resta Home, Scopri, Libreria, Cerca, Altro. Universe e Live TV sono pulsanti in alto a sinistra nella Home (e voci in Altro); in alto a destra il tuo profilo.
-- Universe: 14 universi (Marvel, Star Wars, Wizarding World, Terra di Mezzo, Alien, Predator, Jurassic, Fast & Furious, Mission: Impossible, James Bond, MonsterVerse, DC, Game of Thrones, The Walking Dead) con film e serie.
-- Ordine di uscita (certo), ordine della storia (editoriale, indicato come tale) e il tuo ordine personalizzato; percentuale di completamento, titoli mancanti, «prossimo da vedere», segui un universo.
-- Sezione «Universe» nella Home (si nasconde e si riordina come le altre) e universi nella ricerca.
-Persone
-- Scheda completa: foto, biografia, nascita, ruoli (attore, regista, sceneggiatore, produttore, compositore, fotografia), filmografia con filtri per ruolo, tipo, genere e periodo. Ricerca di persone.
-Diario e Libreria
-- Altro ▸ Diario e statistiche: linea del tempo, voto a mezze stelle, nota, rewatch, ore viste, generi e persone più presenti, grafico mensile.
-- Segna nel diario e Collezioni dalla scheda di ogni titolo. Libreria con Visti, Abbandonati e Collezioni tue.
-Fonti
-- Impostazioni ▸ Intelligenza delle fonti: pesi per risoluzione, HDR, audio, dimensione e codec. Con tutto su «Ignora» l'ordine resta quello di sempre.
+Aether Pro: nuova grafica
+- Dock a capsula di vetro (Home, Scopri, Libreria, Cerca, Altro). Universe e Live TV sono pulsanti in alto a sinistra nella Home, Theater accanto; in alto a destra Cast e il tuo profilo. Logo Aether al centro.
+- Tema scuro, accento viola «Nebulosa», card arrotondate con alone, pagina titolo cinematografica (i colori del film riempiono lo schermo) e hero a tutto schermo con «Dettagli» e «+» per la watchlist.
+- Scheda film e serie: al posto del nome compare il logo del film (se manca, il nome); generi come chip sotto il titolo (una volta sola); valutazioni, trama che si espande, e schede Episodi / Info / Trailer / Contenuti correlati; tocco lungo su un episodio per la trama completa.
+Universe, persone, diario
+- 14 universi con film e serie in griglia di locandine, ordine di uscita, ordine della storia (editoriale) e il tuo, percentuale, titoli mancanti, «prossimo da vedere», segui.
+- Persone: foto, ruoli, biografia, «Film principali» e filmografia con filtri; ricerca di persone e di universi.
+- Timeline di visione: quello che guardi nel player e quello che scrivi nel diario (voto a mezze stelle, nota, rewatch), con statistiche per anno.
+Libreria e consigli
+- Visti, Abbandonati, Collezioni tue; lista Aether o Trakt; «Scelti per te» in Home dai generi e dai voti del gioco dei gusti.
+Riproduzione
+- Companion (dal menu del player e dalla scheda): chi c'è nel film e dove sta nell'universo, con tre livelli di spoiler.
+- Modalità Cinema: scheda del film prima della riproduzione e solo l'immagine e la barra mentre scorre.
+- Impostazioni ▸ Intelligenza delle fonti: pesi per risoluzione, HDR, audio, dimensione e codec.
+- Download a schede «In corso / Completati», con «Metti in pausa tutti».
+Sincronizzazione
+- Impostazioni ▸ Sincronizzazione: scegli una cartella (iCloud Drive o altra) e i tuoi dispositivi uniscono libreria, cronologia, diario, collezioni e voti. Nessun server. Handoff della scheda titolo tra dispositivi.
 Profilo e inviti
-- Profilo con foto, generi e gioco dei gusti; inviti a guardare qualcosa con consigli per genere; lista Aether o Trakt in Libreria; trailer dentro l'app.
-Widget e player
-- Widget Citazioni, Titolo in evidenza e Statistiche anche nel formato grande. Schermata di pausa; il tasto Chiudi risponde subito; MKV scaricati letti anche da AVPlayer.
-Live TV
-- Voce «Live TV» (Impostazioni ▸ Live TV): playlist M3U, cataloghi scelti, gruppi, ricerca e preferiti.
+- Profilo con foto, generi e gioco dei gusti; inviti a guardare qualcosa; trailer dentro l'app.
+Widget e Live TV
+- Widget Citazioni, Titolo in evidenza e Statistiche; schermata di pausa; Live TV con playlist M3U.

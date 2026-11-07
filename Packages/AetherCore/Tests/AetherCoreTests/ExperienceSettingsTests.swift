@@ -192,7 +192,7 @@ final class ExperienceSettingsTests: XCTestCase {
 
     func testCinematicAndAmoledDefaultOffAndSurviveARoundTrip() throws {
         var settings = AppSettings()
-        XCTAssertFalse(settings.appearance.dynamicCinematic)
+        XCTAssertTrue(settings.appearance.dynamicCinematic)
         XCTAssertFalse(settings.appearance.amoled)
         settings.appearance.dynamicCinematic = true
         settings.appearance.amoled = true

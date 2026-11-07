@@ -16,8 +16,11 @@ Fatto vero = scritto e con test nel Core dove possibile. **Nulla è provato su u
 | Download, widget, Live Activity, SharePlay, notifiche | ✅ (già presenti) | Limiti iOS e della firma gratuita. |
 | Navigazione | ✅ | Dock invariata (Home, Scopri, Libreria, Cerca, Altro). Universe e Live TV: pulsanti in alto nella Home e voci in Altro. |
 | Design: logo, hero della scheda, pulsante bianco, dock traslucida, controlli del player a riquadri, intestazioni di sezione | 🟡 | Rifatti a codice, mai visti su schermo: va guardato e rifinito sul telefono. Liquid Glass solo dove c'era già. |
-| Scheda episodio con trama in long-press | ☐ | Da verificare cosa c'è già. |
-| Sincronizzazione tra dispositivi | ☐ | CloudKit richiede account sviluppatore a pagamento (non con SideStore). Restano backup/ripristino da file; backend esterno da decidere. |
-| Movie Companion, Modalità Cinema dedicata | ☐ | La schermata di pausa e il Theater Mode sono i punti di partenza. |
+| Scheda episodio con trama in long-press | 🟡 | Tocco lungo sulla riga apre il foglio dell'episodio che già c'era. |
+| Sincronizzazione tra dispositivi | 🟡 | Un file in una cartella scelta (iCloud Drive o altro): unione di libreria, cronologia, diario, collezioni, voti. Non è CloudKit (serve account sviluppatore) né un server. Mai provata con due dispositivi. |
+| Movie Companion | 🟡 | Solo fatti dai metadati e dagli universi, con 3 livelli di spoiler; nessuna curiosità inventata. |
+| Modalità Cinema | 🟡 | Scheda prima del film e controlli minimi; il valore su iPhone è da giudicare a occhio. |
 | AI (assistente, ricerca semantica) | ☐ | Esiste la ricerca avanzata con motore AI opzionale. |
-| Handoff, Spotlight esteso | ☐ | Spotlight e shortcut già presenti. |
+| Handoff | 🟡 | Dalla scheda titolo. Spotlight e scorciatoie già presenti. |
+| Raccomandazioni | 🟡 | «Scelti per te» dai generi e dai voti, senza algoritmi complessi. |
+| Real-Debrid / AI nel backup | ☐ | Le loro chiavi non sono nel backup (svista segnalata). |
