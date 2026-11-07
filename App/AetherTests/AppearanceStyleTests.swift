@@ -102,9 +102,9 @@ final class AppearanceStoreTests: XCTestCase {
         store.value.appearance.backdrop = .spotlight
         store.value.appearance.cardChrome = .outline
         store.value.appearance.cornerStyle = .bubble
-        store.value.appearance.homeSections[3].style = .landscape
-        store.value.appearance.homeSections[3].size = .large
-        store.value.appearance.homeSections = HomeSectionOrdering.moved(store.value.appearance.homeSections, id: "catalogs", by: -4)
+        store.value.appearance.homeSections[4].style = .landscape
+        store.value.appearance.homeSections[4].size = .large
+        store.value.appearance.homeSections = HomeSectionOrdering.moved(store.value.appearance.homeSections, id: "catalogs", by: -5)
 
         let reloaded = SettingsStore(defaults: defaults)
         XCTAssertEqual(reloaded.value.appearance.heroStyle, .fullBleed)
@@ -125,7 +125,7 @@ final class AppearanceStoreTests: XCTestCase {
         defaults.set(Data(old.utf8), forKey: "aether.settings.v1")
         let store = SettingsStore(defaults: defaults)
         XCTAssertEqual(store.value.appearance.accent, .jade)
-        XCTAssertEqual(store.value.appearance.homeSections.map { $0.id }, ["watchlist", "hero", "continue", "nextUp", "catalogs"])
+        XCTAssertEqual(store.value.appearance.homeSections.map { $0.id }, ["watchlist", "hero", "continue", "nextUp", "catalogs", "universes"])
         XCTAssertEqual(store.value.appearance.section("hero").isVisible, false)
     }
 
