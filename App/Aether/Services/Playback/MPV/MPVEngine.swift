@@ -514,12 +514,14 @@ final class MPVEngine: NSObject, PlaybackEngine {
         guard let core = core, let surface = surface else { return }
         let transfer = (core.string("video-params/gamma") ?? "").lowercased()
         let isHDR = transfer.contains("pq") || transfer.contains("hlg")
-        let wide = isHDR && MPVOptions.wantsExtendedDynamicRange(video: settings.video, device: device)
+        // Always SDR output: mpv tone-maps HDR files to the screen. Passing PQ/HLG through to an 8-bit layer (the swapchain made before
+        // the file was known) showed HDR pictures washed out and shifted (red logos came out orange).
+        let wide = false
         if surface.metalLayer.wantsExtendedDynamicRangeContent != wide {
             surface.metalLayer.wantsExtendedDynamicRangeContent = wide
         }
         _ = core.setProperty("target-colorspace-hint", wide ? "yes" : "no")
-        recentLog.append("Immagine: trasferimento \(transfer.isEmpty ? "?" : transfer), primari \(core.string("video-params/primaries") ?? "?"), matrice \(core.string("video-params/colormatrix") ?? "?"), decoder \(core.string("hwdec-current") ?? "?"), HDR in uscita \(wide ? "sì" : "no")")
+        recentLog.append("Immagine: trasferimento \(transfer.isEmpty ? "?" : transfer), primari \(core.string("video-params/primaries") ?? "?"), matrice \(core.string("video-params/colormatrix") ?? "?"), decoder \(core.string("hwdec-current") ?? "?"), file HDR \(isHDR ? "sì" : "no"), HDR in uscita \(wide ? "sì" : "no")")
     }
 
     private func refreshFlags() {

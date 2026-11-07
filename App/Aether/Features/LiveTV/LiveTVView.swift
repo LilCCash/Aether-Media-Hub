@@ -367,11 +367,27 @@ struct LiveTVView: View {
         case .addon(let meta):
             show("Cerco le fonti di «\(meta.name)»…")
             Task {
-                var found: [AddonStream] = []
-                var seen = Set<String>()
-                for await batch in env.service.streams(type: meta.type, videoID: meta.id) {
-                    for stream in batch.streams where seen.insert(stream.id).inserted { found.append(stream) }
+                // Not every addon answers at once, and a slow or dead one used to hold the whole channel back until it gave up. The
+                // sources found so far are used a moment after the first one arrives (the others join the list if they are quick).
+                let box = ChannelSourceCollector()
+                let service = env.service
+                let reader = Task { @MainActor in
+                    for await batch in service.streams(type: meta.type, videoID: meta.id) {
+                        for stream in batch.streams where box.seen.insert(stream.id).inserted {
+                            box.found.append(stream)
+                            if box.firstAt == nil { box.firstAt = Date() }
+                        }
+                    }
+                    box.finished = true
                 }
+                let started = Date()
+                while !box.finished {
+                    try? await Task.sleep(nanoseconds: 80_000_000)
+                    if let first = box.firstAt, Date().timeIntervalSince(first) > 0.9 { break }
+                    if Date().timeIntervalSince(started) > 8 { break }
+                }
+                reader.cancel()
+                let found = box.found
                 notice = nil
                 if found.isEmpty { show("Nessuna fonte per questo canale."); return }
                 if found.count == 1 { playStream(found[0], meta: meta) } else { choice = ChannelChoice(channelID: channel.id, meta: meta, streams: found) }
@@ -387,6 +403,15 @@ struct LiveTVView: View {
             }
         }
     }
+}
+
+/// The sources of a channel as the addons answer.
+@MainActor
+private final class ChannelSourceCollector {
+    var found: [AddonStream] = []
+    var seen = Set<String>()
+    var firstAt: Date?
+    var finished = false
 }
 
 /// One channel as a tile: its logo on a coloured card, the name, and the star that keeps it among the favourites.

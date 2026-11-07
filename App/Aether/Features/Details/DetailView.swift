@@ -315,7 +315,7 @@ struct DetailView: View {
             headerArtwork
                 .frame(maxWidth: .infinity)
                 .frame(height: style.cinematic ? 500 : 400)
-                .scaleEffect(style.cinematic && style.motion && !reduceMotion && zoomed ? 1.2 : 1)
+                .scaleEffect(style.cinematic && style.motion && !reduceMotion && zoomed ? 1.2 : 1.1)
                 .clipped()
                 // Explicit animation, not an `.animation` modifier: that one also animated the width of the picture while the card was
                 // still growing to its size, and the artwork filled in slowly from one side.

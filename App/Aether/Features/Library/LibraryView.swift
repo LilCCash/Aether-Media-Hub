@@ -113,7 +113,7 @@ struct LibraryView: View {
             } else {
                 ScrollView {
                     // At least two cards per row, sized to the columns so that both sides have the same margin.
-                    AdaptiveCardGrid(items: items, minColumns: 2, preferredWidth: 240, spacing: 14, rowSpacing: 18) { item, cardWidth in
+                    AdaptiveCardGrid(items: items, minColumns: 3, preferredWidth: 110, spacing: 10, rowSpacing: 16) { item, cardWidth in
                         ContinueCard(progress: item, width: cardWidth)
                     }
                     .padding(.vertical, Theme.pageMargin)
@@ -148,7 +148,7 @@ struct LibraryView: View {
                 emptyState("pause.circle", "Nessun titolo abbandonato", "Quello che inizi e lasci per più di un mese compare qui.")
             } else {
                 ScrollView {
-                    AdaptiveCardGrid(items: items, minColumns: 2, preferredWidth: 240, spacing: 14, rowSpacing: 18) { item, cardWidth in
+                    AdaptiveCardGrid(items: items, minColumns: 3, preferredWidth: 110, spacing: 10, rowSpacing: 16) { item, cardWidth in
                         ContinueCard(progress: item, width: cardWidth)
                     }
                     .padding(.vertical, Theme.pageMargin)
