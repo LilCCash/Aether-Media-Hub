@@ -260,7 +260,10 @@ struct TMDBPersonCreditEntry: Decodable {
     var releaseDate: String?
     var popularity: Double?
     var genreIDs: [Int]
-    private enum CodingKeys: String, CodingKey { case id, media_type, title, name, character, poster_path, release_date, first_air_date, popularity, genre_ids }
+    var job: String?
+    var department: String?
+    var voteAverage: Double?
+    private enum CodingKeys: String, CodingKey { case id, media_type, title, name, character, poster_path, release_date, first_air_date, popularity, genre_ids, job, department, vote_average }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = c.flexInt(.id)
@@ -271,14 +274,40 @@ struct TMDBPersonCreditEntry: Decodable {
         releaseDate = c.flexString(.release_date) ?? c.flexString(.first_air_date)
         popularity = try? c.decodeIfPresent(Double.self, forKey: .popularity)
         genreIDs = (try? c.decodeIfPresent([Int].self, forKey: .genre_ids)) ?? []
+        job = c.flexString(.job)
+        department = c.flexString(.department)
+        voteAverage = try? c.decodeIfPresent(Double.self, forKey: .vote_average)
     }
 }
 
 struct TMDBPersonCredits: Decodable {
     var cast: [TMDBPersonCreditEntry]
-    private enum CodingKeys: String, CodingKey { case cast }
+    var crew: [TMDBPersonCreditEntry]
+    private enum CodingKeys: String, CodingKey { case cast, crew }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         cast = c.lossyArray(TMDBPersonCreditEntry.self, forKey: .cast)
+        crew = c.lossyArray(TMDBPersonCreditEntry.self, forKey: .crew)
+    }
+}
+
+struct TMDBPersonDetails: Decodable {
+    var name: String?
+    var biography: String?
+    var birthday: String?
+    var deathday: String?
+    var placeOfBirth: String?
+    var profilePath: String?
+    var knownFor: String?
+    private enum CodingKeys: String, CodingKey { case name, biography, birthday, deathday, place_of_birth, profile_path, known_for_department }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = c.flexString(.name)
+        biography = c.flexString(.biography)
+        birthday = c.flexString(.birthday)
+        deathday = c.flexString(.deathday)
+        placeOfBirth = c.flexString(.place_of_birth)
+        profilePath = c.flexString(.profile_path)
+        knownFor = c.flexString(.known_for_department)
     }
 }

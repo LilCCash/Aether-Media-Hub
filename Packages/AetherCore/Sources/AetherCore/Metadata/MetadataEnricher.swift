@@ -365,6 +365,26 @@ public actor MetadataEnricher {
         }
     }
 
+    /// The person's page: photo, biography, birth, and the whole career (acting, directing, writing, producing, music, photography). Nil when TMDB cannot say.
+    public func personProfile(personID: Int, name: String, language: String, hideTalkShows: Bool = true) async -> PersonProfile? {
+        guard let tmdb = tmdb, tmdb.isConfigured, !isPaused(.tmdb) else { return nil }
+        do {
+            async let details = tmdb.personDetails(id: personID, language: language)
+            async let credits = tmdb.personCredits(id: personID, language: language)
+            var found = try await details
+            // The biography is empty in some languages: ask for the English one.
+            if (found.biography ?? "").isEmpty, language != "en-US", let english = try? await tmdb.personDetails(id: personID, language: "en-US") {
+                found.biography = english.biography
+            }
+            return PersonProfile.make(details: found, credits: try await credits, fallbackName: name, hideTalkShows: hideTalkShows)
+        } catch let error as MetadataError {
+            note(error, service: .tmdb)
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
     /// The IMDb id of a TMDB title (what a catalog address is made of), so that a similar title can be opened like any other.
     /// Nil when TMDB does not know one or the service does not answer.
     public func imdbID(forTMDBID id: Int, metaType: String) async -> String? {
