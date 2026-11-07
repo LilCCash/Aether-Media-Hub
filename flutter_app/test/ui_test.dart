@@ -315,10 +315,16 @@ void main() {
     Future<void> boot2(
       WidgetTester tester,
       Future<PlaybackSource> Function(PrepareControl) prepare,
-      FakeEngine engine,
-    ) async {
+      FakeEngine engine, {
+      bool intro = false,
+    }) async {
       final s = await tester.runAsync(
-        () => services(settings: const AppSettings(onboardingDone: true)),
+        () => services(
+          settings: AppSettings(
+            onboardingDone: true,
+            ext: {'introMovies': intro},
+          ),
+        ),
       );
       tester.view.physicalSize = const Size(2400, 1080);
       tester.view.devicePixelRatio = 3;
@@ -373,6 +379,26 @@ void main() {
         expect(engine.opened, isNotNull);
       },
     );
+
+    testWidgets('with the start screen on, «Guarda» starts the film', (
+      tester,
+    ) async {
+      final engine = FakeEngine();
+      await boot2(
+        tester,
+        (ctl) async {
+          return const PlaybackSource(uri: '/tmp/x.mp4', isLocalFile: true);
+        },
+        engine,
+        intro: true,
+      );
+      await frames(tester, 6);
+      expect(engine.opened, isNull);
+      expect(find.text('Guarda'), findsOneWidget);
+      await tester.tap(find.text('Guarda'));
+      await frames(tester, 6);
+      expect(engine.opened, isNotNull);
+    });
 
     testWidgets('a failure is explained and can be retried', (tester) async {
       var tries = 0;

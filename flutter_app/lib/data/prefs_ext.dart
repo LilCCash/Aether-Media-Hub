@@ -26,6 +26,22 @@ extension PrefsExt on AppSettings {
     return copyWith(ext: m);
   }
 
+  // ── Start screen of a playback: logo, riser, «Guarda» ──
+  bool get introMovies => _b('introMovies', true);
+  bool get introSeries => _b('introSeries', true);
+  bool get introLive => _b('introLive', false);
+  bool get introSound => _b('introSound', true);
+
+  /// The backdrop, year, genres and plot behind the logo.
+  bool get introScene => _b('introScene', true);
+
+  /// Whether this kind of title opens with the start screen ('tv' = live channels).
+  bool introFor(String type) => switch (type) {
+    'movie' => introMovies,
+    'tv' => introLive,
+    _ => introSeries,
+  };
+
   // ── Player: next episode, credits, sources, picture ──
   bool get skipCredits => _b('skipCredits', true);
   bool get autoNextAtCredits => _b('autoNextAtCredits', false);

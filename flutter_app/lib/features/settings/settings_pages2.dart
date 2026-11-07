@@ -423,6 +423,22 @@ class PlayerAdvancedPage extends ConsumerWidget {
           ],
         ),
         SettingsGroup(
+          title: 'Schermata di avvio',
+          footer: 'Quando tocchi una fonte il player si apre nero: il logo del titolo torna alla sua dimensione, parte un breve riser e, quando tutto è pronto, compare «Guarda». Spenta, la riproduzione parte da sola.',
+          children: const [
+            PrefSwitch('introMovies', 'Per i film', _introMovies),
+            PrefSwitch('introSeries', 'Per serie ed episodi', _introSeries),
+            PrefSwitch('introLive', 'Per i canali Live TV', _introLive),
+            PrefSwitch(
+              'introScene',
+              'Sfondo, informazioni e trama',
+              _introScene,
+              subtitle: 'Lo sfondo del film, anno, durata, generi e trama dietro al logo',
+            ),
+            PrefSwitch('introSound', 'Suono dell’apertura', _introSound),
+          ],
+        ),
+        SettingsGroup(
           title: 'Prossimo episodio e titoli di coda',
           footer: 'I titoli di coda si riconoscono dai dati di IntroDB quando ci sono, altrimenti dagli ultimi secondi del video.',
           children: const [
@@ -614,6 +630,11 @@ class PlayerAdvancedPage extends ConsumerWidget {
   static String _fa(AppSettings s) => s.fallbackAudio;
   static String _fs(AppSettings s) => s.fallbackSubtitle;
   static bool _skipCredits(AppSettings s) => s.skipCredits;
+  static bool _introMovies(AppSettings s) => s.introMovies;
+  static bool _introSeries(AppSettings s) => s.introSeries;
+  static bool _introLive(AppSettings s) => s.introLive;
+  static bool _introScene(AppSettings s) => s.introScene;
+  static bool _introSound(AppSettings s) => s.introSound;
   static bool _nextPreview(AppSettings s) => s.nextPreview;
   static bool _autoNextCredits(AppSettings s) => s.autoNextAtCredits;
   static double _creditsSec(AppSettings s) => s.creditsSec.toDouble();

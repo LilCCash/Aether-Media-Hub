@@ -120,9 +120,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/player',
         builder: (_, state) {
           final args = state.extra as PlayerArgs;
-          return args.prepare == null
-              ? PlayerScreen(args: args)
-              : PreparingPlayer(args: args);
+          // Every playback goes through the start screen (logo, «Guarda») unless it is off for this kind of title.
+          final opens =
+              args.prepare != null ||
+              ProviderScope.containerOf(context)
+                  .read(settingsProvider)
+                  .introFor(args.type);
+          return opens ? PreparingPlayer(args: args) : PlayerScreen(args: args);
         },
       ),
       GoRoute(path: '/theater', builder: (_, __) => const TheaterScreen()),
