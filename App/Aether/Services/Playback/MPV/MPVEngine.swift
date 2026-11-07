@@ -39,6 +39,7 @@ final class MPVSurfaceView: UIView {
         backgroundColor = .black
         isUserInteractionEnabled = false
         metalLayer.framebufferOnly = true
+        metalLayer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         metalLayer.backgroundColor = UIColor.black.cgColor
         metalLayer.contentsGravity = .resize
     }
@@ -394,7 +395,14 @@ final class MPVEngine: NSObject, PlaybackEngine {
             core.setOption("vo", "libmpv")
             core.setOption("hwdec", settings.video.hardwareDecoding ? "videotoolbox-copy" : "no")
         }
-        if !software { core.setOption("target-colorspace-hint", "no") }
+        if !software {
+            // The picture is always converted to what the screen layer is: sRGB / BT.709. Left to detect it, the renderer could take the
+            // layer for a wide-gamut HDR surface and send BT.2020 colours into it (reds turn orange and pale).
+            core.setOption("target-colorspace-hint", "no")
+            core.setOption("target-prim", "bt.709")
+            core.setOption("target-trc", "srgb")
+            core.setOption("icc-profile-auto", "no")
+        }
         for pair in MPVOptions.subtitleStyleProperties(settings.subtitleStyle) { core.setOption(pair.name, pair.value) }
         for pair in MPVOptions.headerOptions(headers) { core.setOption(pair.name, pair.value) }
         if let start = startAt, start > 1 { core.setOption("start", String(format: "%.3f", start)) }

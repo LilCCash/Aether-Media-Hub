@@ -200,11 +200,12 @@ struct DetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     // Where the page is scrolled to: at the top, a pull down is a request to close (when the page sits in a sheet that asks for it).
-                    Color.clear.frame(height: 0)
+                    // It is measured on the header itself: a separate empty row above it added the stack's spacing, and the artwork started
+                    // 18 points below the top of the card.
+                    proHeader
                         .background(GeometryReader { proxy in
                             Color.clear.preference(key: DetailScrollOffsetKey.self, value: proxy.frame(in: .named("detailScroll")).minY)
                         })
-                    proHeader
                     actions
                     ratingsRow
                     // The title written plainly: the logo above is a picture and is sometimes hard to read.
@@ -315,7 +316,7 @@ struct DetailView: View {
             headerArtwork
                 .frame(maxWidth: .infinity)
                 .frame(height: style.cinematic ? 500 : 400)
-                .scaleEffect(style.cinematic && style.motion && !reduceMotion && zoomed ? 1.2 : 1.1)
+                .scaleEffect(style.cinematic && style.motion && !reduceMotion && zoomed ? 1.2 : 1)
                 .clipped()
                 // Explicit animation, not an `.animation` modifier: that one also animated the width of the picture while the card was
                 // still growing to its size, and the artwork filled in slowly from one side.
