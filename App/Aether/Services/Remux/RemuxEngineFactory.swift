@@ -26,8 +26,8 @@ enum RemuxEngineFactory {
     private static let fullFlag = LockedFlag()
 
     /// What the planner needs to know about the converter and the viewer's wish.
-    static func routing(matroskaForAVPlayer: Bool, full: Bool = fullConversion) -> RemuxRouting {
-        return RemuxRouting(available: isAvailable, matroskaForAVPlayer: matroskaForAVPlayer, full: full && isAvailable)
+    static func routing(matroskaForAVPlayer: Bool, full: Bool = fullConversion, live: Bool = false) -> RemuxRouting {
+        return RemuxRouting(available: isAvailable, matroskaForAVPlayer: matroskaForAVPlayer, full: full && isAvailable, live: live && isAvailable)
     }
 }
 
