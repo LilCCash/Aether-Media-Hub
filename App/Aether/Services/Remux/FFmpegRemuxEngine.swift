@@ -192,6 +192,9 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
 
     private let stateLock = NSLock()
     private var closed = false
+    /// The init segment once made, also readable off the queue (under `stateLock`): the player asks for it again at times, and it
+    /// must not wait behind a piece being encoded (the system player gives up after 4 s).
+    private var readyInit: Data?
 
     private let audioChoice: RemuxAudioChoice
     private let full: Bool
@@ -202,6 +205,8 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     private var cues: [Int: [Int: [WebVTTWriter.Cue]]] = [:]
     private var scanned = Set<Int>()
     private var stashed: [Int: Data] = [:]
+    /// The last piece the player asked for: a piece made ahead is only the one after it (after a seek, the old one is skipped).
+    private var lastRequested = 0
     private var audioCarry: (index: Int, packets: [UnsafeMutablePointer<AVPacket>])?
 
     init(fetcher: RelayRangeFetcher, totalBytes: Int64, minimumSegment: Double = 6, audio: RemuxAudioChoice = .standard, full: Bool = false) {
@@ -230,20 +235,47 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     }
 
     func initSegment() async throws -> Data {
-        return try await run {
+        stateLock.lock()
+        let ready = readyInit
+        stateLock.unlock()
+        if let ready, !isClosed { return ready }
+        let data: Data = try await run {
             if let data = self.initData { return data }
             _ = try self.produce(segment: 0)
             guard let data = self.initData else { throw RemuxError.unreadable }
             return data
         }
+        prefetch(1)
+        return data
     }
 
     func mediaSegment(_ index: Int) async throws -> Data {
-        return try await run {
+        let data: Data = try await run {
+            self.lastRequested = index
             if index == 0, let cached = self.firstFragment { return cached }
             if let ready = self.stashed.removeValue(forKey: index) { return ready }
             return try self.produce(segment: index)
         }
+        prefetch(index + 1)
+        return data
+    }
+
+    /// Full conversion: the next piece is encoded while the player plays this one, so it is ready (or nearly) when asked for. A piece
+    /// that takes longer than the player waits would otherwise stop playback. Copied pieces are quick and are made on demand.
+    private func prefetch(_ index: Int) {
+        guard full else { return }
+        queue.async {
+            guard !self.isClosed, let layout = self.layout, index > 0, index < layout.segments.count,
+                  self.stashed[index] == nil, self.lastRequested == index - 1 else { return }
+            guard let fragment = try? self.produce(segment: index) else { return }
+            self.keep(fragment, for: index)
+        }
+    }
+
+    /// A piece made before the player asked for it (only on `queue`).
+    private func keep(_ fragment: Data, for index: Int) {
+        if stashed.count >= 4, let oldest = stashed.keys.min() { stashed.removeValue(forKey: oldest) }
+        stashed[index] = fragment
     }
 
     func subtitleSegment(track: Int, index: Int) async throws -> Data {
@@ -255,10 +287,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
                 // The cues are found while the piece is read: the piece is made now and kept for when the player asks for it.
                 do {
                     let fragment = try self.produce(segment: index)
-                    if index != 0 {
-                        if self.stashed.count >= 4, let oldest = self.stashed.keys.min() { self.stashed.removeValue(forKey: oldest) }
-                        self.stashed[index] = fragment
-                    }
+                    if index != 0 { self.keep(fragment, for: index) }
                 } catch RemuxError.closed {
                     throw RemuxError.closed
                 } catch {
@@ -771,7 +800,12 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
 
         // Only the first piece is made to declare every track; a later piece may lack one (an audio track that has ended), so its
         // `moov` must never become the initialization segment even when it happens to be requested first.
-        if index == 0 && initData == nil { initData = parts.initPart }
+        if index == 0 && initData == nil {
+            initData = parts.initPart
+            stateLock.lock()
+            readyInit = parts.initPart
+            stateLock.unlock()
+        }
         if index == 0 { firstFragment = parts.fragment }
         if collectCues {
             cues[index] = pieceCues
@@ -819,6 +853,9 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             io = nil
         }
         initData = nil
+        stateLock.lock()
+        readyInit = nil
+        stateLock.unlock()
         firstFragment = nil
         stashed.removeAll()
         releaseCarry()
