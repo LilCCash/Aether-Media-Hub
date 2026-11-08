@@ -9,16 +9,31 @@ final class RarArchiveTests: XCTestCase {
     /// RAR 4: marker, main header, one file header per file (stored, method 0x30), the data, the end block.
     private func rar4(_ files: [(name: String, data: [UInt8], unpacked: Int, flags: Int)], method: UInt8 = 0x30) -> Data {
         var bytes: [UInt8] = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00]
-        bytes += [0, 0, 0x73] + le16(0) + le16(13) + [0, 0, 0, 0, 0, 0]          // main header, 13 bytes
+        // Main header, 13 bytes.
+        bytes += [0, 0, 0x73]
+        bytes += le16(0)
+        bytes += le16(13)
+        bytes += [UInt8](repeating: 0, count: 6)
         for file in files {
             let name = Array(file.name.utf8)
             let size = 32 + name.count
-            bytes += [0, 0, 0x74] + le16(0x8000 | file.flags) + le16(size)
-            bytes += le32(file.data.count) + le32(file.unpacked) + [0] + le32(0) + le32(0) + [20, method] + le16(name.count) + le32(0)
+            bytes += [0, 0, 0x74]
+            bytes += le16(0x8000 | file.flags)
+            bytes += le16(size)
+            bytes += le32(file.data.count)
+            bytes += le32(file.unpacked)
+            bytes += [UInt8(0)]
+            bytes += le32(0)
+            bytes += le32(0)
+            bytes += [UInt8(20), method]
+            bytes += le16(name.count)
+            bytes += le32(0)
             bytes += name
             bytes += file.data
         }
-        bytes += [0, 0, 0x7B] + le16(0x4000) + le16(7)
+        bytes += [0, 0, 0x7B]
+        bytes += le16(0x4000)
+        bytes += le16(7)
         return Data(bytes)
     }
 
@@ -38,14 +53,25 @@ final class RarArchiveTests: XCTestCase {
     private func rar5(_ files: [(name: String, data: [UInt8])]) -> Data {
         var bytes: [UInt8] = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00]
         func block(_ body: [UInt8], data: [UInt8] = []) {
-            bytes += [0, 0, 0, 0] + vint(body.count) + body + data
+            bytes += [0, 0, 0, 0]
+            bytes += vint(body.count)
+            bytes += body
+            bytes += data
         }
         block(vint(1) + vint(0) + vint(0))                                      // main: type 1, flags 0, archive flags 0
         for file in files {
             let name = Array(file.name.utf8)
-            var body = vint(2) + vint(0x02) + vint(file.data.count)             // type 2, flags: data area, its size
-            body += vint(0) + vint(file.data.count) + vint(0)                   // file flags, unpacked size, attributes
-            body += vint(0) + vint(0) + vint(name.count) + name                 // compression (stored), host OS, name
+            // Type 2, flags (data area), its size; file flags, unpacked size, attributes; compression (stored), host OS, name.
+            var body: [UInt8] = vint(2)
+            body += vint(0x02)
+            body += vint(file.data.count)
+            body += vint(0)
+            body += vint(file.data.count)
+            body += vint(0)
+            body += vint(0)
+            body += vint(0)
+            body += vint(name.count)
+            body += name
             block(body, data: file.data)
         }
         block(vint(5) + vint(0) + vint(0))                                      // end of archive
@@ -66,7 +92,8 @@ final class RarArchiveTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { $0.isStored && !$0.isEncrypted })
         let second = entries[1]
         XCTAssertEqual(second.packedSize, 500)
-        XCTAssertEqual([UInt8](try await rar.fetch(second.dataOffset...(second.dataOffset + 499))), two)
+        let secondBytes = [UInt8](try await rar.fetch(second.dataOffset...(second.dataOffset + 499)))
+        XCTAssertEqual(secondBytes, two)
     }
 
     func testACompressedRar4IsRecognised() async throws {
@@ -117,7 +144,8 @@ final class RarArchiveTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { $0.isStored })
         let second = entries[1]
         XCTAssertEqual(second.unpackedSize, 130)
-        XCTAssertEqual([UInt8](try await rar.fetch(second.dataOffset...(second.dataOffset + 129))), two)
+        let secondBytes = [UInt8](try await rar.fetch(second.dataOffset...(second.dataOffset + 129)))
+        XCTAssertEqual(secondBytes, two)
     }
 
     func testANonRarIsRefused() async {
