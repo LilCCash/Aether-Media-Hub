@@ -128,6 +128,7 @@ jobs:
           set -o pipefail
           xcodebuild test-without-building \
             -project Aether.xcodeproj -scheme Aether \
+            -clonedSourcePackagesDirPath "$HOME/SourcePackages" -disableAutomaticPackageResolution \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -only-testing:AetherTests \
@@ -195,6 +196,7 @@ jobs:
           TEST_RUNNER_AETHER_FIXTURE_LAN_HOST="${{ steps.fixture.outputs.lan_ip }}" \
           xcodebuild test-without-building \
             -project Aether.xcodeproj -scheme Aether \
+            -clonedSourcePackagesDirPath "$HOME/SourcePackages" -disableAutomaticPackageResolution \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             "${ONLY[@]}" \
