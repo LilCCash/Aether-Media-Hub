@@ -187,6 +187,8 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     private var firstFragment: Data?
     private var released = false
     private var prepared: RemuxPrepared?
+    /// The parameter sets the encoder wrote for each piece (full conversion): every piece must use those of the init segment.
+    private(set) var encodedVideoConfigs: [Int: [UInt8]] = [:]
 
     private let stateLock = NSLock()
     private var closed = false
@@ -575,6 +577,9 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             encodedVideo = try VideoSegmentTranscoder.transcode(packets: packets, stream: videoStream, settings: settings,
                                                                start: span.start, end: span.end, isLast: isLast,
                                                                cancelled: { self.input.isCancelled || self.isClosed })
+            if let par = encodedVideo?.parameters, let data = par.pointee.extradata, par.pointee.extradata_size > 0 {
+                encodedVideoConfigs[index] = Array(UnsafeBufferPointer(start: data, count: Int(par.pointee.extradata_size)))
+            }
         }
         if transcodeAudio, let audioIndex = audioInput, let audioStream = ic.pointee.streams[audioIndex] {
             var packets = kept.filter { Int($0.pointee.stream_index) == audioIndex }

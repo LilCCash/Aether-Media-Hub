@@ -204,6 +204,13 @@ final class FFmpegRemuxEngineTests: XCTestCase {
             XCTAssertEqual(videoStart, prepared.segments[index].start, accuracy: 0.05, "piece \(index)")
             XCTAssertEqual(audioStart, prepared.segments[index].start, accuracy: 0.05, "the AAC grid starts within a frame of the piece")
         }
+        // Each piece has its own encoder, and the player decodes every piece with the parameter sets of the init segment.
+        let configs = engine.encodedVideoConfigs
+        XCTAssertEqual(configs.count, prepared.segments.count)
+        let first = try XCTUnwrap(configs[0])
+        for (index, config) in configs.sorted(by: { $0.key < $1.key }) {
+            XCTAssertEqual(config, first, "piece \(index): parameter sets \(config.map { String(format: "%02x", $0) }.joined()) vs \(first.map { String(format: "%02x", $0) }.joined())")
+        }
     }
 
     func testTextSubtitlesBecomeWebVTTPieces() async throws {
@@ -299,9 +306,10 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         XCTAssertEqual(kinds.filter { $0 == .video }.count, 1, "tracks seen by the player: \(kinds.map { $0.rawValue })")
     }
 
+    /// Plays a served file past its first piece; on failure says what the player logged (requests that failed, decoding errors).
     @MainActor
-    func testTheSystemPlayerPlaysTheFullyConvertedFileWithItsSubtitles() async throws {
-        let served = try await serve("remux-h264-10bit-dts-subs", full: true)
+    private func playAcrossFirstBoundary(_ name: String, full: Bool) async throws -> AVPlayerItem {
+        let served = try await serve(name, full: full)
         defer { served.stop() }
         let item = AVPlayerItem(url: served.url)
         let player = AVPlayer(playerItem: item)
@@ -315,8 +323,28 @@ final class FFmpegRemuxEngineTests: XCTestCase {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
         player.pause()
-        XCTAssertNotEqual(item.status, .failed, "\(String(describing: item.error))")
-        XCTAssertTrue(reached, "playback should pass the 4 s piece boundary (reached \(CMTimeGetSeconds(player.currentTime())) s)")
+        let errors = (item.errorLog()?.events ?? []).map { "\($0.errorStatusCode) \($0.errorDomain) \($0.errorComment ?? "") \($0.uri ?? "")" }
+        let access = (item.accessLog()?.events ?? []).map { "uri=\($0.uri ?? "") requests=\($0.numberOfMediaRequests) stalls=\($0.numberOfStalls) dropped=\($0.numberOfDroppedVideoFrames)" }
+        XCTContext.runActivity(named: "PLAYER-LOG \(name) errors \(errors) access \(access)") { _ in }
+        XCTAssertNotEqual(item.status, .failed, "\(name): \(String(describing: item.error)) errors \(errors)")
+        XCTAssertTrue(reached, "\(name): playback should pass the 4 s piece boundary (reached \(CMTimeGetSeconds(player.currentTime())) s); errors \(errors); access \(access)")
+        return item
+    }
+
+    @MainActor
+    func testTheSystemPlayerPlaysAFileWhoseSoundIsReencoded() async throws {
+        // H.264 8 bit copied, DTS made AAC: the sound alone across the boundary.
+        _ = try await playAcrossFirstBoundary("remux-h264-dts", full: true)
+    }
+
+    @MainActor
+    func testTheSystemPlayerPlaysAFullyConvertedFileWithoutSubtitles() async throws {
+        _ = try await playAcrossFirstBoundary("remux-h264-10bit-dts", full: true)
+    }
+
+    @MainActor
+    func testTheSystemPlayerPlaysTheFullyConvertedFileWithItsSubtitles() async throws {
+        let item = try await playAcrossFirstBoundary("remux-h264-10bit-dts-subs", full: true)
         XCTAssertEqual(item.presentationSize.width, 160)
         let legible = try await item.asset.loadMediaSelectionGroup(for: .legible)
         let names = legible?.options.map { $0.displayName } ?? []
