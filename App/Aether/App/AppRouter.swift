@@ -104,6 +104,10 @@ final class AppRouter: ObservableObject {
     /// What to do once the player closes (closing the source list that is still under it).
     var afterPlayer: (() -> Void)?
     @Published var detail: MetaRoute?
+    /// The list of sources opened from a card of the Home or the Library (Continue watching, Up next). It is shown by the root of the
+    /// app: shown by the card itself it vanished when the screen turned for the player (the card is made again), and took the
+    /// player's black page with it.
+    @Published var picker: StreamPickerRequest?
     /// The poster a title page was opened from (one title can be in several rows): the page zooms out of that one.
     var zoomSourceID: String?
     @Published var pendingAddonInput: String?

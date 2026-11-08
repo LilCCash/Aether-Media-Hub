@@ -191,6 +191,9 @@ private struct PlayerPresenter: UIViewRepresentable {
         private weak var router: AppRouter?
         private var task: Task<Void, Never>?
         private var watching: AnyCancellable?
+        /// Watches the page once it is up: iOS can take it down with a page under it (a list that leaves while the screen turns).
+        private var watchdog: Task<Void, Never>?
+        private var revivals = 0
 
         /// Closing the player clears the router's request: take the page down at once, whatever SwiftUI re-evaluates.
         func watch(_ router: AppRouter) {
@@ -198,6 +201,9 @@ private struct PlayerPresenter: UIViewRepresentable {
             guard watching == nil else { return }
             let close: (AppRouter) -> Void = { [weak self] router in
                 guard router.player == nil, router.launch == nil, let self = self, let controller = self.controller else { return }
+                self.watchdog?.cancel()
+                self.watchdog = nil
+                self.revivals = 0
                 self.controller = nil
                 self.sessionActive = false
                 controller.dismissThenTurnBack()
@@ -217,6 +223,9 @@ private struct PlayerPresenter: UIViewRepresentable {
             guard item != nil || launch != nil else {
                 task?.cancel()
                 task = nil
+                watchdog?.cancel()
+                watchdog = nil
+                revivals = 0
                 sessionActive = false
                 presenting = false
                 if let controller = controller {
@@ -244,7 +253,7 @@ private struct PlayerPresenter: UIViewRepresentable {
             }
         }
 
-        private func present(immediate: Bool, from view: UIView?, makeRoot: () -> AnyView) async {
+        private func present(immediate: Bool, from view: UIView?, makeRoot: @escaping () -> AnyView) async {
             presenting = true
             defer { presenting = false }
             guard let base = Coordinator.owner(of: view) else {
@@ -286,6 +295,7 @@ private struct PlayerPresenter: UIViewRepresentable {
                 controller = host
                 top.present(host, animated: false)
                 router?.note("Apertura: pagina del lettore presentata (senza pagina nera)")
+                startWatchdog(from: view, makeRoot: makeRoot)
                 return
             }
             OrientationController.set(.landscape)
@@ -306,6 +316,7 @@ private struct PlayerPresenter: UIViewRepresentable {
                     top.present(host, animated: false)
                     if host.presentingViewController != nil {
                         router?.note("Apertura: pagina del lettore presentata (tentativo \(attempt + 1))")
+                        startWatchdog(from: view, makeRoot: makeRoot)
                         return
                     }
                 }
@@ -318,6 +329,7 @@ private struct PlayerPresenter: UIViewRepresentable {
             last.present(host, animated: false)
             if host.presentingViewController != nil {
                 router?.note("Apertura: pagina del lettore presentata all'ultimo tentativo")
+                startWatchdog(from: view, makeRoot: makeRoot)
                 return
             }
             router?.note("Apertura: la pagina del lettore non è comparsa, riporto tutto com'era")
@@ -330,6 +342,30 @@ private struct PlayerPresenter: UIViewRepresentable {
                 if router.player != nil { router.player = nil }
             }
             OrientationController.restore()
+        }
+
+        /// While the player (or its black page) should be on screen, checks that it still is. A page under it that leaves (the list
+        /// of sources dismissed by iOS while the screen turns) takes it away too, and nothing told the app: the page stayed off until
+        /// the app was woken up again (Control Center, app switcher). It is put back at once instead.
+        private func startWatchdog(from view: UIView?, makeRoot: @escaping () -> AnyView) {
+            watchdog?.cancel()
+            watchdog = Task { [weak self, weak view] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    guard let self = self, let router = self.router, !Task.isCancelled else { return }
+                    // The run is over: nothing to keep up.
+                    if router.launch == nil && router.player == nil { return }
+                    guard let host = self.controller else { return }
+                    if self.presenting || host.isBeingDismissed || host.isBeingPresented { continue }
+                    guard host.presentingViewController == nil, self.revivals < 3 else { continue }
+                    self.revivals += 1
+                    router.note("Apertura: la pagina del lettore è stata tolta da iOS, la rimetto")
+                    self.controller = nil
+                    self.sessionActive = true
+                    await self.present(immediate: router.launch != nil, from: view, makeRoot: makeRoot)
+                    if self.controller == nil { return }
+                }
+            }
         }
 
         private static func owner(of view: UIView?) -> UIViewController? {

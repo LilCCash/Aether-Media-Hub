@@ -313,8 +313,8 @@ struct ContinueCard: View {
     var width: CGFloat? = 240
     var cardStyle: HomeCardStyle = .landscape
     @EnvironmentObject private var env: AppEnvironment
+    @EnvironmentObject private var router: AppRouter
     @Environment(\.aetherStyle) private var style
-    @State private var picker: StreamPickerRequest?
 
     private var isPortrait: Bool { cardStyle == .poster }
     private var ratio: CGFloat { isPortrait ? 2.0 / 3.0 : 16.0 / 9.0 }
@@ -323,7 +323,7 @@ struct ContinueCard: View {
 
     var body: some View {
         Button {
-            picker = StreamPickerRequest(meta: progress.asMeta, video: video, resumeAt: progress.position)
+            router.picker = StreamPickerRequest(meta: progress.asMeta, video: video, resumeAt: progress.position)
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 picture
@@ -339,6 +339,12 @@ struct ContinueCard: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            Button {
+                let meta = progress.asMeta
+                router.detail = MetaRoute(type: meta.type, id: meta.id, preview: meta)
+            } label: {
+                Label("Vai alla scheda del titolo", systemImage: "info.circle")
+            }
             Button { Task { await env.libraryStore.dismissFromContinueWatching(metaID: progress.metaID) } } label: {
                 Label("Rimuovi da Continua a guardare", systemImage: "xmark.circle")
             }
@@ -348,9 +354,6 @@ struct ContinueCard: View {
             Button(role: .destructive) { Task { await env.libraryStore.removeHistory(id: progress.id) } } label: {
                 Label("Elimina dalla cronologia", systemImage: "trash")
             }
-        }
-        .sheet(item: $picker) { request in
-            StreamPickerSheet(request: request)
         }
         .accessibilityLabel("\(progress.title), \(subtitle). Tocca per riprendere.")
     }
@@ -430,7 +433,7 @@ struct NextUpCard: View {
     /// Used by the wide and poster styles; the compact card has a fixed size.
     var width: CGFloat = 240
     @Environment(\.aetherStyle) private var style
-    @State private var picker: StreamPickerRequest?
+    @EnvironmentObject private var router: AppRouter
 
     private var episodeText: String {
         [item.video.episodeLabel, item.video.title].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
@@ -438,7 +441,7 @@ struct NextUpCard: View {
 
     var body: some View {
         Button {
-            picker = StreamPickerRequest(meta: item.meta, video: item.video, resumeAt: nil)
+            router.picker = StreamPickerRequest(meta: item.meta, video: item.video, resumeAt: nil)
         } label: {
             switch cardStyle {
             case .compact: compact
@@ -447,8 +450,12 @@ struct NextUpCard: View {
             }
         }
         .buttonStyle(.plain)
-        .sheet(item: $picker) { request in
-            StreamPickerSheet(request: request)
+        .contextMenu {
+            Button {
+                router.detail = MetaRoute(type: item.meta.type, id: item.meta.id, preview: item.meta)
+            } label: {
+                Label("Vai alla scheda del titolo", systemImage: "info.circle")
+            }
         }
         .accessibilityLabel("Prossimo episodio di \(item.meta.name): \(item.video.episodeLabel ?? "") \(item.video.title)")
     }

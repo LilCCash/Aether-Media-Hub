@@ -248,6 +248,7 @@ struct RootView: View {
         }
         .landscapePlayer($router.player, showsLaunch: true)
         .sheet(isPresented: $extras.showingWhatsNew) { WhatsNewSheet() }
+        .sheet(item: $router.picker) { request in StreamPickerSheet(request: request) }
         .sheet(item: Binding(get: { detailAsSheet ? router.detail : nil }, set: { router.detail = $0 })) { route in
             // The zoom is set on the presented page itself (the stack), not inside it: inside, iOS took it for a push and ignored it.
             NavigationStack { DetailView(route: route) }

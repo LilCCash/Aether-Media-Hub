@@ -159,12 +159,14 @@ struct StoryMapSurface: UIViewRepresentable {
     func makeUIView(context: Context) -> StoryMapScrollView {
         let view = StoryMapScrollView()
         view.build(map: map, content: content(), size: StoryMapGeometry.size(map))
+        view.open = open
         view.handledCommand = command.id
         return view
     }
 
     func updateUIView(_ view: StoryMapScrollView, context: Context) {
         view.updateContent(content())
+        view.open = open
         if command.id != view.handledCommand {
             view.handledCommand = command.id
             view.apply(command.kind)
@@ -184,7 +186,9 @@ final class StoryMapScrollView: UIScrollView, UIScrollViewDelegate {
     private var lineLayers: [CAShapeLayer] = []
     private var contentSizeAtOne: CGSize = .zero
     private var placed = false
+    private var nodes: [UniverseStoryMap.Node] = []
     var handledCommand = 0
+    var open: ((UniverseEntry) -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -198,12 +202,18 @@ final class StoryMapScrollView: UIScrollView, UIScrollViewDelegate {
         let doubleTap = UITapGestureRecognizer(target: self, action: #selector(doubleTapped(_:)))
         doubleTap.numberOfTapsRequired = 2
         addGestureRecognizer(doubleTap)
+        // A title opens with a tap read here, not by the posters' own buttons: SwiftUI's touch handling inside the map sometimes
+        // kept the first finger of a pinch for itself, and the scroll view saw no pinch or drag at all.
+        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
+        tap.require(toFail: doubleTap)
+        addGestureRecognizer(tap)
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
     func build(map: UniverseStoryMap, content: AnyView, size: CGSize) {
         contentSizeAtOne = size
+        nodes = map.nodes
         canvas.frame = CGRect(origin: .zero, size: size)
         addSubview(canvas)
         drawLines(map)
@@ -211,6 +221,7 @@ final class StoryMapScrollView: UIScrollView, UIScrollViewDelegate {
         host.view.backgroundColor = .clear
         host.view.frame = canvas.bounds
         host.safeAreaRegions = []
+        host.view.isUserInteractionEnabled = false
         canvas.addSubview(host.view)
         self.host = host
         contentSize = size
@@ -261,6 +272,16 @@ final class StoryMapScrollView: UIScrollView, UIScrollViewDelegate {
         let width = bounds.width / target
         let height = bounds.height / target
         zoom(to: CGRect(x: inCanvas.x - width / 2, y: inCanvas.y - height / 2, width: width, height: height), animated: true)
+    }
+
+    @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
+        let point = recognizer.location(in: canvas)
+        let size = StoryMapGeometry.nodeSize
+        let hit = nodes.first { node in
+            let center = StoryMapGeometry.center(node)
+            return CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height).contains(point)
+        }
+        if let hit { open?(hit.entry) }
     }
 
     @objc private func doubleTapped(_ recognizer: UITapGestureRecognizer) {
