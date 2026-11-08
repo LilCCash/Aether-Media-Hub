@@ -164,6 +164,10 @@ final class PlayerViewModel: ObservableObject {
     /// Answers of the addons asked without a local hash / with the hash computed on this device.
     private var plainSubtitles: [AddonSubtitle] = []
     private var hashedSubtitles: [AddonSubtitle] = []
+    /// From the full OpenSubtitles.org catalogue, in the viewer's languages (the v3 addon only has a part of it).
+    private var catalogSubtitles: [AddonSubtitle] = []
+    private var catalogLoading = false
+    private var subtitleAddonsFinished = false
     private var selectedOption: SubtitleOption?
     private var failedSubtitle: SubtitleOption?
     private var subtitleGeneration = 0
@@ -1689,6 +1693,9 @@ final class PlayerViewModel: ObservableObject {
         streamSubtitles = announced
         plainSubtitles = []
         hashedSubtitles = []
+        catalogSubtitles = []
+        subtitleAddonsFinished = false
+        catalogLoading = startCatalogSearch(videoID: videoID, generation: generation)
         subtitleListPhase = .loading
         rebuildSubtitleList()
         applyPreferredSubtitleIfNeeded()
@@ -1696,7 +1703,7 @@ final class PlayerViewModel: ObservableObject {
         let handles = await env.service.handles()
         guard generation == subtitleGeneration, !tornDown else { return }
         let providers = SubtitleAddonSupport.providers(in: handles, type: type, videoID: videoID)
-        hasSubtitleProvider = !providers.isEmpty
+        hasSubtitleProvider = !providers.isEmpty || catalogLoading || !catalogSubtitles.isEmpty
         if providers.isEmpty {
             finishSubtitleLoading()
             return
@@ -1712,7 +1719,43 @@ final class PlayerViewModel: ObservableObject {
         finishSubtitleLoading()
     }
 
+    /// Asks the OpenSubtitles.org catalogue for this video in the viewer's languages (at most two), next to the addons. Returns
+    /// whether a search started; the list is final only once it has answered too.
+    private func startCatalogSearch(videoID: String, generation: Int) -> Bool {
+        guard playback.openSubtitlesCatalog else { return false }
+        var languages = subtitleWishes().ranking
+        if languages.isEmpty, let system = Locale.preferredLanguages.first { languages = [LanguageCodes.normalise(system)] }
+        var codes: [String] = []
+        for language in languages {
+            if let code = OpenSubtitlesCatalog.catalogLanguage(language), !codes.contains(code) { codes.append(code) }
+        }
+        let urls = codes.prefix(2).compactMap { OpenSubtitlesCatalog.searchURL(videoID: videoID, language: $0) }
+        guard !urls.isEmpty else { return false }
+        let http = env.http
+        Task { [weak self] in
+            var found: [AddonSubtitle] = []
+            for url in urls {
+                let request = HTTPRequest(url: url, headers: OpenSubtitlesCatalog.headers, timeout: 12, maxBytes: 4 << 20, purpose: .addonRequest)
+                if let response = try? await http.send(request), response.isSuccess {
+                    found.append(contentsOf: OpenSubtitlesCatalog.parse(response.data))
+                }
+            }
+            guard let self = self, generation == self.subtitleGeneration, !self.tornDown else { return }
+            self.catalogSubtitles = found
+            self.catalogLoading = false
+            self.env.diagnostics.logDetached(.info, "subtitles", "OpenSubtitles.org: \(found.count) sottotitoli nelle lingue scelte")
+            if self.subtitleAddonsFinished { self.finishSubtitleLoading() } else { self.rebuildSubtitleList() }
+        }
+        return true
+    }
+
     private func finishSubtitleLoading() {
+        subtitleAddonsFinished = true
+        // The automatic choice waits for the catalogue too: it may have the only subtitle in the viewer's language.
+        if catalogLoading {
+            rebuildSubtitleList()
+            return
+        }
         subtitleListPhase = .ready
         rebuildSubtitleList()
         applyPreferredSubtitleIfNeeded()
@@ -1757,6 +1800,7 @@ final class PlayerViewModel: ObservableObject {
         var pool: [AddonSubtitle] = streamSubtitles
         pool.append(contentsOf: hashedSubtitles)
         pool.append(contentsOf: plainSubtitles)
+        pool.append(contentsOf: catalogSubtitles)
         // The subtitle on screen stays in the list even if a refreshed answer no longer carries it.
         if let selected = selectedOption, case .addon(let subtitle) = selected.kind {
             let wanted = subtitle.url.trimmingCharacters(in: .whitespacesAndNewlines)

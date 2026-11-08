@@ -562,6 +562,9 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var liveConversion: Bool = false
     /// Which live sources are converted: addon ids, and `ConversionSources.playlists` for the M3U playlists. Empty = all of them.
     public var liveConversionSources: [String] = []
+    /// Subtitles are also looked for in the full OpenSubtitles.org catalogue, in the viewer's languages (the OpenSubtitles v3
+    /// addon only has a small selection of it).
+    public var openSubtitlesCatalog: Bool = true
     public var controlsAutoHideSeconds: Int = 4
     public var landscapeOnly: Bool = true
     /// The black page with the film's logo opens at once, over the source list, and stays until the picture runs. Off (the default until it
@@ -602,7 +605,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly, instantLaunchPage, introMovies, introSeries, introLive
         case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering, convertMatroskaForAVPlayer, sourceScoring, cinemaMode, mpvPictureInPicture
-        case conversionMode, liveConversion, liveConversionSources
+        case conversionMode, liveConversion, liveConversionSources, openSubtitlesCatalog
     }
 
     public init(from decoder: Decoder) throws {
@@ -636,6 +639,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         conversionMode = c.value(.conversionMode, default: ConversionMode.light)
         liveConversion = c.value(.liveConversion, default: false)
         liveConversionSources = c.value(.liveConversionSources, default: [String]())
+        openSubtitlesCatalog = c.value(.openSubtitlesCatalog, default: true)
         controlsAutoHideSeconds = min(15, max(2, c.value(.controlsAutoHideSeconds, default: 4)))
         landscapeOnly = c.value(.landscapeOnly, default: true)
         instantLaunchPage = c.value(.instantLaunchPage, default: true)

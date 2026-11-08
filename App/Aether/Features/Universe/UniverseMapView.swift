@@ -1,31 +1,20 @@
 import SwiftUI
+import UIKit
 import AetherCore
 
 /// The universe as a map of its stories: every line is a storyline (Iron Man, the Skywalker saga, Bond's Connery years…), the titles
-/// sit on it from left to right in the chosen order, a line joins the next title of the same story, and the curves show where stories
-/// meet. It is explored like a map: pinch to zoom out for the whole universe or in for the titles, drag to move, double tap to zoom.
+/// sit on it from left to right in the chosen order, a solid line joins the next title of the same story and a dashed arrow shows
+/// where stories meet. It is explored like a map (pinch, drag with inertia, double tap): lines, posters and names are drawn once on
+/// one surface that moves and zooms as a whole, so the lines never shift against the titles.
 struct UniverseMapView: View {
     let universe: UniverseDefinition
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var library: LibraryModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.imageLoader) private var loader
     @State private var order: UniverseOrder = .release
-
-    // The view of the map: content point p is drawn at p · scale + offset.
-    @State private var scale: CGFloat = 0.6
-    @State private var offset: CGSize = .zero
-    @State private var panStart: CGSize?
-    @State private var pinchStart: (scale: CGFloat, offset: CGSize)?
-    @State private var viewport: CGSize = .zero
-    @State private var placed = false
-
-    // Content geometry (points at scale 1).
-    private let slotWidth: CGFloat = 128
-    private let laneHeight: CGFloat = 196
-    private let leftPad: CGFloat = 40
-    private let topPad: CGFloat = 56
-    private let nodeSize = CGSize(width: 110, height: 176)
-    private let maxScale: CGFloat = 1.3
+    @State private var opened: MetaRoute?
+    @State private var command = StoryMapCommand(id: 0, kind: .start)
 
     private var custom: [String]? { return settings.value.content.universes.customOrders[universe.id] }
     private var watched: Set<String> { return Set(WatchedTitles.sources(library: library, diary: settings.value.content.diary).keys) }
@@ -37,12 +26,12 @@ struct UniverseMapView: View {
         return NavigationStack {
             ZStack {
                 Color(red: 0.035, green: 0.04, blue: 0.07).ignoresSafeArea()
-                GeometryReader { proxy in
-                    canvas(map, seen: seen)
-                        .onAppear { viewportChanged(proxy.size, map: map) }
-                        .onChange(of: proxy.size) { _, size in viewportChanged(size, map: map) }
+                StoryMapSurface(map: map, seen: seen, showsYears: order == .release, command: command, settings: settings, loader: loader) { entry in
+                    opened = MetaRoute(type: entry.type, id: entry.id,
+                                       preview: MetaItem(id: entry.id, type: entry.type, name: entry.name, poster: UniverseArt.poster(entry.id)))
                 }
-                .clipped()
+                .id(order)
+                .ignoresSafeArea(edges: .bottom)
                 VStack(spacing: 0) {
                     if orders.count > 1 {
                         Picker("Ordine", selection: $order) { ForEach(orders, id: \.self) { Text($0.title).tag($0) } }
@@ -59,236 +48,9 @@ struct UniverseMapView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Fine") { dismiss() }.fontWeight(.semibold) } }
-            .navigationDestination(for: MetaRoute.self) { DetailView(route: $0) }
-            .onChange(of: order) { _, _ in
-                withAnimation(.smooth(duration: 0.45)) { place(UniverseStoryMap.build(universe, order: order, custom: custom), overview: false) }
-            }
+            .navigationDestination(item: $opened) { DetailView(route: $0) }
         }
         .preferredColorScheme(.dark)
-    }
-
-    // MARK: Geometry
-
-    private func contentSize(_ map: UniverseStoryMap) -> CGSize {
-        return CGSize(width: leftPad * 2 + CGFloat(max(1, map.slotCount)) * slotWidth,
-                      height: topPad + CGFloat(max(1, map.lanes.count)) * laneHeight + 70)
-    }
-
-    private func point(_ node: UniverseStoryMap.Node) -> CGPoint {
-        return CGPoint(x: leftPad + (CGFloat(node.slot) + 0.5) * slotWidth, y: topPad + (CGFloat(node.lane) + 0.5) * laneHeight)
-    }
-
-    private func screen(_ p: CGPoint) -> CGPoint {
-        return CGPoint(x: p.x * scale + offset.width, y: p.y * scale + offset.height)
-    }
-
-    private func minScale(_ map: UniverseStoryMap) -> CGFloat {
-        guard viewport.width > 0 else { return 0.05 }
-        let size = contentSize(map)
-        return max(0.03, min(0.5, min(viewport.width / size.width, viewport.height / size.height) * 0.95))
-    }
-
-    private func viewportChanged(_ size: CGSize, map: UniverseStoryMap) {
-        viewport = size
-        if !placed {
-            placed = true
-            place(map, overview: false)
-        } else {
-            offset = clamped(offset, scale: scale, map: map)
-        }
-    }
-
-    /// The start of the map, big enough to read the titles (or the whole universe, `overview`).
-    private func place(_ map: UniverseStoryMap, overview: Bool) {
-        let size = contentSize(map)
-        if overview {
-            scale = minScale(map)
-        } else {
-            // Up to four lines on screen, never smaller than the titles can be read.
-            let fitLanes = viewport.height / (topPad + laneHeight * CGFloat(min(4, max(1, map.lanes.count))) + 20)
-            scale = min(maxScale, max(0.42, fitLanes))
-        }
-        let first = map.nodes.first.map(point) ?? CGPoint(x: leftPad, y: topPad)
-        var target = CGSize(width: 20 - (first.x - slotWidth / 2) * scale, height: 46)
-        if size.width * scale < viewport.width { target.width = (viewport.width - size.width * scale) / 2 }
-        offset = clamped(target, scale: scale, map: map)
-    }
-
-    private func clamped(_ value: CGSize, scale: CGFloat, map: UniverseStoryMap) -> CGSize {
-        let size = contentSize(map)
-        func axis(_ v: CGFloat, content: CGFloat, view: CGFloat, leading: CGFloat) -> CGFloat {
-            let drawn = content * scale
-            if drawn + leading < view { return leading + (view - leading - drawn) / 2 }
-            return min(leading + 40, max(view - drawn - 80, v))
-        }
-        return CGSize(width: axis(value.width, content: size.width, view: viewport.width, leading: 0),
-                      height: axis(value.height, content: size.height, view: viewport.height, leading: 40))
-    }
-
-    // MARK: Drawing
-
-    private func canvas(_ map: UniverseStoryMap, seen: Set<String>) -> some View {
-        let byID = Dictionary(uniqueKeysWithValues: map.nodes.map { ($0.entry.id, $0) })
-        let detailed = scale >= 0.3
-        let margin = max(nodeSize.width, nodeSize.height) * scale
-        let visible = map.nodes.filter { node in
-            let p = screen(point(node))
-            return p.x > -margin && p.x < viewport.width + margin && p.y > -margin && p.y < viewport.height + margin
-        }
-        return ZStack(alignment: .topLeading) {
-            Canvas { context, _ in
-                drawLanes(map, in: &context)
-                drawYears(map, in: &context)
-                for link in map.links {
-                    guard let from = byID[link.from], let to = byID[link.to] else { continue }
-                    drawLink(link, from: from, to: to, in: &context)
-                }
-                if !detailed {
-                    for node in map.nodes {
-                        let p = screen(point(node))
-                        let radius = max(3, 26 * scale)
-                        let rect = CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)
-                        context.fill(Path(ellipseIn: rect), with: .color(seen.contains(node.id) ? Color.accentColor : laneColor(node.lane)))
-                        context.stroke(Path(ellipseIn: rect), with: .color(.white.opacity(0.8)), lineWidth: 1.2)
-                    }
-                }
-            }
-            .allowsHitTesting(false)
-            if detailed {
-                ForEach(visible) { node in
-                    nodeView(node, isWatched: seen.contains(node.id))
-                        .scaleEffect(scale)
-                        .position(screen(point(node)))
-                }
-            }
-            laneLabels(map)
-        }
-        .frame(width: viewport.width, height: viewport.height)
-        .contentShape(Rectangle())
-        .gesture(panAndZoom(map))
-        .onTapGesture(count: 2) { location in zoom(by: scale < 0.6 ? 2.2 : 0.45, around: location, map: map) }
-    }
-
-    private func drawLanes(_ map: UniverseStoryMap, in context: inout GraphicsContext) {
-        for lane in map.lanes {
-            let y = topPad + (CGFloat(lane.id) + 0.5) * laneHeight
-            // The lane's band, faint, and the track from its first title to its last.
-            let band = CGRect(x: 0, y: (y - laneHeight / 2) * scale + offset.height, width: viewport.width, height: laneHeight * scale)
-            if lane.id % 2 == 0 { context.fill(Path(band), with: .color(.white.opacity(0.025))) }
-            let slots = lane.entries.compactMap { map.node($0.id)?.slot }
-            guard let low = slots.min(), let high = slots.max() else { continue }
-            let start = screen(CGPoint(x: leftPad + (CGFloat(low) + 0.5) * slotWidth, y: y))
-            let end = screen(CGPoint(x: leftPad + (CGFloat(high) + 0.5) * slotWidth, y: y))
-            var track = Path()
-            track.move(to: start)
-            track.addLine(to: end)
-            context.stroke(track, with: .color(laneColor(lane.id).opacity(0.22)), style: StrokeStyle(lineWidth: max(2, 10 * scale), lineCap: .round))
-        }
-    }
-
-    private func drawYears(_ map: UniverseStoryMap, in context: inout GraphicsContext) {
-        guard order == .release else { return }
-        var lastYear: Int?
-        var lastX = -CGFloat.infinity
-        for node in map.nodes.sorted(by: { $0.column < $1.column }) where node.entry.year != lastYear {
-            lastYear = node.entry.year
-            let x = screen(point(node)).x
-            guard x - lastX > 34 else { continue }
-            lastX = x
-            let top = max(52, offset.height + topPad * scale - 24)
-            var tick = Path()
-            tick.move(to: CGPoint(x: x, y: top + 10))
-            tick.addLine(to: CGPoint(x: x, y: viewport.height))
-            context.stroke(tick, with: .color(.white.opacity(0.05)), lineWidth: 1)
-            context.draw(Text(String(node.entry.year)).font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.55)),
-                         at: CGPoint(x: x, y: top))
-        }
-    }
-
-    private func drawLink(_ link: UniverseStoryMap.Link, from: UniverseStoryMap.Node, to: UniverseStoryMap.Node, in context: inout GraphicsContext) {
-        let a = screen(point(from))
-        let b = screen(point(to))
-        let half = nodeSize.width / 2 * scale * 0.8
-        let start = CGPoint(x: a.x + half, y: a.y)
-        let end = CGPoint(x: b.x - half, y: b.y)
-        var path = Path()
-        path.move(to: start)
-        if link.kind == .sequel && from.lane == to.lane {
-            path.addLine(to: end)
-        } else {
-            let bend = max(30 * scale, abs(end.x - start.x) * 0.5)
-            path.addCurve(to: end, control1: CGPoint(x: start.x + bend, y: start.y), control2: CGPoint(x: end.x - bend, y: end.y))
-        }
-        let color = laneColor(link.kind == .sequel ? from.lane : to.lane)
-        if link.kind == .sequel {
-            context.stroke(path, with: .color(color.opacity(0.9)), style: StrokeStyle(lineWidth: max(1.5, 4 * scale), lineCap: .round))
-        } else {
-            let dash = max(scale, 0.4)
-            context.stroke(path, with: .color(color.opacity(0.75)),
-                           style: StrokeStyle(lineWidth: max(1, 2.5 * scale), lineCap: .round, dash: [6 * dash, 5 * dash]))
-            // An arrow head where the story arrives.
-            let size = max(4, 9 * scale)
-            var head = Path()
-            head.move(to: end)
-            head.addLine(to: CGPoint(x: end.x - size, y: end.y - size * 0.6))
-            head.addLine(to: CGPoint(x: end.x - size, y: end.y + size * 0.6))
-            head.closeSubpath()
-            context.fill(head, with: .color(color.opacity(0.9)))
-        }
-    }
-
-    /// The names of the lines stay on the left edge, wherever the map is moved.
-    private func laneLabels(_ map: UniverseStoryMap) -> some View {
-        ForEach(map.lanes) { lane in
-            let y = (topPad + CGFloat(lane.id) * laneHeight) * scale + offset.height + 4
-            if y > 40 && y < viewport.height - 20 {
-                HStack(spacing: 6) {
-                    Circle().fill(laneColor(lane.id)).frame(width: 8, height: 8)
-                    Text(lane.name).font(.system(size: 12, weight: .bold, design: .rounded)).lineLimit(1)
-                    Text("\(lane.entries.count)").font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.55))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(.ultraThinMaterial))
-                .overlay(Capsule().stroke(laneColor(lane.id).opacity(0.5), lineWidth: 1))
-                .fixedSize()
-                .offset(x: 10, y: y)
-                .allowsHitTesting(false)
-            }
-        }
-    }
-
-    private func nodeView(_ node: UniverseStoryMap.Node, isWatched: Bool) -> some View {
-        let entry = node.entry
-        let color = laneColor(node.lane)
-        let route = MetaRoute(type: entry.type, id: entry.id,
-                              preview: MetaItem(id: entry.id, type: entry.type, name: entry.name, poster: UniverseArt.poster(entry.id)))
-        return NavigationLink(value: route) {
-            VStack(spacing: 6) {
-                ZStack(alignment: .topTrailing) {
-                    RemoteImage(urlString: UniverseArt.poster(entry.id), width: 220, placeholderSeed: entry.name, systemPlaceholder: "film")
-                        .frame(width: 84, height: 126)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(isWatched ? Color.accentColor : color, lineWidth: isWatched ? 3 : 2))
-                        .shadow(color: color.opacity(0.45), radius: 10, y: 3)
-                        .saturation(isWatched ? 1 : 0.85)
-                    if isWatched {
-                        Image(systemName: "checkmark.circle.fill").font(.system(size: 20)).foregroundStyle(.white, Color.accentColor).offset(x: 7, y: -7)
-                    } else if entry.isSeries {
-                        Text("SERIE").font(.system(size: 8, weight: .heavy)).padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(Capsule().fill(color)).foregroundStyle(.white).offset(x: 4, y: -5)
-                    }
-                }
-                Text(entry.name).font(.system(size: 11, weight: .semibold)).multilineTextAlignment(.center).lineLimit(2)
-                    .foregroundStyle(.white).frame(width: nodeSize.width)
-                Text(String(entry.year)).font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.white.opacity(0.55))
-            }
-            .frame(width: nodeSize.width, height: nodeSize.height, alignment: .top)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-        .accessibilityLabel("\(entry.name), \(String(entry.year))\(isWatched ? ", visto" : "")")
     }
 
     private func footer(_ map: UniverseStoryMap, seen: Set<String>) -> some View {
@@ -305,11 +67,9 @@ struct UniverseMapView: View {
                 }
             }
             Spacer(minLength: 4)
-            mapButton("minus.magnifyingglass", label: "Allontana") { zoom(by: 0.6, around: center, map: map) }
-            mapButton("plus.magnifyingglass", label: "Avvicina") { zoom(by: 1.6, around: center, map: map) }
-            mapButton("arrow.up.left.and.arrow.down.right", label: "Tutto l'universo") {
-                withAnimation(.smooth(duration: 0.45)) { place(map, overview: scale > minScale(map) * 1.2) }
-            }
+            mapButton("minus.magnifyingglass", label: "Allontana") { send(.zoomOut) }
+            mapButton("plus.magnifyingglass", label: "Avvicina") { send(.zoomIn) }
+            mapButton("arrow.up.left.and.arrow.down.right", label: "Tutto l'universo") { send(.overview) }
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 14)
@@ -317,6 +77,10 @@ struct UniverseMapView: View {
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(.ultraThinMaterial))
         .padding(.horizontal, 10)
         .padding(.bottom, 6)
+    }
+
+    private func send(_ kind: StoryMapCommand.Kind) {
+        command = StoryMapCommand(id: command.id + 1, kind: kind)
     }
 
     private func legend(dashed: Bool, text: String) -> some View {
@@ -339,65 +103,348 @@ struct UniverseMapView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(label)
     }
+}
 
-    // MARK: Gestures
+/// A request from the buttons under the map.
+struct StoryMapCommand: Equatable {
+    enum Kind { case start, zoomIn, zoomOut, overview }
+    var id: Int
+    var kind: Kind
+}
 
-    private var center: CGPoint { return CGPoint(x: viewport.width / 2, y: viewport.height / 2) }
+/// Where everything is on the map, at zoom 1.
+struct StoryMapGeometry {
+    static let slotWidth: CGFloat = 128
+    static let laneHeight: CGFloat = 200
+    static let leftPad: CGFloat = 40
+    static let topPad: CGFloat = 64
+    static let nodeSize = CGSize(width: 110, height: 176)
 
-    private func zoom(by factor: CGFloat, around location: CGPoint, map: UniverseStoryMap) {
-        let target = min(maxScale, max(minScale(map), scale * factor))
-        let ratio = target / scale
-        let moved = CGSize(width: location.x - (location.x - offset.width) * ratio, height: location.y - (location.y - offset.height) * ratio)
-        withAnimation(.smooth(duration: 0.35)) {
-            scale = target
-            offset = clamped(moved, scale: target, map: map)
+    static func size(_ map: UniverseStoryMap) -> CGSize {
+        return CGSize(width: leftPad * 2 + CGFloat(max(1, map.slotCount)) * slotWidth,
+                      height: topPad + CGFloat(max(1, map.lanes.count)) * laneHeight + 120)
+    }
+
+    static func center(slot: Int, lane: Int) -> CGPoint {
+        return CGPoint(x: leftPad + (CGFloat(slot) + 0.5) * slotWidth, y: topPad + (CGFloat(lane) + 0.5) * laneHeight)
+    }
+
+    static func center(_ node: UniverseStoryMap.Node) -> CGPoint { return center(slot: node.slot, lane: node.lane) }
+
+    /// Where the lines meet a poster: its left and right sides, at the height of the poster's middle.
+    static var posterMiddle: CGFloat { return -nodeSize.height / 2 + 63 }
+
+    static let palette: [UIColor] = [
+        UIColor(red: 0.95, green: 0.27, blue: 0.27, alpha: 1), UIColor(red: 0.98, green: 0.62, blue: 0.18, alpha: 1),
+        UIColor(red: 0.25, green: 0.56, blue: 0.98, alpha: 1), UIColor(red: 0.62, green: 0.40, blue: 0.98, alpha: 1),
+        UIColor(red: 0.20, green: 0.80, blue: 0.55, alpha: 1), UIColor(red: 0.98, green: 0.80, blue: 0.20, alpha: 1),
+        UIColor(red: 0.95, green: 0.38, blue: 0.70, alpha: 1), UIColor(red: 0.30, green: 0.82, blue: 0.90, alpha: 1),
+        UIColor(red: 0.70, green: 0.85, blue: 0.30, alpha: 1), UIColor(red: 0.85, green: 0.55, blue: 0.40, alpha: 1),
+        UIColor(red: 0.55, green: 0.65, blue: 0.95, alpha: 1), UIColor(red: 0.90, green: 0.45, blue: 0.95, alpha: 1),
+    ]
+
+    static func color(_ lane: Int) -> UIColor { return palette[lane % palette.count] }
+}
+
+/// The scrolling, zooming surface (UIKit's scroll view: native pinch, inertia and bounce).
+struct StoryMapSurface: UIViewRepresentable {
+    let map: UniverseStoryMap
+    let seen: Set<String>
+    let showsYears: Bool
+    let command: StoryMapCommand
+    let settings: SettingsStore
+    let loader: ImageLoader?
+    let open: (UniverseEntry) -> Void
+
+    func makeUIView(context: Context) -> StoryMapScrollView {
+        let view = StoryMapScrollView()
+        view.build(map: map, content: content(), size: StoryMapGeometry.size(map))
+        view.handledCommand = command.id
+        return view
+    }
+
+    func updateUIView(_ view: StoryMapScrollView, context: Context) {
+        view.updateContent(content())
+        if command.id != view.handledCommand {
+            view.handledCommand = command.id
+            view.apply(command.kind)
         }
     }
 
-    private func panAndZoom(_ map: UniverseStoryMap) -> some Gesture {
-        let pan = DragGesture(minimumDistance: 6)
-            .onChanged { value in
-                // Two fingers belong to the pinch, which moves the map itself.
-                guard pinchStart == nil else { return }
-                if panStart == nil { panStart = offset }
-                let start = panStart ?? offset
-                offset = CGSize(width: start.width + value.translation.width, height: start.height + value.translation.height)
-            }
-            .onEnded { value in
-                guard let start = panStart else { return }
-                panStart = nil
-                // The map keeps sliding a little, as a map does.
-                let flung = CGSize(width: start.width + value.predictedEndTranslation.width, height: start.height + value.predictedEndTranslation.height)
-                withAnimation(.interpolatingSpring(mass: 1, stiffness: 90, damping: 20)) { offset = clamped(flung, scale: scale, map: map) }
-            }
-        let pinch = MagnifyGesture()
-            .onChanged { value in
-                if pinchStart == nil { pinchStart = (scale, offset); panStart = nil }
-                guard let start = pinchStart else { return }
-                let target = min(maxScale * 1.15, max(minScale(map) * 0.85, start.scale * value.magnification))
-                let ratio = target / start.scale
-                let anchor = value.startLocation
-                scale = target
-                offset = CGSize(width: anchor.x - (anchor.x - start.offset.width) * ratio, height: anchor.y - (anchor.y - start.offset.height) * ratio)
-            }
-            .onEnded { _ in
-                pinchStart = nil
-                withAnimation(.smooth(duration: 0.3)) {
-                    scale = min(maxScale, max(minScale(map), scale))
-                    offset = clamped(offset, scale: scale, map: map)
-                }
-            }
-        return pinch.simultaneously(with: pan)
+    private func content() -> AnyView {
+        return AnyView(StoryMapContent(map: map, seen: seen, showsYears: showsYears, open: open)
+            .environmentObject(settings)
+            .environment(\.imageLoader, loader))
+    }
+}
+
+final class StoryMapScrollView: UIScrollView, UIScrollViewDelegate {
+    private let canvas = UIView()
+    private var host: UIHostingController<AnyView>?
+    private var lineLayers: [CAShapeLayer] = []
+    private var contentSizeAtOne: CGSize = .zero
+    private var placed = false
+    var handledCommand = 0
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        delegate = self
+        backgroundColor = .clear
+        showsHorizontalScrollIndicator = false
+        showsVerticalScrollIndicator = false
+        decelerationRate = .normal
+        bouncesZoom = true
+        contentInsetAdjustmentBehavior = .never
+        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(doubleTapped(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        addGestureRecognizer(doubleTap)
     }
 
-    // MARK: Colours
+    required init?(coder: NSCoder) { fatalError("not used") }
 
-    private static let palette: [Color] = [
-        Color(red: 0.95, green: 0.27, blue: 0.27), Color(red: 0.98, green: 0.62, blue: 0.18), Color(red: 0.25, green: 0.56, blue: 0.98),
-        Color(red: 0.62, green: 0.40, blue: 0.98), Color(red: 0.20, green: 0.80, blue: 0.55), Color(red: 0.98, green: 0.80, blue: 0.20),
-        Color(red: 0.95, green: 0.38, blue: 0.70), Color(red: 0.30, green: 0.82, blue: 0.90), Color(red: 0.70, green: 0.85, blue: 0.30),
-        Color(red: 0.85, green: 0.55, blue: 0.40), Color(red: 0.55, green: 0.65, blue: 0.95), Color(red: 0.90, green: 0.45, blue: 0.95),
-    ]
+    func build(map: UniverseStoryMap, content: AnyView, size: CGSize) {
+        contentSizeAtOne = size
+        canvas.frame = CGRect(origin: .zero, size: size)
+        addSubview(canvas)
+        drawLines(map)
+        let host = UIHostingController(rootView: content)
+        host.view.backgroundColor = .clear
+        host.view.frame = canvas.bounds
+        host.safeAreaRegions = []
+        canvas.addSubview(host.view)
+        self.host = host
+        contentSize = size
+    }
 
-    private func laneColor(_ lane: Int) -> Color { return UniverseMapView.palette[lane % UniverseMapView.palette.count] }
+    func updateContent(_ content: AnyView) {
+        host?.rootView = content
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard !placed, bounds.width > 0, bounds.height > 0 else { return }
+        placed = true
+        minimumZoomScale = fitScale * 0.9
+        maximumZoomScale = 1.4
+        apply(.start)
+    }
+
+    private var fitScale: CGFloat {
+        guard contentSizeAtOne.width > 0, contentSizeAtOne.height > 0 else { return 0.1 }
+        return max(0.02, min(0.6, min(bounds.width / contentSizeAtOne.width, bounds.height / contentSizeAtOne.height)))
+    }
+
+    func apply(_ kind: StoryMapCommand.Kind) {
+        switch kind {
+        case .start:
+            // Up to four storylines on screen, from the first title.
+            let lanes = min(4, max(1, (contentSizeAtOne.height - StoryMapGeometry.topPad - 120) / StoryMapGeometry.laneHeight))
+            let scale = min(1.0, max(minimumZoomScale, bounds.height / (StoryMapGeometry.topPad + lanes * StoryMapGeometry.laneHeight + 140)))
+            setZoomScale(scale, animated: false)
+            setContentOffset(CGPoint(x: 0, y: -contentInset.top), animated: false)
+        case .zoomIn:
+            zoom(by: 1.6, at: CGPoint(x: bounds.midX, y: bounds.midY))
+        case .zoomOut:
+            zoom(by: 0.6, at: CGPoint(x: bounds.midX, y: bounds.midY))
+        case .overview:
+            if zoomScale > fitScale * 1.2 {
+                setZoomScale(fitScale, animated: true)
+            } else {
+                apply(.start)
+            }
+        }
+    }
+
+    private func zoom(by factor: CGFloat, at point: CGPoint) {
+        let target = min(maximumZoomScale, max(minimumZoomScale, zoomScale * factor))
+        let inCanvas = canvas.convert(point, from: self)
+        let width = bounds.width / target
+        let height = bounds.height / target
+        zoom(to: CGRect(x: inCanvas.x - width / 2, y: inCanvas.y - height / 2, width: width, height: height), animated: true)
+    }
+
+    @objc private func doubleTapped(_ recognizer: UITapGestureRecognizer) {
+        zoom(by: zoomScale < 0.6 ? 2.2 : 0.45, at: recognizer.location(in: self))
+    }
+
+    // MARK: UIScrollViewDelegate
+
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? { return canvas }
+
+    func scrollViewDidZoom(_ scrollView: UIScrollView) {
+        // A map smaller than the screen stays in the middle.
+        let horizontal = max(0, (bounds.width - contentSize.width) / 2)
+        let vertical = max(0, (bounds.height - contentSize.height) / 2)
+        contentInset = UIEdgeInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal)
+    }
+
+    func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+        // The lines are drawn again at the new size, so they stay sharp.
+        let screenScale = window?.screen.scale ?? 3
+        for layer in lineLayers { layer.contentsScale = screenScale * max(scale, 0.25) }
+    }
+
+    // MARK: Lines
+
+    private func drawLines(_ map: UniverseStoryMap) {
+        lineLayers.forEach { $0.removeFromSuperlayer() }
+        lineLayers = []
+        let byID = Dictionary(uniqueKeysWithValues: map.nodes.map { ($0.entry.id, $0) })
+        let half = StoryMapGeometry.nodeSize.width / 2 - 8
+        let middle = StoryMapGeometry.posterMiddle
+        func anchor(_ node: UniverseStoryMap.Node, right: Bool) -> CGPoint {
+            let center = StoryMapGeometry.center(node)
+            return CGPoint(x: center.x + (right ? half : -half), y: center.y + middle)
+        }
+        // The track of each storyline, faint, under everything.
+        for lane in map.lanes {
+            let slots = lane.entries.compactMap { byID[$0.id]?.slot }
+            guard let low = slots.min(), let high = slots.max() else { continue }
+            let start = StoryMapGeometry.center(slot: low, lane: lane.id)
+            let end = StoryMapGeometry.center(slot: high, lane: lane.id)
+            let track = UIBezierPath()
+            track.move(to: CGPoint(x: start.x, y: start.y + middle))
+            track.addLine(to: CGPoint(x: end.x, y: end.y + middle))
+            addLayer(track, color: StoryMapGeometry.color(lane.id).withAlphaComponent(0.18), width: 16, dashed: false)
+        }
+        for lane in map.lanes {
+            let sequels = UIBezierPath()
+            let meetings = UIBezierPath()
+            let heads = UIBezierPath()
+            for link in map.links {
+                guard let from = byID[link.from], let to = byID[link.to] else { continue }
+                let owner = link.kind == .sequel ? from.lane : to.lane
+                guard owner == lane.id else { continue }
+                let start = anchor(from, right: true)
+                let end = anchor(to, right: false)
+                if link.kind == .sequel && from.lane == to.lane {
+                    sequels.move(to: start)
+                    sequels.addLine(to: end)
+                } else {
+                    let bend = max(40, abs(end.x - start.x) * 0.5)
+                    meetings.move(to: start)
+                    meetings.addCurve(to: end, controlPoint1: CGPoint(x: start.x + bend, y: start.y), controlPoint2: CGPoint(x: end.x - bend, y: end.y))
+                    heads.move(to: end)
+                    heads.addLine(to: CGPoint(x: end.x - 11, y: end.y - 7))
+                    heads.addLine(to: CGPoint(x: end.x - 11, y: end.y + 7))
+                    heads.close()
+                }
+            }
+            let color = StoryMapGeometry.color(lane.id)
+            if !sequels.isEmpty { addLayer(sequels, color: color.withAlphaComponent(0.95), width: 4.5, dashed: false) }
+            if !meetings.isEmpty { addLayer(meetings, color: color.withAlphaComponent(0.8), width: 2.5, dashed: true) }
+            if !heads.isEmpty { addLayer(heads, color: color, width: 0, dashed: false, filled: true) }
+        }
+    }
+
+    private func addLayer(_ path: UIBezierPath, color: UIColor, width: CGFloat, dashed: Bool, filled: Bool = false) {
+        let layer = CAShapeLayer()
+        layer.frame = CGRect(origin: .zero, size: contentSizeAtOne)
+        layer.path = path.cgPath
+        layer.fillColor = filled ? color.cgColor : UIColor.clear.cgColor
+        layer.strokeColor = filled ? UIColor.clear.cgColor : color.cgColor
+        layer.lineWidth = width
+        layer.lineCap = .round
+        layer.lineJoin = .round
+        if dashed { layer.lineDashPattern = [8, 7] }
+        layer.contentsScale = UIScreen.main.scale
+        canvas.layer.addSublayer(layer)
+        lineLayers.append(layer)
+    }
+}
+
+/// Posters, names of the storylines and years, laid out once at zoom 1 over the lines.
+struct StoryMapContent: View {
+    let map: UniverseStoryMap
+    let seen: Set<String>
+    let showsYears: Bool
+    let open: (UniverseEntry) -> Void
+
+    var body: some View {
+        let size = StoryMapGeometry.size(map)
+        ZStack(alignment: .topLeading) {
+            Color.clear.frame(width: size.width, height: size.height)
+            if showsYears { years }
+            ForEach(map.lanes) { lane in laneLabel(lane) }
+            ForEach(map.nodes) { node in
+                nodeView(node, isWatched: seen.contains(node.id))
+                    .position(StoryMapGeometry.center(node))
+            }
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+    }
+
+    private struct YearMark: Identifiable {
+        var year: Int
+        var x: CGFloat
+        var id: Int { return year }
+    }
+
+    private var years: some View {
+        var shown: [YearMark] = []
+        var lastYear: Int?
+        for node in map.nodes.sorted(by: { $0.column < $1.column }) where node.entry.year != lastYear {
+            lastYear = node.entry.year
+            let x = StoryMapGeometry.center(node).x
+            if let previous = shown.last, x - previous.x < 44 { continue }
+            if shown.contains(where: { $0.year == node.entry.year }) { continue }
+            shown.append(YearMark(year: node.entry.year, x: x))
+        }
+        return ZStack(alignment: .topLeading) {
+            ForEach(shown) { item in
+                Text(String(item.year))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .position(x: item.x, y: 26)
+            }
+        }
+    }
+
+    /// The name of a storyline, at its start.
+    private func laneLabel(_ lane: UniverseStoryMap.Lane) -> some View {
+        let first = lane.entries.compactMap { entry in map.node(entry.id)?.slot }.min() ?? 0
+        let start = StoryMapGeometry.center(slot: first, lane: lane.id)
+        let color = Color(StoryMapGeometry.color(lane.id))
+        return HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 9, height: 9)
+            Text(lane.name).font(.system(size: 14, weight: .bold, design: .rounded)).lineLimit(1)
+            Text("\(lane.entries.count)").font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.55))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(Color.black.opacity(0.55)))
+        .overlay(Capsule().stroke(color.opacity(0.6), lineWidth: 1))
+        .fixedSize()
+        .offset(x: max(6, start.x - StoryMapGeometry.slotWidth / 2), y: start.y - StoryMapGeometry.laneHeight / 2 - 4)
+    }
+
+    private func nodeView(_ node: UniverseStoryMap.Node, isWatched: Bool) -> some View {
+        let entry = node.entry
+        let color = Color(StoryMapGeometry.color(node.lane))
+        return Button { open(entry) } label: {
+            VStack(spacing: 6) {
+                ZStack(alignment: .topTrailing) {
+                    RemoteImage(urlString: UniverseArt.poster(entry.id), width: 220, placeholderSeed: entry.name, systemPlaceholder: "film")
+                        .frame(width: 84, height: 126)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(isWatched ? Color.accentColor : color, lineWidth: isWatched ? 3 : 2))
+                        .saturation(isWatched ? 1 : 0.85)
+                    if isWatched {
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 20)).foregroundStyle(.white, Color.accentColor).offset(x: 7, y: -7)
+                    } else if entry.isSeries {
+                        Text("SERIE").font(.system(size: 8, weight: .heavy)).padding(.horizontal, 5).padding(.vertical, 2)
+                            .background(Capsule().fill(color)).foregroundStyle(.white).offset(x: 4, y: -5)
+                    }
+                }
+                Text(entry.name).font(.system(size: 11, weight: .semibold)).multilineTextAlignment(.center).lineLimit(2)
+                    .foregroundStyle(.white).frame(width: StoryMapGeometry.nodeSize.width)
+                Text(String(entry.year)).font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.white.opacity(0.55))
+            }
+            .frame(width: StoryMapGeometry.nodeSize.width, height: StoryMapGeometry.nodeSize.height, alignment: .top)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(entry.name), \(String(entry.year))\(isWatched ? ", visto" : "")")
+    }
 }

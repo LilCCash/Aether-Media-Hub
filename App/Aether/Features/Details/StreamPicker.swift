@@ -755,13 +755,15 @@ struct StreamPickerSheet: View {
         let flies = settings.animationsEnabled && flight == .idle && logoFrame.width > 0
         if flies {
             model.launchHold = 0.62
-            flight = .lifted
-            DispatchQueue.main.async {
-                withAnimation(.easeInOut(duration: 0.6)) { flight = .landed }
-            }
+            flight = .landed
+            LogoFlightAnimator.fly(image: logo, title: request.meta.name, from: logoFrame)
             // A source that asks something first (a download to confirm, a file to choose) or that could not start brings the list back.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 if !model.usesLaunchPage { land(back: true) }
+            }
+            // Once the player's page is over it, the black and the logo of the flight are no longer needed.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+                if model.usesLaunchPage { LogoFlightAnimator.land(animated: false) }
             }
         }
         Task { await model.play(item, env: env) { dismiss() } }
@@ -770,6 +772,7 @@ struct StreamPickerSheet: View {
     private func land(back: Bool) {
         guard back, flight != .idle else { return }
         model.launchHold = 0
+        LogoFlightAnimator.land(animated: true)
         withAnimation(.easeInOut(duration: 0.35)) { flight = .idle }
     }
 
@@ -867,7 +870,6 @@ struct StreamPickerSheet: View {
             }
             .animation(.easeInOut(duration: 0.2), value: model.infoMessage)
         }
-        .overlay { flightLayer }
         .environment(\.colorScheme, .dark)
         .presentationDetents([.large])
         .sheet(item: $packItem) { item in
@@ -902,7 +904,10 @@ struct StreamPickerSheet: View {
         .task {
             if logo == nil { logo = await FanartLogoStore.shared.load(meta: request.meta, env: env) }
         }
-        .onDisappear { model.stop() }
+        .onDisappear {
+            LogoFlightAnimator.land(animated: false)
+            model.stop()
+        }
     }
 
     /// The film's scene behind the list, blurred and dark.
@@ -932,33 +937,6 @@ struct StreamPickerSheet: View {
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.6), radius: 8)
                 .frame(maxWidth: 300)
-        }
-    }
-
-    /// Black over the list and the logo flying to the middle, turned the way the screen will turn (the player is sideways).
-    @ViewBuilder
-    private var flightLayer: some View {
-        if flight != .idle {
-            GeometryReader { proxy in
-                let origin = proxy.frame(in: .global).origin
-                let landed = flight == .landed
-                let start = CGPoint(x: logoFrame.midX - origin.x, y: logoFrame.midY - origin.y)
-                let middle = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
-                // Sideways the logo is as wide as on the start page: up to 440 points, never more than most of the screen's height.
-                let wanted = min(440, proxy.size.height * 0.62)
-                let grow = logoFrame.width > 0 ? max(1, wanted / logoFrame.width) : 1.6
-                ZStack {
-                    Color.black.opacity(landed ? 1 : 0).ignoresSafeArea()
-                    mark
-                        .frame(width: logoFrame.width, height: logoFrame.height)
-                        .scaleEffect(landed ? min(grow, 2.2) : 1)
-                        .rotationEffect(.degrees(landed ? -90 : 0))
-                        .position(landed ? middle : start)
-                }
-            }
-            .ignoresSafeArea()
-            .transition(.opacity)
-            .accessibilityHidden(true)
         }
     }
 

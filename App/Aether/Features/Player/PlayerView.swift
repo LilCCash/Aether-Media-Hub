@@ -262,8 +262,11 @@ struct PlayerView: View {
         GeometryReader { proxy in
             ZStack {
                 Color.black.ignoresSafeArea()
+                // Fitted, the picture stays inside the safe area (nothing under the Dynamic Island or the rounded corners); the fill
+                // button gives it the whole screen.
                 PlayerSurface(engine: model.engine)
-                    .ignoresSafeArea()
+                    .ignoresSafeArea(.all, edges: model.isFill ? .all : .vertical)
+                    .animation(.easeInOut(duration: 0.25), value: model.isFill)
                     .accessibilityHidden(true)
                 HiddenVolumeView(controller: volume).frame(width: 1, height: 1).allowsHitTesting(false)
                 if #available(iOS 18.0, *) { SubtitleTranslationHost(model: model) }

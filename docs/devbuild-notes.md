@@ -13,7 +13,12 @@ Ritocchi di questa build
 - Avvio della riproduzione: appena tocchi una fonte si apre il player nero con il logo che torna alla sua dimensione e, quando tutto è pronto, il tasto «Guarda». Si spegne a parte per film, episodi e canali live (Impostazioni ▸ Riproduzione).
 - Live TV: toccando un canale con più fonti scegli la fonte da un menu. Suono d'apertura più leggero (un riser breve). Titoli di coda con un pulsante a fine film, chiudendoli torni al player.
 - Opzioni del player a tendina che non sfarfalla. Anteprime dei fotogrammi più robuste. Persone nei risultati di ricerca, foto in bolla intere, Libreria con schede più larghe, titolo scritto nella scheda del film, scheda aperta anche a schermo intero (Aspetto), Scoperta con chiusura e copertine pronte, gioco dei gusti con anche i film vecchi.
-Novità di questa build
+Correzioni di questa build
+- Scelta della sorgente: il logo ora gira verso destra (come il player) e l'animazione è fluida anche mentre l'app prepara la fonte (fatta con Core Animation).
+- Mappa degli universi: linee, locandine e nomi sono un'unica superficie che si muove e si ingrandisce tutta insieme (scorrimento con inerzia, pinch e doppio tocco di iOS): le linee restano ferme rispetto ai titoli e non c'è più lag.
+- Formato del video: adattato, il video resta dentro le aree sicure dello schermo (niente sotto la Dynamic Island); il pulsante a tutto schermo del player lo allarga come prima.
+- Sottotitoli: oltre agli addon, Aether chiede al catalogo completo di OpenSubtitles.org nelle lingue dei sottotitoli scelte (o nella lingua del telefono). Per molti film l'addon OpenSubtitles v3 non ha l'italiano: ora compare. Si spegne in Impostazioni ▸ Player ▸ Lingue.
+Novità della build precedente
 - Conversione completa per AVPlayer e AirPlay (Impostazioni ▸ Player ▸ Motore ▸ «Conversione»: Leggera o Completa). Completa: quello che il lettore di sistema non legge viene ricodificato sul telefono (video H.264 10 bit, VP9, AV1, MPEG-2… con il codificatore hardware; audio DTS, TrueHD, FLAC… in AAC 5.1/stereo). Resta fuori solo il Dolby Vision profilo 5.
 - Sottotitoli di testo del file (SRT, ASS, WebVTT…) passano nella conversione, anche in quella leggera, e si scelgono dal pannello Sottotitoli; vanno anche su AirPlay. Quelli a immagine (Blu-ray/DVD) no.
 - AirPlay anche dei titoli scaricati che vanno convertiti; con MPV il messaggio AirPlay offre «Usa AVPlayer».

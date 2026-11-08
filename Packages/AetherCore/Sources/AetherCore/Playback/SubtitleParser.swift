@@ -38,7 +38,9 @@ public enum SubtitleParser {
     /// `encodingHint` is the charset an addon announced (`?senc=cp1250` in the subtitle URL, see `SubtitleCatalog.encodingHint(forURL:)`).
     public static func parse(_ data: Data, languageHint: String? = nil, encodingHint: String? = nil) throws -> [SubtitleCue] {
         guard !data.isEmpty else { throw SubtitleError.empty }
-        let text = decode(data, languageHint: languageHint, encodingHint: encodingHint)
+        // OpenSubtitles.org hands its files out gzipped.
+        let plain = GzipData.isGzip(data) ? (GzipData.decompress(data) ?? data) : data
+        let text = decode(plain, languageHint: languageHint, encodingHint: encodingHint)
         return try parse(text: text)
     }
 

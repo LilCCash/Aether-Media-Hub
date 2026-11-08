@@ -208,6 +208,10 @@ struct PlaybackSettingsView: View {
                     ForEach(Self.languages, id: \.0) { Text($0.1).tag($0.0) }
                 }
                 Toggle("Rimuovi le annotazioni per non udenti", isOn: settings.binding(\.playback.stripHearingImpairedTags))
+                Toggle("Cerca anche nel catalogo OpenSubtitles.org", isOn: settings.binding(\.playback.openSubtitlesCatalog))
+                    .accessibilityIdentifier("settings.openSubtitlesCatalog")
+                Text("L'addon OpenSubtitles v3 ha solo una parte dei sottotitoli del sito: per molti film manca l'italiano. Con questa voce Aether chiede anche al catalogo completo di OpenSubtitles.org, nelle lingue dei sottotitoli scelte qui sopra (o nella lingua del telefono), e li aggiunge alla lista.")
+                    .font(.footnote).foregroundStyle(Color.aetherSecondary)
                 NavigationLink("Stile dei sottotitoli") { SubtitleStyleView() }
                 Stepper(value: settings.binding(\.playback.subtitleDelaySeconds), in: -30...30, step: 0.5) {
                     Text("Ritardo predefinito: \(String(format: "%+.1f", settings.value.playback.subtitleDelaySeconds)) s")

@@ -346,7 +346,9 @@ struct SubtitleFileLoader: Sendable {
     }
 
     func download(url: URL) async throws -> Data {
-        let request = HTTPRequest(url: url, timeout: timeout, maxBytes: HTTPLimits.subtitle, purpose: .addonRequest)
+        // OpenSubtitles.org wants the same agent for its files as for its searches.
+        let headers = (url.host ?? "").hasSuffix("opensubtitles.org") ? OpenSubtitlesCatalog.headers : [:]
+        let request = HTTPRequest(url: url, headers: headers, timeout: timeout, maxBytes: HTTPLimits.subtitle, purpose: .addonRequest)
         let response = try await http.send(request)
         guard response.isSuccess else { throw AddonError.http(status: response.statusCode) }
         return response.data
