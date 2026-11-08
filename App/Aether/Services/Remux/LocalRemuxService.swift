@@ -49,6 +49,8 @@ final class LocalRemuxService {
     private var current: Session?
     /// The live channel being converted, if one is.
     private var liveSession: RelaySessionID?
+    /// A video read from inside a ZIP, offered as a file of its own.
+    private var archiveSession: RelaySessionID?
     private var currentFetcher: RelayRangeFetcher?
     /// The port the playlist address was made with: a restarted listener must take the same one, or the player's address is dead.
     private var lastPort: UInt16?
@@ -71,7 +73,75 @@ final class LocalRemuxService {
         self.serverFactory = serverFactory ?? { registry, configuration, emit in RelayServer(registry: registry, configuration: configuration, log: emit) }
     }
 
-    var hasSession: Bool { return current != nil || liveSession != nil }
+    var hasSession: Bool { return current != nil || liveSession != nil || archiveSession != nil }
+
+    /// What was found inside a ZIP.
+    struct ArchiveVideo {
+        let url: URL
+        let name: String
+        let size: Int64
+    }
+
+    /// Opens the ZIP at `zipURL` through ranged reads, finds the video `query` asks for, and offers its bytes on this phone as a file
+    /// of their own (`127.0.0.1/…/video.<ext>`): the player plays it and seeks in it as in any file. Only a video stored without
+    /// compression can be read this way (what packers do with video); a compressed one throws `DebridError.archivedFilesOnly`.
+    func openArchive(_ zipURL: URL, query: TorBoxFileMatcher.Query) async throws -> ArchiveVideo {
+        closeArchive()
+        let guardian = UpstreamGuard(allowPrivateOrigin: false, selfAddresses: [], resolver: resolver)
+        do {
+            try await guardian.validateOrigin(zipURL)
+        } catch {
+            throw LocalRemuxError.blocked
+        }
+        let fetcher = fetcherFactory(RelayUpstream(url: zipURL), guardian)
+        do {
+            let resource = try await fetcher.probe()
+            guard let total = resource.length, total > 0 else { throw RelayError.upstreamNoRanges }
+            let entries = try await ZipArchive.entries(total: total) { range in try await fetcher.fetch(range) }
+            let videos = entries.filter { TorBoxFileMatcher.isVideo(TorBoxFile(id: 0, name: $0.name)) }
+            diagnostics?.logDetached(.info, "torbox", "ZIP: \(entries.count) file, \(videos.count) video, \(videos.filter { $0.isStored }.count) senza compressione")
+            guard let entry = ZipArchive.choose(entries, query: query) else {
+                diagnostics?.logDetached(.warning, "torbox", "ZIP: nessun episodio certo tra i video dell'archivio")
+                throw DebridError.noMatchingFile(candidates: [])
+            }
+            let shortName = String(entry.name.split(separator: "/").last ?? Substring(entry.name))
+            guard entry.isStored, !entry.isEncrypted else {
+                diagnostics?.logDetached(.warning, "torbox", "ZIP: «\(shortName)» è compresso (metodo \(entry.method)\(entry.isEncrypted ? ", cifrato" : "")): non si può leggere a pezzi")
+                throw DebridError.archivedFilesOnly
+            }
+            let window = try await ZipArchive.window(of: entry, total: total) { range in try await fetcher.fetch(range) }
+            let ext = TorBoxFileMatcher.fileExtension(of: shortName)
+            let leaf = "video." + (RelayMime.allowedExtensions.contains(ext) ? ext : "mp4")
+            let type = ext == "mkv" ? "video/x-matroska" : (ext == "avi" ? "video/x-msvideo" : "video/mp4")
+            let source = HTTPRangeSource(leaf: leaf, contentType: type,
+                                         fetcher: WindowRangeFetcher(base: fetcher, offset: window.offset, length: window.length, contentType: type))
+            try await source.prepare()
+            _ = try await startServer()
+            let created = try registry.create(source: source, leaf: leaf, owner: .player, peerRule: .any)
+            guard let url = server?.url(host: "127.0.0.1", token: created.token, leaf: leaf) else {
+                registry.revoke(created.id, reason: .loadFailed)
+                throw LocalRemuxError.unavailable
+            }
+            archiveSession = created.id
+            diagnostics?.logDetached(.info, "torbox", "ZIP: episodio «\(shortName)», \(window.length / 1_048_576) MB dalla posizione \(window.offset): lo leggo dall'interno")
+            return ArchiveVideo(url: url, name: shortName, size: window.length)
+        } catch {
+            fetcher.invalidate()
+            stopServerIfIdle()
+            if let zipError = error as? ZipArchive.Failure {
+                diagnostics?.logDetached(.warning, "torbox", "ZIP: indice non leggibile (\(zipError))")
+                throw DebridError.archivedFilesOnly
+            }
+            throw error
+        }
+    }
+
+    func closeArchive() {
+        guard let session = archiveSession else { return }
+        archiveSession = nil
+        registry.revoke(session, reason: .userStopped)
+        stopServerIfIdle()
+    }
 
     /// Opens a live channel for conversion and returns the address of its live HLS on this phone, with the engine (which the relay
     /// can also serve on the Wi-Fi address for AirPlay). Throws `LiveRemuxError`, `LocalRemuxError` or a cancellation.
@@ -222,7 +292,7 @@ final class LocalRemuxService {
         guard server === failed else { return }
         server = nil
         failed.stop()
-        guard current != nil || liveSession != nil, !restartingServer else { return }
+        guard current != nil || liveSession != nil || archiveSession != nil, !restartingServer else { return }
         restartingServer = true
         diagnostics?.logDetached(.warning, "remux", "Il server locale si è fermato: lo riavvio")
         Task { [weak self] in
@@ -237,7 +307,7 @@ final class LocalRemuxService {
     }
 
     private func stopServerIfIdle() {
-        guard current == nil, liveSession == nil else { return }
+        guard current == nil, liveSession == nil, archiveSession == nil else { return }
         server?.stop()
         server = nil
     }

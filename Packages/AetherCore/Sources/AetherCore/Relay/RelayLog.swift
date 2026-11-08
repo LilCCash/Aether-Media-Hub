@@ -43,6 +43,7 @@ public enum RelayLogEvent: Equatable, Sendable {
         switch owner {
         case .cast(let target): return target == .googleCast ? "Google Cast" : (target == .dlna ? "DLNA" : "AirPlay")
         case .airPlay: return "AirPlay"
+        case .player: return "lettore"
         }
     }
 

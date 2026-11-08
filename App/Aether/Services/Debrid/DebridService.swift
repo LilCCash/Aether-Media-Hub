@@ -302,13 +302,30 @@ final class DebridService: ObservableObject {
     /// `cachedOnly` mode, which never starts a download (that needs the user's confirmation in the picker).
     func playableStream(for stream: AddonStream, stremioID: String?,
                         onProgress: (@Sendable (DebridProgress) -> Void)?) async throws -> AddonStream {
+        let resolution: DebridResolution
         if let ready = takePreparedResolution(for: stream, stremioID: stremioID) {
-            return ready.playableStream(from: stream)
+            resolution = ready
+        } else {
+            guard let request = DebridRequest(stream: stream, stremioID: stremioID, mode: DebridMode.cachedOnly) else {
+                throw DebridError.invalidInfoHash("")
+            }
+            resolution = try await resolve(request, onProgress: onProgress)
         }
-        guard let request = DebridRequest(stream: stream, stremioID: stremioID, mode: DebridMode.cachedOnly) else {
-            throw DebridError.invalidInfoHash("")
-        }
-        let resolution = try await resolve(request, onProgress: onProgress)
-        return resolution.playableStream(from: stream)
+        guard resolution.isArchive else { return resolution.playableStream(from: stream) }
+        // The videos are inside a ZIP: the episode is read from inside it and offered on this phone as a file of its own.
+        guard let opener = archiveOpener else { throw DebridError.archivedFilesOnly }
+        let query = DebridRequest(stream: stream, stremioID: stremioID, mode: DebridMode.cachedOnly).map { TorBoxFileMatcher.query(for: $0) }
+            ?? TorBoxFileMatcher.Query(filename: stream.behaviorHints.filename, episode: nil, expectsEpisode: false)
+        onProgress?(DebridProgress(phase: .selectingFile, fraction: 1))
+        let video = try await opener(resolution.url, query)
+        var inside = resolution
+        inside.url = video.url
+        inside.fileName = video.name
+        inside.fileSize = video.size
+        inside.isArchive = false
+        return inside.playableStream(from: stream)
     }
+
+    /// Opens a video inside a ZIP (`LocalRemuxService.openArchive`), set by the app at launch.
+    var archiveOpener: ((URL, TorBoxFileMatcher.Query) async throws -> LocalRemuxService.ArchiveVideo)?
 }

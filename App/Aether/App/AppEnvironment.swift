@@ -134,6 +134,8 @@ final class AppEnvironment: ObservableObject {
         // The UI tests point TorBox at their fixture server (a loopback address); a normal launch always uses api.torbox.app.
         let torboxBase = hooks.torboxServerURL.flatMap { DebridService.fixtureAPIBase(from: $0) } ?? TorBoxClient.productionBaseURL
         debrid = DebridService(credentials: serviceKeys, http: http, baseURL: torboxBase, log: diagnostics)
+        let remux = localRemux
+        debrid.archiveOpener = { url, query in try await remux.openArchive(url, query: query) }
         // The UI tests point IntroDB at their fixture server too (and, without one, at a port nobody listens on, so a test never
         // asks the real service); a normal launch always asks api.introdb.app.
         let introDBBase = hooks.metadataBaseURL.flatMap { URL(string: $0 + "/introdb") }

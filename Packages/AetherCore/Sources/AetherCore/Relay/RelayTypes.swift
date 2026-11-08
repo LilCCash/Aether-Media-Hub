@@ -34,6 +34,8 @@ public struct RelayLimits: Sendable {
 public enum RelayOwner: Hashable, Sendable {
     case cast(CastTarget)
     case airPlay
+    /// The phone's own player (a video read from inside a ZIP).
+    case player
 }
 
 /// Which peers may fetch a session.

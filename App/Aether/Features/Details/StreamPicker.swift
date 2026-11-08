@@ -403,6 +403,8 @@ final class StreamPickerModel: ObservableObject {
             }
             do {
                 let resolution = try await env.debrid.resolveWithTorBox(request, onProgress: nil)
+                // A video inside a ZIP cannot be downloaded on its own (it would be the whole archive).
+                if resolution.isArchive { throw DebridError.archivedFilesOnly }
                 let resolvedStream = resolution.playableStream(from: item.stream)
                 if let refusal = await env.downloads.enqueue(meta: self.request.meta, video: self.request.video,
                                                              stream: resolvedStream, allowLocalNetwork: allowLocal, ephemeralURL: resolution.url) {

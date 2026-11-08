@@ -176,16 +176,18 @@ public enum TorBoxFileMatcher {
 
     static let archiveExtensions: Set<String> = ["zip", "rar", "7z", "tar", "gz", "tgz", "iso"]
 
-    static func fileExtension(of name: String) -> String {
+    public static func fileExtension(of name: String) -> String {
         guard let dot = name.lastIndex(of: ".") else { return "" }
         let ext = name[name.index(after: dot)...].lowercased()
         return ext.count <= 5 && !ext.contains("/") ? ext : ""
     }
 
     /// Answers that can come from a list TorBox has not finished yet (right after a cached add).
-    static func mayBeProvisional(_ outcome: Outcome) -> Bool {
+    static func mayBeProvisional(_ outcome: Outcome, files: [TorBoxFile] = []) -> Bool {
         switch outcome {
-        case .archivesOnly, .noVideo: return true
+        // Real archives (a .zip, a .rar) do not turn into videos: only videos marked as compressed, or no video yet, may.
+        case .archivesOnly: return !files.contains(where: { isArchive($0) })
+        case .noVideo: return true
         default: return false
         }
     }

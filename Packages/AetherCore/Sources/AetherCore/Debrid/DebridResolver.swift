@@ -228,7 +228,7 @@ public actor DebridResolver: DebridProvider {
         var outcome = TorBoxFileMatcher.select(from: torrent.files, query: query)
         await note(.info, "file da TorBox: \(TorBoxFileMatcher.summary(of: torrent.files))")
         var attempt = 0
-        while attempt < configuration.fileSettleAttempts, TorBoxFileMatcher.mayBeProvisional(outcome) {
+        while attempt < configuration.fileSettleAttempts, TorBoxFileMatcher.mayBeProvisional(outcome, files: torrent.files) {
             attempt += 1
             try Task.checkCancellation()
             await note(.info, "elenco dei file forse provvisorio: lo rileggo (\(attempt)/\(configuration.fileSettleAttempts))")
@@ -251,7 +251,20 @@ public actor DebridResolver: DebridProvider {
         case .noVideo:
             throw DebridError.noVideoFile
         case .archivesOnly:
-            throw DebridError.archivedFilesOnly
+            // One ZIP that holds the videos: its link is handed back, and the video is read from inside it.
+            let zips = torrent.files.filter { file in
+                file.id != nil && !file.infected && TorBoxFileMatcher.fileExtension(of: file.displayName) == "zip"
+            }
+            guard let zip = zips.max(by: { ($0.size ?? 0) < ($1.size ?? 0) }), let zipID = zip.id else {
+                throw DebridError.archivedFilesOnly
+            }
+            await note(.info, "i video sono in uno ZIP: lo apro per leggere l'episodio dall'interno")
+            try Task.checkCancellation()
+            onProgress?(DebridProgress(phase: .requestingLink, fraction: 1))
+            let zipURL = try await client.requestDownloadLink(torrentID: torrent.id, fileID: zipID)
+            await note(.info, "link dello ZIP ottenuto")
+            return DebridResolution(url: zipURL, fileName: zip.displayName, fileSize: zip.size, torrentID: torrent.id,
+                                    fileID: zipID, wasAlreadyInAccount: wasInAccount, resolvedAt: clock.now(), isArchive: true)
         case .infectedOnly:
             throw DebridError.infectedFiles
         }

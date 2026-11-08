@@ -614,6 +614,8 @@ struct DetailView: View {
                         // Respect the provider selected in Settings > Services > Torrent provider.
                         let resolution = try await env.debrid.resolve(request, onProgress: nil)
                         if Task.isCancelled { break }
+                        // A video inside a ZIP cannot be downloaded on its own (it would be the whole archive).
+                        if resolution.isArchive { throw DebridError.archivedFilesOnly }
                         let resolvedStream = resolution.playableStream(from: stream)
                         enqueueError = await env.downloads.enqueue(meta: model.meta, video: video, stream: resolvedStream,
                                                                     allowLocalNetwork: allowLocal, ephemeralURL: resolution.url)

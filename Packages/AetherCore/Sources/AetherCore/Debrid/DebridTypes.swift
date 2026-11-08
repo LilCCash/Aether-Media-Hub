@@ -165,9 +165,12 @@ public struct DebridResolution: Equatable, Sendable, CustomStringConvertible {
     public var resolvedAt: Date
     /// I video del torrent, quando ne contiene più di uno (serve a riconoscere un pack di stagione).
     public var packFiles: [DebridPackFile]
+    /// The link is a ZIP that holds the videos: the one to play is read from inside it (`ZipArchive`).
+    public var isArchive: Bool = false
 
     public init(url: URL, fileName: String, fileSize: Int64?, torrentID: Int, fileID: Int,
-                wasAlreadyInAccount: Bool, resolvedAt: Date, packFiles: [DebridPackFile] = []) {
+                wasAlreadyInAccount: Bool, resolvedAt: Date, packFiles: [DebridPackFile] = [], isArchive: Bool = false) {
+        self.isArchive = isArchive
         self.url = url
         self.fileName = fileName
         self.fileSize = fileSize
