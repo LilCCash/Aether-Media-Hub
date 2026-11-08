@@ -14,6 +14,7 @@ Ritocchi di questa build
 - Live TV: toccando un canale con più fonti scegli la fonte da un menu. Suono d'apertura più leggero (un riser breve). Titoli di coda con un pulsante a fine film, chiudendoli torni al player.
 - Opzioni del player a tendina che non sfarfalla. Anteprime dei fotogrammi più robuste. Persone nei risultati di ricerca, foto in bolla intere, Libreria con schede più larghe, titolo scritto nella scheda del film, scheda aperta anche a schermo intero (Aspetto), Scoperta con chiusura e copertine pronte, gioco dei gusti con anche i film vecchi.
 Correzioni di questa build
+- Scheda del titolo: tornando su (scorrendo la pagina o la lista degli episodi) la scheda non si chiude più quando arriva in cima; si chiude solo tirando verso il basso partendo già dall'inizio della pagina.
 - Archivi TorBox, oltre agli ZIP: anche i RAR (RAR4 e RAR5), sia un unico RAR sia l'episodio diviso su più volumi (.part1.rar…, .rar/.r00…). Come per gli ZIP serve che il video sia salvato senza compressione (il caso abituale). Nel registro: «RAR: … volumi …».
 - AirPlay degli episodi letti da un archivio: scegliendo un dispositivo AirPlay il video passa sull'indirizzo Wi-Fi e riparte dallo stesso punto (servono Wi-Fi e «Consenti rete locale»).
 - Download di un episodio dentro uno ZIP o in un RAR a volume unico: viene scaricato solo il suo pezzo dell'archivio (anche in background). Un episodio diviso su più volumi RAR si guarda in streaming ma non si scarica.

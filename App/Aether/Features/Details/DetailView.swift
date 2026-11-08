@@ -166,6 +166,9 @@ struct DetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoomed = false
     @State private var atTop = true
+    /// Whether the page was at its top when the current drag began: only such a drag may close it (a drag that scrolls back up
+    /// to the top, in the page or in its list of episodes, must not).
+    @State private var dragBeganAtTop: Bool?
     @Environment(\.pullToDismiss) private var pullToDismiss
     @Environment(\.dismiss) private var dismissPage
     @State private var revealed = false
@@ -239,12 +242,19 @@ struct DetailView: View {
             }
             .coordinateSpace(name: "detailScroll")
             .onPreferenceChange(DetailScrollOffsetKey.self) { atTop = $0 > -2 }
-            .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { value in
-                // At the top of the page a pull down closes it, whether it is a card, a full-screen page or a page pushed in a tab.
-                guard atTop, value.translation.height > 110, abs(value.translation.width) < 90 else { return }
-                Haptics.tap()
-                if let close = pullToDismiss { close() } else { dismissPage() }
-            })
+            .simultaneousGesture(DragGesture(minimumDistance: 24)
+                .onChanged { _ in
+                    if dragBeganAtTop == nil { dragBeganAtTop = atTop }
+                }
+                .onEnded { value in
+                    let beganAtTop = dragBeganAtTop ?? false
+                    dragBeganAtTop = nil
+                    // A pull down that starts at the top of the page closes it, whether it is a card, a full-screen page or a page
+                    // pushed in a tab; one that scrolls back up and only reaches the top on the way does not.
+                    guard beganAtTop, atTop, value.translation.height > 110, abs(value.translation.width) < 90 else { return }
+                    Haptics.tap()
+                    if let close = pullToDismiss { close() } else { dismissPage() }
+                })
             .ignoresSafeArea(edges: .top)
         }
         .preferredColorScheme(style.cinematic ? .dark : nil)
