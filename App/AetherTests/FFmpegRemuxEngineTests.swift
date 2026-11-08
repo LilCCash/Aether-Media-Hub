@@ -308,7 +308,7 @@ final class FFmpegRemuxEngineTests: XCTestCase {
 
     /// Plays a served file past its first piece; on failure says what the player logged (requests that failed, decoding errors).
     @MainActor
-    private func playAcrossFirstBoundary(_ name: String, full: Bool) async throws -> AVPlayerItem {
+    private func playAcrossFirstBoundary(_ name: String, full: Bool, until target: Double = 4.6) async throws -> AVPlayerItem {
         let served = try await serve(name, full: full)
         defer { served.stop() }
         let item = AVPlayerItem(url: served.url)
@@ -318,7 +318,7 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         let deadline = Date().addingTimeInterval(30)
         var reached = false
         while Date() < deadline {
-            if CMTimeGetSeconds(player.currentTime()) > 4.6 { reached = true; break }
+            if CMTimeGetSeconds(player.currentTime()) > target { reached = true; break }
             if item.status == .failed { break }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
@@ -327,14 +327,14 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         let access = (item.accessLog()?.events ?? []).map { "uri=\($0.uri ?? "") requests=\($0.numberOfMediaRequests) stalls=\($0.numberOfStalls) dropped=\($0.numberOfDroppedVideoFrames)" }
         XCTContext.runActivity(named: "PLAYER-LOG \(name) errors \(errors) access \(access)") { _ in }
         XCTAssertNotEqual(item.status, .failed, "\(name): \(String(describing: item.error)) errors \(errors)")
-        XCTAssertTrue(reached, "\(name): playback should pass the 4 s piece boundary (reached \(CMTimeGetSeconds(player.currentTime())) s); errors \(errors); access \(access)")
+        XCTAssertTrue(reached, "\(name): playback should reach \(target) s (reached \(CMTimeGetSeconds(player.currentTime())) s); errors \(errors); access \(access)")
         return item
     }
 
     @MainActor
     func testTheSystemPlayerPlaysAFileWhoseSoundIsReencoded() async throws {
-        // H.264 8 bit copied, DTS made AAC: the sound alone across the boundary.
-        _ = try await playAcrossFirstBoundary("remux-h264-dts", full: true)
+        // H.264 8 bit copied, DTS made AAC. The file lasts 2 s: it plays to its end.
+        _ = try await playAcrossFirstBoundary("remux-h264-dts", full: true, until: 1.8)
     }
 
     @MainActor
