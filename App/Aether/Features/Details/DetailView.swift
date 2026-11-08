@@ -169,6 +169,10 @@ struct DetailView: View {
     /// Whether the page was at its top when the current drag began: only such a drag may close it (a drag that scrolls back up
     /// to the top, in the page or in its list of episodes, must not).
     @State private var dragBeganAtTop: Bool?
+    /// Where the finger of the current drag went down: a new place is a new drag. A drag the scroll view takes over is cancelled
+    /// without `onEnded`, so what it recorded would otherwise be kept and given to the next one (which then closed the page when a
+    /// scroll from the middle of the episodes reached the top).
+    @State private var dragStart: CGPoint?
     @Environment(\.pullToDismiss) private var pullToDismiss
     @Environment(\.dismiss) private var dismissPage
     @State private var revealed = false
@@ -243,12 +247,16 @@ struct DetailView: View {
             .coordinateSpace(name: "detailScroll")
             .onPreferenceChange(DetailScrollOffsetKey.self) { atTop = $0 > -2 }
             .simultaneousGesture(DragGesture(minimumDistance: 24)
-                .onChanged { _ in
-                    if dragBeganAtTop == nil { dragBeganAtTop = atTop }
+                .onChanged { value in
+                    if dragStart != value.startLocation {
+                        dragStart = value.startLocation
+                        dragBeganAtTop = atTop
+                    }
                 }
                 .onEnded { value in
-                    let beganAtTop = dragBeganAtTop ?? false
+                    let beganAtTop = dragStart == value.startLocation && (dragBeganAtTop ?? false)
                     dragBeganAtTop = nil
+                    dragStart = nil
                     // A pull down that starts at the top of the page closes it, whether it is a card, a full-screen page or a page
                     // pushed in a tab; one that scrolls back up and only reaches the top on the way does not.
                     guard beganAtTop, atTop, value.translation.height > 110, abs(value.translation.width) < 90 else { return }
