@@ -186,6 +186,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     private var initData: Data?
     private var firstFragment: Data?
     private var released = false
+    private var prepared: RemuxPrepared?
 
     private let stateLock = NSLock()
     private var closed = false
@@ -217,7 +218,13 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     // MARK: RemuxEngine
 
     func prepare() async throws -> RemuxPrepared {
-        return try await run { try self.prepareOnQueue() }
+        return try await run {
+            // Asked again: the file is already open and planned.
+            if let done = self.prepared { return done }
+            let made = try self.prepareOnQueue()
+            self.prepared = made
+            return made
+        }
     }
 
     func initSegment() async throws -> Data {

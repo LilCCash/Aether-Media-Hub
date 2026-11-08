@@ -241,8 +241,12 @@ final class FFmpegRemuxEngineTests: XCTestCase {
     private func serve(_ name: String, full: Bool = false) async throws -> (url: URL, stop: () -> Void) {
         let engine = try engine(name, full: full)
         let source = RemuxSource(engine: engine)
-        if full { _ = try await preparedFull(engine) }
-        try await source.prepare()
+        // The source prepares the engine (once, as the app does).
+        do {
+            _ = try await source.prepare()
+        } catch RemuxError.encoderUnavailable {
+            throw XCTSkip("no H.264/HEVC encoder on this machine")
+        }
         let registry = RelaySessionRegistry()
         let server = RelayServer(registry: registry, configuration: RelayServer.Configuration(bindAddress: "127.0.0.1", allowLoopbackPeers: true),
                                  log: { _ in })
