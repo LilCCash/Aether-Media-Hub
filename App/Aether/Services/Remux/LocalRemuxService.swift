@@ -75,78 +75,186 @@ final class LocalRemuxService {
 
     var hasSession: Bool { return current != nil || liveSession != nil || archiveSession != nil }
 
-    /// What was found inside a ZIP.
+    /// What was found inside an archive.
     struct ArchiveVideo {
         let url: URL
         let name: String
         let size: Int64
     }
 
-    /// Opens the ZIP at `zipURL` through ranged reads, finds the video `query` asks for, and offers its bytes on this phone as a file
-    /// of their own (`127.0.0.1/…/video.<ext>`): the player plays it and seeks in it as in any file. Only a video stored without
-    /// compression can be read this way (what packers do with video); a compressed one throws `DebridError.archivedFilesOnly`.
-    func openArchive(_ zipURL: URL, query: TorBoxFileMatcher.Query) async throws -> ArchiveVideo {
-        closeArchive()
+    /// A video inside an archive: where its bytes are, in which file of the archive.
+    struct LocatedArchiveVideo {
+        let name: String
+        let contentType: String
+        let leaf: String
+        let length: Int64
+        /// (archive file, offset, length), in reading order: one piece in a ZIP or a single RAR, one per volume in a split RAR.
+        let pieces: [(part: DebridArchivePart, offset: Int64, length: Int64)]
+        let fetcher: RelayRangeFetcher
+    }
+
+    /// The fetcher, file name and type of the video read from an archive now, for the AirPlay address.
+    private var archiveSource: (fetcher: RelayRangeFetcher, leaf: String, contentType: String)?
+
+    /// Finds the video `query` asks for in the archive made of `parts` (a ZIP, or the volumes of a RAR in order) through ranged
+    /// reads. Only a video stored without compression can be read this way (what packers do with video); otherwise it throws
+    /// `DebridError.archivedFilesOnly`, and the log says why.
+    func locateArchiveVideo(_ parts: [DebridArchivePart], query: TorBoxFileMatcher.Query) async throws -> LocatedArchiveVideo {
+        guard let first = parts.first else { throw DebridError.archivedFilesOnly }
         let guardian = UpstreamGuard(allowPrivateOrigin: false, selfAddresses: [], resolver: resolver)
+        var fetchers: [RelayRangeFetcher] = []
+        var totals: [Int64] = []
         do {
-            try await guardian.validateOrigin(zipURL)
+            for part in parts {
+                try await guardian.validateOrigin(part.url)
+            }
         } catch {
             throw LocalRemuxError.blocked
         }
-        let fetcher = fetcherFactory(RelayUpstream(url: zipURL), guardian)
         do {
-            let resource = try await fetcher.probe()
-            guard let total = resource.length, total > 0 else { throw RelayError.upstreamNoRanges }
-            let entries = try await ZipArchive.entries(total: total) { range in try await fetcher.fetch(range) }
-            let videos = entries.filter { TorBoxFileMatcher.isVideo(TorBoxFile(id: 0, name: $0.name)) }
-            diagnostics?.logDetached(.info, "torbox", "ZIP: \(entries.count) file, \(videos.count) video, \(videos.filter { $0.isStored }.count) senza compressione")
-            guard let entry = ZipArchive.choose(entries, query: query) else {
-                diagnostics?.logDetached(.warning, "torbox", "ZIP: nessun episodio certo tra i video dell'archivio")
-                throw DebridError.noMatchingFile(candidates: [])
+            for part in parts {
+                let fetcher = fetcherFactory(RelayUpstream(url: part.url), guardian)
+                fetchers.append(fetcher)
+                let resource = try await fetcher.probe()
+                guard let total = resource.length, total > 0 else { throw RelayError.upstreamNoRanges }
+                totals.append(total)
             }
-            let shortName = String(entry.name.split(separator: "/").last ?? Substring(entry.name))
-            guard entry.isStored, !entry.isEncrypted else {
-                diagnostics?.logDetached(.warning, "torbox", "ZIP: «\(shortName)» è compresso (metodo \(entry.method)\(entry.isEncrypted ? ", cifrato" : "")): non si può leggere a pezzi")
-                throw DebridError.archivedFilesOnly
+            let isZip = TorBoxFileMatcher.fileExtension(of: first.name) == "zip"
+            var name = ""
+            var pieces: [(part: DebridArchivePart, offset: Int64, length: Int64)] = []
+            var pieceFetchers: [ConcatenatedRangeFetcher.Piece] = []
+            if isZip {
+                let fetcher = fetchers[0]
+                let entries = try await ZipArchive.entries(total: totals[0]) { range in try await fetcher.fetch(range) }
+                let videos = entries.filter { TorBoxFileMatcher.isVideo(TorBoxFile(id: 0, name: $0.name)) }
+                diagnostics?.logDetached(.info, "torbox", "ZIP: \(entries.count) file, \(videos.count) video, \(videos.filter { $0.isStored }.count) senza compressione")
+                guard let entry = ZipArchive.choose(entries, query: query) else {
+                    diagnostics?.logDetached(.warning, "torbox", "ZIP: nessun episodio certo tra i video dell'archivio")
+                    throw DebridError.noMatchingFile(candidates: [])
+                }
+                name = String(entry.name.split(separator: "/").last ?? Substring(entry.name))
+                guard entry.isStored, !entry.isEncrypted else {
+                    diagnostics?.logDetached(.warning, "torbox", "ZIP: «\(name)» è compresso (metodo \(entry.method)\(entry.isEncrypted ? ", cifrato" : "")): non si può leggere a pezzi")
+                    throw DebridError.archivedFilesOnly
+                }
+                let window = try await ZipArchive.window(of: entry, total: totals[0]) { range in try await fetcher.fetch(range) }
+                pieces = [(first, window.offset, window.length)]
+                pieceFetchers = [ConcatenatedRangeFetcher.Piece(fetcher: fetcher, offset: window.offset, length: window.length)]
+            } else {
+                // RAR: the first volume says which file, the others carry the rest of it.
+                let firstFetcher = fetchers[0]
+                let entries = try await RarArchive.entries(total: totals[0], fetch: { range in try await firstFetcher.fetch(range) },
+                                                           firstFileOnly: parts.count > 1)
+                let videos = entries.filter { !$0.isDirectory && TorBoxFileMatcher.isVideo(TorBoxFile(id: 0, name: $0.name)) }
+                diagnostics?.logDetached(.info, "torbox", "RAR: \(parts.count) volumi, \(entries.count) file nel primo, \(videos.count) video, \(videos.filter { $0.isStored }.count) senza compressione")
+                let files = videos.enumerated().map { index, entry in TorBoxFile(id: index, name: entry.name, size: entry.unpackedSize) }
+                let pick: RarArchive.Entry?
+                if videos.count == 1 {
+                    pick = videos.first
+                } else if case .selected(let file, _) = TorBoxFileMatcher.select(from: files, query: query), let index = file.id {
+                    pick = videos[index]
+                } else {
+                    pick = nil
+                }
+                guard let entry = pick else {
+                    diagnostics?.logDetached(.warning, "torbox", "RAR: nessun video certo nell'archivio")
+                    throw DebridError.noMatchingFile(candidates: [])
+                }
+                name = String(entry.name.split(separator: "/").last ?? Substring(entry.name))
+                guard entry.isStored, !entry.isEncrypted else {
+                    diagnostics?.logDetached(.warning, "torbox", "RAR: «\(name)» è \(entry.isEncrypted ? "cifrato" : "compresso"): non si può leggere a pezzi")
+                    throw DebridError.archivedFilesOnly
+                }
+                pieces.append((first, entry.dataOffset, entry.packedSize))
+                pieceFetchers.append(ConcatenatedRangeFetcher.Piece(fetcher: firstFetcher, offset: entry.dataOffset, length: entry.packedSize))
+                var continues = entry.continuesInNext
+                var index = 1
+                while continues && index < parts.count {
+                    let fetcher = fetchers[index]
+                    let next = try await RarArchive.entries(total: totals[index], fetch: { range in try await fetcher.fetch(range) }, firstFileOnly: true)
+                    guard let piece = next.first, piece.name == entry.name, piece.continuesFromPrevious else {
+                        diagnostics?.logDetached(.warning, "torbox", "RAR: il volume \(index + 1) non continua «\(name)»")
+                        throw DebridError.archivedFilesOnly
+                    }
+                    pieces.append((parts[index], piece.dataOffset, piece.packedSize))
+                    pieceFetchers.append(ConcatenatedRangeFetcher.Piece(fetcher: fetcher, offset: piece.dataOffset, length: piece.packedSize))
+                    continues = piece.continuesInNext
+                    index += 1
+                }
+                let read = pieces.map { $0.length }.reduce(0, +)
+                guard !continues, read == entry.unpackedSize else {
+                    diagnostics?.logDetached(.warning, "torbox", "RAR: «\(name)» incompleto (\(read) di \(entry.unpackedSize) byte nei volumi)")
+                    throw DebridError.archivedFilesOnly
+                }
             }
-            let window = try await ZipArchive.window(of: entry, total: total) { range in try await fetcher.fetch(range) }
-            let ext = TorBoxFileMatcher.fileExtension(of: shortName)
+            let ext = TorBoxFileMatcher.fileExtension(of: name)
             let leaf = "video." + (RelayMime.allowedExtensions.contains(ext) ? ext : "mp4")
             let type = ext == "mkv" ? "video/x-matroska" : (ext == "avi" ? "video/x-msvideo" : "video/mp4")
-            let source = HTTPRangeSource(leaf: leaf, contentType: type,
-                                         fetcher: WindowRangeFetcher(base: fetcher, offset: window.offset, length: window.length, contentType: type))
-            try await source.prepare()
-            _ = try await startServer()
-            let created = try registry.create(source: source, leaf: leaf, owner: .player, peerRule: .any)
-            guard let url = server?.url(host: "127.0.0.1", token: created.token, leaf: leaf) else {
-                registry.revoke(created.id, reason: .loadFailed)
-                throw LocalRemuxError.unavailable
-            }
-            archiveSession = created.id
-            diagnostics?.logDetached(.info, "torbox", "ZIP: episodio «\(shortName)», \(window.length / 1_048_576) MB dalla posizione \(window.offset): lo leggo dall'interno")
-            return ArchiveVideo(url: url, name: shortName, size: window.length)
+            let length = pieces.map { $0.length }.reduce(0, +)
+            let fetcher: RelayRangeFetcher = pieceFetchers.count == 1
+                ? WindowRangeFetcher(base: pieceFetchers[0].fetcher, offset: pieceFetchers[0].offset, length: pieceFetchers[0].length, contentType: type)
+                : ConcatenatedRangeFetcher(pieces: pieceFetchers, contentType: type)
+            diagnostics?.logDetached(.info, "torbox", "\(isZip ? "ZIP" : "RAR"): episodio «\(name)», \(length / 1_048_576) MB in \(pieces.count) pezzi: lo leggo dall'interno")
+            return LocatedArchiveVideo(name: name, contentType: type, leaf: leaf, length: length, pieces: pieces, fetcher: fetcher)
         } catch {
-            fetcher.invalidate()
-            stopServerIfIdle()
-            if let zipError = error as? ZipArchive.Failure {
-                diagnostics?.logDetached(.warning, "torbox", "ZIP: indice non leggibile (\(zipError))")
+            for fetcher in fetchers { fetcher.invalidate() }
+            if let failure = error as? ZipArchive.Failure {
+                diagnostics?.logDetached(.warning, "torbox", "ZIP: indice non leggibile (\(failure))")
+                throw DebridError.archivedFilesOnly
+            }
+            if let failure = error as? RarArchive.Failure {
+                diagnostics?.logDetached(.warning, "torbox", "RAR: intestazioni non leggibili (\(failure))")
                 throw DebridError.archivedFilesOnly
             }
             throw error
         }
     }
 
+    /// Offers the video of the archive on this phone as a file of its own (`127.0.0.1/…/video.<ext>`): the player plays it and
+    /// seeks in it as in any file.
+    func openArchive(_ parts: [DebridArchivePart], query: TorBoxFileMatcher.Query) async throws -> ArchiveVideo {
+        closeArchive()
+        let located = try await locateArchiveVideo(parts, query: query)
+        let source = HTTPRangeSource(leaf: located.leaf, contentType: located.contentType, fetcher: located.fetcher)
+        do {
+            try await source.prepare()
+            _ = try await startServer()
+            let created = try registry.create(source: source, leaf: located.leaf, owner: .player, peerRule: .any)
+            guard let url = server?.url(host: "127.0.0.1", token: created.token, leaf: located.leaf) else {
+                registry.revoke(created.id, reason: .loadFailed)
+                throw LocalRemuxError.unavailable
+            }
+            archiveSession = created.id
+            archiveSource = (located.fetcher, located.leaf, located.contentType)
+            return ArchiveVideo(url: url, name: located.name, size: located.length)
+        } catch {
+            located.fetcher.invalidate()
+            stopServerIfIdle()
+            throw error
+        }
+    }
+
+    /// The video read from an archive now, as a source for the relay on the Wi-Fi address (AirPlay). It shares the reading with
+    /// the phone's own address: closing it does not stop the phone's player.
+    func archiveRelaySource() -> RelaySource? {
+        guard archiveSession != nil, let current = archiveSource else { return nil }
+        let source = HTTPRangeSource(leaf: current.leaf, contentType: current.contentType, fetcher: SharedRangeFetcher(current.fetcher))
+        return source
+    }
+
+    var archiveLeaf: String? { return archiveSession == nil ? nil : archiveSource?.leaf }
+
     /// Whether `url` is an address of this service's own server (127.0.0.1, its port, a live session).
     func serves(_ url: URL) -> Bool {
         guard archiveSession != nil || current != nil || liveSession != nil,
               let port = server?.port, url.host == "127.0.0.1", url.port == Int(port) else { return false }
-        let scheme = url.scheme?.lowercased()
-        return scheme == "http"
+        return url.scheme?.lowercased() == "http"
     }
 
     func closeArchive() {
         guard let session = archiveSession else { return }
         archiveSession = nil
+        archiveSource = nil
         registry.revoke(session, reason: .userStopped)
         stopServerIfIdle()
     }
@@ -201,11 +309,13 @@ final class LocalRemuxService {
         let scheme = upstream.url.scheme?.lowercased() ?? ""
         // A finished download is a file on this phone: it is converted from the file, with no network and no origin check.
         let isFile = scheme == "file" && upstream.url.isFileURL
-        guard isFile || scheme == "http" || scheme == "https" else { throw LocalRemuxError.notOnTheNetwork }
+        // A video read from inside an archive is already served here: it is converted from the same reading.
+        let ownArchive: RelayRangeFetcher? = (serves(upstream.url) ? archiveSource?.fetcher : nil).map { SharedRangeFetcher($0) }
+        guard isFile || ownArchive != nil || scheme == "http" || scheme == "https" else { throw LocalRemuxError.notOnTheNetwork }
 
         let allowPrivate = settings.value.privacy.allowLocalNetwork && RelayService.isLocalSource(upstream.url)
         let guardian = UpstreamGuard(allowPrivateOrigin: allowPrivate, selfAddresses: [], resolver: resolver)
-        if !isFile {
+        if !isFile && ownArchive == nil {
             do {
                 try await guardian.validateOrigin(upstream.url)
             } catch {
@@ -214,7 +324,7 @@ final class LocalRemuxService {
         }
         guard epoch == openEpoch else { throw CancellationError() }
 
-        let fetcher: RelayRangeFetcher = isFile ? FileRangeFetcher(url: upstream.url) : fetcherFactory(upstream, guardian)
+        let fetcher: RelayRangeFetcher = ownArchive ?? (isFile ? FileRangeFetcher(url: upstream.url) : fetcherFactory(upstream, guardian))
         var source: RemuxSource?
         do {
             let resource = try await fetcher.probe()

@@ -114,6 +114,10 @@ final class PlayerViewModel: ObservableObject {
     /// The live channel converted on the phone, and its address on the Wi-Fi once an AirPlay receiver needs it.
     private var liveConversion: LiveRemuxEngine?
     private var liveLease: RelayLease?
+    /// A video read from inside an archive (served on 127.0.0.1), and its Wi-Fi address once an AirPlay receiver needs it.
+    private var playingArchive = false
+    private var archiveLease: RelayLease?
+    private var archiveMovingToWiFi = false
     private var liveMovingToWiFi = false
     private var conversionLease: RelayLease?
     private var conversionUpstream: RelayUpstream?
@@ -342,6 +346,13 @@ final class PlayerViewModel: ObservableObject {
         nextLinkTask = nil
         env.watchTogether.detach(self)
         closeConversion()
+        // A video read from inside an archive ends with the player.
+        if let lease = archiveLease {
+            env.relay.release(lease, reason: .userStopped)
+            archiveLease = nil
+        }
+        env.localRemux.closeArchive()
+        playingArchive = false
         stopRouteDetection()
         pictureInPictureGrace?.cancel()
         pictureInPictureGrace = nil
@@ -455,6 +466,11 @@ final class PlayerViewModel: ObservableObject {
         } else {
             closeConversion()
         }
+        if let lease = archiveLease {
+            env.relay.release(lease, reason: .userStopped)
+            archiveLease = nil
+        }
+        playingArchive = conversion == nil && liveConversion == nil && env.localRemux.serves(loadURL) && env.localRemux.archiveLeaf != nil
         engine.setExternalPlaybackAllowed(!externalPlaybackBlockedForKey && !externalVideoWaitsForWiFi)
         (engine as? LiveStreamHinting)?.setLiveStream(isLiveContent)
         env.diagnostics.logDetached(.info, "player", String(format: "Apertura: la sorgente è pronta dopo %.1f s, avvio il motore %@", Date().timeIntervalSince(openStartedAt), engine.displayName))
@@ -686,7 +702,49 @@ final class PlayerViewModel: ObservableObject {
     /// A converted file still served on 127.0.0.1 cannot be fetched by an AirPlay receiver: until the Wi-Fi address is in use the picture
     /// stays off AirPlay (the sound still goes), instead of a black screen that ends with the video back on the phone.
     private var externalVideoWaitsForWiFi: Bool {
-        return engine.kind == .avPlayer && ((conversion != nil && conversionLease == nil) || (liveConversion != nil && liveLease == nil))
+        return engine.kind == .avPlayer && ((conversion != nil && conversionLease == nil) || (liveConversion != nil && liveLease == nil)
+            || (playingArchive && archiveLease == nil))
+    }
+
+    /// A video read from inside an archive is served on 127.0.0.1: for AirPlay the relay serves the same reading on the Wi-Fi address
+    /// and the player continues from there, at the same position.
+    private func moveArchiveToWiFi() {
+        guard playingArchive, archiveLease == nil, !archiveMovingToWiFi, engine.kind == .avPlayer, !tornDown,
+              let leaf = env.localRemux.archiveLeaf, let source = env.localRemux.archiveRelaySource() else { return }
+        guard case .ready = env.relay.availability else {
+            if !announcedWiFiNeed {
+                announcedWiFiNeed = true
+                statusMessage = "Per mandare in AirPlay il video letto dall'archivio servono il Wi-Fi e «Consenti rete locale» (Impostazioni ▸ Account e dati ▸ Privacy): per ora su AirPlay va solo l'audio."
+                scheduleStatusClear(after: 9)
+            }
+            return
+        }
+        archiveMovingToWiFi = true
+        let generation = loadGeneration
+        statusMessage = "Preparo il video per AirPlay…"
+        Task { [weak self] in
+            guard let self = self else { return }
+            defer { self.archiveMovingToWiFi = false }
+            do {
+                let lease = try await self.env.relay.publish(source: source, leaf: leaf, owner: .airPlay)
+                guard !self.tornDown, generation == self.loadGeneration, self.playingArchive else {
+                    self.env.relay.release(lease, reason: .userStopped)
+                    return
+                }
+                var position = self.engine.currentTime()
+                if position < 1, self.snapshot.position < 1, self.loadStartPosition > 1 { position = self.loadStartPosition }
+                let wasPlaying = self.snapshot.isPlaying
+                self.archiveLease = lease
+                self.engine.setExternalPlaybackAllowed(!self.externalPlaybackBlockedForKey)
+                self.engine.load(url: lease.url, headers: [:], startAt: position > 1 ? position : nil, autoplay: wasPlaying)
+                self.statusMessage = nil
+                self.env.diagnostics.logDetached(.info, "player", "AirPlay: il video dell'archivio è ora sull'indirizzo Wi-Fi (riparte da \(Int(position)) s)")
+            } catch {
+                guard !self.tornDown else { return }
+                self.statusMessage = RemuxFailureText.explain(error)
+                self.scheduleStatusClear(after: 6)
+            }
+        }
     }
 
     /// The converted live channel is served on 127.0.0.1: for AirPlay the relay serves the same channel on the Wi-Fi address (no
@@ -730,6 +788,7 @@ final class PlayerViewModel: ObservableObject {
     /// the player continues from there, at the same position.
     func moveConversionToWiFi() {
         if liveConversion != nil { moveLiveToWiFi(); return }
+        if playingArchive { moveArchiveToWiFi(); return }
         guard conversion != nil, conversionLease == nil, engine.kind == .avPlayer, !tornDown, let upstream = conversionUpstream else { return }
         guard movingToWiFiGeneration != loadGeneration else { return }
         guard case .ready = env.relay.availability else {

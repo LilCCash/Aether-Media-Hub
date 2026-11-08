@@ -405,11 +405,11 @@ final class StreamPickerModel: ObservableObject {
             }
             do {
                 let resolution = try await env.debrid.resolveWithTorBox(request, onProgress: nil)
-                // A video inside a ZIP cannot be downloaded on its own (it would be the whole archive).
-                if resolution.isArchive { throw DebridError.archivedFilesOnly }
-                let resolvedStream = resolution.playableStream(from: item.stream)
+                // A video inside an archive is downloaded as its byte range in the archive.
+                let download = try await env.debrid.downloadableStream(resolution, for: item.stream,
+                                                                       stremioID: DebridStreamLogic.stremioID(meta: self.request.meta, video: self.request.video))
                 if let refusal = await env.downloads.enqueue(meta: self.request.meta, video: self.request.video,
-                                                             stream: resolvedStream, allowLocalNetwork: allowLocal, ephemeralURL: resolution.url) {
+                                                             stream: download.stream, allowLocalNetwork: allowLocal, ephemeralURL: download.url) {
                     blockedMessage = refusal
                 } else {
                     infoMessage = "Download avviato tramite TorBox. Lo trovi in Libreria ▸ Download."

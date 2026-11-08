@@ -256,7 +256,7 @@ public actor DebridResolver: DebridProvider {
                 file.id != nil && !file.infected && TorBoxFileMatcher.fileExtension(of: file.displayName) == "zip"
             }
             guard let zip = zips.max(by: { ($0.size ?? 0) < ($1.size ?? 0) }), let zipID = zip.id else {
-                throw DebridError.archivedFilesOnly
+                return try await resolveRarSet(torrent: torrent, query: query, wasInAccount: wasInAccount, onProgress: onProgress)
             }
             await note(.info, "i video sono in uno ZIP: lo apro per leggere l'episodio dall'interno")
             try Task.checkCancellation()
@@ -280,6 +280,45 @@ public actor DebridResolver: DebridProvider {
         return DebridResolution(url: url, fileName: file.displayName, fileSize: file.size, torrentID: torrent.id,
                                 fileID: fileID, wasAlreadyInAccount: wasInAccount, resolvedAt: clock.now(),
                                 packFiles: TorBoxFileMatcher.packFiles(from: torrent.files))
+    }
+
+    /// The torrent is made of RAR volumes: the set of the wanted video is chosen and the link of each volume is asked for.
+    private func resolveRarSet(torrent: TorBoxTorrent, query: TorBoxFileMatcher.Query, wasInAccount: Bool,
+                               onProgress: (@Sendable (DebridProgress) -> Void)?) async throws -> DebridResolution {
+        let usable = torrent.files.filter { $0.id != nil && !$0.infected }
+        let byName = Dictionary(usable.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+        let sets = RarArchive.volumeSets(usable.map { $0.name }).filter { !$0.isEmpty }
+        guard !sets.isEmpty else { throw DebridError.archivedFilesOnly }
+        var chosen = sets[0]
+        if sets.count > 1 {
+            // The set whose name says the episode (or the file name the addon gave): its first volume named as a video.
+            let candidates = sets.enumerated().map { index, set -> TorBoxFile in
+                let first = set[0]
+                let base = first.replacingOccurrences(of: #"(\.part\d+)?\.(rar|r\d{2,3})$"#, with: "", options: [.regularExpression, .caseInsensitive])
+                let size = set.compactMap { byName[$0]?.size }.reduce(0, +)
+                return TorBoxFile(id: index, name: base + ".mkv", size: size)
+            }
+            guard case .selected(let file, _) = TorBoxFileMatcher.select(from: candidates, query: query), let index = file.id else {
+                throw DebridError.noMatchingFile(candidates: [])
+            }
+            chosen = sets[index]
+        }
+        guard chosen.count <= 400 else { throw DebridError.archivedFilesOnly }
+        await note(.info, "i video sono in un RAR di \(chosen.count) volumi: li apro per leggere il video dall'interno")
+        onProgress?(DebridProgress(phase: .requestingLink, fraction: 0))
+        var parts: [DebridArchivePart] = []
+        for (position, name) in chosen.enumerated() {
+            try Task.checkCancellation()
+            guard let file = byName[name], let fileID = file.id else { throw DebridError.archivedFilesOnly }
+            let url = try await client.requestDownloadLink(torrentID: torrent.id, fileID: fileID)
+            parts.append(DebridArchivePart(url: url, name: file.displayName, size: file.size))
+            onProgress?(DebridProgress(phase: .requestingLink, fraction: Double(position + 1) / Double(chosen.count)))
+        }
+        await note(.info, "link dei volumi RAR ottenuti")
+        let first = parts[0]
+        return DebridResolution(url: first.url, fileName: first.name, fileSize: first.size, torrentID: torrent.id,
+                                fileID: byName[chosen[0]]?.id ?? 0, wasAlreadyInAccount: wasInAccount, resolvedAt: clock.now(),
+                                isArchive: true, archiveParts: parts)
     }
 
     // MARK: Steps

@@ -312,12 +312,11 @@ final class DebridService: ObservableObject {
             resolution = try await resolve(request, onProgress: onProgress)
         }
         guard resolution.isArchive else { return resolution.playableStream(from: stream) }
-        // The videos are inside a ZIP: the episode is read from inside it and offered on this phone as a file of its own.
+        // The videos are inside an archive (a ZIP, or RAR volumes): the episode is read from inside it and offered on this phone as
+        // a file of its own.
         guard let opener = archiveOpener else { throw DebridError.archivedFilesOnly }
-        let query = DebridRequest(stream: stream, stremioID: stremioID, mode: DebridMode.cachedOnly).map { TorBoxFileMatcher.query(for: $0) }
-            ?? TorBoxFileMatcher.Query(filename: stream.behaviorHints.filename, episode: nil, expectsEpisode: false)
         onProgress?(DebridProgress(phase: .selectingFile, fraction: 1))
-        let video = try await opener(resolution.url, query)
+        let video = try await opener(DebridService.archiveParts(of: resolution), DebridService.archiveQuery(stream: stream, stremioID: stremioID))
         var inside = resolution
         inside.url = video.url
         inside.fileName = video.name
@@ -326,6 +325,40 @@ final class DebridService: ObservableObject {
         return inside.playableStream(from: stream)
     }
 
-    /// Opens a video inside a ZIP (`LocalRemuxService.openArchive`), set by the app at launch.
-    var archiveOpener: ((URL, TorBoxFileMatcher.Query) async throws -> LocalRemuxService.ArchiveVideo)?
+    /// Opens a video inside an archive (`LocalRemuxService.openArchive`), set by the app at launch.
+    var archiveOpener: (([DebridArchivePart], TorBoxFileMatcher.Query) async throws -> LocalRemuxService.ArchiveVideo)?
+    /// Finds a video inside an archive without serving it (`LocalRemuxService.locateArchiveVideo`), for downloads.
+    var archiveLocator: (([DebridArchivePart], TorBoxFileMatcher.Query) async throws -> LocalRemuxService.LocatedArchiveVideo)?
+
+    nonisolated static func archiveParts(of resolution: DebridResolution) -> [DebridArchivePart] {
+        if !resolution.archiveParts.isEmpty { return resolution.archiveParts }
+        return [DebridArchivePart(url: resolution.url, name: resolution.fileName, size: resolution.fileSize)]
+    }
+
+    nonisolated static func archiveQuery(stream: AddonStream, stremioID: String?) -> TorBoxFileMatcher.Query {
+        return DebridRequest(stream: stream, stremioID: stremioID, mode: DebridMode.cachedOnly).map { TorBoxFileMatcher.query(for: $0) }
+            ?? TorBoxFileMatcher.Query(filename: stream.behaviorHints.filename)
+    }
+
+    /// For a download: the stream to save. A video inside an archive is fetched as the byte range it occupies in the archive (one
+    /// request, so the download goes on in the background like any other); a video split over RAR volumes cannot be downloaded.
+    func downloadableStream(_ resolution: DebridResolution, for stream: AddonStream, stremioID: String?) async throws -> (stream: AddonStream, url: URL) {
+        guard resolution.isArchive else { return (resolution.playableStream(from: stream), resolution.url) }
+        guard let locator = archiveLocator else { throw DebridError.archivedFilesOnly }
+        let located = try await locator(DebridService.archiveParts(of: resolution), DebridService.archiveQuery(stream: stream, stremioID: stremioID))
+        located.fetcher.invalidate()
+        guard located.pieces.count == 1, let piece = located.pieces.first else {
+            throw DebridError.network("Questo episodio è diviso su più volumi RAR: si può guardare in streaming ma non scaricare.")
+        }
+        var inside = resolution
+        inside.url = piece.part.url
+        inside.fileName = located.name
+        inside.fileSize = located.length
+        inside.isArchive = false
+        var playable = inside.playableStream(from: stream)
+        var headers = playable.behaviorHints.proxyRequestHeaders
+        headers["Range"] = "bytes=\(piece.offset)-\(piece.offset + piece.length - 1)"
+        playable.behaviorHints.proxyRequestHeaders = headers
+        return (playable, piece.part.url)
+    }
 }

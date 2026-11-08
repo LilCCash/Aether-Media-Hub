@@ -154,6 +154,19 @@ public struct DebridPackFile: Equatable, Hashable, Sendable {
     }
 }
 
+/// One file of an archive the video is read from (a ZIP, or one volume of a RAR set).
+public struct DebridArchivePart: Equatable, Sendable {
+    public var url: URL
+    public var name: String
+    public var size: Int64?
+
+    public init(url: URL, name: String, size: Int64?) {
+        self.url = url
+        self.name = name
+        self.size = size
+    }
+}
+
 public struct DebridResolution: Equatable, Sendable, CustomStringConvertible {
     public var url: URL
     public var fileName: String
@@ -167,10 +180,14 @@ public struct DebridResolution: Equatable, Sendable, CustomStringConvertible {
     public var packFiles: [DebridPackFile]
     /// The link is a ZIP that holds the videos: the one to play is read from inside it (`ZipArchive`).
     public var isArchive: Bool = false
+    /// The volumes of a RAR set, in reading order (the first one is `url`): the video is read across them (`RarArchive`).
+    public var archiveParts: [DebridArchivePart] = []
 
     public init(url: URL, fileName: String, fileSize: Int64?, torrentID: Int, fileID: Int,
-                wasAlreadyInAccount: Bool, resolvedAt: Date, packFiles: [DebridPackFile] = [], isArchive: Bool = false) {
+                wasAlreadyInAccount: Bool, resolvedAt: Date, packFiles: [DebridPackFile] = [], isArchive: Bool = false,
+                archiveParts: [DebridArchivePart] = []) {
         self.isArchive = isArchive
+        self.archiveParts = archiveParts
         self.url = url
         self.fileName = fileName
         self.fileSize = fileSize

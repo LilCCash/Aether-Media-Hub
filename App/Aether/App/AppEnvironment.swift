@@ -135,7 +135,8 @@ final class AppEnvironment: ObservableObject {
         let torboxBase = hooks.torboxServerURL.flatMap { DebridService.fixtureAPIBase(from: $0) } ?? TorBoxClient.productionBaseURL
         debrid = DebridService(credentials: serviceKeys, http: http, baseURL: torboxBase, log: diagnostics)
         let remux = localRemux
-        debrid.archiveOpener = { url, query in try await remux.openArchive(url, query: query) }
+        debrid.archiveOpener = { parts, query in try await remux.openArchive(parts, query: query) }
+        debrid.archiveLocator = { parts, query in try await remux.locateArchiveVideo(parts, query: query) }
         // The UI tests point IntroDB at their fixture server too (and, without one, at a port nobody listens on, so a test never
         // asks the real service); a normal launch always asks api.introdb.app.
         let introDBBase = hooks.metadataBaseURL.flatMap { URL(string: $0 + "/introdb") }
