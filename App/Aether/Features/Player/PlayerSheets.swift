@@ -157,7 +157,7 @@ struct EpisodeSourcesSheet: View {
     }
 
     private func load() async {
-        let result = await env.service.allStreams(type: model.meta.type, videoID: video.id)
+        let result = await env.service.allStreams(type: model.meta.type, videoID: video.id, debrid: env.debrid.streamContext)
         let found = StreamSelector.rank(result.streams, preferences: env.streamPreferences())
         ranked = found.filter { $0.info.support.isPlayable }
         loading = false

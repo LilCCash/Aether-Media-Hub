@@ -533,7 +533,8 @@ struct DetailView: View {
                 guard let addonID = stream.addonID else { return true }
                 return !disabledAddonIDs.contains(addonID)
             }
-            let fetchedStreams = await env.service.allStreams(type: model.meta.type, videoID: video.id).streams
+            let fetchedStreams = await env.service.allStreams(type: model.meta.type, videoID: video.id,
+                                                              debrid: env.debrid.streamContext).streams
                 .filter { stream in
                     guard let addonID = stream.addonID else { return true }
                     return !disabledAddonIDs.contains(addonID)

@@ -19,6 +19,8 @@ public struct InstalledAddon: Codable, Hashable, Identifiable, Sendable {
     public var isOfficial: Bool
     /// The secret URL is missing (e.g. restored from a backup, Keychain cleared): the addon must be re-added.
     public var needsReinstall: Bool
+    /// The debrid service the viewer meant this addon for (nil: both). See `AddonDebridRouting`.
+    public var debridScope: AddonDebridScope?
 
     public init(id: UUID = UUID(), manifest: AddonManifest, host: String, fingerprint: String,
                 isEnabled: Bool = true, installedAt: Date = Date(), updatedAt: Date = Date(),
@@ -283,6 +285,13 @@ public actor AddonRegistry {
         guard let index = addons.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
         addons[index].nameOverride = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        persist()
+    }
+
+    public func setDebridScope(_ scope: AddonDebridScope, id: UUID) {
+        load()
+        guard let index = addons.firstIndex(where: { $0.id == id }) else { return }
+        addons[index].debridScope = scope == .both ? nil : scope
         persist()
     }
 

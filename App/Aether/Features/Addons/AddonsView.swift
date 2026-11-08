@@ -394,6 +394,38 @@ struct AddonDetailView: View {
 
     private var addon: InstalledAddon? { addons.addons.first(where: { $0.id == addonID }) }
 
+    /// Which debrid service this addon's sources are for. Torrentio and Comet left on «Entrambi» are switched to Real-Debrid by
+    /// Aether when Real-Debrid is active; the others are used as installed.
+    private func debridSection(_ addon: InstalledAddon) -> some View {
+        let scope = addon.debridScope ?? .both
+        let switchable = AddonDebridRouting.kind(host: addon.host) != nil
+        return Section(header: Text("Servizio debrid"), footer: Text(debridFooter(scope: scope, switchable: switchable))) {
+            Picker("Usa con", selection: Binding(get: { scope }, set: { value in
+                Task { await addons.setDebridScope(value, id: addon.id) }
+            })) {
+                ForEach(AddonDebridScope.allCases, id: \.self) { option in
+                    Text(option.title).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("addon.debridScope")
+        }
+    }
+
+    private func debridFooter(scope: AddonDebridScope, switchable: Bool) -> String {
+        switch scope {
+        case .both:
+            if switchable {
+                return "Con TorBox attivo l'addon è usato esattamente come l'hai configurato. Con Real-Debrid attivo Aether lo interroga con il tuo token Real-Debrid al posto del servizio configurato e mostra solo le fonti già pronte su Real-Debrid. La configurazione salvata non cambia."
+            }
+            return "L'addon è usato così com'è con entrambi i servizi."
+        case .torbox:
+            return "L'addon è usato solo quando il servizio attivo è TorBox: con Real-Debrid le sue fonti non vengono chieste."
+        case .realDebrid:
+            return "L'addon è usato solo quando il servizio attivo è Real-Debrid, così com'è configurato (per esempio una seconda installazione di MediaFusion fatta con Real-Debrid)."
+        }
+    }
+
     var body: some View {
         Group {
             if let addon = addon {
@@ -429,6 +461,9 @@ struct AddonDetailView: View {
                         }
                         .disabled(isRefreshing || addon.needsReinstall)
                         if let message = refreshMessage { Text(message).font(.footnote).foregroundStyle(Color.aetherSecondary) }
+                    }
+                    if addon.manifest.declares(ResourceName.stream) {
+                        debridSection(addon)
                     }
                     Section(header: Text("Cosa offre")) {
                         LabeledContent("Tipi", value: addon.manifest.types.map { RequestPlanner.friendlyTypeName($0) }.joined(separator: ", "))

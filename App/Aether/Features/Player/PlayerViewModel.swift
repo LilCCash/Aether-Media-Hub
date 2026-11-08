@@ -1511,7 +1511,7 @@ final class PlayerViewModel: ObservableObject {
         if let prefetched = nextStreamsTask, video.id == nextEpisode?.id {
             result = await prefetched.value
         } else {
-            result = await env.service.allStreams(type: meta.type, videoID: video.id)
+            result = await env.service.allStreams(type: meta.type, videoID: video.id, debrid: env.debrid.streamContext)
         }
         let ranked = StreamSelector.rank(result.streams, preferences: env.streamPreferences())
         let binge = currentStream?.behaviorHints.bingeGroup ?? env.bingeGroup(forMeta: meta.id)
@@ -1557,7 +1557,8 @@ final class PlayerViewModel: ObservableObject {
         if nextStreamsTask == nil, !nextIsDownloaded, snapshot.position / snapshot.duration > 0.8 {
             let service = env.service
             let type = meta.type
-            nextStreamsTask = Task { await service.allStreams(type: type, videoID: next.id) }
+            let debrid = env.debrid.streamContext
+            nextStreamsTask = Task { await service.allStreams(type: type, videoID: next.id, debrid: debrid) }
         }
         if !nextIsDownloaded { prefetchNextLink(for: next) }
         let countdown = playback.nextEpisodeCountdownSeconds

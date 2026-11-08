@@ -51,6 +51,11 @@ final class AddonStore: ObservableObject {
         await reload()
     }
 
+    func setDebridScope(_ scope: AddonDebridScope, id: UUID) async {
+        await registry.setDebridScope(scope, id: id)
+        await reload()
+    }
+
     func rename(_ name: String?, id: UUID) async {
         await registry.setNameOverride(name, id: id)
         await reload()

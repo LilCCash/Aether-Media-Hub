@@ -227,19 +227,40 @@ public final class AddonService: Sendable {
 
     /// Streams from every addon that declares `stream` for this type/video id, delivered as each addon answers.
     /// Cancelling the consuming task cancels the outstanding requests. 404 means "no streams", not an error.
-    public func streams(type: String, videoID: String, mode: AddonClient.LoadMode = .normal) -> AsyncStream<StreamBatch> {
+    /// `debrid` is the service in use: with it, each addon is asked as `AddonDebridRouting` decides (nil: every addon as installed).
+    public func streams(type: String, videoID: String, mode: AddonClient.LoadMode = .normal,
+                        debrid: StreamDebridContext? = nil) -> AsyncStream<StreamBatch> {
         return AsyncStream { continuation in
             let task = Task {
                 let path = ResourcePath(resource: ResourceName.stream, type: type, id: videoID)
                 let candidates = RequestPlanner.addons(for: path, handles: await self.registry.handles())
                 await withTaskGroup(of: StreamBatch.self) { group in
-                    for handle in candidates {
-                        group.addTask { [self] in
+                    for original in candidates {
+                        var handle = original
+                        var switched: AddonDebridRouting.Kind?
+                        switch AddonDebridRouting.decide(original, context: debrid) {
+                        case .skip:
+                            continue
+                        case .unreadable:
+                            group.addTask {
+                                StreamBatch(addonID: original.id, addonName: original.addon.displayName, streams: [],
+                                            error: .malformedResponse("indirizzo non leggibile per Real-Debrid: riconfigura l'addon"),
+                                            isStale: false, latency: 0)
+                            }
+                            continue
+                        case .use(let url, let kind):
+                            handle.transportURL = url
+                            switched = kind
+                        }
+                        group.addTask { [self, handle, switched] in
                             let outcome: AddonOutcome<[AddonStream]> = await self.outcome(handle, path: path, mode: mode) { payload in
                                 if case .streams(let streams) = payload { return streams }
                                 return nil
                             }
                             var streams = outcome.value ?? []
+                            if let kind = switched {
+                                streams = streams.filter { AddonDebridRouting.isReadyOnRealDebrid($0, kind: kind) }
+                            }
                             for index in streams.indices {
                                 streams[index].addonID = handle.addon.id.uuidString
                                 streams[index].addonName = handle.addon.displayName
@@ -262,9 +283,10 @@ public final class AddonService: Sendable {
     }
 
     /// Convenience: waits for all addons and returns de-duplicated streams in addon order.
-    public func allStreams(type: String, videoID: String) async -> (streams: [AddonStream], errors: [String: AddonError]) {
+    public func allStreams(type: String, videoID: String,
+                           debrid: StreamDebridContext? = nil) async -> (streams: [AddonStream], errors: [String: AddonError]) {
         var batches: [StreamBatch] = []
-        for await batch in streams(type: type, videoID: videoID) { batches.append(batch) }
+        for await batch in streams(type: type, videoID: videoID, debrid: debrid) { batches.append(batch) }
         let order = await registry.handles().map { $0.id }
         batches.sort { lhs, rhs in
             (order.firstIndex(of: lhs.addonID) ?? Int.max) < (order.firstIndex(of: rhs.addonID) ?? Int.max)

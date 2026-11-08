@@ -269,12 +269,15 @@ final class StreamPickerModel: ObservableObject {
 
         let path = ResourcePath(resource: ResourceName.stream, type: type, id: videoID)
         let handles = await env.addons.handles()
-        pendingAddons = RequestPlanner.addons(for: path, handles: handles).map { $0.addon.displayName }
+        let debrid = env.debrid.streamContext
+        pendingAddons = RequestPlanner.addons(for: path, handles: handles)
+            .filter { AddonDebridRouting.decide($0, context: debrid) != .skip }
+            .map { $0.addon.displayName }
         if pendingAddons.isEmpty {
             isLoading = false
             return
         }
-        for await batch in env.service.streams(type: type, videoID: videoID) {
+        for await batch in env.service.streams(type: type, videoID: videoID, debrid: debrid) {
             if Task.isCancelled { return }
             pendingAddons.removeAll(where: { $0 == batch.addonName })
             if let error = batch.error { errors[batch.addonName] = error }

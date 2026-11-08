@@ -45,6 +45,18 @@ final class DebridService: ObservableObject {
         selectedProvider = provider
     }
 
+    /// The service in use when sources are asked for. With TorBox every addon is asked exactly as installed (only the ones marked
+    /// «Real-Debrid» are left out); with Real-Debrid, Torrentio and Comet are asked with the Real-Debrid token. The token is read
+    /// from the Keychain at the moment of the request and goes nowhere but those addresses.
+    var streamContext: StreamDebridContext {
+        switch selectedProvider {
+        case .torbox:
+            return StreamDebridContext(service: .torbox)
+        case .realdebrid:
+            return StreamDebridContext(service: .realDebrid, realDebridKey: credentials.secret(for: .realdebrid))
+        }
+    }
+
     private let credentials: ServiceCredentials
     private let resolver: DebridResolver
     private let realDebrid: RealDebridClient
