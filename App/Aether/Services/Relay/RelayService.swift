@@ -224,6 +224,42 @@ final class RelayService: ObservableObject, RelayPublishing {
         }
     }
 
+    /// Serves a source the app already made (a live channel being converted) on the Wi-Fi address, for an AirPlay receiver.
+    func publish(source: RelaySource, leaf: String, owner: RelayOwner) async throws -> RelayLease {
+        guard case .ready(let interface) = availability else {
+            if case .unavailable(let reason) = availability { throw CastError.relayUnavailable(RelayService.explain(reason)) }
+            throw CastError.relayUnavailable(RelayService.explain(.noLAN))
+        }
+        idleTask?.cancel()
+        idleTask = nil
+        do {
+            _ = try await startServer(for: interface)
+        } catch {
+            listenerFailed = true
+            scheduleIdleStopIfNeeded()
+            throw CastError.relayUnavailable(RelayService.explain(.listenerFailed))
+        }
+        registry.ownAddress = interface.address
+        let created: (id: RelaySessionID, token: String)
+        do {
+            created = try registry.create(source: source, leaf: nil, owner: owner, peerRule: .any)
+        } catch {
+            scheduleIdleStopIfNeeded()
+            throw CastError.relayUnavailable("Il ponte sta già servendo altre trasmissioni: fermane una e riprova.")
+        }
+        guard let url = server?.url(host: interface.address, token: created.token, leaf: leaf) else {
+            registry.revoke(created.id, reason: .loadFailed)
+            throw CastError.relayUnavailable(RelayService.explain(.listenerFailed))
+        }
+        let lease = RelayLease(id: created.id, url: url, remuxPlan: nil)
+        if leases.isEmpty { leaseAddress = interface.address }
+        leases[created.id] = lease
+        leaseCount = leases.count
+        emit(.sessionCreated(created.id, owner))
+        startWatching()
+        return lease
+    }
+
     func release(_ lease: RelayLease, reason: RelayEndReason) {
         guard leases.removeValue(forKey: lease.id) != nil else { return }
         leaseCount = leases.count

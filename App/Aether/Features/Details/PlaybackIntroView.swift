@@ -23,14 +23,18 @@ struct PlaybackIntroView: View {
     let starting: Bool
     let watch: () -> Void
     let cancel: () -> Void
+    /// The logo flew here from the list of sources: it is already at its place, so it does not zoom in again.
+    var arrived = false
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var settings: SettingsStore
     @State private var logo: UIImage?
     @State private var lookupDone = false
     @State private var zoomed = false
 
-    init(meta: MetaItem, intro: Bool, resolution: DebridRowResolution?, ready: Bool, starting: Bool, watch: @escaping () -> Void, cancel: @escaping () -> Void) {
+    init(meta: MetaItem, intro: Bool, resolution: DebridRowResolution?, ready: Bool, starting: Bool, arrived: Bool = false,
+         watch: @escaping () -> Void, cancel: @escaping () -> Void) {
         self.meta = meta; self.intro = intro; self.resolution = resolution; self.ready = ready; self.starting = starting; self.watch = watch; self.cancel = cancel
+        self.arrived = arrived
         _logo = State(initialValue: FanartLogoStore.shared.cached(meta.id))
     }
 
@@ -50,9 +54,9 @@ struct PlaybackIntroView: View {
             VStack(spacing: scene ? 14 : 26) {
                 Spacer(minLength: 8)
                 mark
-                    .scaleEffect(zoomed || !animates ? 1 : 3.2)
-                    .opacity(zoomed || !animates ? 1 : 0)
-                    .animation(animates ? .easeOut(duration: 2.2) : nil, value: zoomed)
+                    .scaleEffect(zoomed || !animates || arrived ? 1 : 3.2)
+                    .opacity(zoomed || !animates || arrived ? 1 : 0)
+                    .animation(animates && !arrived ? .easeOut(duration: 2.2) : nil, value: zoomed)
                 if scene { info }
                 ZStack {
                     if ready && intro {

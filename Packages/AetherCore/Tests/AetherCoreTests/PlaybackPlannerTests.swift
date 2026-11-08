@@ -177,6 +177,52 @@ final class PlaybackPlannerTests: XCTestCase {
         // A file keeps the old rule: AVPlayer refuses what it cannot open.
         XCTAssertNil(PlaybackPlanner.plan(container: "ts", facts: nil, device: hdrPhone, mpvAvailable: true, choice: .avPlayer).engine)
     }
+
+    func testALiveChannelInTheConversionListGoesToAVPlayerConverted() {
+        let routing = RemuxRouting(available: true, matroskaForAVPlayer: false, live: true)
+        for choice in [PlayerEngineChoice.avPlayer, .automatic] {
+            let plan = PlaybackPlanner.plan(container: "ts", facts: nil, device: hdrPhone, mpvAvailable: true, choice: choice, remux: routing, isLive: true)
+            XCTAssertEqual(plan.engine, .avPlayer, "\(choice)")
+            XCTAssertTrue(plan.usesRemux, "\(choice)")
+        }
+        // An HLS channel opens as it is.
+        let hls = PlaybackPlanner.plan(container: "m3u8", facts: nil, device: hdrPhone, mpvAvailable: true, choice: .avPlayer, remux: routing, isLive: true)
+        XCTAssertFalse(hls.usesRemux)
+        // MPV chosen by hand stays MPV.
+        XCTAssertEqual(PlaybackPlanner.plan(container: "ts", facts: nil, device: hdrPhone, mpvAvailable: true, choice: .mpv, remux: routing, isLive: true).engine, .mpv)
+    }
+
+    func testTheListOfLiveSourcesToConvert() {
+        XCTAssertTrue(ConversionSources.includes([], addonID: nil, isPlaylist: true), "an empty list means every source")
+        XCTAssertTrue(ConversionSources.includes([], addonID: "a", isPlaylist: false))
+        XCTAssertTrue(ConversionSources.includes([ConversionSources.playlists], addonID: nil, isPlaylist: true))
+        XCTAssertFalse(ConversionSources.includes([ConversionSources.playlists], addonID: "a", isPlaylist: false))
+        XCTAssertTrue(ConversionSources.includes(["a", "b"], addonID: "b", isPlaylist: false))
+        XCTAssertFalse(ConversionSources.includes(["-"], addonID: "b", isPlaylist: false), "nothing chosen")
+        XCTAssertFalse(ConversionSources.includes(["-"], addonID: nil, isPlaylist: true))
+        var settings = PlaybackSettings()
+        XCTAssertEqual(settings.conversionMode, .light)
+        XCTAssertFalse(settings.liveConversion)
+        settings.conversionMode = .full
+        settings.liveConversion = true
+        settings.liveConversionSources = ["m3u"]
+        let decoded = try? JSONDecoder().decode(PlaybackSettings.self, from: JSONEncoder().encode(settings))
+        XCTAssertEqual(decoded?.conversionMode, .full)
+        XCTAssertEqual(decoded?.liveConversion, true)
+        XCTAssertEqual(decoded?.liveConversionSources, ["m3u"])
+        let old = try? JSONDecoder().decode(PlaybackSettings.self, from: Data("{}".utf8))
+        XCTAssertEqual(old?.conversionMode, .light, "settings saved before the switch keep the light conversion")
+    }
+
+    func testTheFullConversionTakesAnyContainerForAVPlayer() {
+        let routing = RemuxRouting(available: true, matroskaForAVPlayer: true, full: true)
+        let avi = PlaybackPlanner.plan(container: "avi", facts: nil, device: hdrPhone, mpvAvailable: true, choice: .avPlayer, remux: routing)
+        XCTAssertEqual(avi.engine, .avPlayer)
+        XCTAssertTrue(avi.usesRemux)
+        let light = PlaybackPlanner.plan(container: "avi", facts: nil, device: hdrPhone, mpvAvailable: true, choice: .avPlayer,
+                                         remux: RemuxRouting(available: true, matroskaForAVPlayer: true))
+        XCTAssertFalse(light.usesRemux)
+    }
 }
 
 final class MPVOptionsTests: XCTestCase {

@@ -13,7 +13,14 @@ Ritocchi di questa build
 - Avvio della riproduzione: appena tocchi una fonte si apre il player nero con il logo che torna alla sua dimensione e, quando tutto è pronto, il tasto «Guarda». Si spegne a parte per film, episodi e canali live (Impostazioni ▸ Riproduzione).
 - Live TV: toccando un canale con più fonti scegli la fonte da un menu. Suono d'apertura più leggero (un riser breve). Titoli di coda con un pulsante a fine film, chiudendoli torni al player.
 - Opzioni del player a tendina che non sfarfalla. Anteprime dei fotogrammi più robuste. Persone nei risultati di ricerca, foto in bolla intere, Libreria con schede più larghe, titolo scritto nella scheda del film, scheda aperta anche a schermo intero (Aspetto), Scoperta con chiusura e copertine pronte, gioco dei gusti con anche i film vecchi.
-Correzioni di questa build
+Novità di questa build
+- Conversione completa per AVPlayer e AirPlay (Impostazioni ▸ Player ▸ Motore ▸ «Conversione»: Leggera o Completa). Completa: quello che il lettore di sistema non legge viene ricodificato sul telefono (video H.264 10 bit, VP9, AV1, MPEG-2… con il codificatore hardware; audio DTS, TrueHD, FLAC… in AAC 5.1/stereo). Resta fuori solo il Dolby Vision profilo 5.
+- Sottotitoli di testo del file (SRT, ASS, WebVTT…) passano nella conversione, anche in quella leggera, e si scelgono dal pannello Sottotitoli; vanno anche su AirPlay. Quelli a immagine (Blu-ray/DVD) no.
+- AirPlay anche dei titoli scaricati che vanno convertiti; con MPV il messaggio AirPlay offre «Usa AVPlayer».
+- Conversione delle dirette (Impostazioni ▸ Player ▸ Motore ▸ «Conversione delle dirette»): i canali che AVPlayer non apre (MPEG-TS) vengono convertiti al volo, con la scelta di quali addon e playlist; audio MP2 in AAC, con la Completa anche video MPEG-2 in H.264. Vanno anche su AirPlay.
+- Mappa degli universi rifatta: linee narrative (una per storia), collegamenti tra film della stessa storia e frecce dove le storie si incontrano; pinch per avvicinare/allontanare, trascina per muoverti, doppio tocco per lo zoom, pulsanti per vedere tutto l'universo.
+- Scelta della sorgente: sfondo del film, logo al posto del titolo, tessera della qualità in ogni riga; al tocco il logo vola al centro, si ingrandisce e ruota mentre lo schermo diventa nero, e intanto l'app prepara già la fonte; poi la pagina di avvio con «Guarda».
+Correzioni della build precedente
 - Libreria ▸ Continua e Abbandonati: schede orizzontali, tre per riga, larghe quanto lo schermo.
 - Player MPV: i file HDR e Dolby Vision non passano più dall'uscita «software» del Picture in Picture sperimentale (che li mostrava scuri e arancioni); si riaprono da soli sull'uscita normale, che li converte per lo schermo. L'uscita normale è sempre SDR (sRGB).
 - Zoom dalla locandina: la scheda cresce dalla locandina toccata, sia come scheda (foglio) sia a schermo intero, anche con la pagina del film cinematografica.

@@ -68,11 +68,14 @@ public struct RemuxRouting: Equatable, Sendable {
     public var matroskaForAVPlayer: Bool
     /// The full conversion is on: what AVPlayer cannot read (any container FFmpeg opens, any codec) is re-encoded on the phone.
     public var full: Bool
+    /// The viewer asked for this live channel to be converted for AVPlayer (the setting is on and the source is in its list).
+    public var live: Bool
 
-    public init(available: Bool, matroskaForAVPlayer: Bool, full: Bool = false) {
+    public init(available: Bool, matroskaForAVPlayer: Bool, full: Bool = false, live: Bool = false) {
         self.available = available
         self.matroskaForAVPlayer = matroskaForAVPlayer
         self.full = full
+        self.live = live
     }
 
     public static let unavailable = RemuxRouting(available: false, matroskaForAVPlayer: false)
@@ -142,7 +145,10 @@ public enum PlaybackPlanner {
         switch choice {
         case .avPlayer:
             engine = .avPlayer
-            if isLive && !nativeContainer && mpvAvailable {
+            if isLive && !nativeContainer && remux.live && remux.available {
+                usesRemux = true
+                notes.append(PlaybackNote(.info, "La diretta viene convertita al volo per AVPlayer."))
+            } else if isLive && !nativeContainer && mpvAvailable {
                 // A live channel is never converted (it has no end); what AVPlayer cannot open goes to MPV.
                 engine = .mpv
                 notes.append(PlaybackNote(.info, "AVPlayer non apre questo formato in diretta: uso MPV."))
@@ -169,7 +175,11 @@ public enum PlaybackPlanner {
                 notes.append(PlaybackNote(.blocking, "Il motore MPV non è incluso in questa build."))
             }
         case .automatic:
-            if !isLive && !nativeContainer && (isMatroska || remux.full) && remux.available && remux.matroskaForAVPlayer {
+            if isLive && !nativeContainer && remux.live && remux.available {
+                engine = .avPlayer
+                usesRemux = true
+                notes.append(PlaybackNote(.info, "La diretta viene convertita al volo per AVPlayer."))
+            } else if !isLive && !nativeContainer && (isMatroska || remux.full) && remux.available && remux.matroskaForAVPlayer {
                 engine = .avPlayer
                 usesRemux = true
                 notes.append(PlaybackNote(.info, "Il file MKV viene convertito al volo per AVPlayer (video e audio sono copiati, non ricodificati)."))

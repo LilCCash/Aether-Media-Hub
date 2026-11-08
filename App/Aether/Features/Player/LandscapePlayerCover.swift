@@ -149,6 +149,7 @@ private struct LaunchPage: View {
     var body: some View {
         PlaybackIntroView(meta: launch.meta, intro: launch.intro, resolution: launch.resolution, ready: launch.ready && router.player == nil,
                           starting: router.player != nil,
+                          arrived: launch.arrivesFromPicker,
                           watch: {
                               guard let request = launch.pending else { return }
                               launch.pending = nil
@@ -233,8 +234,12 @@ private struct PlayerPresenter: UIViewRepresentable {
             }
             sessionActive = true
             let immediate = launch != nil
+            // The list of sources may still be flying the film's logo into place: the page comes up when it lands.
+            let hold = min(1.2, max(0, launch?.holdUntil?.timeIntervalSinceNow ?? 0))
             task?.cancel()
             task = Task { [weak self, weak view] in
+                if hold > 0 { try? await Task.sleep(nanoseconds: UInt64(hold * 1_000_000_000)) }
+                guard !Task.isCancelled else { return }
                 await self?.present(immediate: immediate, from: view, makeRoot: makeRoot)
             }
         }

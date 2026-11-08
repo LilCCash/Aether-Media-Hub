@@ -111,6 +111,10 @@ final class PlayerViewModel: ObservableObject {
     // The Matroska file plays as HLS made by the phone: first on 127.0.0.1 (`conversion`), and on the relay's Wi-Fi address
     // (`conversionLease`) once an AirPlay receiver has to fetch it.
     private var conversion: LocalRemuxService.Session?
+    /// The live channel converted on the phone, and its address on the Wi-Fi once an AirPlay receiver needs it.
+    private var liveConversion: LiveRemuxEngine?
+    private var liveLease: RelayLease?
+    private var liveMovingToWiFi = false
     private var conversionLease: RelayLease?
     private var conversionUpstream: RelayUpstream?
     /// The audio track the viewer picked for this video; nil follows the language settings.
@@ -214,7 +218,9 @@ final class PlayerViewModel: ObservableObject {
                                         choice: request.meta.type == "tv" ? settings.liveEngine : settings.engine,
                                         forceSDR: settings.video.hdrMode == .sdr,
                                         remux: RemuxEngineFactory.routing(matroskaForAVPlayer: settings.convertMatroskaForAVPlayer,
-                                                                          full: settings.conversionMode == .full),
+                                                                          full: settings.conversionMode == .full,
+                                                                          live: PlayerViewModel.liveConversionApplies(settings, meta: request.meta,
+                                                                                                                      source: request.source)),
                                         isLive: request.meta.type == "tv")
         self.playbackPlan = plan
         self.engine = PlaybackEngineFactory.make(plan.engine ?? .avPlayer, settings: settings, device: device)
@@ -430,7 +436,13 @@ final class PlayerViewModel: ObservableObject {
         engine.setRate(playbackRate)
         var loadURL = url
         var loadHeaders = headers
-        if shouldConvertCurrentSource {
+        if shouldConvertCurrentSource && isLiveContent {
+            guard let converted = await openLiveConversion(of: url, headers: headers, generation: generation) else { return }
+            guard !tornDown, generation == loadGeneration else { return }
+            loadURL = converted
+            loadHeaders = [:]
+            start = nil
+        } else if shouldConvertCurrentSource {
             // nil: the file went to another engine, or the failure panel says why it cannot be converted.
             guard let converted = await openConversion(of: url, headers: headers, generation: generation) else { return }
             guard !tornDown, generation == loadGeneration else { return }
@@ -455,7 +467,16 @@ final class PlayerViewModel: ObservableObject {
     // MARK: Conversion (Matroska → HLS for AVPlayer)
 
     private var remuxRouting: RemuxRouting {
-        return RemuxEngineFactory.routing(matroskaForAVPlayer: playback.convertMatroskaForAVPlayer, full: playback.conversionMode == .full)
+        return RemuxEngineFactory.routing(matroskaForAVPlayer: playback.convertMatroskaForAVPlayer, full: playback.conversionMode == .full,
+                                          live: PlayerViewModel.liveConversionApplies(playback, meta: meta, source: request.source))
+    }
+
+    /// The live channel is converted for AVPlayer: the setting is on and its source (the addon, or the M3U playlists) is in the list.
+    static func liveConversionApplies(_ settings: PlaybackSettings, meta: MetaItem, source: PlayerRequest.Source) -> Bool {
+        guard meta.type == "tv", settings.liveConversion else { return false }
+        guard case .stream(let stream) = source else { return false }
+        let fromPlaylist = stream.addonID == nil && meta.id.hasPrefix("live:")
+        return ConversionSources.includes(settings.liveConversionSources, addonID: stream.addonID, isPlaylist: fromPlaylist)
     }
 
     /// AVPlayer cannot open Matroska: the file is converted on the fly when the planner says so for this container and engine.
@@ -464,7 +485,7 @@ final class PlayerViewModel: ObservableObject {
         let plan = PlaybackPlanner.plan(container: currentContainer, facts: nil, device: device,
                                         mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: engineChoice,
                                         forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting, isLive: isLiveContent)
-        return plan.usesRemux || (forcedConversion && remuxRouting.available && !isLiveContent)
+        return plan.usesRemux || (forcedConversion && remuxRouting.available && (!isLiveContent || remuxRouting.live))
     }
 
     /// The viewer wants AVPlayer for this file even when it has to be re-encoded (full conversion on, and AVPlayer chosen or asked for
@@ -477,7 +498,8 @@ final class PlayerViewModel: ObservableObject {
 
     /// AVPlayer cannot decode what it opened: with the full conversion the same file is converted and opened again, once.
     private func convertAfterRefusal(reason: String) -> Bool {
-        guard prefersFullConversion, engine.kind == .avPlayer, conversion == nil, !forcedConversion, !tornDown else { return false }
+        let wanted = prefersFullConversion || (isLiveContent && remuxRouting.live && remuxRouting.available && engineChoice != .mpv)
+        guard wanted, engine.kind == .avPlayer, conversion == nil, liveConversion == nil, !forcedConversion, !tornDown else { return false }
         forcedConversion = true
         let position = max(snapshot.position, lastRetryPosition)
         env.diagnostics.logDetached(.info, "player", "AVPlayer non decodifica il file: lo converto (conversione completa)")
@@ -525,6 +547,31 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
+    /// The address AVPlayer plays for the converted live channel, or nil when this start is over (see `openConversion`).
+    private func openLiveConversion(of url: URL, headers: [String: String], generation: Int) async -> URL? {
+        closeConversion()
+        statusMessage = "Preparo la diretta per AVPlayer…"
+        do {
+            let opened = try await env.localRemux.openLive(RelayUpstream(url: url, headers: headers), full: remuxRouting.full)
+            guard !tornDown, generation == loadGeneration else {
+                opened.engine.close()
+                env.localRemux.close()
+                return nil
+            }
+            liveConversion = opened.engine
+            statusMessage = nil
+            env.diagnostics.logDetached(.info, "player", "Diretta convertita per AVPlayer: \(opened.engine.summary)")
+            return opened.url
+        } catch {
+            guard !tornDown, generation == loadGeneration else { return nil }
+            statusMessage = nil
+            if error is CancellationError { return nil }
+            let reason = (error as? LiveRemuxError)?.message ?? RemuxFailureText.explainLocal(error)
+            giveUpConversion(because: reason)
+            return nil
+        }
+    }
+
     /// The file cannot be converted: with the Automatic engine MPV takes it, otherwise the failure panel says why.
     private func giveUpConversion(because reason: String) {
         env.diagnostics.logDetached(.warning, "player", "Conversione del file non riuscita: \(reason)")
@@ -542,6 +589,15 @@ final class PlayerViewModel: ObservableObject {
         if let session = conversion {
             env.localRemux.close(session)
             conversion = nil
+        }
+        if let live = liveConversion {
+            liveConversion = nil
+            if let lease = liveLease {
+                env.relay.release(lease, reason: .userStopped)
+                liveLease = nil
+            }
+            env.localRemux.close()
+            live.close()
         }
         if let lease = conversionLease {
             env.relay.release(lease, reason: .userStopped)
@@ -626,12 +682,50 @@ final class PlayerViewModel: ObservableObject {
     /// A converted file still served on 127.0.0.1 cannot be fetched by an AirPlay receiver: until the Wi-Fi address is in use the picture
     /// stays off AirPlay (the sound still goes), instead of a black screen that ends with the video back on the phone.
     private var externalVideoWaitsForWiFi: Bool {
-        return engine.kind == .avPlayer && conversion != nil && conversionLease == nil
+        return engine.kind == .avPlayer && ((conversion != nil && conversionLease == nil) || (liveConversion != nil && liveLease == nil))
+    }
+
+    /// The converted live channel is served on 127.0.0.1: for AirPlay the relay serves the same channel on the Wi-Fi address (no
+    /// second connection to the channel) and the player follows it there.
+    private func moveLiveToWiFi() {
+        guard let live = liveConversion, liveLease == nil, !liveMovingToWiFi, engine.kind == .avPlayer, !tornDown else { return }
+        guard case .ready = env.relay.availability else {
+            if !announcedWiFiNeed {
+                announcedWiFiNeed = true
+                statusMessage = "Per mandare il video di questa diretta in AirPlay servono il Wi-Fi e «Consenti rete locale» (Impostazioni ▸ Account e dati ▸ Privacy): per ora su AirPlay va solo l'audio."
+                scheduleStatusClear(after: 9)
+            }
+            return
+        }
+        liveMovingToWiFi = true
+        let generation = loadGeneration
+        statusMessage = "Preparo la diretta per AirPlay…"
+        Task { [weak self] in
+            guard let self = self else { return }
+            defer { self.liveMovingToWiFi = false }
+            do {
+                let lease = try await self.env.relay.publish(source: LiveRemuxSource(engine: live, closesEngine: false), leaf: "index.m3u8", owner: .airPlay)
+                guard !self.tornDown, generation == self.loadGeneration, self.liveConversion === live else {
+                    self.env.relay.release(lease, reason: .userStopped)
+                    return
+                }
+                self.liveLease = lease
+                self.engine.setExternalPlaybackAllowed(!self.externalPlaybackBlockedForKey)
+                self.engine.load(url: lease.url, headers: [:], startAt: nil, autoplay: true)
+                self.statusMessage = nil
+                self.env.diagnostics.logDetached(.info, "player", "AirPlay: la diretta convertita è ora sull'indirizzo Wi-Fi")
+            } catch {
+                guard !self.tornDown else { return }
+                self.statusMessage = RemuxFailureText.explain(error)
+                self.scheduleStatusClear(after: 6)
+            }
+        }
     }
 
     /// The converted file is served on 127.0.0.1, which an AirPlay receiver cannot reach: the relay serves it on the Wi-Fi address and
     /// the player continues from there, at the same position.
     func moveConversionToWiFi() {
+        if liveConversion != nil { moveLiveToWiFi(); return }
         guard conversion != nil, conversionLease == nil, engine.kind == .avPlayer, !tornDown, let upstream = conversionUpstream else { return }
         guard movingToWiFiGeneration != loadGeneration else { return }
         guard case .ready = env.relay.availability else {

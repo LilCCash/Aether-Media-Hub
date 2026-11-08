@@ -129,8 +129,10 @@ final class StreamPickerModel: ObservableObject {
         didSet { launch?.resolution = resolution }
     }
     /// The black page of the player that stands in for it while the source is prepared (nil in Theater Mode, which has its own).
-    private var launch: PlayerLaunch?
+    @Published private(set) var launch: PlayerLaunch?
     private weak var launchRouter: AppRouter?
+    /// The list is flying the film's logo to the middle of the screen: the black page waits this long before it comes up.
+    var launchHold: TimeInterval = 0
     var usesLaunchPage: Bool { return launch != nil }
     @Published private(set) var rowFailure: DebridRowFailure?
     /// A torrent that is not in TorBox's cache and waits for the user's yes before anything is added to the account.
@@ -567,6 +569,11 @@ final class StreamPickerModel: ObservableObject {
         let page = PlayerLaunch(meta: request.meta) { [weak self] in self?.cancelResolution() }
         page.intro = env.settings.value.playback.introEnabled(forType: request.meta.type)
         page.resolution = resolution
+        if launchHold > 0 {
+            page.holdUntil = Date().addingTimeInterval(launchHold)
+            page.arrivesFromPicker = true
+            launchHold = 0
+        }
         launch = page
         launchRouter = env.router
         env.router.launch = page
@@ -727,16 +734,50 @@ struct StreamPickerSheet: View {
     @StateObject private var model: StreamPickerModel
     @State private var showUnplayable = false
     @State private var packItem: RankedStream?
+    /// The film's logo (fanart.tv), in place of its name where there is one.
+    @State private var logo: UIImage?
+    /// Where the logo is in the header, on screen: the flight to the player starts there.
+    @State private var logoFrame: CGRect = .zero
+    @State private var flight: LogoFlight = .idle
+
+    /// The logo leaving the list for the player: it grows, turns with the screen and the list goes black, while the source is prepared.
+    enum LogoFlight { case idle, lifted, landed }
 
     init(request: StreamPickerRequest) {
         self.request = request
         _model = StateObject(wrappedValue: StreamPickerModel(request: request))
+        _logo = State(initialValue: FanartLogoStore.shared.cached(request.meta.id))
+    }
+
+    /// Starts the source and, at the same moment, the flight of the logo: the work (the debrid service, the link, the conversion)
+    /// does not wait for the animation, only the black page does.
+    private func launch(_ item: RankedStream) {
+        let flies = settings.animationsEnabled && flight == .idle && logoFrame.width > 0
+        if flies {
+            model.launchHold = 0.62
+            flight = .lifted
+            DispatchQueue.main.async {
+                withAnimation(.easeInOut(duration: 0.6)) { flight = .landed }
+            }
+            // A source that asks something first (a download to confirm, a file to choose) or that could not start brings the list back.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                if !model.usesLaunchPage { land(back: true) }
+            }
+        }
+        Task { await model.play(item, env: env) { dismiss() } }
+    }
+
+    private func land(back: Bool) {
+        guard back, flight != .idle else { return }
+        model.launchHold = 0
+        withAnimation(.easeInOut(duration: 0.35)) { flight = .idle }
     }
 
     var body: some View {
         NavigationStack {
             List {
                 header
+                    .listRowBackground(Color.clear)
                 if model.addonNames.count > 1 {
                     Section { chips }.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 }
@@ -793,6 +834,9 @@ struct StreamPickerSheet: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background { backdrop }
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .navigationTitle("Scegli la sorgente")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $model.searchText, placement: .navigationBarDrawer(displayMode: .always),
@@ -823,6 +867,8 @@ struct StreamPickerSheet: View {
             }
             .animation(.easeInOut(duration: 0.2), value: model.infoMessage)
         }
+        .overlay { flightLayer }
+        .environment(\.colorScheme, .dark)
         .presentationDetents([.large])
         .sheet(item: $packItem) { item in
             PackDownloadSheet(item: item, meta: model.request.meta, video: model.request.video)
@@ -847,11 +893,73 @@ struct StreamPickerSheet: View {
             }
         }
         .onAppear {
-            model.start(env: env) { best in
-                Task { await model.play(best, env: env) { dismiss() } }
-            }
+            model.start(env: env) { best in launch(best) }
+        }
+        .onChange(of: model.usesLaunchPage) { _, launched in
+            // The page was taken down (the source could not be played, or the wait was cancelled): the list comes back.
+            if !launched { land(back: true) }
+        }
+        .task {
+            if logo == nil { logo = await FanartLogoStore.shared.load(meta: request.meta, env: env) }
         }
         .onDisappear { model.stop() }
+    }
+
+    /// The film's scene behind the list, blurred and dark.
+    private var backdrop: some View {
+        ZStack {
+            Color(red: 0.04, green: 0.045, blue: 0.07)
+            RemoteImage(urlString: request.meta.background ?? request.meta.poster, width: 900, placeholderSeed: request.meta.name)
+                .blur(radius: 28)
+                .opacity(0.55)
+            LinearGradient(colors: [.black.opacity(0.15), .black.opacity(0.75), .black.opacity(0.92)], startPoint: .top, endPoint: .bottom)
+        }
+        .ignoresSafeArea()
+    }
+
+    /// The logo, or the name in big letters where the film has no logo.
+    @ViewBuilder
+    private var mark: some View {
+        if let logo = logo {
+            Image(uiImage: logo).resizable().scaledToFit()
+                .frame(maxWidth: 250, maxHeight: 92)
+                .shadow(color: .black.opacity(0.6), radius: 10)
+                .accessibilityLabel(request.meta.name)
+        } else {
+            Text(request.meta.name)
+                .font(.system(size: 28, weight: .heavy, design: .serif))
+                .multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.7)
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.6), radius: 8)
+                .frame(maxWidth: 300)
+        }
+    }
+
+    /// Black over the list and the logo flying to the middle, turned the way the screen will turn (the player is sideways).
+    @ViewBuilder
+    private var flightLayer: some View {
+        if flight != .idle {
+            GeometryReader { proxy in
+                let origin = proxy.frame(in: .global).origin
+                let landed = flight == .landed
+                let start = CGPoint(x: logoFrame.midX - origin.x, y: logoFrame.midY - origin.y)
+                let middle = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                // Sideways the logo is as wide as on the start page: up to 440 points, never more than most of the screen's height.
+                let wanted = min(440, proxy.size.height * 0.62)
+                let grow = logoFrame.width > 0 ? max(1, wanted / logoFrame.width) : 1.6
+                ZStack {
+                    Color.black.opacity(landed ? 1 : 0).ignoresSafeArea()
+                    mark
+                        .frame(width: logoFrame.width, height: logoFrame.height)
+                        .scaleEffect(landed ? min(grow, 2.2) : 1)
+                        .rotationEffect(.degrees(landed ? -90 : 0))
+                        .position(landed ? middle : start)
+                }
+            }
+            .ignoresSafeArea()
+            .transition(.opacity)
+            .accessibilityHidden(true)
+        }
     }
 
     private func entries(for list: [RankedStream]) -> [PickerEntry] {
@@ -883,8 +991,9 @@ struct StreamPickerSheet: View {
     @ViewBuilder
     private func streamRow(offset: Int, item: RankedStream) -> some View {
         StreamRow(item: item, isBest: offset == 0, debrid: model.appearance(for: item)) {
-            Task { await model.play(item, env: env) { dismiss() } }
+            launch(item)
         }
+        .listRowBackground(Color.white.opacity(offset == 0 ? 0.11 : 0.06))
         .accessibilityIdentifier("stream.row.\(offset)")
         .swipeActions(edge: .trailing) {
             Button { Task { await model.download(item, env: env) } } label: {
@@ -893,7 +1002,7 @@ struct StreamPickerSheet: View {
             .tint(settings.accentColor)
         }
         .contextMenu {
-            Button { Task { await model.play(item, env: env) { dismiss() } } } label: {
+            Button { launch(item) } label: {
                 Label("Riproduci", systemImage: "play.fill")
             }
             Button { Task { await model.download(item, env: env) } } label: {
@@ -911,20 +1020,34 @@ struct StreamPickerSheet: View {
 
     private var header: some View {
         Section {
-            HStack(spacing: 12) {
-                RemoteImage(urlString: model.request.meta.poster, width: 120, placeholderSeed: model.request.meta.name)
-                    .frame(width: 52, height: 77)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(model.request.meta.name).font(.headline).lineLimit(2)
-                    if let video = model.request.video, let label = video.episodeLabel {
-                        Text("\(label) · \(video.title)").font(.subheadline).foregroundStyle(Color.aetherSecondary).lineLimit(2)
+            VStack(spacing: 10) {
+                mark
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { logoFrame = $0 }
+                    .opacity(flight == .idle ? 1 : 0)
+                if let video = model.request.video, let label = video.episodeLabel {
+                    Text("\(label) · \(video.title)").font(.subheadline.weight(.medium)).foregroundStyle(.white.opacity(0.8))
+                        .lineLimit(2).multilineTextAlignment(.center)
+                }
+                let facts = [model.request.meta.releaseInfo, model.request.meta.runtime].compactMap { $0 }.filter { !$0.isEmpty }
+                HStack(spacing: 8) {
+                    if !facts.isEmpty {
+                        Text(facts.joined(separator: " · ")).font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.6))
                     }
                     if let resume = model.request.resumeAt, resume > 0 {
-                        Text("Riprende da \(Format.duration(resume))").font(.caption).foregroundStyle(settings.accentColor)
+                        Label("Riprende da \(Format.duration(resume))", systemImage: "clock.arrow.circlepath")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 9).padding(.vertical, 4)
+                            .background(Capsule().fill(settings.accentColor.opacity(0.25)))
+                            .foregroundStyle(.white)
                     }
                 }
+                if !model.playable.isEmpty {
+                    Text(model.playable.count == 1 ? "1 sorgente pronta" : "\(model.playable.count) sorgenti pronte")
+                        .font(.caption2.weight(.bold)).textCase(.uppercase).tracking(1.1).foregroundStyle(.white.opacity(0.5))
+                }
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
         }
     }
 
@@ -1071,8 +1194,41 @@ struct StreamRow: View {
         return env.addons.addons.first(where: { $0.displayName == name })?.manifest.logo.flatMap { URL(string: $0) }
     }
 
+    /// The quality as a tile at the start of the row: the first thing an eye looks for in a list of sources.
+    private var qualityTile: some View {
+        let quality = item.info.quality
+        let colors: [Color]
+        switch quality {
+        case .uhd2160: colors = [Color(red: 0.98, green: 0.78, blue: 0.30), Color(red: 0.85, green: 0.45, blue: 0.10)]
+        case .fullHD1080: colors = [Color(red: 0.35, green: 0.62, blue: 1.0), Color(red: 0.20, green: 0.32, blue: 0.85)]
+        case .hd720: colors = [Color(red: 0.30, green: 0.80, blue: 0.75), Color(red: 0.12, green: 0.50, blue: 0.55)]
+        case .sd, .unknown: colors = [Color.white.opacity(0.28), Color.white.opacity(0.12)]
+        }
+        return VStack(spacing: 1) {
+            if quality == .unknown {
+                Image(systemName: "play.fill").font(.system(size: 15, weight: .bold))
+            } else {
+                Text(quality.label).font(.system(size: quality == .uhd2160 ? 17 : 13, weight: .heavy, design: .rounded))
+                    .minimumScaleFactor(0.7).lineLimit(1)
+            }
+            if !item.info.hdr.isEmpty {
+                Text(item.info.hdr.contains(.dolbyVision) ? "DV" : "HDR")
+                    .font(.system(size: 8, weight: .black, design: .rounded)).opacity(0.9)
+            }
+        }
+        .foregroundStyle(.white)
+        .frame(width: 48, height: 48)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(.white.opacity(0.18), lineWidth: 1))
+        .opacity(item.info.support.isPlayable ? 1 : 0.45)
+        .accessibilityHidden(true)
+    }
+
     var body: some View {
         Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+            qualityTile
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline) {
                     if isBest {
@@ -1127,7 +1283,9 @@ struct StreamRow: View {
                     Label(warning, systemImage: "info.circle").font(.caption).foregroundStyle(Color.aetherSecondary)
                 }
             }
-            .padding(.vertical, 4)
+            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)

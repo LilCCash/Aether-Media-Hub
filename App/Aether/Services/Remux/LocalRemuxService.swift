@@ -47,6 +47,8 @@ final class LocalRemuxService {
 
     private var server: RelayServing?
     private var current: Session?
+    /// The live channel being converted, if one is.
+    private var liveSession: RelaySessionID?
     private var currentFetcher: RelayRangeFetcher?
     /// The port the playlist address was made with: a restarted listener must take the same one, or the player's address is dead.
     private var lastPort: UInt16?
@@ -69,7 +71,49 @@ final class LocalRemuxService {
         self.serverFactory = serverFactory ?? { registry, configuration, emit in RelayServer(registry: registry, configuration: configuration, log: emit) }
     }
 
-    var hasSession: Bool { return current != nil }
+    var hasSession: Bool { return current != nil || liveSession != nil }
+
+    /// Opens a live channel for conversion and returns the address of its live HLS on this phone, with the engine (which the relay
+    /// can also serve on the Wi-Fi address for AirPlay). Throws `LiveRemuxError`, `LocalRemuxError` or a cancellation.
+    func openLive(_ upstream: RelayUpstream, full: Bool) async throws -> (url: URL, engine: LiveRemuxEngine) {
+        close()
+        let epoch = openEpoch
+        let scheme = upstream.url.scheme?.lowercased() ?? ""
+        guard scheme == "http" || scheme == "https" else { throw LocalRemuxError.notOnTheNetwork }
+        guard RemuxEngineFactory.isAvailable else { throw LiveRemuxError.unavailable }
+        let allowPrivate = settings.value.privacy.allowLocalNetwork && RelayService.isLocalSource(upstream.url)
+        let guardian = UpstreamGuard(allowPrivateOrigin: allowPrivate, selfAddresses: [], resolver: resolver)
+        do {
+            try await guardian.validateOrigin(upstream.url)
+        } catch {
+            throw LocalRemuxError.blocked
+        }
+        guard epoch == openEpoch else { throw CancellationError() }
+        let engine = LiveRemuxEngine(url: upstream.url, headers: upstream.headers, full: full)
+        do {
+            try await engine.start()
+        } catch {
+            engine.close()
+            throw error
+        }
+        guard epoch == openEpoch else { engine.close(); throw CancellationError() }
+        do {
+            let port = try await startServer()
+            guard epoch == openEpoch else { engine.close(); throw CancellationError() }
+            let created = try registry.create(source: LiveRemuxSource(engine: engine), leaf: nil, owner: .airPlay, peerRule: .any)
+            guard let url = server?.url(host: "127.0.0.1", token: created.token, leaf: "index.m3u8"), port > 0 else {
+                registry.revoke(created.id, reason: .loadFailed)
+                throw LocalRemuxError.unavailable
+            }
+            liveSession = created.id
+            diagnostics?.logDetached(.info, "remux", "Conversione della diretta avviata: \(engine.summary)")
+            return (url, engine)
+        } catch {
+            engine.close()
+            if epoch == openEpoch { stopServerIfIdle() }
+            throw error
+        }
+    }
 
     /// Opens `upstream` for conversion and returns the address of its HLS on this phone. Throws `RemuxError`, `RelayError` or
     /// `LocalRemuxError`; `RemuxFailureText.explain` says it in Italian.
@@ -128,6 +172,11 @@ final class LocalRemuxService {
     /// Ends the conversion: the pieces already made are dropped and the file is no longer read.
     func close() {
         openEpoch += 1
+        if let live = liveSession {
+            liveSession = nil
+            registry.revoke(live, reason: .userStopped)
+            stopServerIfIdle()
+        }
         guard let session = current else { return }
         current = nil
         registry.revoke(session.id, reason: .userStopped)
@@ -173,7 +222,7 @@ final class LocalRemuxService {
         guard server === failed else { return }
         server = nil
         failed.stop()
-        guard current != nil, !restartingServer else { return }
+        guard current != nil || liveSession != nil, !restartingServer else { return }
         restartingServer = true
         diagnostics?.logDetached(.warning, "remux", "Il server locale si è fermato: lo riavvio")
         Task { [weak self] in
@@ -188,7 +237,7 @@ final class LocalRemuxService {
     }
 
     private func stopServerIfIdle() {
-        guard current == nil else { return }
+        guard current == nil, liveSession == nil else { return }
         server?.stop()
         server = nil
     }

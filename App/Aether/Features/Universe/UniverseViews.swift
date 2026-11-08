@@ -216,7 +216,7 @@ struct UniverseDetailView: View {
         }
         .navigationTitle(universe.name)
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showingMap) { UniverseMapView(universe: universe) }
+        .fullScreenCover(isPresented: $showingMap) { UniverseMapView(universe: universe) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showingMap = true } label: { Image(systemName: "point.topleft.down.to.point.bottomright.curvepath") }

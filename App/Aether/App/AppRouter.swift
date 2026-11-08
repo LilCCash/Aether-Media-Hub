@@ -58,6 +58,10 @@ final class PlayerLaunch: ObservableObject, Identifiable {
     /// Show the logo zooming out and wait for «Guarda» (off: the film starts as soon as it is ready).
     var intro = true
     var pending: PlayerRequest?
+    /// The list of sources is still flying the logo to the middle of the screen: the page comes up when it lands (the work goes on).
+    var holdUntil: Date?
+    /// The logo arrived from the list already at its place: the page shows it there instead of zooming it in.
+    var arrivesFromPicker = false
     /// Stops waiting for the link (the viewer pressed «Annulla»).
     let cancel: () -> Void
 
