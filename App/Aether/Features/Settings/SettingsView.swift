@@ -80,7 +80,7 @@ struct PlaybackSettingsView: View {
                 .accessibilityIdentifier("settings.streams")
             }
             Section(header: Text("Motore"),
-                    footer: Text("Automatico usa AVPlayer (il player di Apple, l'unico che può mostrare il vero Dolby Vision) per MP4, MOV e HLS, e MPV per MKV, AVI, TS e i file che AVPlayer non sa decodificare. Se un motore non riesce ad aprire il file, Aether prova l'altro una volta. I canali in diretta hanno il loro lettore («Player per le dirette») e non vengono mai convertiti: con AVPlayer, un formato che non sa aprire (TS, DASH…) passa a MPV.\(RemuxEngineFactory.isAvailable ? " «Converti i file MKV per AVPlayer» fa passare anche gli MKV da AVPlayer: il telefono li rimette al volo in pezzi HLS (video e audio copiati, non ricodificati), così funzionano Picture in Picture e AirPlay. Una traccia audio alla volta, niente sottotitoli incorporati, e non parte se l'audio è solo DTS/TrueHD o il video è VP9/AV1: in quel caso Automatico usa MPV." : "")")) {
+                    footer: Text("Automatico usa AVPlayer (il player di Apple, l'unico che può mostrare il vero Dolby Vision) per MP4, MOV e HLS, e MPV per MKV, AVI, TS e i file che AVPlayer non sa decodificare. Se un motore non riesce ad aprire il file, Aether prova l'altro una volta. I canali in diretta hanno il loro lettore («Player per le dirette»): con AVPlayer, un formato che non sa aprire (TS…) passa a MPV, a meno che tu non attivi «Conversione delle dirette».\(RemuxEngineFactory.isAvailable ? " «Converti i file per AVPlayer» fa passare anche MKV, AVI e gli altri formati da AVPlayer: il telefono li rimette al volo in pezzi HLS, così funzionano Picture in Picture e AirPlay, con una traccia audio alla volta (la cambi dal pannello Audio) e i sottotitoli di testo del file. Conversione «Leggera»: video e audio copiati, quasi senza consumo, ma non passano video H.264 a 10 bit, VP9, AV1, MPEG-2… né audio solo DTS/TrueHD (in quel caso Automatico usa MPV). «Completa»: quello che il lettore di sistema non legge viene ricodificato sul telefono (video con il codificatore hardware, audio in AAC 5.1/stereo), quindi passa tutto tranne il Dolby Vision profilo 5; consuma più batteria e scalda il telefono, e la decodifica di AV1/VP9 4K può non stare al passo sui modelli più vecchi." : "")")) {
                 Picker("Player", selection: settings.binding(\.playback.engine)) {
                     ForEach(PlayerEngineChoice.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
@@ -92,8 +92,18 @@ struct PlaybackSettingsView: View {
                 NavigationLink("Live TV: playlist e cataloghi") { LiveTVSettingsView() }
                     .accessibilityIdentifier("settings.liveCatalogs")
                 if RemuxEngineFactory.isAvailable {
-                    Toggle("Converti i file MKV per AVPlayer", isOn: settings.binding(\.playback.convertMatroskaForAVPlayer))
+                    Toggle("Converti i file per AVPlayer", isOn: settings.binding(\.playback.convertMatroskaForAVPlayer))
                         .accessibilityIdentifier("settings.convertMKV")
+                    Picker("Conversione", selection: settings.binding(\.playback.conversionMode)) {
+                        ForEach(ConversionMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .accessibilityIdentifier("settings.conversionMode")
+                    NavigationLink {
+                        LiveConversionSettingsView()
+                    } label: {
+                        LabeledContent("Conversione delle dirette", value: settings.value.playback.liveConversion ? "Attiva" : "Spenta")
+                    }
+                    .accessibilityIdentifier("settings.liveConversion")
                 }
                 if PlaybackEngineFactory.mpvAvailable {
                     Toggle("Picture in Picture anche con MPV (sperimentale)", isOn: settings.binding(\.playback.mpvPictureInPicture))

@@ -104,6 +104,8 @@ final class PlayerViewModel: ObservableObject {
     private var request: PlayerRequest
     private let device: DeviceVideoCapabilities
     private var engineSwitches = 0
+    /// Full conversion: AVPlayer said it cannot decode this file (an MP4 in 10-bit H.264, say), so it is converted from now on.
+    private var forcedConversion = false
     /// The engine was changed on purpose (a fallback) for the file now playing: a restart must keep it.
     private var engineChosenByFallback = false
     // The Matroska file plays as HLS made by the phone: first on 127.0.0.1 (`conversion`), and on the relay's Wi-Fi address
@@ -211,7 +213,8 @@ final class PlayerViewModel: ObservableObject {
                                         mpvAvailable: PlaybackEngineFactory.mpvAvailable,
                                         choice: request.meta.type == "tv" ? settings.liveEngine : settings.engine,
                                         forceSDR: settings.video.hdrMode == .sdr,
-                                        remux: RemuxEngineFactory.routing(matroskaForAVPlayer: settings.convertMatroskaForAVPlayer),
+                                        remux: RemuxEngineFactory.routing(matroskaForAVPlayer: settings.convertMatroskaForAVPlayer,
+                                                                          full: settings.conversionMode == .full),
                                         isLive: request.meta.type == "tv")
         self.playbackPlan = plan
         self.engine = PlaybackEngineFactory.make(plan.engine ?? .avPlayer, settings: settings, device: device)
@@ -452,7 +455,7 @@ final class PlayerViewModel: ObservableObject {
     // MARK: Conversion (Matroska → HLS for AVPlayer)
 
     private var remuxRouting: RemuxRouting {
-        return RemuxEngineFactory.routing(matroskaForAVPlayer: playback.convertMatroskaForAVPlayer)
+        return RemuxEngineFactory.routing(matroskaForAVPlayer: playback.convertMatroskaForAVPlayer, full: playback.conversionMode == .full)
     }
 
     /// AVPlayer cannot open Matroska: the file is converted on the fly when the planner says so for this container and engine.
@@ -461,7 +464,28 @@ final class PlayerViewModel: ObservableObject {
         let plan = PlaybackPlanner.plan(container: currentContainer, facts: nil, device: device,
                                         mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: engineChoice,
                                         forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting, isLive: isLiveContent)
-        return plan.usesRemux
+        return plan.usesRemux || (forcedConversion && remuxRouting.available && !isLiveContent)
+    }
+
+    /// The viewer wants AVPlayer for this file even when it has to be re-encoded (full conversion on, and AVPlayer chosen or asked for
+    /// with Automatic).
+    private var prefersFullConversion: Bool {
+        let routing = remuxRouting
+        guard routing.full, routing.available, !isLiveContent else { return false }
+        return engineChoice == .avPlayer || (engineChoice == .automatic && playback.convertMatroskaForAVPlayer)
+    }
+
+    /// AVPlayer cannot decode what it opened: with the full conversion the same file is converted and opened again, once.
+    private func convertAfterRefusal(reason: String) -> Bool {
+        guard prefersFullConversion, engine.kind == .avPlayer, conversion == nil, !forcedConversion, !tornDown else { return false }
+        forcedConversion = true
+        let position = max(snapshot.position, lastRetryPosition)
+        env.diagnostics.logDetached(.info, "player", "AVPlayer non decodifica il file: lo converto (conversione completa)")
+        failure = nil
+        mediaInfo = nil
+        carriedStatus = reason
+        Task { await beginPlayback(startOverride: position > 5 ? position : nil) }
+        return true
     }
 
     var isConverting: Bool { return conversionPlan != nil }
@@ -477,7 +501,7 @@ final class PlayerViewModel: ObservableObject {
     /// panel is showing, or the player moved on.
     private func openConversion(of url: URL, headers: [String: String], generation: Int) async -> URL? {
         closeConversion()
-        statusMessage = "Preparo il file MKV per AVPlayer…"
+        statusMessage = remuxRouting.full ? "Preparo il file per AVPlayer…" : "Preparo il file MKV per AVPlayer…"
         let upstream = RelayUpstream(url: url, headers: headers)
         let choice = conversionAudio ?? .automatic(languages: wantedAudioLanguages())
         do {
@@ -919,6 +943,8 @@ final class PlayerViewModel: ObservableObject {
 
     private func handleFailure(_ new: PlaybackFailure) {
         isOpeningSource = false
+        if new.kind == .codecUnsupported || new.kind == .formatUnsupported,
+           convertAfterRefusal(reason: "AVPlayer non decodifica questo video: lo converto sul telefono…") { return }
         if tryEngineFallback(after: new) { return }
         if !isLiveContent { recordReliability(success: false) }
         // The engine's wording may quote the file's address, and a link resolved through TorBox carries a token: it is redacted
@@ -950,6 +976,8 @@ final class PlayerViewModel: ObservableObject {
                                         mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: engineChoice,
                                         forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting, isLive: isLiveContent)
         playbackPlan = plan
+        if plan.usesRemux, info.source == .avFoundation, conversion == nil,
+           convertAfterRefusal(reason: "AVPlayer non decodifica questo video: lo converto sul telefono…") { return }
         guard engineChoice == .automatic, info.source == .avFoundation, engineSwitches == 0,
               let wanted = plan.engine, wanted != engine.kind, canUse(wanted) else { return }
         switchEngine(to: wanted, reason: plan.notes.first(where: { $0.severity != .warning })?.text ?? "Cambio motore di riproduzione…")
@@ -1735,6 +1763,7 @@ final class PlayerViewModel: ObservableObject {
     /// What the viewer chose by hand (`trackMemory`) is kept: it applies to the next video of the same title.
     private func resetSubtitleStateForNewVideo() {
         conversionAudio = nil
+        forcedConversion = false
         subtitleTask?.cancel()
         subtitleHashTask?.cancel()
         subtitleHashTask = nil
@@ -2084,6 +2113,20 @@ final class PlayerViewModel: ObservableObject {
     private var externalPlaybackBlockedForKey: Bool {
         guard engine.kind == .avPlayer, isPlayingThroughTorBox, conversionPlan == nil else { return false }
         return !env.settings.value.advanced.sendDirectLinkToTV
+    }
+
+    /// With MPV the picture cannot go over AirPlay; AVPlayer can take the file, converted on the phone.
+    var canSwitchToAVPlayerForAirPlay: Bool {
+        guard engine.kind == .mpv, !isLiveContent, remuxRouting.available else { return false }
+        return remuxRouting.full || (currentContainer ?? "").lowercased() == "mkv" || PlaybackPlanner.isNativeToAVFoundation(container: currentContainer)
+    }
+
+    func switchToAVPlayerForAirPlay() {
+        acknowledgeAirPlayAlert()
+        guard canSwitchToAVPlayerForAirPlay else { return }
+        // What AVPlayer cannot open is converted, whatever the engine setting says.
+        forcedConversion = !PlaybackPlanner.isNativeToAVFoundation(container: currentContainer)
+        switchEngine(to: .avPlayer, reason: forcedConversion ? "Passo ad AVPlayer per AirPlay: converto il file sul telefono…" : "Passo ad AVPlayer per AirPlay…")
     }
 
     /// The viewer read the alert: it does not come back for this device during this player session.

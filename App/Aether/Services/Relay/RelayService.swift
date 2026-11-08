@@ -130,8 +130,10 @@ final class RelayService: ObservableObject, RelayPublishing {
         let upstreamURL = request.upstream.url
         let allowPrivate = settings.value.privacy.allowLocalNetwork && RelayService.isLocalSource(upstreamURL)
         let guardian = UpstreamGuard(allowPrivateOrigin: allowPrivate, selfAddresses: [interface.address], resolver: resolver)
+        // A downloaded file that is converted is read from the phone itself: there is no origin on the network to check.
+        let isDownloadedFile = upstreamURL.isFileURL && request.remux != nil
         do {
-            try await guardian.validateOrigin(upstreamURL)
+            if !isDownloadedFile { try await guardian.validateOrigin(upstreamURL) }
         } catch {
             emit(.upstreamFailure(RelaySessionID(label: "------"), .blocked))
             scheduleIdleStopIfNeeded()
@@ -202,7 +204,8 @@ final class RelayService: ObservableObject, RelayPublishing {
     /// A Matroska file converted into HLS on the fly. The session accepts every piece name the converted file has.
     private func prepareConverted(_ request: RelayPublishRequest, audio: RemuxAudioChoice,
                                   guardian: UpstreamGuard) async throws -> (source: RelaySource, sessionLeaf: String?, urlLeaf: String, plan: RemuxPlan?) {
-        let fetcher = fetcherFactory(request.upstream, guardian)
+        let fetcher: RelayRangeFetcher = request.upstream.url.isFileURL
+            ? FileRangeFetcher(url: request.upstream.url) : fetcherFactory(request.upstream, guardian)
         var source: RemuxSource?
         do {
             let resource = try await fetcher.probe()

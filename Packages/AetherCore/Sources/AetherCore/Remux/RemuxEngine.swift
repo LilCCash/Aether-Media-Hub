@@ -26,6 +26,8 @@ public enum RemuxError: Error, Equatable, Sendable {
     case engine(code: Int)
     case closed
     case segmentOutOfRange(Int)
+    /// Full conversion: the phone's video encoder could not be started.
+    case encoderUnavailable
 
     /// Italian, for the viewer.
     public var message: String {
@@ -36,6 +38,7 @@ public enum RemuxError: Error, Equatable, Sendable {
         case .engine: return "La conversione del file non è riuscita."
         case .closed: return "La conversione è stata interrotta."
         case .segmentOutOfRange: return "Parte del video non disponibile."
+        case .encoderUnavailable: return "Il telefono non è riuscito ad avviare la ricodifica del video. Usa il motore Automatico (MPV)."
         }
     }
 }
@@ -49,6 +52,14 @@ public protocol RemuxEngine: AnyObject, Sendable {
     func initSegment() async throws -> Data
     /// `moof` + `mdat` for one segment, starting at a keyframe, with absolute decode times.
     func mediaSegment(_ index: Int) async throws -> Data
+    /// The WebVTT piece of a text subtitle track (the file's stream index) for the same time span as video segment `index`.
+    func subtitleSegment(track: Int, index: Int) async throws -> Data
     /// Releases the file and cancels what is in flight.
     func close()
+}
+
+extension RemuxEngine {
+    public func subtitleSegment(track: Int, index: Int) async throws -> Data {
+        return Data(WebVTTWriter.document([]).utf8)
+    }
 }

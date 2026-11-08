@@ -32,6 +32,7 @@ final class SettingsStore: ObservableObject {
             guard value != oldValue else { return }
             AetherTypography.design = AetherTypography.fontDesign(for: value.appearance.titleFont)
             Haptics.enabled = value.appearance.haptics
+            RemuxEngineFactory.fullConversion = value.playback.conversionMode == .full
             persist()
             snapshot.set(value)
             onChange?(value, oldValue)
@@ -53,6 +54,7 @@ final class SettingsStore: ObservableObject {
         self.snapshot = SettingsSnapshot(loaded)
         AetherTypography.design = AetherTypography.fontDesign(for: loaded.appearance.titleFont)
         Haptics.enabled = loaded.appearance.haptics
+        RemuxEngineFactory.fullConversion = loaded.playback.conversionMode == .full
     }
 
     private func persist() {

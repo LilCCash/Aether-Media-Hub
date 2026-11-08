@@ -66,10 +66,13 @@ public struct RemuxRouting: Equatable, Sendable {
     public var available: Bool
     /// The viewer asked for Matroska to be converted for AVPlayer even with the Automatic engine.
     public var matroskaForAVPlayer: Bool
+    /// The full conversion is on: what AVPlayer cannot read (any container FFmpeg opens, any codec) is re-encoded on the phone.
+    public var full: Bool
 
-    public init(available: Bool, matroskaForAVPlayer: Bool) {
+    public init(available: Bool, matroskaForAVPlayer: Bool, full: Bool = false) {
         self.available = available
         self.matroskaForAVPlayer = matroskaForAVPlayer
+        self.full = full
     }
 
     public static let unavailable = RemuxRouting(available: false, matroskaForAVPlayer: false)
@@ -143,9 +146,14 @@ public enum PlaybackPlanner {
                 // A live channel is never converted (it has no end); what AVPlayer cannot open goes to MPV.
                 engine = .mpv
                 notes.append(PlaybackNote(.info, "AVPlayer non apre questo formato in diretta: uso MPV."))
-            } else if !nativeContainer && isMatroska && remux.available && !isLive {
+            } else if !nativeContainer && (isMatroska || remux.full) && remux.available && !isLive {
                 usesRemux = true
-                notes.append(PlaybackNote(.info, "Il file MKV viene convertito al volo per AVPlayer (video e audio sono copiati, non ricodificati)."))
+                notes.append(PlaybackNote(.info, remux.full
+                    ? "Il file viene convertito al volo per AVPlayer: ciò che il lettore di sistema non legge viene ricodificato sul telefono."
+                    : "Il file MKV viene convertito al volo per AVPlayer (video e audio sono copiati, non ricodificati)."))
+            } else if avFoundationRefuses && remux.full && remux.available && !isLive {
+                usesRemux = true
+                notes.append(PlaybackNote(.info, "AVPlayer non decodifica questo video: viene ricodificato al volo sul telefono."))
             } else if !nativeContainer {
                 let name = (container ?? "").uppercased()
                 notes.append(PlaybackNote(.blocking, "AVPlayer non apre i file \(name). Scegli «Automatico» o «MPV» in Impostazioni → Riproduzione."))
@@ -161,7 +169,7 @@ public enum PlaybackPlanner {
                 notes.append(PlaybackNote(.blocking, "Il motore MPV non è incluso in questa build."))
             }
         case .automatic:
-            if !isLive && !nativeContainer && isMatroska && remux.available && remux.matroskaForAVPlayer {
+            if !isLive && !nativeContainer && (isMatroska || remux.full) && remux.available && remux.matroskaForAVPlayer {
                 engine = .avPlayer
                 usesRemux = true
                 notes.append(PlaybackNote(.info, "Il file MKV viene convertito al volo per AVPlayer (video e audio sono copiati, non ricodificati)."))

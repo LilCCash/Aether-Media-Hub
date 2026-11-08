@@ -1,7 +1,7 @@
 import Foundation
 import AetherCore
 
-#if canImport(Libavformat) && canImport(Libavcodec) && canImport(Libavutil)
+#if canImport(Libavformat) && canImport(Libavcodec) && canImport(Libavutil) && canImport(Libswscale) && canImport(Libswresample)
 import Libavformat
 import Libavcodec
 import Libavutil
@@ -166,6 +166,12 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         var startTimestamps: [Int64]
         /// Added to every presentation time, so decode times can be zero-based.
         var shiftSeconds: Double
+        /// Full conversion: how the picture is encoded again (nil when it is copied).
+        var video: VideoEncoderSettings? = nil
+        /// Full conversion: the sound is encoded again as AAC.
+        var audioTranscoded = false
+        /// Text subtitle tracks: input stream index → codec name.
+        var textSubtitles: [Int: String] = [:]
     }
 
     private let queue = DispatchQueue(label: "app.aether.remux")
@@ -185,12 +191,23 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     private var closed = false
 
     private let audioChoice: RemuxAudioChoice
+    private let full: Bool
 
-    init(fetcher: RelayRangeFetcher, totalBytes: Int64, minimumSegment: Double = 6, audio: RemuxAudioChoice = .standard) {
+    // Only touched on `queue`: the subtitle cues found while making each piece (piece → track → cues), the pieces whose cues are
+    // known, pieces made for a subtitle request before the player asked for them, and the end of the sound of the last piece made
+    // (the start of the next one's encoder warm-up).
+    private var cues: [Int: [Int: [WebVTTWriter.Cue]]] = [:]
+    private var scanned = Set<Int>()
+    private var stashed: [Int: Data] = [:]
+    private var audioCarry: (index: Int, packets: [UnsafeMutablePointer<AVPacket>])?
+
+    init(fetcher: RelayRangeFetcher, totalBytes: Int64, minimumSegment: Double = 6, audio: RemuxAudioChoice = .standard, full: Bool = false) {
         self.input = RangeInput(fetcher: fetcher, total: totalBytes)
         self.totalBytes = totalBytes
-        self.minimumSegment = minimumSegment
+        // Re-encoded pieces take longer to make: shorter ones keep the start and the seeks quick.
+        self.minimumSegment = full ? min(minimumSegment, 4) : minimumSegment
         self.audioChoice = audio
+        self.full = full
     }
 
     deinit {
@@ -215,7 +232,32 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     func mediaSegment(_ index: Int) async throws -> Data {
         return try await run {
             if index == 0, let cached = self.firstFragment { return cached }
+            if let ready = self.stashed.removeValue(forKey: index) { return ready }
             return try self.produce(segment: index)
+        }
+    }
+
+    func subtitleSegment(track: Int, index: Int) async throws -> Data {
+        return try await run {
+            guard let layout = self.layout, layout.textSubtitles[track] != nil, index >= 0, index < layout.segments.count else {
+                return Data(WebVTTWriter.document([]).utf8)
+            }
+            if !self.scanned.contains(index) {
+                // The cues are found while the piece is read: the piece is made now and kept for when the player asks for it.
+                do {
+                    let fragment = try self.produce(segment: index)
+                    if index != 0 {
+                        if self.stashed.count >= 4, let oldest = self.stashed.keys.min() { self.stashed.removeValue(forKey: oldest) }
+                        self.stashed[index] = fragment
+                    }
+                } catch RemuxError.closed {
+                    throw RemuxError.closed
+                } catch {
+                    // A piece that cannot be made has no subtitles either; an empty one keeps the player going.
+                    return Data(WebVTTWriter.document([]).utf8)
+                }
+            }
+            return Data(WebVTTWriter.document(self.cues[index]?[track] ?? []).utf8)
         }
     }
 
@@ -299,7 +341,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             infos.append(describe(stream: stream, parameters: par, index: index))
         }
         let plan: RemuxPlan
-        switch RemuxPlanner.plan(infos, audio: audioChoice) {
+        switch RemuxPlanner.plan(infos, audio: audioChoice, full: full) {
         case .success(let decided): plan = decided
         case .failure(let refusal): throw RemuxError.refused(refusal)
         }
@@ -334,22 +376,41 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         if !(frameRate > 0) { frameRate = 0 }
         let frameDuration = frameRate > 0 ? 1.0 / frameRate : 1.0 / 24.0
         let delay = Int(videoPar.pointee.video_delay)
-        let shift = delay > 0 ? Double(delay + 1) * frameDuration : 0
+        var shift = delay > 0 ? Double(delay + 1) * frameDuration : 0
+
+        // Full conversion: the encoder is tried once now, so a phone that cannot encode says so before anything plays.
+        var encoderSettings: VideoEncoderSettings?
+        var videoString: String?
+        if plan.videoTranscoded {
+            let settings = VideoEncoderSettings.choose(for: videoPar, stream: videoStream, bitDepth: plan.video.bitDepth)
+            guard let text = FFmpegCodecs.codecString(settings: settings) else { throw RemuxError.encoderUnavailable }
+            encoderSettings = settings
+            videoString = text
+            // The new pictures have no reordering, so nothing needs to be moved later.
+            shift = 0
+        }
 
         var copied = [videoIndex]
         copied.append(contentsOf: plan.audio.map { $0.index })
-        layout = Layout(videoIndex: videoIndex, copied: copied, plan: plan, segments: spans, startTimestamps: starts, shiftSeconds: shift)
+        var subtitleCodecs: [Int: String] = [:]
+        for track in plan.textSubtitles { subtitleCodecs[track.index] = track.codec }
+        layout = Layout(videoIndex: videoIndex, copied: copied, plan: plan, segments: spans, startTimestamps: starts, shiftSeconds: shift,
+                        video: encoderSettings, audioTranscoded: plan.audioTranscoded, textSubtitles: subtitleCodecs)
 
         let videoCodec = plan.video.codec.lowercased()
         let extradata = bytes(of: videoPar)
-        let videoString: String
-        if videoCodec == "h264" {
-            videoString = CodecStrings.avc1(avcC: extradata) ?? "avc1.640028"
-        } else {
-            videoString = CodecStrings.hvc1(hvcC: extradata) ?? "hvc1.1.6.L120.90"
+        if videoString == nil {
+            if videoCodec == "h264" {
+                videoString = CodecStrings.avc1(avcC: extradata) ?? "avc1.640028"
+            } else {
+                videoString = CodecStrings.hvc1(hvcC: extradata) ?? "hvc1.1.6.L120.90"
+            }
         }
-        var codecs = [videoString]
-        for track in plan.audio {
+        var codecs = [videoString ?? "avc1.640028"]
+        if plan.audioTranscoded, !plan.audio.isEmpty {
+            codecs.append("mp4a.40.2")
+        }
+        for track in plan.audio where !plan.audioTranscoded {
             guard let stream = ic.pointee.streams[track.index], let par = stream.pointee.codecpar else { continue }
             var objectType: Int?
             if track.codec.lowercased() == "aac" {
@@ -358,12 +419,14 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             }
             if let text = CodecStrings.audio(codec: track.codec, aacObjectType: objectType), !codecs.contains(text) { codecs.append(text) }
         }
-        let averageBandwidth = Int(Double(totalBytes) * 8.0 / duration)
+        var averageBandwidth = Int(Double(totalBytes) * 8.0 / duration)
+        if let settings = encoderSettings { averageBandwidth = Int(settings.bitRate) + 500_000 }
         var range = HLSVideoRange.sdr
         if videoPar.pointee.color_trc == AVCOL_TRC_SMPTE2084 { range = .pq }
         if videoPar.pointee.color_trc == AVCOL_TRC_ARIB_STD_B67 { range = .hlg }
         let master = HLSMasterInfo(bandwidth: Int(Double(averageBandwidth) * 1.25), averageBandwidth: averageBandwidth,
-                                   width: Int(videoPar.pointee.width), height: Int(videoPar.pointee.height),
+                                   width: Int(encoderSettings?.width ?? videoPar.pointee.width),
+                                   height: Int(encoderSettings?.height ?? videoPar.pointee.height),
                                    frameRate: frameRate > 0 ? frameRate : nil, codecs: codecs, range: range)
         return RemuxPrepared(plan: plan, segments: spans, duration: duration, master: master)
     }
@@ -437,6 +500,14 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         var audioDone = Set<Int>()
         var packetsAfterVideoEnded = 0
         let audioInputs = layout.copied.filter { $0 != layout.videoIndex }
+        let transcodeVideo = layout.video != nil
+        let transcodeAudio = layout.audioTranscoded
+        // Re-encoded sound is read a little past the end of the piece: the AAC frame that straddles the end is made by this piece.
+        let audioTail = transcodeAudio ? 0.25 : 0
+        // Re-encoded picture: the pictures shown before the next keyframe but stored after it (open GOP) belong to this piece.
+        var leadingDone = !transcodeVideo
+        var pieceCues: [Int: [WebVTTWriter.Cue]] = [:]
+        let collectCues = !layout.textSubtitles.isEmpty && !scanned.contains(index)
         while true {
             if input.isCancelled || isClosed { throw RemuxError.closed }
             let result = av_read_frame(ic, packet)
@@ -446,20 +517,41 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             }
             defer { av_packet_unref(packet) }
             let inputIndex = Int(packet.pointee.stream_index)
+            if collectCues, let codec = layout.textSubtitles[inputIndex], let stream = ic.pointee.streams[inputIndex] {
+                collectCue(packet, codec: codec, stream: stream, span: span, isFirst: index == 0, isLast: isLast, shift: layout.shiftSeconds,
+                           into: &pieceCues[inputIndex, default: []])
+                continue
+            }
             guard copiedInputs.contains(inputIndex), let stream = ic.pointee.streams[inputIndex] else { continue }
             guard packet.pointee.pts != ffNoPTS || packet.pointee.dts != ffNoPTS else { continue }
             let seconds = Double(packet.pointee.pts != ffNoPTS ? packet.pointee.pts : packet.pointee.dts) * av_q2d(stream.pointee.time_base)
             var keep = true
             if inputIndex == layout.videoIndex {
-                if packet.pointee.pts == ffNoPTS { continue }
-                if !videoDone && !isLast && packet.pointee.flags & ffKeyFlag != 0 && seconds >= span.end - 1e-6 { videoDone = true }
-                if videoDone { keep = false }
+                if packet.pointee.pts == ffNoPTS && !transcodeVideo { continue }
+                let isKey = packet.pointee.flags & ffKeyFlag != 0
+                if !videoDone && !isLast && isKey && seconds >= span.end - 1e-6 {
+                    videoDone = true
+                    if transcodeVideo {
+                        // The keyframe itself is only decoded, as the reference of the pictures after it.
+                        if let copy = av_packet_clone(packet) { kept.append(copy) }
+                        continue
+                    }
+                }
+                if videoDone {
+                    keep = false
+                    if !leadingDone {
+                        if !isKey && seconds < span.end - 1e-6 { keep = true } else { leadingDone = true }
+                    }
+                }
+            } else if transcodeAudio {
+                if !isLast && seconds >= span.end + audioTail { audioDone.insert(inputIndex) }
+                if !isLast && seconds >= span.end + audioTail { keep = false }
             } else {
                 if !isLast && seconds >= span.end - 1e-6 { audioDone.insert(inputIndex) }
                 if (!isLast && seconds >= span.end - 1e-6) || seconds < span.start - 1e-6 { keep = false }
             }
             if keep, let copy = av_packet_clone(packet) { kept.append(copy) }
-            if videoDone {
+            if videoDone && leadingDone {
                 // An audio track that ends early would otherwise make this read the rest of the file.
                 packetsAfterVideoEnded += 1
                 if audioInputs.allSatisfy({ audioDone.contains($0) }) || packetsAfterVideoEnded > 3000 { break }
@@ -467,10 +559,49 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         }
         guard !kept.isEmpty else { throw RemuxError.unreadable }
 
+        // Full conversion: the tracks made again.
+        var encodedVideo: EncodedTrack?
+        var encodedAudio: EncodedTrack?
+        let audioInput = layout.plan.audio.first?.index
+        if let settings = layout.video {
+            let packets = kept.filter { Int($0.pointee.stream_index) == layout.videoIndex }
+            encodedVideo = try VideoSegmentTranscoder.transcode(packets: packets, stream: videoStream, settings: settings,
+                                                               start: span.start, end: span.end, isLast: isLast,
+                                                               cancelled: { self.input.isCancelled || self.isClosed })
+        }
+        if transcodeAudio, let audioIndex = audioInput, let audioStream = ic.pointee.streams[audioIndex] {
+            var packets = kept.filter { Int($0.pointee.stream_index) == audioIndex }
+            // The end of the previous piece's sound warms the encoder up, so the two pieces join without a click.
+            if let carry = audioCarry, carry.index == index {
+                let firstPTS = packets.first?.pointee.pts ?? Int64.max
+                packets = carry.packets.filter { $0.pointee.pts < firstPTS } + packets
+            }
+            let made = try AudioSegmentTranscoder.transcode(packets: packets, stream: audioStream, start: span.start, end: span.end,
+                                                            isLast: isLast, cancelled: { self.input.isCancelled || self.isClosed })
+            if !made.packets.isEmpty { encodedAudio = made }
+            // What the next piece needs: this piece's last third of a second of sound.
+            let base = av_q2d(audioStream.pointee.time_base)
+            let tail = kept.filter { item in
+                Int(item.pointee.stream_index) == audioIndex && item.pointee.pts != ffNoPTS
+                    && Double(item.pointee.pts) * base >= span.end - 0.35 && Double(item.pointee.pts) * base < span.end
+            }.compactMap { av_packet_clone($0) }
+            releaseCarry()
+            if isLast {
+                for var leftover in tail.map({ Optional($0) }) { av_packet_free(&leftover) }
+            } else {
+                audioCarry = (index + 1, tail)
+            }
+        }
+        var transcodedInputs = Set<Int>()
+        if encodedVideo != nil { transcodedInputs.insert(layout.videoIndex) }
+        if transcodeAudio, let audioIndex = audioInput { transcodedInputs.insert(audioIndex) }
+
         // The tracks this piece has samples for. A track with none (an audio track that ended before the picture did) is left out of
         // this piece's muxer: declaring it would stop the muxer from writing the fragment. The first piece makes the init segment, which
         // must have every track, so it is never allowed to be missing one.
-        let present = Set(kept.map { Int($0.pointee.stream_index) })
+        var present = Set(kept.map { Int($0.pointee.stream_index) }).subtracting(transcodedInputs)
+        if encodedVideo != nil { present.insert(layout.videoIndex) }
+        if encodedAudio != nil, let audioIndex = audioInput { present.insert(audioIndex) }
         guard present.contains(layout.videoIndex) else { throw RemuxError.unreadable }
         let muxedInputs = index == 0 ? layout.copied : layout.copied.filter { present.contains($0) }
 
@@ -494,9 +625,27 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         guard status >= 0 else { throw ffError(status) }
         muxerPB = true
 
+        func encoded(_ inputIndex: Int) -> EncodedTrack? {
+            if inputIndex == layout.videoIndex { return encodedVideo }
+            if inputIndex == audioInput { return encodedAudio }
+            return nil
+        }
         for inputIndex in muxedInputs {
             guard let source = ic.pointee.streams[inputIndex], let sourcePar = source.pointee.codecpar,
                   let target = avformat_new_stream(oc, nil), let targetPar = target.pointee.codecpar else { throw RemuxError.unreadable }
+            if let made = encoded(inputIndex) {
+                // A track made again: the encoder's parameters, in the encoder's time base.
+                guard let madePar = made.parameters else { throw RemuxError.unreadable }
+                status = avcodec_parameters_copy(targetPar, madePar)
+                if status < 0 { throw ffError(status) }
+                if targetPar.pointee.codec_id == AV_CODEC_ID_HEVC { targetPar.pointee.codec_tag = ffTag("hvc1") } else { targetPar.pointee.codec_tag = 0 }
+                if targetPar.pointee.codec_type == AVMEDIA_TYPE_VIDEO { target.pointee.sample_aspect_ratio = targetPar.pointee.sample_aspect_ratio }
+                target.pointee.time_base = made.timeBase
+                if let language = av_dict_get(source.pointee.metadata, "language", nil, 0) {
+                    av_dict_set(&target.pointee.metadata, "language", language.pointee.value, 0)
+                }
+                continue
+            }
             status = avcodec_parameters_copy(targetPar, sourcePar)
             if status < 0 { throw ffError(status) }
             targetPar.pointee.codec_tag = 0
@@ -535,12 +684,14 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         // Decode times for the video: the i-th smallest presentation time, all presentation times moved later by `shift`.
         let videoBase = av_q2d(videoStream.pointee.time_base)
         let shiftTicks = Int64((layout.shiftSeconds / videoBase).rounded())
-        let sortedPTS = kept.filter { Int($0.pointee.stream_index) == layout.videoIndex }.map { $0.pointee.pts }.sorted()
+        let sortedPTS = transcodedInputs.contains(layout.videoIndex) ? []
+            : kept.filter { Int($0.pointee.stream_index) == layout.videoIndex }.map { $0.pointee.pts }.sorted()
         var videoOrdinal = 0
         var previousDTS = ffNoPTS
         var firstDecodeTimes: [Int: Int64] = [:]
         for item in kept {
             let inputIndex = Int(item.pointee.stream_index)
+            if transcodedInputs.contains(inputIndex) { continue }
             guard let source = ic.pointee.streams[inputIndex], let outputIndex = outputIndexOf[inputIndex],
                   let target = oc.pointee.streams[outputIndex] else { continue }
             if inputIndex == layout.videoIndex {
@@ -567,6 +718,28 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
             status = av_interleaved_write_frame(oc, item)
             if status < 0 { throw ffError(status) }
         }
+        // The tracks made again: their times are the film's (plus the same shift), in the encoder's time base.
+        for inputIndex in muxedInputs {
+            guard let made = encoded(inputIndex), let outputIndex = outputIndexOf[inputIndex], let target = oc.pointee.streams[outputIndex] else { continue }
+            let ticks = Int64((layout.shiftSeconds / av_q2d(made.timeBase)).rounded())
+            for item in made.packets {
+                item.pointee.pts += ticks
+                item.pointee.dts = inputIndex == layout.videoIndex ? item.pointee.dts + ticks : item.pointee.pts
+                item.pointee.stream_index = Int32(outputIndex)
+                av_packet_rescale_ts(item, made.timeBase, target.pointee.time_base)
+                if let known = firstDecodeTimes[outputIndex] {
+                    if item.pointee.dts < known { firstDecodeTimes[outputIndex] = item.pointee.dts }
+                } else {
+                    firstDecodeTimes[outputIndex] = item.pointee.dts
+                }
+                // The muxer takes the packet's data over: a reference is handed to it, the track keeps its own.
+                guard let handed = av_packet_clone(item) else { throw RemuxError.unreadable }
+                var handedOptional: UnsafeMutablePointer<AVPacket>? = handed
+                status = av_interleaved_write_frame(oc, handed)
+                av_packet_free(&handedOptional)
+                if status < 0 { throw ffError(status) }
+            }
+        }
         status = av_write_trailer(oc)
         if status < 0 { throw ffError(status) }
 
@@ -588,7 +761,32 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         // `moov` must never become the initialization segment even when it happens to be requested first.
         if index == 0 && initData == nil { initData = parts.initPart }
         if index == 0 { firstFragment = parts.fragment }
+        if collectCues {
+            cues[index] = pieceCues
+            scanned.insert(index)
+        }
         return parts.fragment
+    }
+
+    /// One subtitle event of the piece, as a cue on the video's timeline. An event belongs to the piece it starts in.
+    private func collectCue(_ packet: UnsafeMutablePointer<AVPacket>, codec: String, stream: UnsafeMutablePointer<AVStream>, span: RemuxSegmentSpan,
+                            isFirst: Bool, isLast: Bool, shift: Double, into list: inout [WebVTTWriter.Cue]) {
+        let stamp = packet.pointee.pts != ffNoPTS ? packet.pointee.pts : packet.pointee.dts
+        guard stamp != ffNoPTS else { return }
+        let base = av_q2d(stream.pointee.time_base)
+        let start = Double(stamp) * base
+        if start < span.start - 1e-6 && !isFirst { return }
+        if start >= span.end - 1e-6 && !isLast { return }
+        var length = Double(packet.pointee.duration) * base
+        if !(length > 0) { length = 4 }
+        guard let text = SubtitleTextReader.text(of: packet, codec: codec), !text.isEmpty else { return }
+        list.append(WebVTTWriter.Cue(start: start + shift, end: start + length + shift, text: text))
+    }
+
+    private func releaseCarry() {
+        guard let carry = audioCarry else { return }
+        for var leftover in carry.packets.map({ Optional($0) }) { av_packet_free(&leftover) }
+        audioCarry = nil
     }
 
     // MARK: Cleanup
@@ -610,6 +808,8 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
         }
         initData = nil
         firstFragment = nil
+        stashed.removeAll()
+        releaseCarry()
     }
 }
 

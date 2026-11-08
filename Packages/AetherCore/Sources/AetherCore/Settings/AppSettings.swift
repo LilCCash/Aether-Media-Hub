@@ -489,6 +489,34 @@ public struct SubtitleStyle: Codable, Equatable, Sendable {
     }
 }
 
+/// How the phone makes a file readable by the system player.
+public enum ConversionMode: String, Codable, CaseIterable, Sendable {
+    /// Video and audio copied as they are: almost no work, but some codecs (H.264 10 bit, VP9, AV1, DTS, TrueHD…) cannot pass.
+    case light
+    /// What the system player cannot read is re-encoded on the phone (hardware encoder): every format passes, at the cost of battery.
+    case full
+
+    public var title: String {
+        switch self {
+        case .light: return "Leggera (copia)"
+        case .full: return "Completa (ricodifica)"
+        }
+    }
+}
+
+/// Names used in `PlaybackSettings.liveConversionSources` besides addon ids.
+public enum ConversionSources {
+    public static let playlists = "m3u"
+
+    /// Whether a live source is in the viewer's list (an empty list means every source).
+    public static func includes(_ list: [String], addonID: String?, isPlaylist: Bool) -> Bool {
+        if list.isEmpty { return true }
+        if isPlaylist { return list.contains(playlists) }
+        guard let id = addonID else { return false }
+        return list.contains(id)
+    }
+}
+
 public struct PlaybackSettings: Codable, Equatable, Sendable {
     public var engine: PlayerEngineChoice = .automatic
     /// Il lettore per i canali in diretta (tipo «tv»): scelto a parte, perché le dirette hanno formati e regole diversi.
@@ -527,6 +555,13 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
     /// With the Automatic engine, Matroska files are converted on the fly for AVPlayer instead of being opened with MPV: AVPlayer can
     /// then float the picture (Picture in Picture) and send it to an AirPlay receiver. The AVPlayer engine always converts them.
     public var convertMatroskaForAVPlayer: Bool = false
+    /// How a file is made playable for AVPlayer (and AirPlay): `light` copies video and audio as they are (fast, but some formats cannot
+    /// pass), `full` re-encodes on the phone what the system player cannot read (any video, any audio, text subtitles kept).
+    public var conversionMode: ConversionMode = .light
+    /// Live channels converted for AVPlayer (and AirPlay) when AVPlayer cannot open them as they are.
+    public var liveConversion: Bool = false
+    /// Which live sources are converted: addon ids, and `ConversionSources.playlists` for the M3U playlists. Empty = all of them.
+    public var liveConversionSources: [String] = []
     public var controlsAutoHideSeconds: Int = 4
     public var landscapeOnly: Bool = true
     /// The black page with the film's logo opens at once, over the source list, and stays until the picture runs. Off (the default until it
@@ -567,6 +602,7 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         case subtitleDelaySeconds, autoPictureInPicture, allowBackgroundAudio, defaultSleepTimerMinutes, qualityCap
         case preferStreamsInPreferredAudioLanguage, autoSelectStream, controlsAutoHideSeconds, landscapeOnly, instantLaunchPage, introMovies, introSeries, introLive
         case gesturesEnabled, watchedThreshold, skipSegmentsEnabled, streamOrdering, convertMatroskaForAVPlayer, sourceScoring, cinemaMode, mpvPictureInPicture
+        case conversionMode, liveConversion, liveConversionSources
     }
 
     public init(from decoder: Decoder) throws {
@@ -597,6 +633,9 @@ public struct PlaybackSettings: Codable, Equatable, Sendable {
         streamOrdering = c.value(.streamOrdering, default: .byAddon)
         autoSelectStream = c.value(.autoSelectStream, default: false)
         convertMatroskaForAVPlayer = c.value(.convertMatroskaForAVPlayer, default: false)
+        conversionMode = c.value(.conversionMode, default: ConversionMode.light)
+        liveConversion = c.value(.liveConversion, default: false)
+        liveConversionSources = c.value(.liveConversionSources, default: [String]())
         controlsAutoHideSeconds = min(15, max(2, c.value(.controlsAutoHideSeconds, default: 4)))
         landscapeOnly = c.value(.landscapeOnly, default: true)
         instantLaunchPage = c.value(.instantLaunchPage, default: true)

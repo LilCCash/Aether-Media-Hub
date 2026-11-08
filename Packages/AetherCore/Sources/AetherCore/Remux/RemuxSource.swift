@@ -7,6 +7,10 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
     public enum Leaf: Equatable, Sendable {
         case master, media, initSegment
         case segment(Int)
+        /// `subs-<track>.m3u8`: the playlist of one text subtitle track (its stream index in the file).
+        case subtitlePlaylist(Int)
+        /// `sub-<track>-<segment>.vtt`
+        case subtitleSegment(track: Int, segment: Int)
 
         public static let masterName = "index.m3u8"
         public static let mediaName = "media.m3u8"
@@ -18,6 +22,15 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
             case mediaName: return .media
             case initName: return .initSegment
             default:
+                if name.hasPrefix("subs-"), name.hasSuffix(".m3u8") {
+                    guard let track = number(name.dropFirst(5).dropLast(5)) else { return nil }
+                    return .subtitlePlaylist(track)
+                }
+                if name.hasPrefix("sub-"), name.hasSuffix(".vtt") {
+                    let parts = name.dropFirst(4).dropLast(4).split(separator: "-", omittingEmptySubsequences: false)
+                    guard parts.count == 2, let track = number(parts[0]), let segment = number(parts[1]) else { return nil }
+                    return .subtitleSegment(track: track, segment: segment)
+                }
                 guard name.hasPrefix("seg-"), name.hasSuffix(".m4s") else { return nil }
                 let digits = name.dropFirst(4).dropLast(4)
                 guard !digits.isEmpty, digits.count <= 6, digits.allSatisfy({ $0.isASCII && $0.isNumber }),
@@ -26,10 +39,18 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
             }
         }
 
+        /// A short run of digits without a leading zero.
+        static func number<S: StringProtocol>(_ digits: S) -> Int? {
+            guard !digits.isEmpty, digits.count <= 6, digits.allSatisfy({ $0.isASCII && $0.isNumber }),
+                  digits == "0" || digits.first != "0" else { return nil }
+            return Int(digits)
+        }
+
         var contentType: String {
             switch self {
-            case .master, .media: return "application/vnd.apple.mpegurl"
+            case .master, .media, .subtitlePlaylist: return "application/vnd.apple.mpegurl"
             case .initSegment, .segment: return "video/mp4"
+            case .subtitleSegment: return "text/vtt"
             }
         }
 
@@ -39,6 +60,8 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
             case .media: return Leaf.mediaName
             case .initSegment: return Leaf.initName
             case .segment(let index): return "seg-\(index).m4s"
+            case .subtitlePlaylist(let track): return "subs-\(track).m3u8"
+            case .subtitleSegment(let track, let segment): return "sub-\(track)-\(segment).vtt"
             }
         }
     }
@@ -54,6 +77,7 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
     private var preparedInfo: RemuxPrepared?
     private var masterText = Data()
     private var mediaText = Data()
+    private var subtitlePlaylists: [Int: Data] = [:]
     private var cache: [String: Data] = [:]
     private var order: [String] = []
     private var cachedBytes = 0
@@ -72,12 +96,25 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
     public func prepare() async throws -> RemuxPrepared {
         let info = try await engine.prepare()
         guard !info.segments.isEmpty else { throw RemuxError.noKeyframeIndex }
-        let master = HLSPlaylistBuilder.master(info.master)
+        let renditions = info.plan.textSubtitles.map { track -> HLSSubtitleRendition in
+            let language = track.language.map { LanguageCodes.displayName($0) }
+            let name = [language, track.title].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+            return HLSSubtitleRendition(name: name.isEmpty ? "Sottotitoli \(track.index)" : name,
+                                        language: track.language.flatMap { RemuxSource.bcp47($0) },
+                                        uri: Leaf.subtitlePlaylist(track.index).key, isDefault: false,
+                                        isForced: (track.title ?? "").lowercased().contains("forced"))
+        }
+        let master = HLSPlaylistBuilder.master(info.master, subtitles: renditions)
         let media = HLSPlaylistBuilder.media(segments: info.segments)
+        var subtitleTexts: [Int: Data] = [:]
+        for track in info.plan.textSubtitles {
+            subtitleTexts[track.index] = Data(HLSPlaylistBuilder.subtitles(segments: info.segments, track: track.index).utf8)
+        }
         locked {
             preparedInfo = info
             masterText = Data(master.utf8)
             mediaText = Data(media.utf8)
+            subtitlePlaylists = subtitleTexts
         }
         return info
     }
@@ -122,7 +159,16 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
         guard let leaf = Leaf.parse(name) else { return nil }
         let info: RemuxPrepared? = locked { closed ? nil : preparedInfo }
         guard let known = info else { return nil }
-        if case .segment(let index) = leaf, index >= known.segments.count { return nil }
+        switch leaf {
+        case .segment(let index):
+            if index >= known.segments.count { return nil }
+        case .subtitlePlaylist(let track):
+            if !known.plan.textSubtitles.contains(where: { $0.index == track }) { return nil }
+        case .subtitleSegment(let track, let segment):
+            if segment >= known.segments.count || !known.plan.textSubtitles.contains(where: { $0.index == track }) { return nil }
+        default:
+            break
+        }
         return leaf
     }
 
@@ -134,6 +180,10 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
             return try await cached(leaf.key) { [engine] in try await engine.initSegment() }
         case .segment(let index):
             return try await cached(leaf.key) { [engine] in try await engine.mediaSegment(index) }
+        case .subtitlePlaylist(let track):
+            return locked { subtitlePlaylists[track] ?? Data() }
+        case .subtitleSegment(let track, let segment):
+            return try await cached(leaf.key) { [engine] in try await engine.subtitleSegment(track: track, index: segment) }
         }
     }
 
@@ -208,13 +258,26 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
         return try body()
     }
 
+    /// An ISO 639-2 code as BCP 47, which HLS wants ("ita" → "it"); nil for "und" and unknown text.
+    static func bcp47(_ code: String) -> String? {
+        let lowered = code.lowercased().trimmingCharacters(in: .whitespaces)
+        if lowered.isEmpty || lowered == "und" { return nil }
+        let map = ["ita": "it", "eng": "en", "fra": "fr", "fre": "fr", "deu": "de", "ger": "de", "spa": "es", "por": "pt", "jpn": "ja",
+                   "kor": "ko", "chi": "zh", "zho": "zh", "rus": "ru", "nld": "nl", "dut": "nl", "pol": "pl", "tur": "tr", "ara": "ar",
+                   "swe": "sv", "nor": "no", "dan": "da", "fin": "fi", "ces": "cs", "cze": "cs", "ell": "el", "gre": "el", "heb": "he",
+                   "hin": "hi", "hun": "hu", "ron": "ro", "rum": "ro", "ukr": "uk", "tha": "th", "vie": "vi", "ind": "id"]
+        if let mapped = map[lowered] { return mapped }
+        if lowered.count == 2, lowered.allSatisfy({ $0.isLetter }) { return lowered }
+        return nil
+    }
+
     static func relayError(from error: Error) -> Error {
         if error is CancellationError { return error }
         if let relay = error as? RelayError { return relay }
         guard let remux = error as? RemuxError else { return RelayError.mapping(error) }
         switch remux {
         case .closed, .segmentOutOfRange: return RelayError.notFound
-        case .refused: return RelayError.upstreamNotMedia
+        case .refused, .encoderUnavailable: return RelayError.upstreamNotMedia
         case .noKeyframeIndex, .unreadable: return RelayError.upstreamBadRange
         case .engine(let code): return RelayError.upstreamUnreachable(code: code)
         }

@@ -88,8 +88,16 @@ public struct RemuxPlan: Equatable, Sendable {
     public var audioChoices: [RemuxStreamInfo] = []
     /// Audio tracks left out because the system player cannot read their codec.
     public var droppedAudio: [RemuxStreamInfo]
-    /// Embedded subtitle tracks (left out: the app draws its own).
+    /// Embedded subtitle tracks.
     public var subtitleCount: Int
+    /// The video is re-encoded (full conversion) instead of copied.
+    public var videoTranscoded: Bool = false
+    /// The chosen audio track is re-encoded to AAC (full conversion) instead of copied.
+    public var audioTranscoded: Bool = false
+    /// Text subtitle tracks (SRT, ASS, WebVTT…): they pass as WebVTT subtitles the system player and AirPlay show.
+    public var textSubtitles: [RemuxStreamInfo] = []
+    /// Picture subtitle tracks (Blu-ray PGS, DVD): they cannot be turned into text and stay out.
+    public var pictureSubtitleCount: Int = 0
 
     /// Short remarks for the viewer, in Italian.
     public var notes: [String] {
@@ -107,8 +115,14 @@ public struct RemuxPlan: Equatable, Sendable {
         if audioChoices.count > 1 {
             result.append("Il file ha \(audioChoices.count) tracce audio: ne passa una alla volta, la cambi dal pannello Audio.")
         }
-        if subtitleCount > 0 {
-            result.append("I sottotitoli incorporati non passano in questo modo: usa quelli di Aether.")
+        if videoTranscoded {
+            result.append("Il video \(RemuxNames.display(codec: video.codec)) viene ricodificato sul telefono (usa più batteria).")
+        }
+        if audioTranscoded, let track = audio.first {
+            result.append("L'audio \(RemuxNames.display(codec: track.codec)) viene ricodificato in AAC.")
+        }
+        if pictureSubtitleCount > 0 {
+            result.append("I sottotitoli a immagine (Blu-ray/DVD) del file non passano: usa quelli di Aether.")
         }
         return result
     }
@@ -173,12 +187,40 @@ enum RemuxNames {
 public enum RemuxPlanner {
     /// Audio codecs the system player reads inside fragmented MP4.
     public static let copyableAudio: Set<String> = ["aac", "ac3", "eac3", "mp3"]
+    /// Subtitle codecs that are text, so they can be written as WebVTT.
+    public static let textSubtitleCodecs: Set<String> = ["subrip", "srt", "ass", "ssa", "webvtt", "mov_text", "text", "mpl2", "microdvd", "subviewer", "jacosub", "realtext", "sami", "stl", "vplayer", "pjs"]
+    /// Video codecs the system player decodes in hardware, as long as the bit depth fits.
+    static func videoIsCopyable(_ video: RemuxStreamInfo) -> Bool {
+        switch video.codec.lowercased() {
+        case "h264": return (video.bitDepth ?? 8) <= 8
+        case "hevc", "h265": return (video.bitDepth ?? 8) <= 10
+        default: return false
+        }
+    }
     /// Only a bound against a pathological file: one track is copied at a time, so every track the system player can read is a choice.
     public static let maxAudioTracks = 64
 
-    public static func plan(_ streams: [RemuxStreamInfo], audio choice: RemuxAudioChoice = .standard) -> Result<RemuxPlan, RemuxRefusal> {
-        let videos = streams.filter { $0.kind == .video }
+    public static func plan(_ streams: [RemuxStreamInfo], audio choice: RemuxAudioChoice = .standard, full: Bool = false) -> Result<RemuxPlan, RemuxRefusal> {
+        let videos = streams.filter { $0.kind == .video && !RemuxPlanner.isCoverArt($0) }
         guard let video = videos.first(where: { $0.isDefault }) ?? videos.first else { return .failure(.noVideo) }
+        let subtitles = streams.filter { $0.kind == .subtitle }
+        let text = subtitles.filter { textSubtitleCodecs.contains($0.codec.lowercased()) }
+        if full {
+            // Dolby Vision profile 5 has no picture a converter can read without Dolby's own processing.
+            if video.dolbyVisionProfile == 5 { return .failure(.dolbyVisionProfile5) }
+            let audioTracks = streams.filter { $0.kind == .audio && ($0.channels ?? 2) > 0 }
+            let usable = Array(audioTracks.prefix(maxAudioTracks))
+            let chosen = pick(usable, choice)
+            var plan = RemuxPlan(video: video, audio: chosen.map { [$0] } ?? [], audioChoices: usable, droppedAudio: [],
+                                 subtitleCount: subtitles.count)
+            plan.videoTranscoded = !videoIsCopyable(video)
+            if let track = chosen {
+                plan.audioTranscoded = !(copyableAudio.contains(track.codec.lowercased()) && (track.channels ?? 2) <= 8)
+            }
+            plan.textSubtitles = text
+            plan.pictureSubtitleCount = subtitles.count - text.count
+            return .success(plan)
+        }
 
         let codec = video.codec.lowercased()
         switch codec {
@@ -202,8 +244,17 @@ public enum RemuxPlanner {
             return .failure(.noUsableAudio(Array(Set(audioTracks.map { $0.codec.lowercased() })).sorted()))
         }
         let chosen = pick(copyable, choice)
-        return .success(RemuxPlan(video: video, audio: chosen.map { [$0] } ?? [], audioChoices: copyable, droppedAudio: dropped,
-                                  subtitleCount: streams.filter { $0.kind == .subtitle }.count))
+        var plan = RemuxPlan(video: video, audio: chosen.map { [$0] } ?? [], audioChoices: copyable, droppedAudio: dropped,
+                             subtitleCount: subtitles.count)
+        plan.textSubtitles = text
+        plan.pictureSubtitleCount = subtitles.count - text.count
+        return .success(plan)
+    }
+
+    /// An attached picture (the poster some MKV/MP4 files carry) is not the video.
+    static func isCoverArt(_ stream: RemuxStreamInfo) -> Bool {
+        let codec = stream.codec.lowercased()
+        return codec == "mjpeg" || codec == "png" || codec == "bmp"
     }
 
     /// The track that goes into the converted video.

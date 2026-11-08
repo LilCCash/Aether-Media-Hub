@@ -207,6 +207,9 @@ struct PlayerView: View {
                 Text(notice.message)
             }
             .alert(model.airPlayAlert?.title ?? "", isPresented: airPlayAlertBinding, presenting: model.airPlayAlert) { _ in
+                if model.canSwitchToAVPlayerForAirPlay {
+                    Button("Usa AVPlayer (video su AirPlay)") { model.switchToAVPlayerForAirPlay() }
+                }
                 Button("Trasmetti con Cast / DLNA") {
                     model.acknowledgeAirPlayAlert()
                     sheet = .cast

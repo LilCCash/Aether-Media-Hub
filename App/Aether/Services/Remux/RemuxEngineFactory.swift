@@ -9,16 +9,36 @@ enum RemuxEngineFactory {
     static var isAvailable: Bool { return FFmpegAvailability.isLinked }
 
     static let standard: Maker = { fetcher, totalBytes, audio in
-        #if canImport(Libavformat) && canImport(Libavcodec) && canImport(Libavutil)
-        return FFmpegRemuxEngine(fetcher: fetcher, totalBytes: totalBytes, audio: audio)
+        #if canImport(Libavformat) && canImport(Libavcodec) && canImport(Libavutil) && canImport(Libswscale) && canImport(Libswresample)
+        return FFmpegRemuxEngine(fetcher: fetcher, totalBytes: totalBytes, audio: audio, full: fullConversion)
         #else
         return nil
         #endif
     }
 
+    /// The viewer's choice in Impostazioni › Player: the light conversion (copy) or the full one (re-encode what cannot be copied).
+    /// Read by every converter made after it changes; the settings store sets it at launch and on every change.
+    static var fullConversion: Bool {
+        get { fullFlag.value }
+        set { fullFlag.value = newValue }
+    }
+
+    private static let fullFlag = LockedFlag()
+
     /// What the planner needs to know about the converter and the viewer's wish.
-    static func routing(matroskaForAVPlayer: Bool) -> RemuxRouting {
-        return RemuxRouting(available: isAvailable, matroskaForAVPlayer: matroskaForAVPlayer)
+    static func routing(matroskaForAVPlayer: Bool, full: Bool = fullConversion) -> RemuxRouting {
+        return RemuxRouting(available: isAvailable, matroskaForAVPlayer: matroskaForAVPlayer, full: full && isAvailable)
+    }
+}
+
+/// A flag read from any thread.
+final class LockedFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored = false
+
+    var value: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return stored }
+        set { lock.lock(); stored = newValue; lock.unlock() }
     }
 }
 

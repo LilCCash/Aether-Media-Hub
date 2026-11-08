@@ -3,7 +3,7 @@ import AVFoundation
 import AetherCore
 @testable import Aether
 
-#if canImport(Libavformat) && canImport(Libavcodec) && canImport(Libavutil)
+#if canImport(Libavformat) && canImport(Libavcodec) && canImport(Libavutil) && canImport(Libswscale) && canImport(Libswresample)
 
 /// A source file held in memory, read the way the relay reads a real one.
 private final class MemoryFetcher: RelayRangeFetcher, @unchecked Sendable {
@@ -30,9 +30,18 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         return try Data(contentsOf: try XCTUnwrap(url, "fixture \(name).mkv is not in the test bundle"))
     }
 
-    private func engine(_ name: String, minimumSegment: Double = 4, audio: RemuxAudioChoice = .standard) throws -> FFmpegRemuxEngine {
+    private func engine(_ name: String, minimumSegment: Double = 4, audio: RemuxAudioChoice = .standard, full: Bool = false) throws -> FFmpegRemuxEngine {
         let data = try fixture(name)
-        return FFmpegRemuxEngine(fetcher: MemoryFetcher(data), totalBytes: Int64(data.count), minimumSegment: minimumSegment, audio: audio)
+        return FFmpegRemuxEngine(fetcher: MemoryFetcher(data), totalBytes: Int64(data.count), minimumSegment: minimumSegment, audio: audio, full: full)
+    }
+
+    /// The full conversion needs the system's video encoder: a machine without one says so instead of failing.
+    private func preparedFull(_ engine: FFmpegRemuxEngine) async throws -> RemuxPrepared {
+        do {
+            return try await engine.prepare()
+        } catch RemuxError.encoderUnavailable {
+            throw XCTSkip("no H.264/HEVC encoder on this machine")
+        }
     }
 
     // MARK: Planning
@@ -165,11 +174,74 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         }
     }
 
+    // MARK: Full conversion
+
+    func testTheFullConversionReencodesWhatCannotBeCopied() async throws {
+        let engine = try engine("remux-h264-10bit-dts-subs", full: true)
+        defer { engine.close() }
+        let prepared = try await preparedFull(engine)
+        XCTAssertTrue(prepared.plan.videoTranscoded, "H.264 10 bit is not decoded by the system")
+        XCTAssertTrue(prepared.plan.audioTranscoded, "DTS becomes AAC")
+        XCTAssertEqual(prepared.plan.textSubtitles.map { $0.codec }, ["subrip", "ass"])
+        XCTAssertTrue(prepared.master.codecs[0].hasPrefix("hvc1.2."), "10 bit becomes HEVC Main 10: \(prepared.master.codecs)")
+        XCTAssertEqual(prepared.master.codecs.count, 2, "\(prepared.master.codecs)")
+        XCTAssertTrue(prepared.master.codecs.contains("mp4a.40.2"))
+        XCTAssertEqual(prepared.segments.count, 2)
+
+        let initSegment = try await engine.initSegment()
+        XCTAssertEqual(MP4Fragment.boxes(in: initSegment).map { $0.type }, ["ftyp", "moov"])
+        XCTAssertNotNil(initSegment.range(of: Data("hvcC".utf8)), "the HEVC configuration is in the init segment")
+        let scales = MP4Fragment.trackTimescales(in: initSegment)
+        XCTAssertEqual(scales.count, 2)
+        let videoScale = try XCTUnwrap(scales[1])
+        let audioScale = try XCTUnwrap(scales[2])
+        for index in 0..<prepared.segments.count {
+            let piece = try await engine.mediaSegment(index)
+            let times = MP4Fragment.decodeTimes(in: piece)
+            XCTAssertEqual(Set(times.keys), [1, 2], "piece \(index)")
+            let videoStart = Double(try XCTUnwrap(times[1])) / Double(videoScale)
+            let audioStart = Double(try XCTUnwrap(times[2])) / Double(audioScale)
+            XCTAssertEqual(videoStart, prepared.segments[index].start, accuracy: 0.05, "piece \(index)")
+            XCTAssertEqual(audioStart, prepared.segments[index].start, accuracy: 0.05, "the AAC grid starts within a frame of the piece")
+        }
+    }
+
+    func testTextSubtitlesBecomeWebVTTPieces() async throws {
+        let engine = try engine("remux-h264-10bit-dts-subs", full: true)
+        defer { engine.close() }
+        _ = try await preparedFull(engine)
+        // Asked before the picture: the piece is made for its cues and kept for the player.
+        let first = String(decoding: try await engine.subtitleSegment(track: 2, index: 0), as: UTF8.self)
+        XCTAssertTrue(first.hasPrefix("WEBVTT"), first)
+        XCTAssertTrue(first.contains("00:00:00.500 --> 00:00:02.500\nPrima <i>riga</i>"), first)
+        XCTAssertFalse(first.contains("Seconda"), "the second event belongs to the second piece: \(first)")
+        let second = String(decoding: try await engine.subtitleSegment(track: 2, index: 1), as: UTF8.self)
+        XCTAssertTrue(second.contains("00:00:04.200 --> 00:00:06.000\nSeconda riga"), second)
+        let styled = String(decoding: try await engine.subtitleSegment(track: 3, index: 0), as: UTF8.self)
+        XCTAssertTrue(styled.contains("First line\nSecond part"), "ASS overrides and line breaks: \(styled)")
+        let piece = try await engine.mediaSegment(1)
+        XCTAssertEqual(MP4Fragment.boxes(in: piece).map { $0.type }.first, "moof", "the piece kept for the player")
+        let none = String(decoding: try await engine.subtitleSegment(track: 1, index: 0), as: UTF8.self)
+        XCTAssertEqual(none.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "\n").first, "WEBVTT", "not a subtitle track: empty")
+    }
+
+    func testTheLightConversionStillRefusesWhatOnlyTheFullOneTakes() async throws {
+        let engine = try engine("remux-h264-10bit-dts-subs")
+        defer { engine.close() }
+        do {
+            _ = try await engine.prepare()
+            XCTFail("10-bit H.264: expected a refusal without the full conversion")
+        } catch {
+            XCTAssertEqual(error as? RemuxError, .refused(.videoBitDepth(codec: "h264", bits: 10)))
+        }
+    }
+
     // MARK: The system player
 
-    private func serve(_ name: String) async throws -> (url: URL, stop: () -> Void) {
-        let engine = try engine(name)
+    private func serve(_ name: String, full: Bool = false) async throws -> (url: URL, stop: () -> Void) {
+        let engine = try engine(name, full: full)
         let source = RemuxSource(engine: engine)
+        if full { _ = try await preparedFull(engine) }
         try await source.prepare()
         let registry = RelaySessionRegistry()
         let server = RelayServer(registry: registry, configuration: RelayServer.Configuration(bindAddress: "127.0.0.1", allowLoopbackPeers: true),
@@ -221,6 +293,31 @@ final class FFmpegRemuxEngineTests: XCTestCase {
         XCTAssertEqual(item.presentationSize.width, 160)
         let kinds = item.tracks.compactMap { $0.assetTrack?.mediaType }
         XCTAssertEqual(kinds.filter { $0 == .video }.count, 1, "tracks seen by the player: \(kinds.map { $0.rawValue })")
+    }
+
+    @MainActor
+    func testTheSystemPlayerPlaysTheFullyConvertedFileWithItsSubtitles() async throws {
+        let served = try await serve("remux-h264-10bit-dts-subs", full: true)
+        defer { served.stop() }
+        let item = AVPlayerItem(url: served.url)
+        let player = AVPlayer(playerItem: item)
+        player.isMuted = true
+        player.play()
+        let deadline = Date().addingTimeInterval(30)
+        var reached = false
+        while Date() < deadline {
+            if CMTimeGetSeconds(player.currentTime()) > 4.6 { reached = true; break }
+            if item.status == .failed { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        player.pause()
+        XCTAssertNotEqual(item.status, .failed, "\(String(describing: item.error))")
+        XCTAssertTrue(reached, "playback should pass the 4 s piece boundary (reached \(CMTimeGetSeconds(player.currentTime())) s)")
+        XCTAssertEqual(item.presentationSize.width, 160)
+        let legible = try await item.asset.loadMediaSelectionGroup(for: .legible)
+        let names = legible?.options.map { $0.displayName } ?? []
+        XCTAssertEqual(names.count, 2, "the two text subtitle tracks: \(names)")
+        XCTContext.runActivity(named: "FULL-AV subtitles \(names)") { _ in }
     }
 
     @MainActor

@@ -39,8 +39,37 @@ final class RemuxPlannerTests: XCTestCase {
         XCTAssertEqual(result.audioChoices.map { $0.index }, [1, 2], "the viewer can still switch to the other one")
         XCTAssertTrue(result.droppedAudio.isEmpty)
         XCTAssertEqual(result.subtitleCount, 1)
-        XCTAssertEqual(result.notes, ["Il file ha 2 tracce audio: ne passa una alla volta, la cambi dal pannello Audio.",
-                                      "I sottotitoli incorporati non passano in questo modo: usa quelli di Aether."])
+        XCTAssertEqual(result.notes, ["Il file ha 2 tracce audio: ne passa una alla volta, la cambi dal pannello Audio."])
+    }
+
+    func testTextSubtitlesPassAndPictureSubtitlesAreCounted() throws {
+        var srt = subtitle(2)
+        srt.codec = "subrip"
+        var pgs = subtitle(3)
+        pgs.codec = "hdmv_pgs_subtitle"
+        let result = try plan([video(), audio("aac", index: 1), srt, pgs])
+        XCTAssertEqual(result.textSubtitles.map { $0.index }, [2])
+        XCTAssertEqual(result.pictureSubtitleCount, 1)
+        XCTAssertTrue(result.notes.contains("I sottotitoli a immagine (Blu-ray/DVD) del file non passano: usa quelli di Aether."))
+    }
+
+    func testFullConversionTakesWhatTheCopyRefuses() throws {
+        var vp9 = video()
+        vp9.codec = "vp9"
+        let refused = RemuxPlanner.plan([vp9, audio("aac", index: 1)])
+        guard case .failure = refused else { return XCTFail("the copy cannot take VP9") }
+        let full = try XCTUnwrap(try? RemuxPlanner.plan([vp9, audio("dts", index: 1, channels: 6), audio("aac", index: 2)], full: true).get())
+        XCTAssertTrue(full.videoTranscoded)
+        XCTAssertEqual(full.audio.map { $0.index }, [1], "every track is a choice, the first one is kept")
+        XCTAssertTrue(full.audioTranscoded, "DTS becomes AAC")
+        XCTAssertEqual(full.audioChoices.map { $0.index }, [1, 2])
+        var h264 = video()
+        h264.bitDepth = 10
+        let tenBit = try XCTUnwrap(try? RemuxPlanner.plan([h264, audio("aac", index: 1)], full: true).get())
+        XCTAssertTrue(tenBit.videoTranscoded, "H.264 10 bit is re-encoded")
+        XCTAssertFalse(tenBit.audioTranscoded, "AAC is copied")
+        let copy = try XCTUnwrap(try? RemuxPlanner.plan([video(), audio("aac", index: 1)], full: true).get())
+        XCTAssertFalse(copy.videoTranscoded, "what can be copied is copied")
     }
 
     func testTheAudioTrackFollowsTheLanguagesInOrder() throws {
