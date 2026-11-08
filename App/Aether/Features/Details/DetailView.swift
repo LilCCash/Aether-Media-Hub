@@ -246,6 +246,10 @@ struct DetailView: View {
             }
             .coordinateSpace(name: "detailScroll")
             .onPreferenceChange(DetailScrollOffsetKey.self) { atTop = $0 > -2 }
+            .modifier(DetailScrollTopReader(atTop: $atTop))
+            // The page that grows out of a poster (iOS 18 zoom) gets a pull-down-to-close gesture from iOS that also started in the
+            // middle of the page, while scrolling back up through the episodes: it is switched on only at the top of the page.
+            .background(SystemDismissGate(allowed: atTop, note: env.router.note))
             .simultaneousGesture(DragGesture(minimumDistance: 24)
                 .onChanged { value in
                     if dragStart != value.startLocation {
@@ -1196,6 +1200,115 @@ private struct EpisodeDetailsSheet: View {
     }
 }
 
+
+/// Whether the page is at its top, read from the scroll view itself (iOS 18): the header's position, read through a preference, is
+/// kept as well for iOS 17.
+private struct DetailScrollTopReader: ViewModifier {
+    @Binding var atTop: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top <= 2
+            } action: { _, top in
+                atTop = top
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// Switches off, while the page is not at its top, the pull-down-to-close gesture iOS adds to a page opened with the zoom transition.
+/// Those gestures are found among the pan gestures of the views around the page: not a scroll view's own, not an edge swipe (back),
+/// not SwiftUI's.
+private struct SystemDismissGate: UIViewRepresentable {
+    let allowed: Bool
+    let note: (String) -> Void
+
+    func makeUIView(context: Context) -> GateView {
+        let view = GateView()
+        view.isUserInteractionEnabled = false
+        view.note = note
+        return view
+    }
+
+    func updateUIView(_ view: GateView, context: Context) {
+        view.allowed = allowed
+    }
+
+    static func dismantleUIView(_ view: GateView, coordinator: ()) {
+        view.release()
+    }
+
+    final class GateView: UIView {
+        var note: (String) -> Void = { _ in }
+        var allowed = true { didSet { if allowed != oldValue { apply() } } }
+        private var gestures: [WeakGesture] = []
+        private var reported = false
+
+        struct WeakGesture { weak var gesture: UIGestureRecognizer? }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if window == nil { release(); return }
+            DispatchQueue.main.async { [weak self] in
+                self?.collect()
+                self?.apply()
+            }
+        }
+
+        private func collect() {
+            var found: [UIGestureRecognizer] = []
+            var current = superview
+            while let view = current {
+                for gesture in view.gestureRecognizers ?? [] where Self.isSystemDismiss(gesture, on: view) {
+                    if !found.contains(where: { $0 === gesture }) { found.append(gesture) }
+                }
+                current = view.superview
+            }
+            gestures = found.map { WeakGesture(gesture: $0) }
+            if !reported, !found.isEmpty {
+                reported = true
+                let names = found.map { String(describing: type(of: $0)) }.joined(separator: ", ")
+                note("Scheda del titolo: gesto di chiusura di iOS attivo solo in cima (\(names))")
+            }
+        }
+
+        private static func isSystemDismiss(_ gesture: UIGestureRecognizer, on view: UIView) -> Bool {
+            guard gesture is UIPanGestureRecognizer, !(gesture is UIScreenEdgePanGestureRecognizer) else { return false }
+            if let scroll = view as? UIScrollView, scroll.panGestureRecognizer === gesture { return false }
+            if view is UIScrollView { return false }
+            let name = String(describing: type(of: gesture))
+            if name.contains("SwiftUI") || name.hasPrefix("UIKitGesture") { return false }
+            // The swipe back of the navigation stays as it is.
+            if name.contains("Parallax") || name.contains("Pop") || name.contains("Edge") || name.contains("Swipe") { return false }
+            if let navigation = view.next as? UINavigationController ?? Self.navigation(of: view),
+               gesture === navigation.interactivePopGestureRecognizer { return false }
+            if name.contains("Zoom") || name.contains("Dismiss") || name.contains("Transition") { return true }
+            // A plain pan iOS put on the page's own containers (not SwiftUI's): the zoom's pull to close.
+            return name == "UIPanGestureRecognizer" || name.hasPrefix("_UI")
+        }
+
+        private static func navigation(of view: UIView) -> UINavigationController? {
+            var responder: UIResponder? = view
+            while let current = responder {
+                if let navigation = current as? UINavigationController { return navigation }
+                responder = current.next
+            }
+            return nil
+        }
+
+        func apply() {
+            for item in gestures { item.gesture?.isEnabled = allowed }
+        }
+
+        func release() {
+            for item in gestures { item.gesture?.isEnabled = true }
+            gestures = []
+        }
+    }
+}
 
 private struct DetailScrollOffsetKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
