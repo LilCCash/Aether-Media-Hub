@@ -1733,6 +1733,31 @@ final class DebridResolverTests: XCTestCase {
         }
     }
 
+    func testAProvisionalListOfCompressedFilesIsReadAgain() async throws {
+        let env = TBEnvironment()
+        let provisional = [TBJSON.file(1, "Show/Show.S05E108.mp4", size: 100, zipped: true)]
+        let settled = [TBJSON.file(1, "Show/Show.S05E108.mp4", size: 100)]
+        env.stub.on("GET", "/torrents/mylist", query: "offset=", replies: [
+            TBStubHTTP.envelope(data: "[" + TBJSON.torrent(id: 3, hash: TBHash.movie, files: provisional) + "]"),
+            TBStubHTTP.envelope(data: "[" + TBJSON.torrent(id: 3, hash: TBHash.movie, files: provisional) + "]"),
+            TBStubHTTP.envelope(data: "[" + TBJSON.torrent(id: 3, hash: TBHash.movie, files: settled) + "]"),
+        ])
+        env.stub.on("GET", "/torrents/requestdl", replies: [TBStubHTTP.envelope(data: "\"https://cdn.example/file.mp4\"")])
+        let resolution = try await env.makeResolver().resolve(DebridRequest(infoHash: TBHash.movie))
+        XCTAssertEqual(resolution.fileID, 1, "the list TorBox finished shows the video as a plain file")
+    }
+
+    func testTheFileListIsSummarisedForTheLog() {
+        let files = [
+            TorBoxFile(id: 1, name: "Pack/E01.mp4", size: 10),
+            TorBoxFile(id: 2, name: "Pack/E02.rar", size: 10),
+            TorBoxFile(id: nil, name: "Pack/E03.mkv", size: 10),
+        ]
+        let line = TorBoxFileMatcher.summary(of: files)
+        XCTAssertTrue(line.hasPrefix("3 file, 2 video, 0 segnati come compressi, 1 archivi, 0 infetti, 1 senza id"), line)
+        XCTAssertTrue(line.contains("E02.rar [archivio]"), line)
+    }
+
     func testTorrentWithoutVideoFilesIsReported() async {
         let env = TBEnvironment()
         let files = [TBJSON.file(1, "Album/01.flac", mime: "audio/flac")]

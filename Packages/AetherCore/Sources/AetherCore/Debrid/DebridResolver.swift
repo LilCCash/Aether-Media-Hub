@@ -25,6 +25,8 @@ public actor DebridResolver: DebridProvider {
         public var listPageSize: Int
         public var maxListPages: Int
         public var maxTrackers: Int
+        /// How many times a file list that looks provisional (only compressed or no videos) is read again before giving up.
+        public var fileSettleAttempts: Int = 6
 
         public static let minimumPollInterval: TimeInterval = 3
 
@@ -216,14 +218,30 @@ public actor DebridResolver: DebridProvider {
                                                     onProgress: onProgress)
         }
 
-        guard let torrent = readyTorrent else {
+        guard var torrent = readyTorrent else {
             throw DebridError.invalidResponse("torrent non disponibile")
         }
 
-        // 5. Pick the file.
+        // 5. Pick the file. Right after a (cached) add, TorBox can answer with a provisional list (videos still marked as
+        //    compressed, or none yet): the list is read again a few times before giving up.
         onProgress?(DebridProgress(phase: .selectingFile, fraction: 1))
+        var outcome = TorBoxFileMatcher.select(from: torrent.files, query: query)
+        await note(.info, "file da TorBox: \(TorBoxFileMatcher.summary(of: torrent.files))")
+        var attempt = 0
+        while attempt < configuration.fileSettleAttempts, TorBoxFileMatcher.mayBeProvisional(outcome) {
+            attempt += 1
+            try Task.checkCancellation()
+            await note(.info, "elenco dei file forse provvisorio: lo rileggo (\(attempt)/\(configuration.fileSettleAttempts))")
+            try await clock.sleep(configuration.pollInterval)
+            // A read that fails changes nothing: the answer already in hand stands.
+            var refreshed: TorBoxTorrent? = (try? await readTorrent(id: torrent.id)) ?? nil
+            if refreshed == nil { refreshed = (try? await findInAccount(hash: hash)) ?? nil }
+            if let fresh = refreshed, !fresh.files.isEmpty { torrent = fresh }
+            outcome = TorBoxFileMatcher.select(from: torrent.files, query: query)
+            await note(.info, "file da TorBox: \(TorBoxFileMatcher.summary(of: torrent.files))")
+        }
         let file: TorBoxFile
-        switch TorBoxFileMatcher.select(from: torrent.files, query: query) {
+        switch outcome {
         case .selected(let selected, let reason):
             file = selected
             await note(.info, "file scelto (\(reason.rawValue))")

@@ -182,6 +182,36 @@ public enum TorBoxFileMatcher {
         return ext.count <= 5 && !ext.contains("/") ? ext : ""
     }
 
+    /// Answers that can come from a list TorBox has not finished yet (right after a cached add).
+    static func mayBeProvisional(_ outcome: Outcome) -> Bool {
+        switch outcome {
+        case .archivesOnly, .noVideo: return true
+        default: return false
+        }
+    }
+
+    /// One line for the diagnostic log: how many files, videos, compressed, archives and infected, and a few names (names only,
+    /// no addresses).
+    public static func summary(of files: [TorBoxFile]) -> String {
+        let videos = files.filter { isVideo($0) }
+        let zipped = files.filter { $0.zipped }
+        let archives = files.filter { isArchive($0) }
+        let infected = files.filter { $0.infected }
+        let withoutID = files.filter { $0.id == nil }
+        var parts = ["\(files.count) file", "\(videos.count) video", "\(zipped.count) segnati come compressi",
+                     "\(archives.count) archivi", "\(infected.count) infetti"]
+        if !withoutID.isEmpty { parts.append("\(withoutID.count) senza id") }
+        let examples = files.prefix(4).map { file -> String in
+            var flags: [String] = []
+            if file.zipped { flags.append("compresso") }
+            if isArchive(file) { flags.append("archivio") }
+            if file.infected { flags.append("infetto") }
+            let name = String(file.displayName.suffix(60))
+            return flags.isEmpty ? name : name + " [" + flags.joined(separator: ", ") + "]"
+        }
+        return parts.joined(separator: ", ") + (examples.isEmpty ? "" : "; es.: " + examples.joined(separator: " | "))
+    }
+
     public static func isVideo(_ file: TorBoxFile) -> Bool {
         if let mime = file.mimetype?.lowercased(), mime.hasPrefix("video/") { return true }
         return videoExtensions.contains(fileExtension(of: file.displayName))

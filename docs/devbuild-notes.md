@@ -14,6 +14,7 @@ Ritocchi di questa build
 - Live TV: toccando un canale con più fonti scegli la fonte da un menu. Suono d'apertura più leggero (un riser breve). Titoli di coda con un pulsante a fine film, chiudendoli torni al player.
 - Opzioni del player a tendina che non sfarfalla. Anteprime dei fotogrammi più robuste. Persone nei risultati di ricerca, foto in bolla intere, Libreria con schede più larghe, titolo scritto nella scheda del film, scheda aperta anche a schermo intero (Aspetto), Scoperta con chiusura e copertine pronte, gioco dei gusti con anche i film vecchi.
 Correzioni di questa build
+- TorBox: subito dopo l'aggiunta di un torrent (anche da cache) TorBox può dare un elenco dei file provvisorio, con i video segnati come «compressi». Aether ora lo rilegge fino a 6 volte (circa 18 secondi) prima di dire che i file sono in un archivio. Nel registro c'è il riepilogo dei file di ogni lettura (quanti video, compressi, archivi, con qualche nome).
 - Scelta della sorgente: il logo ora gira verso destra (come il player) e l'animazione è fluida anche mentre l'app prepara la fonte (fatta con Core Animation).
 - Mappa degli universi: linee, locandine e nomi sono un'unica superficie che si muove e si ingrandisce tutta insieme (scorrimento con inerzia, pinch e doppio tocco di iOS): le linee restano ferme rispetto ai titoli e non c'è più lag.
 - Formato del video: adattato, il video resta dentro le aree sicure dello schermo (niente sotto la Dynamic Island); il pulsante a tutto schermo del player lo allarga come prima.
