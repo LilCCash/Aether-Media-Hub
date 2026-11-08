@@ -136,6 +136,14 @@ final class LocalRemuxService {
         }
     }
 
+    /// Whether `url` is an address of this service's own server (127.0.0.1, its port, a live session).
+    func serves(_ url: URL) -> Bool {
+        guard archiveSession != nil || current != nil || liveSession != nil,
+              let port = server?.port, url.host == "127.0.0.1", url.port == Int(port) else { return false }
+        let scheme = url.scheme?.lowercased()
+        return scheme == "http"
+    }
+
     func closeArchive() {
         guard let session = archiveSession else { return }
         archiveSession = nil

@@ -47,6 +47,8 @@ extension AppEnvironment {
 
     /// Validates the media URL against the network policy (local-network opt-in, loopback…) before playback/cast.
     func validateMediaURL(_ url: URL) async -> AddonError? {
+        // Aether's own server on this phone (a video read from inside a ZIP): the one loopback address that is allowed.
+        if localRemux.serves(url) { return nil }
         let policy = settings.snapshot.get().networkPolicy(allowLoopback: isUITesting)
         do {
             try await policy.validate(url, purpose: .mediaPlayback)
