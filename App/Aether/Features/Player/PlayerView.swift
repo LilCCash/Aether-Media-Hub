@@ -900,9 +900,11 @@ struct PlayerView: View {
     private func bottomButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
-                .frame(width: 36, height: 36)
+                .frame(width: 38, height: 38)
                 .aetherGlass(in: Circle(), interactive: true)
-                .contentShape(Circle())
+                // The circle stays small; the finger gets the 44 pt Apple asks for.
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
