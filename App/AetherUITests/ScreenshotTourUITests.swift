@@ -11,42 +11,51 @@ final class ScreenshotTourUITests: AetherUITestCase {
         continueAfterFailure = true
     }
 
-    func testTourDark() { tour(theme: "dark") }
-    func testTourLight() { tour(theme: "light") }
+    /// One launch per theme, the fixture addon installed once: the second launch keeps the data and only changes the theme.
+    func testTour() {
+        launchWithFixtureAddon(settings: Self.settings(theme: "dark"))
+        tour(theme: "dark")
+        app.terminate()
+        launch(reset: false, settings: Self.settings(theme: "light"))
+        tour(theme: "light")
+    }
+
+    private static func settings(theme: String) -> String {
+        return #"{"playback":{"controlsAutoHideSeconds":15},"appearance":{"schema":2,"theme":"\#(theme)"}}"#
+    }
 
     private func tour(theme: String) {
         self.theme = theme
-        let settings = #"{"playback":{"controlsAutoHideSeconds":15},"appearance":{"schema":2,"theme":"\#(theme)"}}"#
-        launchWithFixtureAddon(settings: settings)
-        pause(3)
+        openTab("Home")
+        pause(2)
         snap("01-home")
         app.swipeUp()
-        pause(1.5)
+        pause(1)
         snap("02-home-sotto")
         app.swipeDown()
 
         openTab("Scopri")
-        pause(3)
+        pause(1.5)
         snap("03-scopri")
 
         openTab("Libreria")
-        pause(2)
+        pause(1)
         snap("04-libreria")
 
         // After the addon install the Profile tab still shows the Addons list: back to its root first.
         openMoreRoot()
-        pause(2)
+        pause(1)
         snap("05-profilo")
         if tap(element("profile.settings")) {
-            pause(1.5)
+            pause(1)
             snap("06-impostazioni")
             if tap(button(labelContaining: "Aspetto")) {
-                pause(1.5)
+                pause(1)
                 snap("07-impostazioni-aspetto")
                 back()
             }
             if tap(element("settings.streams")) {
-                pause(1.5)
+                pause(1)
                 snap("08-impostazioni-sorgenti")
                 back()
             }
@@ -54,7 +63,7 @@ final class ScreenshotTourUITests: AetherUITestCase {
         }
 
         openTab("Cerca")
-        pause(2)
+        pause(1)
         snap("09-cerca")
 
         // The title pages are opened with the app's own link (stremio:///detail/…): the posters are often below the fold.
@@ -86,7 +95,7 @@ final class ScreenshotTourUITests: AetherUITestCase {
         guard let url = URL(string: link) else { return false }
         app.open(url)
         guard element("detail.title").waitForExistence(timeout: 25) else { return false }
-        pause(2.5)
+        pause(1.5)
         return true
     }
 
@@ -104,7 +113,7 @@ final class ScreenshotTourUITests: AetherUITestCase {
     }
 
     @discardableResult
-    private func tap(_ element: XCUIElement, timeout: TimeInterval = 8) -> Bool {
+    private func tap(_ element: XCUIElement, timeout: TimeInterval = 4) -> Bool {
         guard element.waitForExistence(timeout: timeout), element.isHittable else { return false }
         element.tap()
         return true
@@ -121,6 +130,7 @@ final class ScreenshotTourUITests: AetherUITestCase {
         let attachment = XCTAttachment(screenshot: shot)
         attachment.name = "\(theme)-\(name)"
         attachment.lifetime = .keepAlways
+        print("TOUR-SHOT \(theme)-\(name)")
         add(attachment)
         guard let folder = ProcessInfo.processInfo.environment["AETHER_SCREENSHOT_DIR"], !folder.isEmpty else { return }
         let url = URL(fileURLWithPath: folder).appendingPathComponent("\(theme)-\(name).png")
