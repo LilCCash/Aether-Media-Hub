@@ -465,11 +465,21 @@ struct PlayerView: View {
         let lift = controlsVisible && !isLocked ? 90 : 0
         return VStack {
             Spacer()
-            if !model.activeCues.isEmpty && !isCasting {
-                SubtitleText(text: model.activeCues.map { $0.text }.joined(separator: "\n"), style: style, scale: scale)
-                    .frame(maxWidth: size.width * 0.85)
-                    .padding(.bottom, size.height * CGFloat(style.bottomOffsetPercent / 100) + CGFloat(lift))
-                    .transition(.opacity)
+            if (!model.activeCues.isEmpty || !model.secondaryCues.isEmpty) && !isCasting {
+                VStack(spacing: 6) {
+                    // The second language sits above the main one, a little smaller and quieter.
+                    if !model.secondaryCues.isEmpty {
+                        SubtitleText(text: model.secondaryCues.map { $0.text }.joined(separator: "\n"), style: style, scale: scale * 0.82)
+                            .opacity(0.85)
+                            .accessibilityIdentifier("player.subtitle.secondary")
+                    }
+                    if !model.activeCues.isEmpty {
+                        SubtitleText(text: model.activeCues.map { $0.text }.joined(separator: "\n"), style: style, scale: scale)
+                    }
+                }
+                .frame(maxWidth: size.width * 0.85)
+                .padding(.bottom, size.height * CGFloat(style.bottomOffsetPercent / 100) + CGFloat(lift))
+                .transition(.opacity)
             }
         }
         .allowsHitTesting(false)

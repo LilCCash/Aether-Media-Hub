@@ -67,6 +67,12 @@ final class PlayerViewModel: ObservableObject {
     @Published var subtitleOptions: [SubtitleOption] = []
     @Published var selectedSubtitleID: String?
     @Published var activeCues: [SubtitleCue] = []
+    /// A second subtitle shown at the same time (an original and a translation, to learn a language). Only downloaded or
+    /// imported files: the engines draw a single embedded track.
+    @Published var secondarySubtitleID: String?
+    @Published var secondaryCues: [SubtitleCue] = []
+    var secondaryTimeline: SubtitleTimeline?
+    var secondaryTask: Task<Void, Never>?
     /// The colour of the poster, for the controls (when the viewer left «Colori dalla locandina» on).
     @Published var posterAccent: Color?
     @Published var subtitleError: String?

@@ -195,6 +195,8 @@ struct PlayerSubtitlesPanel: View {
     /// Stable code of the language the list is narrowed to, nil for all of them.
     @State private var languageFilter: String?
     @State private var showingStyle = false
+    /// The list chooses the second subtitle (shown together with the main one) instead of the main one.
+    @State private var choosingSecondary = false
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
@@ -297,12 +299,24 @@ struct PlayerSubtitlesPanel: View {
     private var listColumn: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
+                if choosingSecondary {
+                    Text("Scegli la seconda lingua: compare sopra quella principale.")
+                        .font(.caption)
+                        .foregroundStyle(Color.white.opacity(0.7))
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    PanelRow(title: "Nessuna seconda lingua", detail: nil, label: "Seconda lingua disattivata",
+                             isSelected: model.secondarySubtitleID == nil, identifier: "subtitle.secondary.off") { model.selectSecondarySubtitle(nil) }
+                } else {
                 PanelRow(title: "Disattivati", detail: nil, label: "Sottotitoli disattivati", isSelected: model.selectedSubtitleID == nil,
                          identifier: "subtitle.off") { model.disableSubtitles() }
+                }
+                if !choosingSecondary {
                 ForEach(Array(embeddedOptions.enumerated()), id: \.element.id) { index, option in
                     PanelRow(title: option.title, detail: option.detail, label: "\(option.title), incorporato",
                              isSelected: model.selectedSubtitleID == option.id,
                              identifier: "subtitle.option.embedded.\(index)") { model.selectSubtitle(option) }
+                }
                 }
                 statusRows
                 ForEach(visibleGroups) { group in
@@ -311,16 +325,28 @@ struct PlayerSubtitlesPanel: View {
                     ForEach(Array(group.candidates.enumerated()), id: \.element.id) { index, candidate in
                         let option = SubtitleOption.addon(candidate)
                         PanelRow(title: rows[index].title, detail: rows[index].detail, label: rows[index].accessibilityLabel,
-                                 isSelected: model.selectedSubtitleID == option.id,
-                                 identifier: "subtitle.option.\(candidate.language).\(index)") { model.selectSubtitle(option) }
+                                 isSelected: isSelected(option),
+                                 identifier: "subtitle.option.\(candidate.language).\(index)") { choose(option) }
                     }
                 }
                 ForEach(Array(localOptions.enumerated()), id: \.element.id) { index, option in
                     PanelRow(title: option.title, detail: option.detail, label: "\(option.title), file importato",
-                             isSelected: model.selectedSubtitleID == option.id,
-                             identifier: "subtitle.local.\(index)") { model.selectSubtitle(option) }
+                             isSelected: isSelected(option),
+                             identifier: "subtitle.local.\(index)") { choose(option) }
                 }
             }
+        }
+    }
+
+    private func isSelected(_ option: SubtitleOption) -> Bool {
+        return choosingSecondary ? model.secondarySubtitleID == option.id : model.selectedSubtitleID == option.id
+    }
+
+    private func choose(_ option: SubtitleOption) {
+        if choosingSecondary {
+            model.selectSecondarySubtitle(model.secondarySubtitleID == option.id ? nil : option)
+        } else {
+            model.selectSubtitle(option)
         }
     }
 
@@ -435,12 +461,15 @@ struct PlayerSubtitlesPanel: View {
                     .accessibilityIdentifier("subtitle.delay.later")
             }
             .buttonStyle(.borderless)
-            HStack(spacing: 8) {
+            // Three to a row: with the second language and the translation they no longer fit on one line of the side panel.
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 footerButton("Azzera", "arrow.counterclockwise", id: "subtitle.delay.reset", enabled: model.subtitleDelay != 0) {
                     model.adjustSubtitleDelay(by: -model.subtitleDelay)
                 }
                 footerButton("Importa", "doc.badge.plus", id: "subtitle.import", enabled: true, action: onImport)
                 footerButton("Stile", "textformat.size", id: "subtitle.style", enabled: true) { showingStyle = true }
+                footerButton(choosingSecondary ? "Principale" : "2ª lingua", choosingSecondary ? "captions.bubble.fill" : "captions.bubble",
+                             id: "subtitle.secondary", enabled: true) { choosingSecondary.toggle() }
                 if model.translationOffered {
                     footerButton("Traduci", "character.bubble", id: "subtitle.translate", enabled: model.canTranslateSubtitle) {
                         model.translateSelectedSubtitle()

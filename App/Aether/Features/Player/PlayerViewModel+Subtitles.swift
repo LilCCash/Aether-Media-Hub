@@ -311,12 +311,90 @@ extension PlayerViewModel {
         pendingEmbeddedLanguage = nil
     }
 
+    // MARK: Second subtitle
+
+    /// Whether `option` can be the second subtitle (a downloaded or imported file, not the one already shown).
+    func canBeSecondary(_ option: SubtitleOption) -> Bool {
+        if option.isEmbedded { return false }
+        return option.id != selectedSubtitleID
+    }
+
+    /// Shows `option` together with the main subtitle (nil turns the second one off).
+    func selectSecondarySubtitle(_ option: SubtitleOption?) {
+        secondaryTask?.cancel()
+        guard let option = option, canBeSecondary(option) else {
+            secondarySubtitleID = nil
+            secondaryTimeline = nil
+            secondaryCues = []
+            return
+        }
+        secondarySubtitleID = option.id
+        if let cached = cueCache[option.id] {
+            secondaryTimeline = cached
+            updateSecondaryCues()
+            return
+        }
+        secondaryTimeline = nil
+        secondaryCues = []
+        let fetch: () async throws -> Data
+        switch option.kind {
+        case .embedded:
+            return
+        case .addon(let subtitle):
+            guard let url = URL.lenient(subtitle.url) else { return }
+            let loader = SubtitleFileLoader(http: env.http)
+            fetch = { try await loader.download(url: url) }
+        case .local(let url):
+            fetch = {
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                return try Data(contentsOf: url)
+            }
+        }
+        let language = option.language
+        let encoding = option.encodingHint
+        secondaryTask = Task { [weak self] in
+            do {
+                let data = try await fetch()
+                let cues = try await SubtitleFileLoader.parse(data, languageHint: language, encodingHint: encoding)
+                if Task.isCancelled { return }
+                guard let self = self, self.secondarySubtitleID == option.id else { return }
+                let loaded = SubtitleTimeline(cues: cues)
+                self.cueCache[option.id] = loaded
+                self.secondaryTimeline = loaded
+                self.updateSecondaryCues()
+            } catch {
+                if Task.isCancelled { return }
+                guard let self = self, self.secondarySubtitleID == option.id else { return }
+                self.secondarySubtitleID = nil
+                self.statusMessage = "Seconda lingua: " + SubtitleFileLoader.message(for: error)
+                self.scheduleStatusClear()
+            }
+        }
+    }
+
+    func updateSecondaryCues() {
+        guard let timeline = secondaryTimeline else {
+            if !secondaryCues.isEmpty { secondaryCues = [] }
+            return
+        }
+        var cues = timeline.active(at: engine.currentTime(), delay: subtitleDelay)
+        if playback.stripHearingImpairedTags {
+            cues = cues.compactMap { cue -> SubtitleCue? in
+                let text = SubtitleCleaner.stripHearingImpaired(cue.text)
+                return text.isEmpty ? nil : SubtitleCue(start: cue.start, end: cue.end, text: text)
+            }
+        }
+        if cues != secondaryCues { secondaryCues = cues }
+    }
+
     // MARK: Choosing a subtitle
 
     /// Subtitles off, chosen by the viewer. Remembered for the next episode of this series.
     func disableSubtitles() {
         preferredSubtitleApplied = true
         trackMemory.rememberSubtitle(.off, metaID: meta.id)
+        selectSecondarySubtitle(nil)
         subtitleTask?.cancel()
         selectedSubtitleID = nil
         selectedOption = nil
@@ -345,6 +423,7 @@ extension PlayerViewModel {
 
     /// Switches a subtitle on without touching the memory of what the viewer chose (used by the automatic choice as well).
     func activateSubtitle(_ option: SubtitleOption) {
+        if option.id == secondarySubtitleID { selectSecondarySubtitle(nil) }
         subtitleTask?.cancel()
         subtitleError = nil
         failedSubtitle = nil
@@ -503,6 +582,7 @@ extension PlayerViewModel {
     }
 
     func updateCues() {
+        updateSecondaryCues()
         guard let timeline = timeline else {
             if !activeCues.isEmpty { activeCues = [] }
             return
