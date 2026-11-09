@@ -26,6 +26,7 @@ jobs:
   core-linux:
     name: AetherCore on Linux (fast)
     runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[ui]')"
     container: swift:6.0.3-noble
     timeout-minutes: 15
     steps:
@@ -41,6 +42,7 @@ jobs:
   core:
     name: AetherCore (swift test)
     runs-on: macos-latest
+    if: "!contains(github.event.head_commit.message, '[ui]')"
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -123,9 +125,12 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="-" 2>&1 | tee "$RUNNER_TEMP/build.log"
 
+      # A commit marked [ui] (look-only changes: colours, spacing, icons) builds the app and takes the screenshots, without the
+      # unit tests (about 7 minutes, mostly video conversion, which such changes do not touch). Every block still ends with a
+      # full run.
       - name: Unit tests
         id: unit
-        if: steps.build.outcome == 'success'
+        if: steps.build.outcome == 'success' && !contains(github.event.head_commit.message, '[ui]')
         run: |
           set -o pipefail
           xcodebuild test-without-building \
