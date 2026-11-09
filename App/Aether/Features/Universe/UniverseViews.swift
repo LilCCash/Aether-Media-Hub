@@ -351,7 +351,7 @@ struct UniverseDetailView: View {
                             }
                             if entry.isSeries {
                                 VStack { HStack { Spacer(); Text("SERIE").font(.system(size: 8, weight: .heavy)).padding(.horizontal, 5).padding(.vertical, 2)
-                                    .background(Color.accentColor, in: Capsule()).foregroundStyle(.white).padding(6) }; Spacer() }
+                                    .background(settings.accentColor, in: Capsule()).foregroundStyle(settings.accentColor.readableForeground).padding(6) }; Spacer() }
                             }
                         }
                         Text(entry.name).font(.caption.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)

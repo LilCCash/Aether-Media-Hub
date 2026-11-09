@@ -348,7 +348,7 @@ struct FilterChip: View {
                 .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
+                .foregroundStyle(isSelected ? settings.accentColor.readableForeground : Color.primary)
                 .background(isSelected ? AnyShapeStyle(settings.accentColor.gradient) : AnyShapeStyle(Color.primary.opacity(0.08)), in: Capsule())
         }
         .buttonStyle(.plain)

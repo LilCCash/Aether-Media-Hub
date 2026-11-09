@@ -74,6 +74,20 @@ extension Color {
     static var aetherHairline: Color { Color.primary.opacity(0.10) }
     /// Text and icons that are present but quieter than secondary (hints, disabled).
     static var aetherTertiary: Color { Color.primary.opacity(0.55) }
+
+    /// Black or white, whichever reads better on this colour (text on an accent fill: white on gold or jade was hard to read).
+    var readableForeground: Color {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        guard UIColor(self).getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return .white }
+        func linear(_ value: CGFloat) -> CGFloat {
+            return value <= 0.03928 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        let luminance = 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+        // Contrast against white and against black; the larger one wins.
+        let withWhite = 1.05 / (luminance + 0.05)
+        let withBlack = (luminance + 0.05) / 0.05
+        return withBlack > withWhite ? Color.black : Color.white
+    }
 }
 
 extension View {
