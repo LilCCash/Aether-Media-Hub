@@ -5,6 +5,9 @@ public actor LibraryStore {
     private let store: JSONFileStore<LibraryState>
     private let now: @Sendable () -> Date
     private let saveDelay: UInt64
+    private let retryDelay: UInt64
+    /// Why the last write failed (nil when it succeeded); the changes stay pending and are written again shortly.
+    public private(set) var saveProblem: String?
 
     public private(set) var policy: LibraryPolicy
     private var state = LibraryState()
@@ -14,10 +17,12 @@ public actor LibraryStore {
     private var observers: [UUID: AsyncStream<Void>.Continuation] = [:]
 
     public init(store: JSONFileStore<LibraryState>, policy: LibraryPolicy = LibraryPolicy(),
-                saveDelaySeconds: Double = 1.5, now: @escaping @Sendable () -> Date = { Date() }) {
+                saveDelaySeconds: Double = 1.5, retryDelaySeconds: Double = 10,
+                now: @escaping @Sendable () -> Date = { Date() }) {
         self.store = store
         self.policy = policy
         self.saveDelay = UInt64(max(0, saveDelaySeconds) * 1_000_000_000)
+        self.retryDelay = UInt64(max(0, retryDelaySeconds) * 1_000_000_000)
         self.now = now
     }
 
@@ -40,9 +45,36 @@ public actor LibraryStore {
         load()
         saveTask?.cancel()
         saveTask = nil
-        if dirty {
-            try? store.save(state)
+        if dirty { write() }
+    }
+
+    /// Writes the state. A failed write keeps the changes pending (they were silently dropped before) and tries again after
+    /// `retryDelay`; the reason is kept in `saveProblem` and reported to `PersistenceHealth`.
+    private func write() {
+        do {
+            try store.save(state)
             dirty = false
+            if saveProblem != nil {
+                saveProblem = nil
+                notifyObservers()
+            }
+        } catch {
+            saveProblem = PersistenceHealth.describe(error)
+            notifyObservers()
+            scheduleSave(after: retryDelay)
+        }
+    }
+
+    private func notifyObservers() {
+        for continuation in observers.values { continuation.yield() }
+    }
+
+    private func scheduleSave(after delay: UInt64) {
+        guard saveTask == nil else { return }
+        saveTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: delay)
+            if Task.isCancelled { return }
+            await self?.performScheduledSave()
         }
     }
 
@@ -63,23 +95,13 @@ public actor LibraryStore {
 
     private func didMutate() {
         dirty = true
-        for continuation in observers.values { continuation.yield() }
-        if saveTask == nil {
-            let delay = saveDelay
-            saveTask = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: delay)
-                if Task.isCancelled { return }
-                await self?.performScheduledSave()
-            }
-        }
+        notifyObservers()
+        scheduleSave(after: saveDelay)
     }
 
     private func performScheduledSave() {
         saveTask = nil
-        if dirty {
-            try? store.save(state)
-            dirty = false
-        }
+        if dirty { write() }
     }
 
     // MARK: Watchlist / favourites
@@ -388,6 +410,7 @@ public actor LibraryStore {
         saveTask?.cancel()
         saveTask = nil
         dirty = false
+        saveProblem = nil
         store.delete()
         for continuation in observers.values { continuation.yield() }
     }

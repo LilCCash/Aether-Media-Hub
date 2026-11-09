@@ -210,6 +210,8 @@ final class PlayerViewModel: ObservableObject {
     private var isLiveContent: Bool { return meta.type == "tv" }
     private var openStartedAt = Date()
     private var firstFrameLogged = false
+    /// The opening of the current source, measured for Instruments (Telemetry).
+    private var openInterval: Telemetry.Interval?
     private var engineChoice: PlayerEngineChoice { return isLiveContent ? playback.liveEngine : playback.engine }
 
     init(request: PlayerRequest, env: AppEnvironment) {
@@ -382,6 +384,8 @@ final class PlayerViewModel: ObservableObject {
         loadGeneration += 1
         let generation = loadGeneration
         openStartedAt = Date()
+        openInterval?.end()
+        openInterval = Telemetry.begin("Apertura sorgente")
         firstFrameLogged = false
         isOpeningSource = true
         failure = nil
@@ -1016,6 +1020,8 @@ final class PlayerViewModel: ObservableObject {
             refreshTracks(); refreshPack()
             if !firstFrameLogged {
                 firstFrameLogged = true
+                openInterval?.end()
+                openInterval = nil
                 env.diagnostics.logDetached(.info, "player", String(format: "Apertura: pronto a riprodurre dopo %.1f s dall'avvio del lettore", Date().timeIntervalSince(openStartedAt)))
             }
         }

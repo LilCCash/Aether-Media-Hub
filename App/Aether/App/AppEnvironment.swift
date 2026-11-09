@@ -42,6 +42,8 @@ final class AppEnvironment: ObservableObject {
     /// Trakt: collegamento, sincronizzazione, scrobble e cataloghi.
     let trakt: TraktService
     let extras: ExtrasService
+    /// Data that could not be written (shown as a banner over the app until a later write succeeds).
+    let saveProblems = SaveProblemMonitor()
     let livePlaylists = LivePlaylistService()
     let liveActivity = DownloadActivityService()
     let widgetBridge = WidgetBridge()
@@ -90,13 +92,13 @@ final class AppEnvironment: ObservableObject {
             maxAgeOverride: { kind in
                 kind == .catalog ? snapshot.get().content.catalogRefreshMinutes * 60 : nil
             })
-        registry = AddonRegistry(store: JSONFileStore<AddonRegistryState>(url: paths.addonsFile),
+        registry = AddonRegistry(store: JSONFileStore<AddonRegistryState>(url: paths.addonsFile, label: "gli addon"),
                                  secrets: secrets, client: addonClient, policyProvider: policyProvider)
         service = AddonService(registry: registry, client: addonClient)
         service.itemFilter.setHidden(settings.value.content.hiddenTalkScopes)
         service.observer.set { items in Task { @MainActor in SpotlightIndexer.record(items) } }
         searchService = SearchService(service: service)
-        libraryStore = LibraryStore(store: JSONFileStore<LibraryState>(url: paths.libraryFile),
+        libraryStore = LibraryStore(store: JSONFileStore<LibraryState>(url: paths.libraryFile, label: "la libreria"),
                                     policy: settings.value.libraryPolicy)
         images = ImageLoader(http: imageHTTP, directory: paths.imageCacheDirectory,
                              diskLimitMB: settings.value.storage.imageCacheLimitMB)
@@ -171,6 +173,8 @@ final class AppEnvironment: ObservableObject {
         Task { await trakt.bootstrap() }
         await diagnostics.configure(enabled: settings.value.privacy.keepDiagnosticLog,
                                     verbose: settings.value.advanced.verboseLogging)
+        await diagnostics.setMirror(Telemetry.mirror)
+        Telemetry.startMetrics(log: diagnostics)
         await diagnostics.log(.info, "app", "Avvio completato: \(addons.addons.count) addon, rete \(network.interfaceName)")
         casting.start()
         if uiHooks.isActive, let link = uiHooks.openURL, let url = URL(string: link) {

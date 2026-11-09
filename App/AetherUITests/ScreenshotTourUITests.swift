@@ -16,7 +16,7 @@ final class ScreenshotTourUITests: AetherUITestCase {
 
     private func tour(theme: String) {
         self.theme = theme
-        let settings = #"{"playback":{"controlsAutoHideSeconds":15},"appearance":{"theme":"\#(theme)"}}"#
+        let settings = #"{"playback":{"controlsAutoHideSeconds":15},"appearance":{"schema":2,"theme":"\#(theme)"}}"#
         launchWithFixtureAddon(settings: settings)
         pause(3)
         snap("01-home")

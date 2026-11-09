@@ -176,6 +176,7 @@ struct RootView: View {
 
     var body: some View {
         tabs
+        .overlay(alignment: .top) { SaveProblemBanner(monitor: env.saveProblems) }
         .tint(settings.accentColor)
         .onChange(of: router.tab) { old, new in
             Haptics.select()

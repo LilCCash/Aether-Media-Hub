@@ -70,6 +70,8 @@ public actor DiagnosticLog {
     private var minimumLevel: LogLevel
     private var enabled: Bool
     private let now: @Sendable () -> Date
+    /// Also hands every kept line (already redacted) to the system log, where Console and Instruments can read it.
+    private var mirror: (@Sendable (LogLevel, String, String) -> Void)?
 
     public init(capacity: Int = 800, minimumLevel: LogLevel = .info, enabled: Bool = true,
                 now: @escaping @Sendable () -> Date = { Date() }) {
@@ -85,9 +87,14 @@ public actor DiagnosticLog {
         if !enabled { buffer.removeAll() }
     }
 
+    public func setMirror(_ mirror: (@Sendable (LogLevel, String, String) -> Void)?) {
+        self.mirror = mirror
+    }
+
     public func log(_ level: LogLevel, _ category: String, _ message: String) {
         guard enabled, level >= minimumLevel else { return }
         let entry = LogEntry(date: now(), level: level, category: category, message: Redactor.redact(message))
+        mirror?(level, category, entry.message)
         buffer.append(entry)
         if buffer.count > capacity { buffer.removeFirst(buffer.count - capacity) }
     }

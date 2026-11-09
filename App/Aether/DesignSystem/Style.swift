@@ -142,5 +142,8 @@ struct ThemedRoot: View {
     var body: some View {
         RootView()
             .environment(\.aetherStyle, AetherStyle(settings.value.appearance))
+            // `Color.accentColor` is what most of the app paints its accents with; without this it stayed the fixed blue of
+            // the asset catalogue while the controls (`.tint`) took the colour the viewer chose, so the two never matched.
+            .accentColor(settings.accentColor)
     }
 }

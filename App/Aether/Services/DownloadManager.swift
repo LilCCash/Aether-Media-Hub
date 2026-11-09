@@ -40,7 +40,7 @@ final class DownloadManager: NSObject, ObservableObject {
         self.downloadsDirectory = paths.downloadsDirectory
         self.snapshot = snapshot
         self.diagnostics = diagnostics
-        self.store = DownloadStore(store: JSONFileStore<DownloadStoreState>(url: paths.downloadsFile))
+        self.store = DownloadStore(store: JSONFileStore<DownloadStoreState>(url: paths.downloadsFile, label: "i download"))
         super.init()
         let configuration = URLSessionConfiguration.background(withIdentifier: "app.aether.downloads")
         configuration.isDiscretionary = false

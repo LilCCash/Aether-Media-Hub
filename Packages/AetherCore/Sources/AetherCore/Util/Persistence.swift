@@ -20,13 +20,64 @@ public extension JSONDecoder {
     }
 }
 
+/// The files that could not be written, for the app to tell the viewer (a full phone, a damaged folder…). A store that
+/// writes again successfully is taken off the list. `onChange` is called with the whole list after every change.
+public final class PersistenceHealth: @unchecked Sendable {
+    public static let shared = PersistenceHealth()
+
+    private let lock = NSLock()
+    private var problems: [String: String] = [:]
+    private var handler: (@Sendable ([String: String]) -> Void)?
+
+    public init() {}
+
+    /// Label of the data (as given to the store) → why it could not be written.
+    public var current: [String: String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return problems
+    }
+
+    public func onChange(_ handler: @escaping @Sendable ([String: String]) -> Void) {
+        lock.lock()
+        self.handler = handler
+        lock.unlock()
+    }
+
+    public func report(_ label: String, error: Error?) {
+        lock.lock()
+        let before = problems[label]
+        if let error = error { problems[label] = PersistenceHealth.describe(error) } else { problems.removeValue(forKey: label) }
+        let changed = before != problems[label]
+        let snapshot = problems
+        let handler = self.handler
+        lock.unlock()
+        if changed { handler?(snapshot) }
+    }
+
+    /// A short Italian reason.
+    public static func describe(_ error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain && nsError.code == CocoaError.fileWriteOutOfSpace.rawValue { return "spazio esaurito sul telefono" }
+        if nsError.domain == NSPOSIXErrorDomain && nsError.code == 28 { return "spazio esaurito sul telefono" }
+        if nsError.domain == NSCocoaErrorDomain && nsError.code == CocoaError.fileWriteNoPermission.rawValue { return "permesso di scrittura negato" }
+        if error is EncodingError { return "dati non convertibili" }
+        return "errore di scrittura (\(nsError.domain) \(nsError.code))"
+    }
+}
+
 /// Atomic JSON persistence with a one-generation backup and quarantine of unreadable files.
 public final class JSONFileStore<Value: Codable>: @unchecked Sendable {
     public let url: URL
+    /// What the file holds, in words for the viewer ("la libreria"); used when a write fails (`PersistenceHealth`).
+    public let label: String
     private let lock = NSLock()
+    private let health: PersistenceHealth
 
-    public init(url: URL) {
+    public init(url: URL, label: String? = nil, health: PersistenceHealth = .shared) {
         self.url = url
+        self.label = label ?? url.lastPathComponent
+        self.health = health
     }
 
     private var backupURL: URL { return url.appendingPathExtension("bak") }
@@ -56,6 +107,16 @@ public final class JSONFileStore<Value: Codable>: @unchecked Sendable {
     }
 
     public func save(_ value: Value) throws {
+        do {
+            try write(value)
+            health.report(label, error: nil)
+        } catch {
+            health.report(label, error: error)
+            throw error
+        }
+    }
+
+    private func write(_ value: Value) throws {
         lock.lock()
         defer { lock.unlock() }
         let data = try JSONEncoder.aether().encode(value)
