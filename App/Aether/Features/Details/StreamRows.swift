@@ -11,6 +11,19 @@ struct StreamRow: View {
 
     private var display: StreamDisplaySettings { settings.value.content.streamDisplay }
 
+    /// The mark of this source (0–100) and why: shown on the row, the reasons in the menu of a long press.
+    private var rating: SourceRating { SourceRating.rate(item.info, preferences: env.streamPreferences()) }
+
+    private func ratingBadge(_ rating: SourceRating) -> some View {
+        let tint: Color = rating.score >= 75 ? .green : (rating.score >= 50 ? settings.accentColor : .orange)
+        return Text("\(rating.score)")
+            .font(.system(.caption, design: AetherTypography.design).weight(.heavy).monospacedDigit())
+            .foregroundStyle(tint)
+            .padding(.horizontal, 7).padding(.vertical, 2)
+            .background(tint.opacity(0.14), in: Capsule())
+            .accessibilityLabel("Punteggio \(rating.score) su 100, \(rating.verdict)")
+    }
+
     /// The logo of the addon that produced this source, when the viewer asked for it and the addon has one.
     private var addonLogo: URL? {
         guard display.showAddonLogo, let name = item.stream.addonName else { return nil }
@@ -60,6 +73,9 @@ struct StreamRow: View {
                             .foregroundStyle(settings.accentColor)
                     }
                     Spacer()
+                    if item.info.support.isPlayable {
+                        ratingBadge(rating)
+                    }
                     if let addon = item.stream.addonName {
                         HStack(spacing: 4) {
                             if let logo = addonLogo {
@@ -111,6 +127,15 @@ struct StreamRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            let mark = rating
+            Section("Punteggio \(mark.score)/100 · \(mark.verdict)") {
+                ForEach(Array(mark.reasons.enumerated()), id: \.offset) { _, reason in
+                    Label(reason.text, systemImage: reason.isPositive ? "plus.circle" : "minus.circle")
+                }
+            }
+            Button(action: action) { Label("Riproduci", systemImage: "play.fill") }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityHint(hintText)
     }
