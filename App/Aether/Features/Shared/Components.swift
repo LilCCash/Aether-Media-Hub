@@ -60,6 +60,12 @@ struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
     @ViewBuilder var content: (Item, CGFloat) -> Content
 
     @State private var containerWidth: CGFloat = 390
+    @EnvironmentObject private var settings: SettingsStore
+
+    /// «Densità» compatta: the grids tighten like the rows of the Home already did.
+    private var compact: Bool { settings.value.appearance.density == .compact }
+    private var columnSpacing: CGFloat { compact ? min(spacing, 8) : spacing }
+    private var lineSpacing: CGFloat { compact ? min(rowSpacing, 12) : rowSpacing }
 
     /// Columns and card width for a container of `containerWidth` points. Pure, so it is unit-tested.
     static func layout(containerWidth: CGFloat, margin: CGFloat, spacing: CGFloat, minColumns: Int,
@@ -72,6 +78,7 @@ struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
     }
 
     var body: some View {
+        let spacing = columnSpacing
         let metrics = AdaptiveCardGrid.layout(containerWidth: containerWidth, margin: margin, spacing: spacing,
                                               minColumns: minColumns, preferredWidth: preferredWidth)
         let columns: [GridItem] = Array(repeating: GridItem(.fixed(metrics.cardWidth), spacing: spacing, alignment: .top),
@@ -85,7 +92,7 @@ struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
                 .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in
                     if width > 0, abs(width - containerWidth) > 0.5 { containerWidth = width }
                 }
-            LazyVGrid(columns: columns, alignment: .center, spacing: rowSpacing) {
+            LazyVGrid(columns: columns, alignment: .center, spacing: lineSpacing) {
                 ForEach(items) { item in
                     content(item, metrics.cardWidth)
                 }
