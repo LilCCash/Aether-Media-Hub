@@ -463,7 +463,7 @@ private struct ChannelTile: View {
                 .padding(10)
             }
             .background(.thinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
             .overlay(alignment: .topTrailing) {
                 Button(action: onFavorite) {
                     Image(systemName: isFavorite ? "star.fill" : "star").font(.system(size: 14, weight: .bold))

@@ -66,8 +66,8 @@ struct CompanionSheet: View {
             HStack(alignment: .bottom, spacing: 12) {
                 RemoteImage(urlString: meta.poster, width: 200, placeholderSeed: meta.name)
                     .frame(width: 74, height: 74 / CGFloat(meta.posterShape.aspectRatio))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.25), lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Corner.control, style: .continuous).strokeBorder(.white.opacity(0.25), lineWidth: 1))
                 VStack(alignment: .leading, spacing: 3) {
                     Text("🍿 Ciao! Ecco chi c'è dietro e dentro").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
                     Text(meta.name).font(.system(size: 22, weight: .heavy, design: .rounded)).foregroundStyle(.white).lineLimit(2)
@@ -77,8 +77,8 @@ struct CompanionSheet: View {
             }
             .padding(12)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(.white.opacity(0.12), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous).strokeBorder(.white.opacity(0.12), lineWidth: 1))
     }
 
     private var levelPicker: some View {
@@ -91,8 +91,8 @@ struct CompanionSheet: View {
                             Text(item.title).font(.caption.weight(.semibold))
                         }
                         .frame(maxWidth: .infinity).padding(.vertical, 8)
-                        .background(level == item ? Color.accentColor.opacity(0.35) : Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(level == item ? Color.accentColor : .clear, lineWidth: 1.5))
+                        .background(level == item ? Color.accentColor.opacity(0.35) : Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Corner.control, style: .continuous).strokeBorder(level == item ? Color.accentColor : .clear, lineWidth: 1.5))
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(level == item ? .isSelected : [])
@@ -139,7 +139,7 @@ struct CompanionSheet: View {
         let style = icon(for: card.id)
         return HStack(alignment: .top, spacing: 12) {
             Image(systemName: style.0).font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
-                .frame(width: 36, height: 36).background(style.1.gradient, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(width: 36, height: 36).background(style.1.gradient, in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
             VStack(alignment: .leading, spacing: 5) {
                 Text(card.id == "directors" ? (meta.directors.count > 1 ? "🎬 Registi" : style.2) : style.2).font(.headline)
                 ForEach(card.lines, id: \.self) { Text($0).font(.subheadline).foregroundStyle(Color.primary.opacity(0.85)) }
@@ -147,8 +147,8 @@ struct CompanionSheet: View {
             Spacer(minLength: 0)
         }
         .padding(14)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
     }
 
     /// The titles around this one in its universe, as posters to open.
@@ -172,7 +172,7 @@ struct CompanionSheet: View {
                                         VStack(spacing: 5) {
                                             ZStack(alignment: .bottomTrailing) {
                                                 RemoteImage(urlString: UniverseArt.poster(entry.id), width: 240, placeholderSeed: entry.name)
-                                                    .frame(width: 92, height: 138).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                                    .frame(width: 92, height: 138).clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                                                 if watched.contains(entry.id) { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green, .white).padding(5) }
                                             }
                                             Text(entry.id == release[index - (index > 0 ? 1 : 0)].id && index > 0 ? "Prima" : "Dopo").font(.caption2.weight(.bold)).foregroundStyle(Color.accentColor)
@@ -209,7 +209,7 @@ struct CompanionSheet: View {
                 Text("Risponde al livello «\(level.title)»: " + (level == .none ? "senza svelare la trama." : level == .context ? "senza rovinare il finale." : "può svelare la storia."))
                     .font(.caption).foregroundStyle(Color.aetherSecondary)
                 if let answer = answer { Text(answer).font(.subheadline).padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous)) }
+                    .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous)) }
                 if let problem = problem { Text(problem).font(.caption).foregroundStyle(.orange) }
             } else {
                 Text("Per fare domande sul film serve una chiave di un servizio AI (Claude, OpenAI, Google, OpenRouter…): inseriscila in Impostazioni ▸ Ricerca avanzata. Resta tua e viene usata solo per le tue domande.")
@@ -217,8 +217,8 @@ struct CompanionSheet: View {
             }
         }
         .padding(14)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
     }
 
     private func ask() async {

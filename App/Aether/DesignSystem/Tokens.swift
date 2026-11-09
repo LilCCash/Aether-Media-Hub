@@ -22,6 +22,19 @@ enum Space {
     static let section: CGFloat = 32
 }
 
+/// Fixed corners of controls (buttons, rows, chips, panels, sheets): four steps instead of the many sizes used before. They do
+/// not follow «Angoli», which is about posters and title cards (`Radius` / `AetherStyle`).
+enum Corner {
+    /// Chips, badges, small tiles.
+    static let chip: CGFloat = 8
+    /// Buttons, rows, fields, thumbnails.
+    static let control: CGFloat = 12
+    /// Cards and panels.
+    static let panel: CGFloat = 16
+    /// Large panels and sheets.
+    static let sheet: CGFloat = 24
+}
+
 /// Corner sizes, by role.
 enum Radius {
     /// Badges, small thumbnails, progress tracks.

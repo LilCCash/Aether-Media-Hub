@@ -48,7 +48,7 @@ struct SettingsRootView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 30, height: 30)
-                    .background(color.gradient, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(color.gradient, in: RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
                 Text(title)
             }
         }
@@ -289,7 +289,7 @@ struct SubtitleStyleView: View {
                         .padding(.bottom, 8)
                 }
                 .frame(height: 150)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                 .listRowInsets(EdgeInsets())
             }
             Section(header: Text("Testo")) {

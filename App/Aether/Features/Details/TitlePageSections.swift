@@ -95,7 +95,7 @@ struct TitleTrailersSection: View {
                             Image(systemName: "arrow.up.right").font(.caption.weight(.semibold)).foregroundStyle(Color.aetherSecondary)
                         }
                         .padding(12)
-                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .accessibilityElement(children: .ignore)
@@ -122,7 +122,7 @@ struct TitleCompaniesSection: View {
                     ForEach(Array(companies.enumerated()), id: \.offset) { _, company in
                         VStack(spacing: 6) {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.92))
+                                RoundedRectangle(cornerRadius: Corner.control, style: .continuous).fill(Color.white.opacity(0.92))
                                 if company.logoURL != nil {
                                     RemoteImage(urlString: company.logoURL, width: 240, contentMode: .fit,
                                                 placeholderSeed: company.name, systemPlaceholder: "building.2")
@@ -163,7 +163,7 @@ struct TitleFinancialsSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -205,7 +205,7 @@ struct TitleFactsSection: View {
                 }
             }
             .padding(.horizontal, 14)
-            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
             .padding(.horizontal, Theme.pageMargin)
         }
         .accessibilityIdentifier("detail.facts")
@@ -231,7 +231,7 @@ struct TitleSimilarSection: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 RemoteImage(urlString: item.posterURL, width: 300, placeholderSeed: item.title)
                                     .frame(width: 112, height: 168)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                                 Text(item.title)
                                     .font(.caption.weight(.semibold))
                                     .multilineTextAlignment(.leading)
@@ -277,7 +277,7 @@ struct TitleRatingsSection: View {
                             Text(rating.title).font(.caption2).foregroundStyle(Color.aetherSecondary)
                         }
                         .padding(.horizontal, 14).padding(.vertical, 10)
-                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("\(rating.title): \(rating.display ?? "")")
                     }
@@ -346,7 +346,7 @@ struct TitleUniverseSection: View {
                             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Color.aetherSecondary)
                         }
                         .padding(12)
-                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("detail.universe.\(universe.id)")

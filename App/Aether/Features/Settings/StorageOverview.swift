@@ -61,7 +61,7 @@ struct StorageOverview: View {
                 }
             }
             .frame(height: 16)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
                 ForEach(segments) { segment in
                     HStack(spacing: 8) {

@@ -201,7 +201,7 @@ struct LogoEasterEggOverlay: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 18).padding(.vertical, 14)
-                    .aetherGlassCard(cornerRadius: 20)
+                    .aetherGlassCard(cornerRadius: Corner.panel)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 24)
                     .transition(moving ? .move(edge: .bottom).combined(with: .opacity) : .identity)

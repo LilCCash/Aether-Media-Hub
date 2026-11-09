@@ -297,7 +297,7 @@ struct InlineErrorView: View {
             }
         }
         .padding(12)
-        .aetherGlassCard(cornerRadius: 14)
+        .aetherGlassCard(cornerRadius: Corner.control)
         .padding(.horizontal, Theme.pageMargin)
         .accessibilityElement(children: .combine)
     }

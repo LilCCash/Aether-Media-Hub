@@ -29,8 +29,8 @@ struct CollectionsView: View {
                         HStack(spacing: -14) {
                             ForEach(Array(list.items.prefix(3).enumerated()), id: \.element.id) { _, item in
                                 RemoteImage(urlString: item.poster, width: 100, placeholderSeed: item.name, systemPlaceholder: "film")
-                                    .frame(width: 38, height: 56).clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                    .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.black.opacity(0.3), lineWidth: 1))
+                                    .frame(width: 38, height: 56).clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
+                                    .overlay(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous).strokeBorder(Color.black.opacity(0.3), lineWidth: 1))
                             }
                             if list.items.isEmpty { Image(systemName: "rectangle.stack").font(.title2).frame(width: 38, height: 56).foregroundStyle(Color.aetherSecondary) }
                         }

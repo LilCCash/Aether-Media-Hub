@@ -319,7 +319,7 @@ struct ReleaseCalendarView: View {
                 HStack(spacing: 12) {
                     RemoteImage(urlString: card.posterURL, width: 60, placeholderSeed: card.title)
                         .frame(width: 52, height: 78)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(card.title).font(.headline).lineLimit(2)
                         Text(dateText(card)).font(.subheadline).foregroundStyle(.tint)

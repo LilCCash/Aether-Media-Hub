@@ -106,7 +106,7 @@ struct DownloadsView: View {
                 HStack(spacing: 10) {
                     RemoteImage(urlString: titleItems.first?.poster, width: 100, placeholderSeed: title)
                         .frame(width: 40, height: 58)
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(title).font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                         Text("\(titleItems.count) episodi · download e file completati")
@@ -180,7 +180,7 @@ struct DownloadRow: View {
         HStack(spacing: 12) {
             RemoteImage(urlString: item.poster, width: 100, placeholderSeed: item.title)
                 .frame(width: 44, height: 64)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.subtitle?.isEmpty == false ? item.subtitle! : item.title)
                     .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold)).lineLimit(2)

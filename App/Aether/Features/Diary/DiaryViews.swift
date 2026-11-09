@@ -108,7 +108,7 @@ struct DiaryView: View {
                     } label: {
                         HStack(spacing: 12) {
                             RemoteImage(urlString: moment.poster, width: 120, placeholderSeed: moment.name, systemPlaceholder: "film")
-                                .frame(width: 50, height: 74).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .frame(width: 50, height: 74).clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(moment.name).font(.headline).lineLimit(2).multilineTextAlignment(.leading)
                                 Text("Visto il " + formatter.string(from: moment.date) + (moment.detail.isEmpty || moment.entry == nil ? "" : " · " + moment.detail))
@@ -126,8 +126,8 @@ struct DiaryView: View {
                             .frame(width: 34, height: 34)
                         }
                         .padding(12)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
@@ -166,7 +166,7 @@ struct DiaryView: View {
             if stats.rewatches > 0 { Text("\(stats.rewatches) rewatch").font(.caption).foregroundStyle(Color.aetherSecondary) }
         }
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
         .padding(.vertical, 6)
     }
 
@@ -176,7 +176,7 @@ struct DiaryView: View {
             Text(label).font(.caption2).foregroundStyle(Color.aetherSecondary)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 8)
-        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
     }
 
     private var monthsChart: some View {
@@ -210,7 +210,7 @@ struct DiaryView: View {
         Button { editing = entry } label: {
             HStack(alignment: .top, spacing: 12) {
                 RemoteImage(urlString: entry.poster, width: 120, placeholderSeed: entry.name, systemPlaceholder: "film")
-                    .frame(width: 46, height: 69).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .frame(width: 46, height: 69).clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     HStack {
                         Text(entry.name).font(.headline).lineLimit(2)
@@ -244,7 +244,7 @@ struct DiaryEntryEditor: View {
             Section {
                 HStack(spacing: 12) {
                     RemoteImage(urlString: entry.poster, width: 120, placeholderSeed: entry.name, systemPlaceholder: "film")
-                        .frame(width: 46, height: 69).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .frame(width: 46, height: 69).clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
                     Text(entry.name).font(.headline)
                 }
                 DatePicker("Visto il", selection: $entry.watchedAt, displayedComponents: [.date, .hourAndMinute])

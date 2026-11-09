@@ -80,7 +80,7 @@ struct AppearanceSettingsView: View {
                             .stroke(sample.cardChrome == .outline ? Color.white.opacity(0.8) : .clear, lineWidth: 1.5))
                 }
                 .frame(width: 104, height: 84)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                 Text(preset.title).font(.system(.subheadline, design: .rounded).weight(.bold))
                 Text(preset.summary).font(.caption2).foregroundStyle(Color.aetherSecondary).lineLimit(2).frame(width: 104, alignment: .leading)
             }
@@ -326,7 +326,7 @@ private struct StylePreview: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 190)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Anteprima dello stile scelto")
         .accessibilityIdentifier("settings.style.preview")

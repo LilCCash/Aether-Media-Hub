@@ -119,8 +119,8 @@ struct PauseScreen: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("pause.synopsis")
@@ -141,8 +141,8 @@ struct PauseScreen: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("pause.cast")
@@ -176,8 +176,8 @@ struct PauseScreen: View {
         }
         .padding(22)
         .frame(width: min(size.width * 0.72, 720), height: size.height * 0.78, alignment: .topLeading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous))
         .onTapGesture {}
         .accessibilityIdentifier("pause.synopsis.panel")
     }
@@ -194,8 +194,8 @@ struct PauseScreen: View {
         }
         .padding(22)
         .frame(width: min(size.width * 0.8, 820), height: size.height * 0.82, alignment: .topLeading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous))
         .onTapGesture {}
         .accessibilityIdentifier("pause.cast.panel")
     }

@@ -40,7 +40,7 @@ struct SearchExtrasSection: View {
                     Button("Aggiungila in Profilo ▸ Impostazioni ▸ Servizi") { router.open(.services) }.font(.footnote)
                 }
                 .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                 .padding(.horizontal, Theme.pageMargin)
                 .accessibilityIdentifier("search.peopleKey")
             }

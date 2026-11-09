@@ -145,8 +145,8 @@ struct AddonRow: View {
         HStack(spacing: 12) {
             RemoteImage(urlString: addon.manifest.logo, width: 88, contentMode: .fit, placeholderSeed: addon.manifest.id, systemPlaceholder: "puzzlepiece.extension")
                 .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(addon.displayName).font(.system(.body, design: AetherTypography.design).weight(.semibold)).lineLimit(1)
@@ -295,7 +295,7 @@ struct AddonInstallSheet: View {
             HStack(spacing: 12) {
                 RemoteImage(urlString: preview.manifest.logo, width: 96, contentMode: .fit, placeholderSeed: preview.manifest.id, systemPlaceholder: "puzzlepiece.extension")
                     .frame(width: 52, height: 52)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(preview.manifest.name).font(.headline)
                     Text("v\(preview.manifest.version) · \(AddonURL.displayHost(preview.transportURL))").font(.caption).foregroundStyle(Color.aetherSecondary)
@@ -436,7 +436,7 @@ struct AddonDetailView: View {
                         HStack(spacing: 14) {
                             RemoteImage(urlString: addon.manifest.logo, width: 120, contentMode: .fit, placeholderSeed: addon.manifest.id, systemPlaceholder: "puzzlepiece.extension")
                                 .frame(width: 60, height: 60)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(addon.displayName).font(.title3.weight(.bold))
                                 Text("Versione \(addon.manifest.version)").font(.footnote).foregroundStyle(Color.aetherSecondary)

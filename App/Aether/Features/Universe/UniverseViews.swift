@@ -140,7 +140,7 @@ struct UniverseCard: View {
         }
         .frame(width: wide ? 250 : nil, height: wide ? 150 : 130)
         .frame(maxWidth: wide ? 250 : .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
         .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(universe.name), \(universe.countsLine)" + (progress.watched > 0 ? ", \(progress.percent) per cento visto" : ""))
@@ -191,7 +191,7 @@ struct UniverseDetailView: View {
                         ForEach(shown) { entry in
                             HStack(spacing: 12) {
                                 RemoteImage(urlString: UniverseArt.poster(entry.id), width: 120, placeholderSeed: entry.name, systemPlaceholder: "film")
-                                    .frame(width: 40, height: 60).clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    .frame(width: 40, height: 60).clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
                                 Text(entry.name).font(.subheadline.weight(.semibold)).lineLimit(2)
                             }
                         }
@@ -296,8 +296,8 @@ struct UniverseDetailView: View {
                     Image(systemName: "chevron.down").font(.footnote.weight(.bold))
                 }
                 .padding(.horizontal, 14).frame(height: 44)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.15), lineWidth: 1))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Corner.control, style: .continuous).strokeBorder(.white.opacity(0.15), lineWidth: 1))
             }
             .foregroundStyle(Color.primary)
             Text(universe.trust(of: order).label).font(.caption).foregroundStyle(Color.aetherSecondary)
@@ -338,8 +338,8 @@ struct UniverseDetailView: View {
                         ZStack(alignment: .topLeading) {
                             RemoteImage(urlString: UniverseArt.poster(entry.id), width: 300, placeholderSeed: entry.name, systemPlaceholder: "film")
                                 .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.12), lineWidth: 1))
+                                .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: Corner.control, style: .continuous).strokeBorder(.white.opacity(0.12), lineWidth: 1))
                             Text("\(index + 1)").font(.caption2.weight(.heavy)).padding(.horizontal, 7).padding(.vertical, 3)
                                 .background(.black.opacity(0.6), in: Capsule()).foregroundStyle(.white).padding(6)
                             if source != nil {
@@ -411,7 +411,7 @@ struct UniverseDetailView: View {
                     NavigationLink(value: item.universe) {
                         HStack(spacing: 12) {
                             RemoteImage(urlString: UniverseArt.background(item.universe.hero), width: 300, contentMode: .fill, placeholderSeed: item.universe.name, systemPlaceholder: "sparkles")
-                                .frame(width: 96, height: 60).clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .frame(width: 96, height: 60).clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(item.universe.name).font(.subheadline.weight(.bold))
                                 Text(item.note).font(.caption).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.leading)
@@ -420,7 +420,7 @@ struct UniverseDetailView: View {
                             Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Color.aetherSecondary)
                         }
                         .padding(12)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }

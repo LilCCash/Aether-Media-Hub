@@ -862,9 +862,9 @@ struct PlayerView: View {
                 .frame(minWidth: 62).frame(height: 52).padding(.horizontal, 6)
             }
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.16), lineWidth: 0.8))
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Corner.control, style: .continuous).strokeBorder(.white.opacity(0.16), lineWidth: 0.8))
+        .contentShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
     }
 
     /// Where the AirPlay output is, said honestly: with MPV the sound goes to the device and the picture stays on the phone.
@@ -934,7 +934,7 @@ struct PlayerView: View {
             }
             .foregroundStyle(.white)
             .padding(18)
-            .aetherGlassCard(cornerRadius: 22)
+            .aetherGlassCard(cornerRadius: Corner.sheet)
             .transition(.opacity)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
@@ -1069,7 +1069,7 @@ struct PlayerView: View {
         .foregroundStyle(.white)
         .padding(14)
         .frame(maxWidth: 300, alignment: .leading)
-        .aetherGlassCard(cornerRadius: 20)
+        .aetherGlassCard(cornerRadius: Corner.panel)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("player.nextEpisodeCard")
     }
@@ -1102,7 +1102,7 @@ struct PlayerView: View {
         .foregroundStyle(.white)
         .padding(24)
         .frame(maxWidth: 440)
-        .aetherGlassCard(cornerRadius: 28)
+        .aetherGlassCard(cornerRadius: Corner.sheet)
         .padding(24)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("player.error")
@@ -1130,7 +1130,7 @@ struct PlayerView: View {
                 }
                 CastSessionControls()
                     .padding(16)
-                    .aetherGlassCard(cornerRadius: 22)
+                    .aetherGlassCard(cornerRadius: Corner.sheet)
                 Button { casting.stop() } label: { Label("Torna a guardare sul telefono", systemImage: "iphone") }
                     .buttonStyle(SecondaryActionButtonStyle())
             }

@@ -22,7 +22,7 @@ struct SubtitleText: View {
             .padding(.horizontal, style.backgroundOpacity > 0 ? 10 : 0)
             .padding(.vertical, style.backgroundOpacity > 0 ? 4 : 0)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: Corner.chip, style: .continuous)
                     .fill(Color(hex: style.backgroundColor).opacity(style.backgroundOpacity))
             )
             // SwiftUI has no text stroke: four hard shadows around the glyphs give a clean outline.

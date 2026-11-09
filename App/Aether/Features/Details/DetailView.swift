@@ -369,8 +369,8 @@ struct DetailView: View {
                 // The poster, as in the classic page.
                 RemoteImage(urlString: posterOverrides.url(for: model.meta.id) ?? model.meta.poster, width: 260, placeholderSeed: model.meta.name)
                     .frame(width: 112, height: 112 / CGFloat(model.meta.posterShape.aspectRatio))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.22), lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous).strokeBorder(.white.opacity(0.22), lineWidth: 1))
                     .shadow(color: .black.opacity(0.4), radius: 14, y: 8)
             VStack(alignment: .leading, spacing: 10) {
                 // The film's logo in place of its name; without a logo, the name.
@@ -749,7 +749,7 @@ struct DetailView: View {
                 .buttonStyle(.plain)
                 .accessibilityHint(descriptionExpanded ? "Tocca per ridurre" : "Tocca per leggere tutto")
             } else if model.isLoading {
-                SkeletonBlock(cornerRadius: 6).frame(height: 70)
+                SkeletonBlock(cornerRadius: Corner.chip).frame(height: 70)
             }
             HStack(spacing: 16) {
                 if let language = model.meta.language { infoPill("Lingua", language) }
@@ -1101,7 +1101,7 @@ struct EpisodeRow: View {
                 ZStack(alignment: .bottom) {
                     RemoteImage(urlString: video.thumbnail, width: 220, placeholderSeed: video.id, systemPlaceholder: "play.rectangle")
                         .frame(width: 120, height: 68)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                     if let progress = progress, !progress.isCompleted, progress.fraction > 0 {
                         ProgressBar(value: progress.fraction, height: 3).padding(6)
                     }
@@ -1125,7 +1125,7 @@ struct EpisodeRow: View {
                 }
             }
             .padding(10)
-            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
             .opacity(isFuture ? 0.55 : 1)
         }
         .buttonStyle(.plain)

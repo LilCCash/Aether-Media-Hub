@@ -130,7 +130,7 @@ struct ProfileTabView: View {
             Button { playing = true } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "hand.draw.fill").foregroundStyle(.white).frame(width: 34, height: 34)
-                        .background(LinearGradient(colors: [.pink, .orange], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .background(LinearGradient(colors: [.pink, .orange], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Gioco dei gusti").font(.headline)
                         Text("Scorri a destra se ti piace, a sinistra se no.").font(.caption).foregroundStyle(Color.aetherSecondary)
@@ -157,7 +157,7 @@ struct ProfileTabView: View {
         Button { path.append(destination) } label: {
             HStack(spacing: 12) {
                 Image(systemName: icon).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
-                    .frame(width: 30, height: 30).background(color.gradient, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .frame(width: 30, height: 30).background(color.gradient, in: RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
                 Text(title)
                 Spacer()
                 if let detail = detail { Text(detail).font(.footnote).foregroundStyle(Color.aetherSecondary) }
@@ -213,7 +213,7 @@ struct CinemaUniverseCard: View {
             .padding(18)
         }
         .frame(height: 170)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 }
@@ -263,7 +263,7 @@ struct CinemaUniverseView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
         .background(LinearGradient(colors: [settings.accentColor, settings.accentColor.opacity(0.4), Color(red: 0.05, green: 0.06, blue: 0.16)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                                   startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous))
     }
 
     private func tiles(_ stats: DiaryStats) -> some View {
@@ -283,7 +283,7 @@ struct CinemaUniverseView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
     }
 
     private func monthsPanel(_ stats: DiaryStats) -> some View {

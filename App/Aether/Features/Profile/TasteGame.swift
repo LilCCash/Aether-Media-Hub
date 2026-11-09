@@ -188,11 +188,11 @@ private struct TasteCard: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            RoundedRectangle(cornerRadius: 26, style: .continuous).fill(Color.black.opacity(0.4))
+            RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous).fill(Color.black.opacity(0.4))
             RemoteImage(urlString: item.poster, width: 520, contentMode: .fill, placeholderSeed: item.name, systemPlaceholder: "film")
-                .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous))
             LinearGradient(colors: [.clear, .black.opacity(0.92)], startPoint: .center, endPoint: .bottom)
-                .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous))
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.name).font(.system(size: 27, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.7)
                 Text([item.year, item.genres.prefix(3).joined(separator: " · ")].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "  ·  "))
@@ -223,7 +223,7 @@ private struct TasteCard: View {
     private func stamp(_ text: String, _ color: Color, rotation: Double, opacity: Double, alignment: Alignment) -> some View {
         Text(text).font(.system(size: 28, weight: .black, design: .rounded)).foregroundStyle(color)
             .padding(.horizontal, 12).padding(.vertical, 4)
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(color, lineWidth: 4))
+            .overlay(RoundedRectangle(cornerRadius: Corner.chip).strokeBorder(color, lineWidth: 4))
             .rotationEffect(.degrees(rotation))
             .opacity(opacity)
             .padding(24)
@@ -287,7 +287,7 @@ struct TasteVotesView: View {
     private func row(_ vote: TasteVote) -> some View {
         HStack(spacing: 12) {
             RemoteImage(urlString: vote.poster, width: 120, placeholderSeed: vote.name, systemPlaceholder: "film")
-                .frame(width: 46, height: 69).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(width: 46, height: 69).clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(vote.name).font(.headline).lineLimit(2)
                 Text([vote.year, vote.genres.prefix(2).joined(separator: " · ")].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "  ·  "))

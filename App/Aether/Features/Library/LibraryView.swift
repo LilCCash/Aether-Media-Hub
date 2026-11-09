@@ -234,7 +234,7 @@ struct HistoryRow: View {
         HStack(spacing: 12) {
             RemoteImage(urlString: item.poster, width: 100, placeholderSeed: item.title)
                 .frame(width: 44, height: 64)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title).font(.system(.subheadline, design: AetherTypography.design).weight(.semibold)).lineLimit(1)
                 if let label = item.episodeLabel {

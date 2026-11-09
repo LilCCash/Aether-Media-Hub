@@ -246,7 +246,7 @@ struct PersonFilmographyView: View {
         Button { open(credit) } label: {
             VStack(alignment: .leading, spacing: 6) {
                 RemoteImage(urlString: credit.posterURL, width: 300, placeholderSeed: credit.title)
-                    .frame(width: 110, height: 165).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .frame(width: 110, height: 165).clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                 Text(credit.title).font(.caption.weight(.semibold)).multilineTextAlignment(.leading).lineLimit(2).frame(width: 110, alignment: .leading)
                 Text([credit.year.map(String.init), credit.character.map { "«\($0)»" } ?? credit.roles.map { $0.title }.joined(separator: ", ")].compactMap { $0 }.joined(separator: " · "))
                     .font(.caption2).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.leading).lineLimit(2).frame(width: 110, alignment: .leading)

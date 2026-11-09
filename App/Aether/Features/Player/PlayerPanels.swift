@@ -175,7 +175,7 @@ private struct PanelFilterRow: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .background(isSelected ? AnyShapeStyle((playerAccent ?? settings.accentColor).opacity(0.85)) : AnyShapeStyle(Color.clear),
-                        in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        in: RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -367,7 +367,7 @@ struct PlayerSubtitlesPanel: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
-            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
             .padding(.horizontal, 8)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("subtitle.error")
@@ -569,7 +569,7 @@ struct PlayerSourcesPanel: View {
                     ForEach(visible) { item in
                         StreamRow(item: item, isBest: false) { onSelect(item) }
                             .padding(12)
-                            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                     }
                 }
                 .padding(12)

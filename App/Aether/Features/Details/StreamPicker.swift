@@ -1217,9 +1217,9 @@ struct StreamRow: View {
         }
         .foregroundStyle(.white)
         .frame(width: 48, height: 48)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+        .background(RoundedRectangle(cornerRadius: Corner.control, style: .continuous)
             .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(.white.opacity(0.18), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Corner.control, style: .continuous).stroke(.white.opacity(0.18), lineWidth: 1))
         .opacity(item.info.support.isPlayable ? 1 : 0.45)
         .accessibilityHidden(true)
     }
@@ -1363,7 +1363,7 @@ struct DebridCacheNotice: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .aetherGlassCard(cornerRadius: 14)
+        .aetherGlassCard(cornerRadius: Corner.control)
         .padding(.horizontal, Theme.pageMargin)
     }
 }

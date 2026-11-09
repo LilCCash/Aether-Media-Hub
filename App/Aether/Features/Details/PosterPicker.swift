@@ -51,8 +51,8 @@ struct PosterPickerSheet: View {
                             } label: {
                                 RemoteImage(urlString: url, width: 100, placeholderSeed: meta.name)
                                     .frame(width: 100, height: 150)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
+                                    .overlay(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous)
                                         .stroke(Color.accentColor, lineWidth: overrides.url(for: meta.id) == url ? 3 : 0))
                             }
                             .buttonStyle(.plain)

@@ -117,7 +117,7 @@ struct CreditsExperienceView: View {
                                         Button { open(item) } label: {
                                             RemoteImage(urlString: item.posterURL, width: 140, placeholderSeed: item.title)
                                                 .frame(width: 96, height: 144)
-                                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                                .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
                                         }
                                         .buttonStyle(.pressable)
                                         .accessibilityLabel(item.title)
@@ -190,7 +190,7 @@ private struct WatchChatContent: View {
                                 VStack(alignment: mine ? .trailing : .leading, spacing: 2) {
                                     Text(message.sender).font(.caption2).foregroundStyle(Color.aetherSecondary)
                                     Text(message.text).padding(.horizontal, 12).padding(.vertical, 8)
-                                        .background(mine ? AnyShapeStyle(settings.accentColor.opacity(0.85)) : AnyShapeStyle(Color.primary.opacity(0.12)), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                        .background(mine ? AnyShapeStyle(settings.accentColor.opacity(0.85)) : AnyShapeStyle(Color.primary.opacity(0.12)), in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
                                         .foregroundStyle(mine ? Color.white : Color.primary)
                                 }
                                 .frame(maxWidth: .infinity, alignment: mine ? .trailing : .leading)

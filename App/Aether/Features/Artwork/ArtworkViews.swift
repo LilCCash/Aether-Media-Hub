@@ -118,16 +118,16 @@ struct ArtworkExplorerView: View {
         case .posters:
             RemoteImage(urlString: artworkThumbnail(url), width: 120, placeholderSeed: meta.name)
                 .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
         case .backdrops:
             RemoteImage(urlString: artworkThumbnail(url), width: 200, placeholderSeed: meta.name)
                 .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
         case .logos:
             RemoteImage(urlString: artworkThumbnail(url).replacingOccurrences(of: "/w500/", with: "/w300/"), width: 140, contentMode: .fit, placeholderSeed: meta.name)
                 .frame(height: 70)
                 .padding(8)
-                .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
         }
     }
 }
@@ -246,8 +246,8 @@ struct WallpaperEditorView: View {
                 let size = CGSize(width: height * aspect, height: height)
                 frame(size: size, withClock: lockPreview)
                     .frame(width: size.width, height: size.height)
-                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(.white.opacity(0.25), lineWidth: 2))
+                    .clipShape(RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous).stroke(.white.opacity(0.25), lineWidth: 2))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onAppear { previewSize = size }
                     .onChange(of: proxy.size) { _, _ in previewSize = size }

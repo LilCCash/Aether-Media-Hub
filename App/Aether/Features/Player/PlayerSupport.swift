@@ -154,17 +154,17 @@ struct PlayerScrubber: View {
         let x = min(max(0, width * fraction - bubbleWidth / 2), max(0, width - bubbleWidth))
         VStack(spacing: 4) {
             if let image = previewImage {
-                Image(uiImage: image).resizable().scaledToFill().frame(width: 168, height: 94).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white.opacity(0.7), lineWidth: 1.5))
+                Image(uiImage: image).resizable().scaledToFill().frame(width: 168, height: 94).clipShape(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous).strokeBorder(.white.opacity(0.7), lineWidth: 1.5))
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 2)
             }
             if previewImage == nil && previewLoading {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.black.opacity(0.6))
+                    RoundedRectangle(cornerRadius: Corner.chip, style: .continuous).fill(.black.opacity(0.6))
                     ProgressView().tint(.white)
                 }
                 .frame(width: 168, height: 94)
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white.opacity(0.4), lineWidth: 1.5))
+                .overlay(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous).strokeBorder(.white.opacity(0.4), lineWidth: 1.5))
             }
             Text(Format.duration(fraction * duration)).font(.caption.monospacedDigit().weight(.bold))
                 .padding(.horizontal, 8).padding(.vertical, 3).background(.black.opacity(0.65), in: Capsule())
