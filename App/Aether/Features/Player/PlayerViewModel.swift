@@ -46,173 +46,173 @@ struct SubtitleOption: Identifiable, Hashable {
 @MainActor
 final class PlayerViewModel: ObservableObject {
     // MARK: Published state
-    @Published private(set) var snapshot = EngineSnapshot()
-    @Published private(set) var failure: PlaybackFailure?
-    @Published private(set) var statusMessage: String?
+    @Published var snapshot = EngineSnapshot()
+    @Published var failure: PlaybackFailure?
+    @Published var statusMessage: String?
     /// Why an MKV could not be converted for AVPlayer, in words for the viewer, when the failure panel is up because of it.
-    @Published private(set) var failureExplanation: String?
+    @Published var failureExplanation: String?
     /// The reason for an engine change, shown over the picture once the new load has started (a load clears the status line).
-    private var carriedStatus: String?
+    var carriedStatus: String?
     /// True from the start of a load until the engine has been given the file (TorBox may take seconds to answer first).
-    @Published private(set) var isOpeningSource = true
+    @Published var isOpeningSource = true
     /// The intro and recap of the episode now playing, when IntroDB knows them (see `activeSkipSegment`).
-    @Published private(set) var skipSegments = EpisodeSkipSegments.none
-    @Published private(set) var sourceName: String
-    @Published private(set) var currentVideo: Video?
+    @Published var skipSegments = EpisodeSkipSegments.none
+    @Published var sourceName: String
+    @Published var currentVideo: Video?
     /// The address and headers handed to the engine, kept to cut the little pictures of the progress bar (not published: the screen does not follow them).
-    private(set) var previewURL: URL?
-    private(set) var previewHeaders: [String: String] = [:]
-    @Published private(set) var meta: MetaItem
-    @Published private(set) var audioTracks: [EngineTrack] = []
-    @Published private(set) var subtitleOptions: [SubtitleOption] = []
-    @Published private(set) var selectedSubtitleID: String?
-    @Published private(set) var activeCues: [SubtitleCue] = []
+    var previewURL: URL?
+    var previewHeaders: [String: String] = [:]
+    @Published var meta: MetaItem
+    @Published var audioTracks: [EngineTrack] = []
+    @Published var subtitleOptions: [SubtitleOption] = []
+    @Published var selectedSubtitleID: String?
+    @Published var activeCues: [SubtitleCue] = []
     /// The colour of the poster, for the controls (when the viewer left «Colori dalla locandina» on).
-    @Published private(set) var posterAccent: Color?
-    @Published private(set) var subtitleError: String?
+    @Published var posterAccent: Color?
+    @Published var subtitleError: String?
     /// Addon subtitles grouped by language and ranked for this viewer (`SubtitleCatalog`).
-    @Published private(set) var subtitleGroups: [SubtitleLanguageGroup] = []
+    @Published var subtitleGroups: [SubtitleLanguageGroup] = []
     /// `.loading` until the addons have answered for the first time.
-    @Published private(set) var subtitleListPhase: SubtitleListPhase = .loading
+    @Published var subtitleListPhase: SubtitleListPhase = .loading
     /// At least one installed, enabled addon can serve subtitles for this title.
-    @Published private(set) var hasSubtitleProvider = false
+    @Published var hasSubtitleProvider = false
     @Published var subtitleDelay: Double
-    @Published private(set) var sleepRemaining: TimeInterval?
-    @Published private(set) var nextEpisode: Video?
-    @Published private(set) var nextCountdown: Int?
-    @Published private(set) var isResolvingNext = false
+    @Published var sleepRemaining: TimeInterval?
+    @Published var nextEpisode: Video?
+    @Published var nextCountdown: Int?
+    @Published var isResolvingNext = false
     /// The episode the viewer is choosing a source for (the list of sources opens over the player).
     @Published var sourcePickerEpisode: Video?
     /// The videos of the torrent being played when it holds more than one (a season pack).
-    @Published private(set) var packFiles: [DebridPackFile] = []
-    @Published private(set) var alternatives: [RankedStream]
-    @Published private(set) var engine: PlaybackEngine
-    @Published private(set) var mediaInfo: MediaFormatInfo?
-    @Published private(set) var playbackPlan: PlaybackPlan?
-    @Published private(set) var airPlayRoute: String?
+    @Published var packFiles: [DebridPackFile] = []
+    @Published var alternatives: [RankedStream]
+    @Published var engine: PlaybackEngine
+    @Published var mediaInfo: MediaFormatInfo?
+    @Published var playbackPlan: PlaybackPlan?
+    @Published var airPlayRoute: String?
     /// What the viewer should know about AirPlay right now (with MPV the sound goes to the device and the picture stays on the phone).
-    @Published private(set) var airPlayAdvice: AirPlayAdvice = .none
+    @Published var airPlayAdvice: AirPlayAdvice = .none
     @Published var airPlayAlert: AirPlayAlert?
     /// What the on-the-fly conversion copies, while a Matroska file plays through it (nil otherwise).
-    @Published private(set) var conversionPlan: RemuxPlan?
-    @Published private(set) var didFinish = false
+    @Published var conversionPlan: RemuxPlan?
+    @Published var didFinish = false
     @Published var isFill = false
     @Published var playbackRate: Float = 1
 
     // MARK: Collaborators
-    private let env: AppEnvironment
-    private var request: PlayerRequest
-    private let device: DeviceVideoCapabilities
-    private var engineSwitches = 0
+    let env: AppEnvironment
+    var request: PlayerRequest
+    let device: DeviceVideoCapabilities
+    var engineSwitches = 0
     /// Full conversion: AVPlayer said it cannot decode this file (an MP4 in 10-bit H.264, say), so it is converted from now on.
-    private var forcedConversion = false
+    var forcedConversion = false
     /// The engine was changed on purpose (a fallback) for the file now playing: a restart must keep it.
-    private var engineChosenByFallback = false
+    var engineChosenByFallback = false
     // The Matroska file plays as HLS made by the phone: first on 127.0.0.1 (`conversion`), and on the relay's Wi-Fi address
     // (`conversionLease`) once an AirPlay receiver has to fetch it.
-    private var conversion: LocalRemuxService.Session?
+    var conversion: LocalRemuxService.Session?
     /// The live channel converted on the phone, and its address on the Wi-Fi once an AirPlay receiver needs it.
-    private var liveConversion: LiveRemuxEngine?
-    private var liveLease: RelayLease?
+    var liveConversion: LiveRemuxEngine?
+    var liveLease: RelayLease?
     /// A video read from inside an archive (served on 127.0.0.1), and its Wi-Fi address once an AirPlay receiver needs it.
-    private var playingArchive = false
-    private var archiveLease: RelayLease?
-    private var archiveMovingToWiFi = false
-    private var liveMovingToWiFi = false
-    private var conversionLease: RelayLease?
-    private var conversionUpstream: RelayUpstream?
+    var playingArchive = false
+    var archiveLease: RelayLease?
+    var archiveMovingToWiFi = false
+    var liveMovingToWiFi = false
+    var conversionLease: RelayLease?
+    var conversionUpstream: RelayUpstream?
     /// The audio track the viewer picked for this video; nil follows the language settings.
-    private var conversionAudio: RemuxAudioChoice?
-    private var announcedWiFiNeed = false
+    var conversionAudio: RemuxAudioChoice?
+    var announcedWiFiNeed = false
     /// The load generation whose move to the Wi-Fi address is in progress: a second move for the same load would replace the
     /// relay session the first one had just handed to the player.
-    private var movingToWiFiGeneration: Int?
+    var movingToWiFiGeneration: Int?
     /// AirPlay receivers are in range (the system says more than one route is available).
-    private var routeDetector: AVRouteDetector?
-    private var routeDetectorObserver: NSObjectProtocol?
-    private var routesNearby = false
+    var routeDetector: AVRouteDetector?
+    var routeDetectorObserver: NSObjectProtocol?
+    var routesNearby = false
     /// The Wi-Fi lease being made (or made) for the converted file of this load generation, see `sharedWiFiLease`.
-    private var wifiLeaseTask: (generation: Int, task: Task<RelayLease, Error>)?
+    var wifiLeaseTask: (generation: Int, task: Task<RelayLease, Error>)?
     /// Where the load now under way was asked to start; until the player has passed it, "now" is not what `currentTime()` says.
-    private var loadStartPosition: Double = 0
-    private let nowPlaying = NowPlayingService()
-    private let audioSession = AudioSessionController()
-    private var pictureInPictureGrace: Task<Void, Never>?
+    var loadStartPosition: Double = 0
+    let nowPlaying = NowPlayingService()
+    let audioSession = AudioSessionController()
+    var pictureInPictureGrace: Task<Void, Never>?
     /// Playing when the app left the screen, and a phone call or similar in progress: used to resume after the grace.
-    private var wasPlayingWhenBackgrounded = false
-    private var isInterrupted = false
-    private var statusClear: Task<Void, Never>?
+    var wasPlayingWhenBackgrounded = false
+    var isInterrupted = false
+    var statusClear: Task<Void, Never>?
 
     // MARK: Internals
-    private var currentStream: AddonStream?
+    var currentStream: AddonStream?
     /// The source that is playing has already been counted for the learning of reliability (once per source).
-    private var reliabilityCounted = false
-    private var lastRecordedPosition: Double = -100
-    private var lastRetryPosition: Double = 0
-    private var timeline: SubtitleTimeline?
-    private var cueCache: [String: SubtitleTimeline] = [:]
-    private var subtitleTask: Task<Void, Never>?
-    private var cueTimer: Timer?
-    private var sleepTask: Task<Void, Never>?
-    private var countdownTask: Task<Void, Never>?
-    private var nextStreamsTask: Task<(streams: [AddonStream], errors: [String: AddonError]), Never>?
-    private var tornDown = false
-    private var preferredAudioApplied = false
-    private var preferredSubtitleApplied = false
+    var reliabilityCounted = false
+    var lastRecordedPosition: Double = -100
+    var lastRetryPosition: Double = 0
+    var timeline: SubtitleTimeline?
+    var cueCache: [String: SubtitleTimeline] = [:]
+    var subtitleTask: Task<Void, Never>?
+    var cueTimer: Timer?
+    var sleepTask: Task<Void, Never>?
+    var countdownTask: Task<Void, Never>?
+    var nextStreamsTask: Task<(streams: [AddonStream], errors: [String: AddonError]), Never>?
+    var tornDown = false
+    var preferredAudioApplied = false
+    var preferredSubtitleApplied = false
     // Subtitles: lists, selection and the one-time decisions of the current video.
-    private var embeddedOptions: [SubtitleOption] = []
-    private var localOptions: [SubtitleOption] = []
-    private var subtitleCandidates: [SubtitleCandidate] = []
+    var embeddedOptions: [SubtitleOption] = []
+    var localOptions: [SubtitleOption] = []
+    var subtitleCandidates: [SubtitleCandidate] = []
     /// Subtitles announced by the stream itself.
-    private var streamSubtitles: [AddonSubtitle] = []
+    var streamSubtitles: [AddonSubtitle] = []
     /// Answers of the addons asked without a local hash / with the hash computed on this device.
-    private var plainSubtitles: [AddonSubtitle] = []
-    private var hashedSubtitles: [AddonSubtitle] = []
+    var plainSubtitles: [AddonSubtitle] = []
+    var hashedSubtitles: [AddonSubtitle] = []
     /// From the full OpenSubtitles.org catalogue, in the viewer's languages (the v3 addon only has a part of it).
-    private var catalogSubtitles: [AddonSubtitle] = []
-    private var catalogLoading = false
-    private var subtitleAddonsFinished = false
-    private var selectedOption: SubtitleOption?
-    private var failedSubtitle: SubtitleOption?
-    private var subtitleGeneration = 0
-    private var subtitleHashTask: Task<Void, Never>?
-    private var localHashes: [String: SubtitleHashResult] = [:]
-    private var attemptedHashStreams = Set<String>()
-    private var subtitleTracksKnown = false
-    private var engineSubtitlesSilenced = false
-    private var engineSubtitleSyncPending = false
-    private var pendingEmbeddedLanguage: String?
+    var catalogSubtitles: [AddonSubtitle] = []
+    var catalogLoading = false
+    var subtitleAddonsFinished = false
+    var selectedOption: SubtitleOption?
+    var failedSubtitle: SubtitleOption?
+    var subtitleGeneration = 0
+    var subtitleHashTask: Task<Void, Never>?
+    var localHashes: [String: SubtitleHashResult] = [:]
+    var attemptedHashStreams = Set<String>()
+    var subtitleTracksKnown = false
+    var engineSubtitlesSilenced = false
+    var engineSubtitleSyncPending = false
+    var pendingEmbeddedLanguage: String?
     /// Audio and subtitle choices made by hand in this session (applied to the next episode of the same series).
-    private(set) var trackMemory = SessionTrackMemory()
-    private var retriedAfterNetworkLoss = false
-    private var wasPlayingBeforeInterruption = false
-    private var fullMetaLoaded = false
+    var trackMemory = SessionTrackMemory()
+    var retriedAfterNetworkLoss = false
+    var wasPlayingBeforeInterruption = false
+    var fullMetaLoaded = false
     // TorBox: a torrent source is turned into a direct link before `engine.load`. That link carries a token, so it lives only here
     // (never in `request`, `currentStream`, the library, a download or a Cast hand-off) and is never logged.
-    private var debridStream: AddonStream?
-    private var debridStreamKey: String?
-    private var debridTask: Task<AddonStream, Error>?
+    var debridStream: AddonStream?
+    var debridStreamKey: String?
+    var debridTask: Task<AddonStream, Error>?
     /// Bumped by every start; a start that was overtaken (or outlived `teardown()`) must not load its source into an engine.
-    private var loadGeneration = 0
+    var loadGeneration = 0
     /// True from the moment the next episode is chosen until its source is loaded: the engine still holds the previous
     /// episode then, and its position must not be saved under the new one.
-    private var progressSuspended = false
-    private var debridGeneration = 0
-    private var debridProgressSequence = 0
-    private var skipSegmentsTask: Task<Void, Never>?
-    private var nextLinkTask: Task<Void, Never>?
-    @Published private(set) var translationJob: SubtitleTranslationJob?
-    @Published private(set) var translationStatus: String?
-    @Published private(set) var translatedOptionID: String?
+    var progressSuspended = false
+    var debridGeneration = 0
+    var debridProgressSequence = 0
+    var skipSegmentsTask: Task<Void, Never>?
+    var nextLinkTask: Task<Void, Never>?
+    @Published var translationJob: SubtitleTranslationJob?
+    @Published var translationStatus: String?
+    @Published var translatedOptionID: String?
 
-    private var playback: PlaybackSettings { env.settings.value.playback }
+    var playback: PlaybackSettings { env.settings.value.playback }
     /// The live channels (type «tv») have their own player choice and are never converted.
-    private var isLiveContent: Bool { return meta.type == "tv" }
-    private var openStartedAt = Date()
-    private var firstFrameLogged = false
+    var isLiveContent: Bool { return meta.type == "tv" }
+    var openStartedAt = Date()
+    var firstFrameLogged = false
     /// The opening of the current source, measured for Instruments (Telemetry).
-    private var openInterval: Telemetry.Interval?
-    private var engineChoice: PlayerEngineChoice { return isLiveContent ? playback.liveEngine : playback.engine }
+    var openInterval: Telemetry.Interval?
+    var engineChoice: PlayerEngineChoice { return isLiveContent ? playback.liveEngine : playback.engine }
 
     init(request: PlayerRequest, env: AppEnvironment) {
         self.request = request
@@ -244,10 +244,21 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
+    // Stored state of the AirPlay part (PlayerViewModel+AirPlay.swift): an extension cannot hold it.
+    /// Where the sound goes, read from the audio session. Replaceable for tests.
+    var airPlayRouteProvider: () -> String? = { AudioSessionController.airPlayRouteName() }
+    /// The screen is being mirrored or recorded (then the picture reaches the TV whatever the engine).
+    var screenMirroredProvider: () -> Bool = {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.first?.screen.isCaptured ?? false
+    }
+    var acknowledgedAirPlayRoutes: Set<String> = []
+    var lastRemoteRecord: Double = -100
+
     // MARK: Poster colour
 
     /// The colour of the poster for the controls; nothing happens when the switch is off.
-    private func loadPosterAccent() {
+    func loadPosterAccent() {
         guard env.settings.value.advanced.extras.posterTint else { return }
         let address = meta.poster ?? meta.background
         Task { [weak self] in
@@ -298,7 +309,7 @@ final class PlayerViewModel: ObservableObject {
     }
 
     /// Connects the current engine to this model. Called again whenever the engine is replaced.
-    private func bindEngine() {
+    func bindEngine() {
         engine.onSnapshot = { [weak self] snapshot in self?.handle(snapshot) }
         engine.onEnded = { [weak self] in self?.handleEnded() }
         engine.onFailure = { [weak self] failure in self?.handleFailure(failure) }
@@ -311,7 +322,7 @@ final class PlayerViewModel: ObservableObject {
     }
 
     /// The container of what is about to play, from the stream's own URL / hints or the downloaded file.
-    private static func container(of request: PlayerRequest, env: AppEnvironment) -> String? {
+    static func container(of request: PlayerRequest, env: AppEnvironment) -> String? {
         switch request.source {
         case .stream(let stream):
             return StreamAnalyzer.analyze(stream, streamingServer: env.streamPreferences().streamingServer).container
@@ -325,7 +336,7 @@ final class PlayerViewModel: ObservableObject {
     }
 
     /// For a torrent resolved through TorBox the container is the one of the file TorBox returned.
-    private var currentContainer: String? {
+    var currentContainer: String? {
         if let direct = currentDebridStream() {
             return StreamAnalyzer.analyze(direct, streamingServer: nil).container
         }
@@ -380,7 +391,7 @@ final class PlayerViewModel: ObservableObject {
 
     // MARK: Loading
 
-    private func beginPlayback(startOverride: Double?) async {
+    func beginPlayback(startOverride: Double?) async {
         loadGeneration += 1
         let generation = loadGeneration
         openStartedAt = Date()
@@ -488,377 +499,15 @@ final class PlayerViewModel: ObservableObject {
         scheduleStatusClear()
     }
 
-    // MARK: Conversion (Matroska → HLS for AVPlayer)
-
-    private var remuxRouting: RemuxRouting {
-        return RemuxEngineFactory.routing(matroskaForAVPlayer: playback.convertMatroskaForAVPlayer, full: playback.conversionMode == .full,
-                                          live: PlayerViewModel.liveConversionApplies(playback, meta: meta, source: request.source))
-    }
-
-    /// The live channel is converted for AVPlayer: the setting is on and its source (the addon, or the M3U playlists) is in the list.
-    static func liveConversionApplies(_ settings: PlaybackSettings, meta: MetaItem, source: PlayerRequest.Source) -> Bool {
-        guard meta.type == "tv", settings.liveConversion else { return false }
-        guard case .stream(let stream) = source else { return false }
-        let fromPlaylist = stream.addonID == nil && meta.id.hasPrefix("live:")
-        return ConversionSources.includes(settings.liveConversionSources, addonID: stream.addonID, isPlaylist: fromPlaylist)
-    }
-
-    /// AVPlayer cannot open Matroska: the file is converted on the fly when the planner says so for this container and engine.
-    private var shouldConvertCurrentSource: Bool {
-        guard engine.kind == .avPlayer else { return false }
-        let plan = PlaybackPlanner.plan(container: currentContainer, facts: nil, device: device,
-                                        mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: engineChoice,
-                                        forceSDR: playback.video.hdrMode == .sdr, remux: remuxRouting, isLive: isLiveContent)
-        return plan.usesRemux || (forcedConversion && remuxRouting.available && (!isLiveContent || remuxRouting.live))
-    }
-
-    /// The viewer wants AVPlayer for this file even when it has to be re-encoded (full conversion on, and AVPlayer chosen or asked for
-    /// with Automatic).
-    private var prefersFullConversion: Bool {
-        let routing = remuxRouting
-        guard routing.full, routing.available, !isLiveContent else { return false }
-        return engineChoice == .avPlayer || (engineChoice == .automatic && playback.convertMatroskaForAVPlayer)
-    }
-
-    /// AVPlayer cannot decode what it opened: with the full conversion the same file is converted and opened again, once.
-    private func convertAfterRefusal(reason: String) -> Bool {
-        let wanted = prefersFullConversion || (isLiveContent && remuxRouting.live && remuxRouting.available && engineChoice != .mpv)
-        guard wanted, engine.kind == .avPlayer, conversion == nil, liveConversion == nil, !forcedConversion, !tornDown else { return false }
-        forcedConversion = true
-        let position = max(snapshot.position, lastRetryPosition)
-        env.diagnostics.logDetached(.info, "player", "AVPlayer non decodifica il file: lo converto (conversione completa)")
-        failure = nil
-        mediaInfo = nil
-        carriedStatus = reason
-        Task { await beginPlayback(startOverride: position > 5 ? position : nil) }
-        return true
-    }
-
-    var isConverting: Bool { return conversionPlan != nil }
-
-    /// Languages to prefer for the audio track of a converted file: what the viewer picked by hand for this title, then the settings.
-    private func wantedAudioLanguages() -> [String] {
-        return TrackPreferences.audioLanguages(remembered: trackMemory.audioLanguageToApply(forMeta: meta.id),
-                                               primary: SettingsStore.resolvedLanguage(playback.preferredAudioLanguage),
-                                               secondary: SettingsStore.resolvedLanguage(playback.secondaryAudioLanguage))
-    }
-
-    /// The address AVPlayer plays for the converted file, or nil when this start is over: another engine took the file, the failure
-    /// panel is showing, or the player moved on.
-    private func openConversion(of url: URL, headers: [String: String], generation: Int) async -> URL? {
-        closeConversion()
-        statusMessage = remuxRouting.full ? "Preparo il file per AVPlayer…" : "Preparo il file MKV per AVPlayer…"
-        let upstream = RelayUpstream(url: url, headers: headers)
-        let choice = conversionAudio ?? .automatic(languages: wantedAudioLanguages())
-        do {
-            let session = try await env.localRemux.open(upstream, audio: choice)
-            guard !tornDown, generation == loadGeneration else {
-                env.localRemux.close(session)
-                return nil
-            }
-            conversion = session
-            conversionUpstream = upstream
-            conversionPlan = session.plan
-            audioTracks = currentAudioTracks()
-            statusMessage = nil
-            prepareWiFiAhead()
-            return session.url
-        } catch {
-            guard !tornDown, generation == loadGeneration else { return nil }
-            statusMessage = nil
-            giveUpConversion(because: RemuxFailureText.explainLocal(error))
-            return nil
-        }
-    }
-
-    /// The address AVPlayer plays for the converted live channel, or nil when this start is over (see `openConversion`).
-    private func openLiveConversion(of url: URL, headers: [String: String], generation: Int) async -> URL? {
-        closeConversion()
-        statusMessage = "Preparo la diretta per AVPlayer…"
-        do {
-            let opened = try await env.localRemux.openLive(RelayUpstream(url: url, headers: headers), full: remuxRouting.full)
-            guard !tornDown, generation == loadGeneration else {
-                opened.engine.close()
-                env.localRemux.close()
-                return nil
-            }
-            liveConversion = opened.engine
-            statusMessage = nil
-            env.diagnostics.logDetached(.info, "player", "Diretta convertita per AVPlayer: \(opened.engine.summary)")
-            return opened.url
-        } catch {
-            guard !tornDown, generation == loadGeneration else { return nil }
-            statusMessage = nil
-            if error is CancellationError { return nil }
-            let reason = (error as? LiveRemuxError)?.message ?? RemuxFailureText.explainLocal(error)
-            giveUpConversion(because: reason)
-            return nil
-        }
-    }
-
-    /// The file cannot be converted: with the Automatic engine MPV takes it, otherwise the failure panel says why.
-    private func giveUpConversion(because reason: String) {
-        env.diagnostics.logDetached(.warning, "player", "Conversione del file non riuscita: \(reason)")
-        if engineChoice == .automatic, canUse(.mpv) {
-            switchEngine(to: .mpv, reason: "\(RemuxFailureText.problem(reason)) Uso MPV.")
-        } else {
-            let advised = reason.contains("motore Automatico")
-            let hint = engineChoice == .avPlayer && !advised ? " Scegli «Automatico» o «MPV» in Impostazioni → Riproduzione." : ""
-            failureExplanation = reason + hint
-            handleFailure(PlaybackFailure(kind: .formatUnsupported, detail: reason + hint))
-        }
-    }
-
-    private func closeConversion() {
-        if let session = conversion {
-            env.localRemux.close(session)
-            conversion = nil
-        }
-        if let live = liveConversion {
-            liveConversion = nil
-            if let lease = liveLease {
-                env.relay.release(lease, reason: .userStopped)
-                liveLease = nil
-            }
-            env.localRemux.close()
-            live.close()
-        }
-        if let lease = conversionLease {
-            env.relay.release(lease, reason: .userStopped)
-            conversionLease = nil
-        }
-        // A Wi-Fi address made ahead of time and never used ends with the file it was made for.
-        if let pending = wifiLeaseTask {
-            wifiLeaseTask = nil
-            let relay = env.relay
-            Task { @MainActor in
-                if let lease = try? await pending.task.value { relay.release(lease, reason: .userStopped) }
-            }
-        }
-        conversionUpstream = nil
-        conversionPlan = nil
-    }
-
-    // MARK: AirPlay for a converted file
-
-    /// The relay lease (the Wi-Fi address) of the converted file now playing. Whoever needs it first, the preparation ahead of time or
-    /// the move to that address, starts it, and the other waits for the same one: a second publish would replace the first session
-    /// (they belong to the same owner), which is the one the player or the receiver may already be reading.
-    private func sharedWiFiLease(for upstream: RelayUpstream, generation: Int) -> Task<RelayLease, Error> {
-        if let existing = wifiLeaseTask, existing.generation == generation { return existing.task }
-        let choice = conversionAudio ?? .track(index: conversionPlan?.audio.first?.index ?? -1)
-        let relay = env.relay
-        let task = Task { @MainActor () -> RelayLease in
-            return try await relay.publish(RelayPublishRequest(upstream: upstream, contentType: "application/x-mpegURL",
-                                                               fileExtension: "m3u8", owner: .airPlay, receiverAddress: nil,
-                                                               remux: choice))
-        }
-        wifiLeaseTask = (generation, task)
-        return task
-    }
-
-    /// While an AirPlay receiver is in range, the Wi-Fi address of the converted file is made ready: choosing the receiver then finds
-    /// it at once, instead of the receiver being handed an address of this phone it cannot reach while the conversion is prepared.
-    private func prepareWiFiAhead() {
-        guard routesNearby, conversion != nil, conversionLease == nil, engine.kind == .avPlayer, !tornDown,
-              let upstream = conversionUpstream, case .ready = env.relay.availability else { return }
-        let generation = loadGeneration
-        guard wifiLeaseTask?.generation != generation else { return }
-        let task = sharedWiFiLease(for: upstream, generation: generation)
-        env.diagnostics.logDetached(.info, "player", "AirPlay nelle vicinanze: preparo in anticipo l'indirizzo sul Wi-Fi")
-        Task { [weak self] in
-            do {
-                _ = try await task.value
-            } catch {
-                guard let self = self, self.wifiLeaseTask?.generation == generation else { return }
-                self.wifiLeaseTask = nil
-                self.env.diagnostics.logDetached(.warning, "player", "Preparazione in anticipo dell'indirizzo sul Wi-Fi non riuscita")
-            }
-        }
-    }
-
-    private func startRouteDetection() {
-        let detector = AVRouteDetector()
-        detector.isRouteDetectionEnabled = true
-        routeDetector = detector
-        routesNearby = detector.multipleRoutesDetected
-        // The notification is named by its constant's value, which is what the system posts.
-        routeDetectorObserver = NotificationCenter.default.addObserver(
-            forName: Notification.Name("AVRouteDetectorMultipleRoutesDetectedDidChangeNotification"), object: detector, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in self?.routesDetectionChanged() }
-        }
-    }
-
-    private func routesDetectionChanged() {
-        guard let detector = routeDetector, !tornDown else { return }
-        routesNearby = detector.multipleRoutesDetected
-        if routesNearby { prepareWiFiAhead() }
-    }
-
-    private func stopRouteDetection() {
-        if let observer = routeDetectorObserver { NotificationCenter.default.removeObserver(observer) }
-        routeDetectorObserver = nil
-        routeDetector?.isRouteDetectionEnabled = false
-        routeDetector = nil
-    }
-
-    /// A converted file still served on 127.0.0.1 cannot be fetched by an AirPlay receiver: until the Wi-Fi address is in use the picture
-    /// stays off AirPlay (the sound still goes), instead of a black screen that ends with the video back on the phone.
-    private var externalVideoWaitsForWiFi: Bool {
-        return engine.kind == .avPlayer && ((conversion != nil && conversionLease == nil) || (liveConversion != nil && liveLease == nil)
-            || (playingArchive && archiveLease == nil))
-    }
-
-    /// A video read from inside an archive is served on 127.0.0.1: for AirPlay the relay serves the same reading on the Wi-Fi address
-    /// and the player continues from there, at the same position.
-    private func moveArchiveToWiFi() {
-        guard playingArchive, archiveLease == nil, !archiveMovingToWiFi, engine.kind == .avPlayer, !tornDown,
-              let leaf = env.localRemux.archiveLeaf, let source = env.localRemux.archiveRelaySource() else { return }
-        guard case .ready = env.relay.availability else {
-            if !announcedWiFiNeed {
-                announcedWiFiNeed = true
-                statusMessage = "Per mandare in AirPlay il video letto dall'archivio servono il Wi-Fi e «Consenti rete locale» (Impostazioni ▸ Account e dati ▸ Privacy): per ora su AirPlay va solo l'audio."
-                scheduleStatusClear(after: 9)
-            }
-            return
-        }
-        archiveMovingToWiFi = true
-        let generation = loadGeneration
-        statusMessage = "Preparo il video per AirPlay…"
-        Task { [weak self] in
-            guard let self = self else { return }
-            defer { self.archiveMovingToWiFi = false }
-            do {
-                let lease = try await self.env.relay.publish(source: source, leaf: leaf, owner: .airPlay)
-                guard !self.tornDown, generation == self.loadGeneration, self.playingArchive else {
-                    self.env.relay.release(lease, reason: .userStopped)
-                    return
-                }
-                var position = self.engine.currentTime()
-                if position < 1, self.snapshot.position < 1, self.loadStartPosition > 1 { position = self.loadStartPosition }
-                let wasPlaying = self.snapshot.isPlaying
-                self.archiveLease = lease
-                self.engine.setExternalPlaybackAllowed(!self.externalPlaybackBlockedForKey)
-                self.engine.load(url: lease.url, headers: [:], startAt: position > 1 ? position : nil, autoplay: wasPlaying)
-                self.statusMessage = nil
-                self.env.diagnostics.logDetached(.info, "player", "AirPlay: il video dell'archivio è ora sull'indirizzo Wi-Fi (riparte da \(Int(position)) s)")
-            } catch {
-                guard !self.tornDown else { return }
-                self.statusMessage = RemuxFailureText.explain(error)
-                self.scheduleStatusClear(after: 6)
-            }
-        }
-    }
-
-    /// The converted live channel is served on 127.0.0.1: for AirPlay the relay serves the same channel on the Wi-Fi address (no
-    /// second connection to the channel) and the player follows it there.
-    private func moveLiveToWiFi() {
-        guard let live = liveConversion, liveLease == nil, !liveMovingToWiFi, engine.kind == .avPlayer, !tornDown else { return }
-        guard case .ready = env.relay.availability else {
-            if !announcedWiFiNeed {
-                announcedWiFiNeed = true
-                statusMessage = "Per mandare il video di questa diretta in AirPlay servono il Wi-Fi e «Consenti rete locale» (Impostazioni ▸ Account e dati ▸ Privacy): per ora su AirPlay va solo l'audio."
-                scheduleStatusClear(after: 9)
-            }
-            return
-        }
-        liveMovingToWiFi = true
-        let generation = loadGeneration
-        statusMessage = "Preparo la diretta per AirPlay…"
-        Task { [weak self] in
-            guard let self = self else { return }
-            defer { self.liveMovingToWiFi = false }
-            do {
-                let lease = try await self.env.relay.publish(source: LiveRemuxSource(engine: live, closesEngine: false), leaf: "index.m3u8", owner: .airPlay)
-                guard !self.tornDown, generation == self.loadGeneration, self.liveConversion === live else {
-                    self.env.relay.release(lease, reason: .userStopped)
-                    return
-                }
-                self.liveLease = lease
-                self.engine.setExternalPlaybackAllowed(!self.externalPlaybackBlockedForKey)
-                self.engine.load(url: lease.url, headers: [:], startAt: nil, autoplay: true)
-                self.statusMessage = nil
-                self.env.diagnostics.logDetached(.info, "player", "AirPlay: la diretta convertita è ora sull'indirizzo Wi-Fi")
-            } catch {
-                guard !self.tornDown else { return }
-                self.statusMessage = RemuxFailureText.explain(error)
-                self.scheduleStatusClear(after: 6)
-            }
-        }
-    }
-
-    /// The converted file is served on 127.0.0.1, which an AirPlay receiver cannot reach: the relay serves it on the Wi-Fi address and
-    /// the player continues from there, at the same position.
-    func moveConversionToWiFi() {
-        if liveConversion != nil { moveLiveToWiFi(); return }
-        if playingArchive { moveArchiveToWiFi(); return }
-        guard conversion != nil, conversionLease == nil, engine.kind == .avPlayer, !tornDown, let upstream = conversionUpstream else { return }
-        guard movingToWiFiGeneration != loadGeneration else { return }
-        guard case .ready = env.relay.availability else {
-            if !announcedWiFiNeed {
-                announcedWiFiNeed = true
-                env.diagnostics.logDetached(.info, "player", "AirPlay: il ponte non è disponibile (rete locale spenta o niente Wi-Fi): solo audio")
-                statusMessage = "Per mandare il video di questo MKV in AirPlay servono il Wi-Fi e «Consenti rete locale» (Impostazioni ▸ Account e dati ▸ Privacy): per ora su AirPlay va solo l'audio."
-                scheduleStatusClear(after: 9)
-            }
-            return
-        }
-        let generation = loadGeneration
-        movingToWiFiGeneration = generation
-        let task = sharedWiFiLease(for: upstream, generation: generation)
-        env.diagnostics.logDetached(.info, "player", "AirPlay: sposto il file convertito sull'indirizzo Wi-Fi")
-        statusMessage = "Preparo il video per AirPlay…"
-        Task { [weak self] in
-            guard let self = self else { return }
-            defer { if self.movingToWiFiGeneration == generation { self.movingToWiFiGeneration = nil } }
-            do {
-                let lease = try await task.value
-                // Whatever ended this start (a new source, the player closing) also releases the lease: closeConversion waits for the task.
-                guard !self.tornDown, generation == self.loadGeneration, self.conversion != nil, self.conversionLease == nil else { return }
-                // Taken now, not before the wait: the video went on playing while the conversion was prepared. Right after the file is
-                // ready the engine has not applied its start position yet and says 0.
-                var position = self.engine.currentTime()
-                if position < 1, self.snapshot.position < 1, self.loadStartPosition > 1 { position = self.loadStartPosition }
-                let wasPlaying = self.snapshot.isPlaying
-                self.conversionLease = lease
-                if let plan = lease.remuxPlan { self.conversionPlan = plan }
-                self.engine.setExternalPlaybackAllowed(!self.externalPlaybackBlockedForKey)
-                self.engine.load(url: lease.url, headers: [:], startAt: position > 1 ? position : nil, autoplay: wasPlaying)
-                if let old = self.conversion {
-                    self.env.localRemux.close(old)
-                    self.conversion = nil
-                }
-                self.statusMessage = nil
-                self.env.diagnostics.logDetached(.info, "player", "AirPlay: il file convertito è ora sull'indirizzo Wi-Fi (riparte da \(Int(position)) s)")
-            } catch {
-                if self.wifiLeaseTask?.generation == generation { self.wifiLeaseTask = nil }
-                guard !self.tornDown else { return }
-                self.env.diagnostics.logDetached(.warning, "player", "AirPlay: spostamento sul Wi-Fi non riuscito")
-                self.statusMessage = RemuxFailureText.explain(error)
-                self.scheduleStatusClear(after: 6)
-            }
-        }
-    }
-
-    /// The audio tracks to list: those of the converted file (one plays at a time), else the engine's own.
-    private func currentAudioTracks() -> [EngineTrack] {
-        guard let plan = conversionPlan else { return engine.audioTracks() }
-        let selected = plan.audio.first?.index
-        return plan.audioChoices.map { track in
-            EngineTrack(id: String(track.index), title: track.summary, language: track.language, isSelected: track.index == selected)
-        }
-    }
-
     // MARK: TorBox (torrent sources)
 
     /// What identifies one resolution: the torrent and the video it is played for.
-    private func debridKey(for stream: AddonStream) -> String {
+    func debridKey(for stream: AddonStream) -> String {
         return AddonStream.sourceKey(stream.source) + "|" + DebridStreamLogic.stremioID(meta: meta, video: currentVideo)
     }
 
     /// The direct link TorBox produced for the source that plays now, if there is one.
-    private func currentDebridStream() -> AddonStream? {
+    func currentDebridStream() -> AddonStream? {
         guard let direct = debridStream, let key = debridStreamKey else { return nil }
         guard case .stream(let stream) = request.source else { return nil }
         return debridKey(for: stream) == key ? direct : nil
@@ -868,7 +517,7 @@ final class PlayerViewModel: ObservableObject {
     /// handed to Cast or DLNA receivers).
     var isPlayingThroughTorBox: Bool { return currentDebridStream() != nil }
 
-    private func forgetDebridLink() {
+    func forgetDebridLink() {
         debridStream = nil
         debridStreamKey = nil
     }
@@ -876,7 +525,7 @@ final class PlayerViewModel: ObservableObject {
     /// Turns a torrent into a direct-link stream through TorBox. The player only plays what TorBox already has in its cache:
     /// starting a download needs the user's confirmation, which the stream picker asks for. nil when it did not work (the failure
     /// panel is showing) or when the player moved on or closed in the meantime.
-    private func resolveTorrentWithTorBox(_ stream: AddonStream) async -> AddonStream? {
+    func resolveTorrentWithTorBox(_ stream: AddonStream) async -> AddonStream? {
         let key = debridKey(for: stream)
         if let direct = debridStream, debridStreamKey == key { return direct }
         forgetDebridLink()
@@ -914,7 +563,7 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
-    private func debridProgressArrived(_ progress: DebridProgress, sequence: Int, generation: Int) {
+    func debridProgressArrived(_ progress: DebridProgress, sequence: Int, generation: Int) {
         guard generation == debridGeneration, sequence > debridProgressSequence, failure == nil, !tornDown else { return }
         debridProgressSequence = sequence
         statusMessage = DebridFormat.statusLine(for: progress)
@@ -922,11 +571,11 @@ final class PlayerViewModel: ObservableObject {
 
     /// The file TorBox returned decides the container, and so the engine (a Matroska file needs MPV). False when no engine can
     /// play it; the failure panel then says why.
-    private func adoptEngine(forResolved direct: AddonStream) -> Bool {
+    func adoptEngine(forResolved direct: AddonStream) -> Bool {
         return adoptEngine(forContainer: StreamAnalyzer.analyze(direct, streamingServer: nil).container)
     }
 
-    private func adoptEngine(forContainer container: String?) -> Bool {
+    func adoptEngine(forContainer container: String?) -> Bool {
         // A restart after an engine fallback keeps the engine the fallback chose: planning again from the file name alone
         // would put the engine that just failed back (and the same failure would repeat).
         if engineChosenByFallback { return true }
@@ -950,7 +599,7 @@ final class PlayerViewModel: ObservableObject {
 
     /// With TorBox configured, a torrent is chosen automatically only when TorBox says it is in its cache: the automatic choice
     /// never starts a download. Direct links are untouched.
-    private func debridAutoSelectable(_ ranked: [RankedStream]) async -> [RankedStream] {
+    func debridAutoSelectable(_ ranked: [RankedStream]) async -> [RankedStream] {
         guard env.debrid.isConfigured else { return ranked }
         let hashes = DebridStreamLogic.hashes(in: ranked)
         var statuses: [String: DebridCacheStatus] = [:]
@@ -961,7 +610,7 @@ final class PlayerViewModel: ObservableObject {
         return DebridStreamLogic.autoSelectable(ranked, statuses: statuses, debridConfigured: true)
     }
 
-    private func loadFullMetaIfNeeded() async {
+    func loadFullMetaIfNeeded() async {
         guard !fullMetaLoaded else { return }
         fullMetaLoaded = true
         if meta.videos.isEmpty || (currentVideo != nil && !meta.videos.contains(where: { $0.id == currentVideo?.id })) {
@@ -976,7 +625,7 @@ final class PlayerViewModel: ObservableObject {
         updateNextEpisode()
     }
 
-    private func updateNextEpisode() {
+    func updateNextEpisode() {
         guard let video = currentVideo else { nextEpisode = nil; return }
         nextEpisode = NextEpisodeResolver.next(after: video.id, in: meta)
     }
@@ -1000,7 +649,7 @@ final class PlayerViewModel: ObservableObject {
 
     // MARK: Engine callbacks
 
-    private func handle(_ new: EngineSnapshot) {
+    func handle(_ new: EngineSnapshot) {
         let wasReady = snapshot.isReady
         let old = snapshot
         snapshot = new
@@ -1037,10 +686,10 @@ final class PlayerViewModel: ObservableObject {
         evaluateNextEpisodePrompt()
     }
 
-    private var traktActive = false
+    var traktActive = false
 
     /// Dice a Trakt cosa sta succedendo (se è acceso): inizio, pausa, fine.
-    private func scrobbleTrakt(_ action: TraktClient.ScrobbleAction, finished: Bool = false) {
+    func scrobbleTrakt(_ action: TraktClient.ScrobbleAction, finished: Bool = false) {
         guard !snapshot.isLive else { return }
         switch action {
         case .start: traktActive = true
@@ -1055,7 +704,7 @@ final class PlayerViewModel: ObservableObject {
 
     /// Returns true when a write was scheduled.
     @discardableResult
-    private func recordProgress(force: Bool, flushAfter: Bool = false) -> Bool {
+    func recordProgress(force: Bool, flushAfter: Bool = false) -> Bool {
         guard !progressSuspended else { return false }
         guard snapshot.duration > 0 || force, snapshot.position > 0 else { return false }
         if !force && abs(snapshot.position - lastRecordedPosition) < 5 { return false }
@@ -1073,7 +722,7 @@ final class PlayerViewModel: ObservableObject {
         return true
     }
 
-    private func handleEnded() {
+    func handleEnded() {
         recordFinalCompletion()
         scrobbleTrakt(.stop, finished: true)
         if case .download(let item) = request.source {
@@ -1086,7 +735,7 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
-    private func recordFinalCompletion() {
+    func recordFinalCompletion() {
         let store = env.libraryStore
         let meta = self.meta
         let video = currentVideo
@@ -1095,7 +744,7 @@ final class PlayerViewModel: ObservableObject {
     }
 
     /// Tells the ranking how the source of this addon went (see `SourceReliability`): once per source, started or not.
-    private func recordReliability(success: Bool) {
+    func recordReliability(success: Bool) {
         guard !reliabilityCounted, playback.sourceScoring.learnsFromPlayback else { return }
         var stream = currentStream
         if stream == nil, case .stream(let requested) = request.source { stream = requested }
@@ -1104,7 +753,7 @@ final class PlayerViewModel: ObservableObject {
         env.settings.value.playback.sourceScoring.reliability.record(addonID: id, success: success)
     }
 
-    private func handleFailure(_ new: PlaybackFailure) {
+    func handleFailure(_ new: PlaybackFailure) {
         isOpeningSource = false
         if new.kind == .codecUnsupported || new.kind == .formatUnsupported,
            convertAfterRefusal(reason: "AVPlayer non decodifica questo video: lo converto sul telefono…") { return }
@@ -1124,7 +773,7 @@ final class PlayerViewModel: ObservableObject {
 
     // MARK: Engine selection
 
-    private func canUse(_ kind: PlaybackEngineKind) -> Bool {
+    func canUse(_ kind: PlaybackEngineKind) -> Bool {
         switch kind {
         case .avPlayer: return true
         case .mpv: return PlaybackEngineFactory.mpvAvailable
@@ -1133,7 +782,7 @@ final class PlayerViewModel: ObservableObject {
 
     /// Facts measured by the engine arrive after loading: show them, and if they show that the other engine is the
     /// right one for this file (for example an HEVC track tagged hev1, or Dolby Vision profile 7), switch once.
-    private func handleMediaInfo(_ info: MediaFormatInfo) {
+    func handleMediaInfo(_ info: MediaFormatInfo) {
         mediaInfo = info
         let plan = PlaybackPlanner.plan(container: info.container ?? currentContainer, facts: info, device: device,
                                         mpvAvailable: PlaybackEngineFactory.mpvAvailable, choice: engineChoice,
@@ -1148,7 +797,7 @@ final class PlayerViewModel: ObservableObject {
 
     /// An engine that cannot open the file is replaced by the other one, once, resuming at the same position.
     /// Network problems never trigger a switch.
-    private func tryEngineFallback(after failure: PlaybackFailure) -> Bool {
+    func tryEngineFallback(after failure: PlaybackFailure) -> Bool {
         guard engineChoice == .automatic, engineSwitches < 2, !tornDown else { return false }
         let target: PlaybackEngineKind = engine.kind == .avPlayer ? .mpv : .avPlayer
         guard canUse(target) else { return false }
@@ -1166,7 +815,7 @@ final class PlayerViewModel: ObservableObject {
         return true
     }
 
-    private func switchEngine(to kind: PlaybackEngineKind, reason: String) {
+    func switchEngine(to kind: PlaybackEngineKind, reason: String) {
         guard !tornDown, kind != engine.kind else { return }
         engineSwitches += 1
         engineChosenByFallback = true
@@ -1187,7 +836,7 @@ final class PlayerViewModel: ObservableObject {
 
     /// Asks IntroDB for the episode now playing (IMDb id, season and episode: nothing else leaves the device). Nothing is
     /// shown when the setting is off, the title has no IMDb id, or the service knows nothing.
-    private func loadSkipSegments() {
+    func loadSkipSegments() {
         skipSegmentsTask?.cancel()
         skipSegments = .none
         // A downloaded episode carries its own intro / recap: works offline and asks nobody.
@@ -1239,7 +888,7 @@ final class PlayerViewModel: ObservableObject {
 
     // MARK: Watching together (SharePlay)
 
-    private var applyingRemote = false
+    var applyingRemote = false
 
     var sharePlayAvailable: Bool { return env.settings.value.advanced.extras.sharePlay && !isLiveContent }
 
@@ -1253,7 +902,7 @@ final class PlayerViewModel: ObservableObject {
     func currentSyncState() -> (isPlaying: Bool, position: Double) { return (snapshot.isPlaying, snapshot.position) }
 
     /// What this player just did, for the others in the call (nothing while it is only following them).
-    private func sendWatchState(playing: Bool? = nil, position: Double? = nil) {
+    func sendWatchState(playing: Bool? = nil, position: Double? = nil) {
         guard !applyingRemote, env.watchTogether.isActive else { return }
         env.watchTogether.send(isPlaying: playing ?? snapshot.isPlaying, position: position ?? snapshot.position)
     }
@@ -1300,7 +949,7 @@ final class PlayerViewModel: ObservableObject {
         engine.startPictureInPicture()
     }
 
-    private func configureRemoteCommands() {
+    func configureRemoteCommands() {
         let handlers = NowPlayingService.Handlers(
             play: { [weak self] in self?.engine.play() },
             pause: { [weak self] in self?.engine.pause() },
@@ -1352,279 +1001,9 @@ final class PlayerViewModel: ObservableObject {
         env.setBingeGroup(item.stream.behaviorHints.bingeGroup, forMeta: meta.id)
     }
 
-    // MARK: Episodes
-
-    /// How an episode is opened: by the viewer's settings, from the pack already open, by searching the addons, or from a list.
-    enum EpisodeVia { case automatic, pack, search, pick }
-
-    func play(episode: Video, via: EpisodeVia = .automatic) async {
-        await switchEpisode(to: episode, via: via, userInitiated: true)
-    }
-
-    func playPrevious() async {
-        if let previous = previousEpisode { await switchEpisode(to: previous, via: .automatic, userInitiated: true) }
-    }
-
-    /// `userInitiated` is false for the automatic jump at the end of an episode: it never stops to ask for a source.
-    func playNext(userInitiated: Bool = true) async {
-        guard let next = nextEpisode else { return }
-        await switchEpisode(to: next, via: .automatic, userInitiated: userInitiated)
-    }
-
-    // MARK: Season packs
-
-    private var currentTorrentStream: AddonStream? {
-        var stream = currentStream
-        if stream == nil, case .stream(let requested) = request.source { stream = requested }
-        guard let found = stream, case .torrent = found.source else { return nil }
-        return found
-    }
-
-    private func refreshPack() {
-        guard let stream = currentTorrentStream, case .torrent(let hash, _, _) = stream.source else {
-            if !packFiles.isEmpty { packFiles = [] }
-            return
-        }
-        let files = env.debrid.packFiles(forHash: hash)
-        if files != packFiles { packFiles = files }
-    }
-
-    /// The episode is inside the file that is playing (a season pack): it can be opened from there without searching.
-    func isInPack(_ video: Video) -> Bool {
-        guard let season = video.season, let episode = video.episode else { return false }
-        return packFiles.contains { (file: DebridPackFile) -> Bool in file.contains(season: season, episode: episode) }
-    }
-
-    var packEpisodeCount: Int { return packFiles.count }
-
-    /// The episode is in the Downloads and plays from the file.
-    func isDownloaded(_ video: Video) -> Bool {
-        return env.downloads.completedItem(metaID: meta.id, videoID: video.id) != nil
-    }
-
-    private func switchEpisode(to video: Video, via: EpisodeVia, userInitiated: Bool) async {
-        guard !isResolvingNext else { return }
-        var way = via
-        if way == .automatic {
-            // A downloaded episode opens from its file, offline too, before any search (switch it off in the settings).
-            if playback.preferDownloaded, let file = env.downloads.completedItem(metaID: meta.id, videoID: video.id) {
-                await commitDownloadedEpisode(video, item: file)
-                return
-            }
-            if userInitiated && playback.episodeSwitch == .askEachTime {
-                sourcePickerEpisode = video
-                return
-            }
-            way = (playback.preferPack && isInPack(video)) ? .pack : .search
-        }
-        switch way {
-        case .pick:
-            sourcePickerEpisode = video
-        case .pack:
-            if await switchWithinPack(video) { return }
-            await switchBySearch(video)
-        case .search, .automatic:
-            await switchBySearch(video)
-        }
-    }
-
-    /// Opens the episode from the torrent that is already playing: the debrid service picks the file of that episode. False when it
-    /// cannot (the file is not there, the service refuses): the caller then searches the addons as usual.
-    private func switchWithinPack(_ video: Video) async -> Bool {
-        guard let stream = currentTorrentStream,
-              let packRequest = DebridRequest(stream: stream, stremioID: video.id, mode: .cachedOnly),
-              let best = StreamSelector.rank([stream], preferences: env.streamPreferences()).first else { return false }
-        isResolvingNext = true
-        defer { isResolvingNext = false }
-        countdownTask?.cancel()
-        nextCountdown = nil
-        statusMessage = "Apro \(video.episodeLabel ?? "l'episodio") dal pack…"
-        recordProgress(force: true)
-        progressSuspended = true
-        engine.pause()
-        do {
-            let result = try await env.debrid.resolve(packRequest, onProgress: nil)
-            env.debrid.stashResolution(result, for: stream, stremioID: video.id)
-        } catch {
-            statusMessage = "Questo episodio non è nel pack: cerco una sorgente…"
-            return false
-        }
-        await commitEpisode(video, best: best, ranked: [best])
-        return true
-    }
-
-    /// The viewer chose a source for the episode from the list.
-    func playEpisode(_ video: Video, with item: RankedStream, ranked: [RankedStream]) async {
-        guard !isResolvingNext else { return }
-        isResolvingNext = true
-        defer { isResolvingNext = false }
-        countdownTask?.cancel()
-        nextCountdown = nil
-        statusMessage = "Apro \(video.episodeLabel ?? "l'episodio")…"
-        recordProgress(force: true)
-        progressSuspended = true
-        engine.pause()
-        await commitEpisode(video, best: item, ranked: ranked)
-    }
-
-    /// Opens the episode from the file in the Downloads: no search, no network.
-    private func commitDownloadedEpisode(_ video: Video, item: DownloadItem) async {
-        guard !isResolvingNext else { return }
-        isResolvingNext = true
-        defer { isResolvingNext = false }
-        countdownTask?.cancel()
-        nextCountdown = nil
-        statusMessage = "Apro \(video.episodeLabel ?? "l'episodio") dai download…"
-        recordProgress(force: true)
-        progressSuspended = true
-        engine.pause()
-        currentVideo = video
-        currentStream = nil
-        sourceName = "Download"
-        request.video = video
-        request.source = .download(item)
-        engineChosenByFallback = false
-        alternatives = []
-        resetSubtitleStateForNewVideo()
-        loadSkipSegments()
-        lastRecordedPosition = -100
-        didFinish = false
-        nextStreamsTask = nil
-        nextLinkTask?.cancel()
-        nextLinkTask = nil
-        updateNextEpisode()
-        nowPlaying.setMetadata(title: meta.name, subtitle: episodeSubtitle(),
-                               artworkURL: (video.thumbnail ?? meta.background ?? meta.poster).flatMap { URL.lenient($0) }, loader: env.images)
-        await beginPlayback(startOverride: nil)
-        await loadSubtitleOptions()
-    }
-
-    private func switchBySearch(_ video: Video) async {
-        guard !isResolvingNext else { return }
-        isResolvingNext = true
-        countdownTask?.cancel()
-        nextCountdown = nil
-        statusMessage = "Cerco la sorgente per \(video.episodeLabel ?? "l'episodio")…"
-        defer { isResolvingNext = false }
-
-        // Persist where we left the current episode before moving on, then stop recording until the new source is loaded:
-        // finding it (and, for a torrent, TorBox's answer) can take a while and the old episode would be saved as the new one.
-        recordProgress(force: true)
-        progressSuspended = true
-        engine.pause()
-
-        let result: (streams: [AddonStream], errors: [String: AddonError])
-        if let prefetched = nextStreamsTask, video.id == nextEpisode?.id {
-            result = await prefetched.value
-        } else {
-            result = await env.service.allStreams(type: meta.type, videoID: video.id, debrid: env.debrid.streamContext)
-        }
-        let ranked = StreamSelector.rank(result.streams, preferences: env.streamPreferences())
-        let binge = currentStream?.behaviorHints.bingeGroup ?? env.bingeGroup(forMeta: meta.id)
-        let choices = await debridAutoSelectable(ranked)
-        guard let best = StreamSelector.autoSelect(choices, previousBingeGroup: binge, ordering: env.streamPreferences().ordering) else {
-            statusMessage = nil
-            handleFailure(PlaybackFailure(kind: .notFound, detail: "Nessuna sorgente riproducibile per \(video.episodeLabel ?? "questo episodio")."))
-            return
-        }
-        await commitEpisode(video, best: best, ranked: ranked)
-    }
-
-    /// Puts the chosen source on screen for the episode: state, subtitles, skip data, then playback.
-    private func commitEpisode(_ video: Video, best: RankedStream, ranked: [RankedStream]) async {
-        currentVideo = video
-        currentStream = best.stream
-        reliabilityCounted = false
-        sourceName = best.stream.name ?? best.stream.addonName ?? "Sorgente"
-        request.video = video
-        request.source = .stream(best.stream)
-        engineChosenByFallback = false
-        alternatives = ranked.filter { $0.info.support.isPlayable && $0.id != best.id }
-        resetSubtitleStateForNewVideo()
-        loadSkipSegments()
-        lastRecordedPosition = -100
-        didFinish = false
-        nextStreamsTask = nil
-        nextLinkTask?.cancel()
-        nextLinkTask = nil
-        updateNextEpisode()
-        env.setBingeGroup(best.stream.behaviorHints.bingeGroup, forMeta: meta.id)
-        nowPlaying.setMetadata(title: meta.name, subtitle: episodeSubtitle(),
-                               artworkURL: (video.thumbnail ?? meta.background ?? meta.poster).flatMap { URL.lenient($0) }, loader: env.images)
-        await beginPlayback(startOverride: nil)
-        await loadSubtitleOptions()
-    }
-
-    /// Near the end of an episode: prefetch the next one's sources and, if autoplay is on, run the countdown.
-    private func evaluateNextEpisodePrompt() {
-        guard let next = nextEpisode, snapshot.duration > 120, !snapshot.isLive else { return }
-        let remaining = snapshot.duration - snapshot.position
-        let nextIsDownloaded = playback.preferDownloaded && env.downloads.completedItem(metaID: meta.id, videoID: next.id) != nil
-        if nextStreamsTask == nil, !nextIsDownloaded, snapshot.position / snapshot.duration > 0.8 {
-            let service = env.service
-            let type = meta.type
-            let debrid = env.debrid.streamContext
-            nextStreamsTask = Task { await service.allStreams(type: type, videoID: next.id, debrid: debrid) }
-        }
-        if !nextIsDownloaded { prefetchNextLink(for: next) }
-        let countdown = playback.nextEpisodeCountdownSeconds
-        guard playback.autoplayNextEpisode, countdown > 0 else { return }
-        if remaining <= Double(countdown) + 1, remaining > 0.5, countdownTask == nil, nextCountdown == nil, snapshot.isPlaying {
-            startCountdown(from: countdown)
-        } else if remaining > Double(countdown) + 3 {
-            cancelCountdown()
-        }
-    }
-
-    /// Near the end of an episode: when the next one is a torrent the debrid service has in its cache, ask for its link now and keep it,
-    /// so that «Prossimo» opens it at once (the player takes a kept link before asking again). Never starts a download. Switch:
-    /// Funzioni extra ▸ Precarica il prossimo episodio.
-    private func prefetchNextLink(for next: Video) {
-        guard nextLinkTask == nil, env.settings.value.advanced.extras.prefetchNextLink, env.debrid.isConfigured,
-              let streamsTask = nextStreamsTask else { return }
-        let videoID = next.id
-        nextLinkTask = Task { [weak self] in
-            let found = await streamsTask.value
-            guard let self = self, !Task.isCancelled, !self.tornDown, self.nextEpisode?.id == videoID else { return }
-            let preferences = self.env.streamPreferences()
-            let ranked = StreamSelector.rank(found.streams, preferences: preferences)
-            let binge = self.currentStream?.behaviorHints.bingeGroup ?? self.env.bingeGroup(forMeta: self.meta.id)
-            let choices = await self.debridAutoSelectable(ranked)
-            guard let best = StreamSelector.autoSelect(choices, previousBingeGroup: binge, ordering: preferences.ordering),
-                  DebridStreamLogic.isTorrent(best.stream) else { return }
-            let stremioID = DebridStreamLogic.stremioID(meta: self.meta, video: next)
-            guard let request = DebridRequest(stream: best.stream, stremioID: stremioID, mode: .cachedOnly),
-                  let resolution = try? await self.env.debrid.resolve(request, onProgress: nil), !self.tornDown else { return }
-            self.env.debrid.stashResolution(resolution, for: best.stream, stremioID: stremioID)
-            self.env.diagnostics.logDetached(.info, "player", "Link del prossimo episodio preparato in anticipo")
-        }
-    }
-
-    private func startCountdown(from seconds: Int) {
-        nextCountdown = seconds
-        countdownTask = Task { [weak self] in
-            var left = seconds
-            while left > 0 {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                if Task.isCancelled { return }
-                left -= 1
-                self?.nextCountdown = left
-            }
-            if Task.isCancelled { return }
-            self?.countdownTask = nil
-            await self?.playNext(userInitiated: false)
-        }
-    }
-
-    func cancelCountdown() {
-        countdownTask?.cancel()
-        countdownTask = nil
-        nextCountdown = nil
-    }
-
     // MARK: Tracks
 
-    private func refreshTracks() {
+    func refreshTracks() {
         subtitleTracksKnown = true
         audioTracks = currentAudioTracks()
         refreshEmbeddedSubtitleOptions()
@@ -1639,7 +1018,7 @@ final class PlayerViewModel: ObservableObject {
 
     /// Audio language: what the viewer picked by hand for this title, then the preferred language, then the secondary one
     /// ("off" means none).
-    private func applyPreferredAudio() {
+    func applyPreferredAudio() {
         // A converted file has its audio language chosen before the conversion; AVPlayer sees one track only.
         guard conversionPlan == nil else { return }
         let languages = TrackPreferences.audioLanguages(
@@ -1692,518 +1071,6 @@ final class PlayerViewModel: ObservableObject {
         refreshAirPlayRoute()
     }
 
-    // MARK: Subtitles
-
-    private func refreshEmbeddedSubtitleOptions() {
-        var options: [SubtitleOption] = []
-        for track in engine.embeddedSubtitleTracks() {
-            let code = TrackPreferences.languageCode(language: track.language, title: track.title)
-            options.append(SubtitleOption(id: "embedded-\(track.id)", title: track.title, detail: "Incorporato",
-                                          language: track.language, kind: .embedded(track.id), languageCode: code))
-        }
-        embeddedOptions = options
-        // The embedded track that was on is no longer reported: do not claim it still is.
-        if let selected = selectedOption, case .embedded = selected.kind {
-            let stillThere = options.contains(where: { (option: SubtitleOption) -> Bool in
-                return option.id == selected.id
-            })
-            if !stillThere {
-                selectedSubtitleID = nil
-                selectedOption = nil
-            }
-        }
-        publishSubtitleOptions()
-    }
-
-    /// `subtitleOptions` = embedded tracks first, then the addon subtitles in the order of the groups, then imported files.
-    private func publishSubtitleOptions() {
-        var addonOptions: [SubtitleOption] = []
-        for group in subtitleGroups {
-            for candidate in group.candidates { addonOptions.append(SubtitleOption.addon(candidate)) }
-        }
-        subtitleOptions = embeddedOptions + addonOptions + localOptions
-    }
-
-    // MARK: Subtitles from addons
-
-    /// Languages for the ranking of the list and for the automatic choice: what the viewer picked by hand for this title, then the
-    /// preferred language, then the secondary one ("off" means none).
-    private func subtitleWishes() -> (ranking: [String], automatic: [String]) {
-        let remembered = trackMemory.subtitleChoiceToApply(forMeta: meta.id)
-        let primary = SettingsStore.resolvedLanguage(playback.preferredSubtitleLanguage)
-        let secondary = SettingsStore.resolvedLanguage(playback.secondarySubtitleLanguage)
-        let ranking = TrackPreferences.subtitleRanking(remembered: remembered, primary: primary, secondary: secondary)
-        let automatic = TrackPreferences.automaticSubtitleLanguages(remembered: remembered, primary: primary, secondary: secondary)
-        return (ranking, automatic)
-    }
-
-    /// Asks every installed subtitles addon for this video. The first answer carries what the stream announces (hash, size, file
-    /// name) and never waits for anything else. When the stream announces no hash, one is computed on this device in the
-    /// background (`SubtitleHashProbe`, once per stream and session; never for downloads, HLS or non-public http) and the addons
-    /// are asked again with it: both answers end up in the list.
-    private func loadSubtitleOptions() async {
-        subtitleGeneration += 1
-        let generation = subtitleGeneration
-        subtitleHashTask?.cancel()
-        subtitleHashTask = nil
-
-        let stream = currentStream
-        let type = meta.type
-        let videoID = currentVideo?.id ?? meta.id
-        var announced: [AddonSubtitle] = []
-        for subtitle in stream?.subtitles ?? [] {
-            var entry = subtitle
-            if entry.addonName == nil { entry.addonName = stream?.addonName }
-            announced.append(entry)
-        }
-        streamSubtitles = announced
-        plainSubtitles = []
-        hashedSubtitles = []
-        catalogSubtitles = []
-        subtitleAddonsFinished = false
-        catalogLoading = startCatalogSearch(videoID: videoID, generation: generation)
-        subtitleListPhase = .loading
-        rebuildSubtitleList()
-        applyPreferredSubtitleIfNeeded()
-
-        let handles = await env.service.handles()
-        guard generation == subtitleGeneration, !tornDown else { return }
-        let providers = SubtitleAddonSupport.providers(in: handles, type: type, videoID: videoID)
-        hasSubtitleProvider = !providers.isEmpty || catalogLoading || !catalogSubtitles.isEmpty
-        if providers.isEmpty {
-            finishSubtitleLoading()
-            return
-        }
-
-        var known: SubtitleHashResult?
-        if let stream = stream { known = localHashes[stream.id] }
-        let params = SubtitleVideoParams.resolve(stream: stream, local: known, filename: nil)
-        startHashProbeIfNeeded(generation: generation, type: type, videoID: videoID)
-        let answer = await env.service.subtitles(type: type, videoID: videoID, params: params)
-        guard generation == subtitleGeneration, !tornDown else { return }
-        if known != nil { hashedSubtitles = answer } else { plainSubtitles = answer }
-        finishSubtitleLoading()
-    }
-
-    /// Asks the OpenSubtitles.org catalogue for this video in the viewer's languages (at most two), next to the addons. Returns
-    /// whether a search started; the list is final only once it has answered too.
-    private func startCatalogSearch(videoID: String, generation: Int) -> Bool {
-        guard playback.openSubtitlesCatalog else { return false }
-        var languages = subtitleWishes().ranking
-        if languages.isEmpty, let system = Locale.preferredLanguages.first { languages = [LanguageCodes.normalise(system)] }
-        var codes: [String] = []
-        for language in languages {
-            if let code = OpenSubtitlesCatalog.catalogLanguage(language), !codes.contains(code) { codes.append(code) }
-        }
-        let urls = codes.prefix(2).compactMap { OpenSubtitlesCatalog.searchURL(videoID: videoID, language: $0) }
-        guard !urls.isEmpty else { return false }
-        let http = env.http
-        Task { [weak self] in
-            var found: [AddonSubtitle] = []
-            for url in urls {
-                let request = HTTPRequest(url: url, headers: OpenSubtitlesCatalog.headers, timeout: 12, maxBytes: 4 << 20, purpose: .addonRequest)
-                if let response = try? await http.send(request), response.isSuccess {
-                    found.append(contentsOf: OpenSubtitlesCatalog.parse(response.data))
-                }
-            }
-            guard let self = self, generation == self.subtitleGeneration, !self.tornDown else { return }
-            self.catalogSubtitles = found
-            self.catalogLoading = false
-            self.env.diagnostics.logDetached(.info, "subtitles", "OpenSubtitles.org: \(found.count) sottotitoli nelle lingue scelte")
-            if self.subtitleAddonsFinished { self.finishSubtitleLoading() } else { self.rebuildSubtitleList() }
-        }
-        return true
-    }
-
-    private func finishSubtitleLoading() {
-        subtitleAddonsFinished = true
-        // The automatic choice waits for the catalogue too: it may have the only subtitle in the viewer's language.
-        if catalogLoading {
-            rebuildSubtitleList()
-            return
-        }
-        subtitleListPhase = .ready
-        rebuildSubtitleList()
-        applyPreferredSubtitleIfNeeded()
-    }
-
-    private func startHashProbeIfNeeded(generation: Int, type: String, videoID: String) {
-        var isDownload = false
-        if case .download = request.source { isDownload = true }
-        guard let stream = currentStream, SubtitleHashPlan.shouldProbe(stream: stream, isDownload: isDownload) else { return }
-        if localHashes[stream.id] != nil || attemptedHashStreams.contains(stream.id) { return }
-        attemptedHashStreams.insert(stream.id)
-        let probe = SubtitleHashProbe(http: env.http, policy: env.settings.value.networkPolicy(allowLoopback: env.isUITesting))
-        subtitleHashTask = Task { [weak self] in
-            let outcome = await probe.probe(stream: stream)
-            if Task.isCancelled { return }
-            await self?.hashProbeFinished(outcome, stream: stream, type: type, videoID: videoID, generation: generation)
-        }
-    }
-
-    private func hashProbeFinished(_ outcome: Result<SubtitleHashResult, SubtitleHashFailure>, stream: AddonStream,
-                                   type: String, videoID: String, generation: Int) async {
-        guard !tornDown else { return }
-        switch outcome {
-        case .failure(let reason):
-            // Not an error for the viewer: the addons simply keep answering without a hash.
-            if reason != .cancelled {
-                env.diagnostics.logDetached(.info, "subtitles", "Hash del video non calcolato: \(reason.message)")
-            }
-        case .success(let hashed):
-            localHashes[stream.id] = hashed
-            guard generation == subtitleGeneration else { return }
-            let params = SubtitleVideoParams.resolve(stream: stream, local: hashed, filename: nil)
-            let refined = await env.service.subtitles(type: type, videoID: videoID, params: params)
-            guard generation == subtitleGeneration, !tornDown else { return }
-            hashedSubtitles = refined
-            rebuildSubtitleList()
-        }
-    }
-
-    /// Ranks and groups what the stream and the addons offered (`SubtitleCatalog`). Answers with the local hash come first.
-    private func rebuildSubtitleList() {
-        var pool: [AddonSubtitle] = streamSubtitles
-        pool.append(contentsOf: hashedSubtitles)
-        pool.append(contentsOf: plainSubtitles)
-        pool.append(contentsOf: catalogSubtitles)
-        // The subtitle on screen stays in the list even if a refreshed answer no longer carries it.
-        if let selected = selectedOption, case .addon(let subtitle) = selected.kind {
-            let wanted = subtitle.url.trimmingCharacters(in: .whitespacesAndNewlines)
-            let present = pool.contains(where: { (entry: AddonSubtitle) -> Bool in
-                return entry.url.trimmingCharacters(in: .whitespacesAndNewlines) == wanted
-            })
-            if !present { pool.append(subtitle) }
-        }
-        let preferences = SubtitlePreferences(languages: subtitleWishes().ranking, preferHearingImpaired: false)
-        let candidates = SubtitleCatalog.candidates(from: pool, preferences: preferences)
-        subtitleCandidates = candidates
-        let groups = SubtitleCatalog.groups(from: candidates)
-        if groups != subtitleGroups { subtitleGroups = groups }
-        publishSubtitleOptions()
-    }
-
-    // MARK: Automatic choice
-
-    /// At the start of a video: an embedded track in the preferred language, otherwise the best addon subtitle for the preferred
-    /// language, then the same for the secondary one. Nothing when both are "off". What the viewer picked by hand earlier for this
-    /// title replaces the settings. Runs once the engine has reported its tracks and the addons have answered.
-    private func applyPreferredSubtitleIfNeeded() {
-        guard !preferredSubtitleApplied, selectedSubtitleID == nil, subtitleTracksKnown, !tornDown else { return }
-        let wishes = subtitleWishes().automatic
-        if wishes.isEmpty {
-            preferredSubtitleApplied = true
-            silenceEngineSubtitles()
-            return
-        }
-        var embedded: [EmbeddedSubtitleInfo] = []
-        for option in embeddedOptions {
-            embedded.append(EmbeddedSubtitleInfo(optionID: option.id, title: option.title, language: option.language))
-        }
-        let decision = TrackPreferences.decide(languages: wishes, embedded: embedded, candidates: subtitleCandidates,
-                                               listIsFinal: subtitleListPhase == .ready)
-        switch decision {
-        case .embedded(let optionID):
-            guard let option = embeddedOptions.first(where: { (item: SubtitleOption) -> Bool in
-                return item.id == optionID
-            }) else { return }
-            preferredSubtitleApplied = true
-            activateSubtitle(option)
-        case .addon(let candidate):
-            preferredSubtitleApplied = true
-            activateSubtitle(SubtitleOption.addon(candidate))
-        case .wait:
-            return
-        case .nothing:
-            preferredSubtitleApplied = true
-            silenceEngineSubtitles()
-        }
-    }
-
-    /// No subtitle was chosen: an embedded track the engine switched on by itself (a default or forced track) is switched off, so
-    /// that what the sheet says ("Disattivati") is what the viewer sees. Asked once per video.
-    private func silenceEngineSubtitles() {
-        if engineSubtitlesSilenced { return }
-        engineSubtitlesSilenced = true
-        let engineHasOneOn = engine.embeddedSubtitleTracks().contains(where: { (track: EngineTrack) -> Bool in
-            return track.isSelected
-        })
-        if engineHasOneOn { engine.selectEmbeddedSubtitle(id: nil) }
-    }
-
-    /// After an engine change the new engine may switch on a subtitle track of its own: when the viewer's subtitle is drawn by
-    /// the app (downloaded or imported), it must be the only one on screen.
-    private func syncEngineSubtitleWithSelection() {
-        if !engineSubtitleSyncPending || embeddedOptions.isEmpty { return }
-        engineSubtitleSyncPending = false
-        guard let selected = selectedOption else { return }
-        switch selected.kind {
-        case .addon, .local:
-            engine.selectEmbeddedSubtitle(id: nil)
-        case .embedded:
-            return
-        }
-    }
-
-    /// After an engine change the embedded track that was on is looked up again by language: track ids differ between engines.
-    private func reselectEmbeddedAfterEngineChange() {
-        guard let language = pendingEmbeddedLanguage, !embeddedOptions.isEmpty else { return }
-        pendingEmbeddedLanguage = nil
-        guard selectedSubtitleID == nil else { return }
-        var embedded: [EmbeddedSubtitleInfo] = []
-        for option in embeddedOptions {
-            embedded.append(EmbeddedSubtitleInfo(optionID: option.id, title: option.title, language: option.language))
-        }
-        if let match = TrackPreferences.embeddedMatch(embedded, language: language),
-           let option = embeddedOptions.first(where: { (item: SubtitleOption) -> Bool in return item.id == match.optionID }) {
-            activateSubtitle(option)
-        } else {
-            statusMessage = "I sottotitoli incorporati non sono disponibili con questo motore."
-            scheduleStatusClear()
-        }
-    }
-
-    /// A new video (next episode, other source): the subtitle on screen, the lists and the one-time decisions start over.
-    /// What the viewer chose by hand (`trackMemory`) is kept: it applies to the next video of the same title.
-    private func resetSubtitleStateForNewVideo() {
-        conversionAudio = nil
-        forcedConversion = false
-        subtitleTask?.cancel()
-        subtitleHashTask?.cancel()
-        subtitleHashTask = nil
-        subtitleGeneration += 1
-        timeline = nil
-        activeCues = []
-        selectedSubtitleID = nil
-        selectedOption = nil
-        subtitleError = nil
-        failedSubtitle = nil
-        cueCache = [:]
-        streamSubtitles = []
-        plainSubtitles = []
-        hashedSubtitles = []
-        subtitleCandidates = []
-        subtitleGroups = []
-        embeddedOptions = []
-        localOptions = []
-        subtitleOptions = []
-        audioTracks = []
-        subtitleListPhase = .loading
-        hasSubtitleProvider = false
-        preferredAudioApplied = false
-        preferredSubtitleApplied = false
-        subtitleTracksKnown = false
-        engineSubtitlesSilenced = false
-        engineSubtitleSyncPending = false
-        pendingEmbeddedLanguage = nil
-    }
-
-    // MARK: Choosing a subtitle
-
-    /// Subtitles off, chosen by the viewer. Remembered for the next episode of this series.
-    func disableSubtitles() {
-        preferredSubtitleApplied = true
-        trackMemory.rememberSubtitle(.off, metaID: meta.id)
-        subtitleTask?.cancel()
-        selectedSubtitleID = nil
-        selectedOption = nil
-        timeline = nil
-        activeCues = []
-        subtitleError = nil
-        failedSubtitle = nil
-        engine.selectEmbeddedSubtitle(id: nil)
-    }
-
-    /// A subtitle chosen by the viewer. Its language is remembered for the next episode of this series.
-    func selectSubtitle(_ option: SubtitleOption) {
-        preferredSubtitleApplied = true
-        switch option.kind {
-        case .embedded, .addon:
-            if let code = option.languageCode {
-                trackMemory.rememberSubtitle(.language(code), metaID: meta.id)
-            } else {
-                trackMemory.forgetSubtitle()
-            }
-        case .local:
-            trackMemory.forgetSubtitle()
-        }
-        activateSubtitle(option)
-    }
-
-    /// Switches a subtitle on without touching the memory of what the viewer chose (used by the automatic choice as well).
-    private func activateSubtitle(_ option: SubtitleOption) {
-        subtitleTask?.cancel()
-        subtitleError = nil
-        failedSubtitle = nil
-        selectedSubtitleID = option.id
-        selectedOption = option
-        switch option.kind {
-        case .embedded(let id):
-            timeline = nil
-            activeCues = []
-            engine.selectEmbeddedSubtitle(id: id)
-        case .addon(let subtitle):
-            engine.selectEmbeddedSubtitle(id: nil)
-            guard let url = URL.lenient(subtitle.url) else {
-                subtitleDidFail(option, message: "L'indirizzo dei sottotitoli non è valido.")
-                return
-            }
-            let loader = SubtitleFileLoader(http: env.http)
-            loadExternal(option) { () async throws -> Data in
-                return try await loader.download(url: url)
-            }
-        case .local(let url):
-            engine.selectEmbeddedSubtitle(id: nil)
-            loadExternal(option) { () async throws -> Data in
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                return try Data(contentsOf: url)
-            }
-        }
-    }
-
-    /// Downloads (or reads) and parses a subtitle; the cues are drawn by the app's own overlay, so they do not depend on the engine.
-    private func loadExternal(_ option: SubtitleOption, fetch: @escaping () async throws -> Data) {
-        if let cached = cueCache[option.id] {
-            timeline = cached
-            updateCues()
-            return
-        }
-        timeline = nil
-        activeCues = []
-        let language = option.language
-        let encoding = option.encodingHint
-        subtitleTask = Task { [weak self] in
-            do {
-                let data = try await fetch()
-                let cues = try await SubtitleFileLoader.parse(data, languageHint: language, encodingHint: encoding)
-                if Task.isCancelled { return }
-                self?.subtitleDidLoad(option, cues: cues)
-            } catch {
-                if Task.isCancelled { return }
-                self?.subtitleDidFail(option, message: SubtitleFileLoader.message(for: error))
-            }
-        }
-    }
-
-    private func subtitleDidLoad(_ option: SubtitleOption, cues: [SubtitleCue]) {
-        let loaded = SubtitleTimeline(cues: cues)
-        cueCache[option.id] = loaded
-        guard selectedSubtitleID == option.id else { return }
-        timeline = loaded
-        updateCues()
-    }
-
-    /// The file could not be downloaded or read: say so, clear the selection and leave playback alone.
-    private func subtitleDidFail(_ option: SubtitleOption, message: String) {
-        guard selectedSubtitleID == option.id else { return }
-        selectedSubtitleID = nil
-        selectedOption = nil
-        timeline = nil
-        activeCues = []
-        subtitleError = message
-        failedSubtitle = option
-        statusMessage = message
-        scheduleStatusClear()
-        env.diagnostics.logDetached(.warning, "subtitles", message)
-    }
-
-    // MARK: Subtitle translation (Funzioni extra ▸ Offri la traduzione dei sottotitoli)
-
-    /// The button is shown at all (switch on, iOS 18 or later).
-    var translationOffered: Bool {
-        guard #available(iOS 18.0, *) else { return false }
-        return env.settings.value.advanced.extras.translateSubtitles
-    }
-
-    private var translationTarget: String {
-        return SettingsStore.resolvedLanguage(playback.preferredSubtitleLanguage) ?? SettingsStore.resolvedLanguage("system") ?? "it"
-    }
-
-    /// Only subtitles the app draws itself (from an addon or a file) have cues it can translate; the ones inside the video are drawn by the engine.
-    var canTranslateSubtitle: Bool {
-        guard translationOffered, translationJob == nil, let option = selectedOption, timeline != nil, translatedOptionID != option.id else { return false }
-        return SubtitleTranslationPlan.shouldOffer(subtitleLanguage: option.languageCode ?? option.language, target: translationTarget)
-    }
-
-    func translateSelectedSubtitle() {
-        guard canTranslateSubtitle, let option = selectedOption, let current = timeline else { return }
-        let cues = current.cues
-        let batches = SubtitleTranslationPlan.batches(for: cues).map { group in
-            group.map { (index: $0, text: SubtitleTranslationPlan.plainText(cues[$0].text)) }
-        }
-        let sourceCode = (option.languageCode ?? option.language).map { String($0.prefix(2)) }
-        translationJob = SubtitleTranslationJob(optionID: option.id, source: sourceCode.map { Locale.Language(identifier: $0) },
-                                                target: Locale.Language(identifier: String(translationTarget.prefix(2))), batches: batches)
-        translationStatus = "Traduco i sottotitoli…"
-    }
-
-    func translationProgress(done: Int, total: Int) {
-        translationStatus = "Traduco i sottotitoli… \(done)/\(total)"
-    }
-
-    func finishTranslation(_ job: SubtitleTranslationJob, results: [Int: String]) {
-        translationJob = nil
-        guard job.optionID == selectedOption?.id, let current = timeline else { return }
-        let translated = SubtitleTimeline(cues: SubtitleTranslationPlan.apply(results, to: current.cues))
-        cueCache[job.optionID] = translated
-        timeline = translated
-        translatedOptionID = job.optionID
-        translationStatus = "Sottotitoli tradotti sul telefono."
-        updateCues()
-    }
-
-    func failTranslation(_ message: String) {
-        translationJob = nil
-        translationStatus = "Traduzione non riuscita: \(message)"
-        env.diagnostics.logDetached(.warning, "subtitles", "Traduzione: \(message)")
-    }
-
-    /// Tries again with the subtitle that failed.
-    func retrySubtitle() {
-        guard let option = failedSubtitle else { return }
-        activateSubtitle(option)
-    }
-
-    func importLocalSubtitle(_ url: URL) {
-        let name = url.deletingPathExtension().lastPathComponent
-        let option = SubtitleOption(id: "local-\(url.lastPathComponent)", title: name, detail: "File locale", language: nil, kind: .local(url))
-        localOptions.removeAll(where: { (item: SubtitleOption) -> Bool in return item.id == option.id })
-        localOptions.append(option)
-        // A file with the same name may have been replaced since the last import.
-        cueCache.removeValue(forKey: option.id)
-        publishSubtitleOptions()
-        selectSubtitle(option)
-    }
-
-    func adjustSubtitleDelay(by amount: Double) {
-        subtitleDelay = min(60, max(-60, subtitleDelay + amount))
-        engine.setEmbeddedSubtitleDelay(subtitleDelay)
-        updateCues()
-    }
-
-    private func startCueTimer() {
-        cueTimer?.invalidate()
-        cueTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.updateCues() }
-        }
-    }
-
-    private func updateCues() {
-        guard let timeline = timeline else {
-            if !activeCues.isEmpty { activeCues = [] }
-            return
-        }
-        var cues = timeline.active(at: engine.currentTime(), delay: subtitleDelay)
-        if playback.stripHearingImpairedTags {
-            cues = cues.compactMap { cue -> SubtitleCue? in
-                let text = SubtitleCleaner.stripHearingImpaired(cue.text)
-                return text.isEmpty ? nil : SubtitleCue(start: cue.start, end: cue.end, text: text)
-            }
-        }
-        if cues != activeCues { activeCues = cues }
-    }
-
     // MARK: Sleep timer
 
     func setSleepTimer(minutes: Int?) {
@@ -2237,7 +1104,7 @@ final class PlayerViewModel: ObservableObject {
         applyBackgroundPolicy(phase: phase, graceExpired: false)
     }
 
-    private func applyBackgroundPolicy(phase: PlayerBackgroundPolicy.Phase, graceExpired: Bool) {
+    func applyBackgroundPolicy(phase: PlayerBackgroundPolicy.Phase, graceExpired: Bool) {
         guard !tornDown else { return }
         if phase == .background && !graceExpired { wasPlayingWhenBackgrounded = snapshot.isPlaying }
         let decision = PlayerBackgroundPolicy.decide(PlayerBackgroundPolicy.State(
@@ -2274,245 +1141,6 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
-    // MARK: AirPlay
-
-    /// Where the sound goes, read from the audio session. Replaceable for tests.
-    var airPlayRouteProvider: () -> String? = { AudioSessionController.airPlayRouteName() }
-    /// The screen is being mirrored or recorded (then the picture reaches the TV whatever the engine).
-    var screenMirroredProvider: () -> Bool = {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        return scenes.first?.screen.isCaptured ?? false
-    }
-    private var acknowledgedAirPlayRoutes: Set<String> = []
-
-    /// Reads the AirPlay route again and works out what the viewer should be told. With MPV the route is the audio session's: the
-    /// engine never reports external playback, so it must not be wiped when the engine says "not active".
-    func refreshAirPlayRoute() {
-        let route = airPlayRouteProvider()
-        if route != nil && engine.kind == .avPlayer { moveConversionToWiFi() }
-        let blocked = externalPlaybackBlockedForKey
-        if engine.kind == .avPlayer && !snapshot.isExternalPlaybackActive && !blocked {
-            airPlayRoute = nil
-        } else {
-            airPlayRoute = route
-        }
-        let advice = AirPlayAdvice.evaluate(engine: engine.kind, routeName: airPlayRoute, externalPlaybackActive: snapshot.isExternalPlaybackActive,
-                                            screenMirrored: screenMirroredProvider(), externalPlaybackBlockedForKey: blocked,
-                                            relayServing: conversionLease != nil)
-        guard advice != airPlayAdvice else { return }
-        airPlayAdvice = advice
-        if case .audioOnlyBecauseMPV(let name) = advice {
-            env.diagnostics.logDetached(.info, "player", "AirPlay con MPV: solo audio")
-            if !acknowledgedAirPlayRoutes.contains(name) { airPlayAlert = AirPlayAlert.mpvAudioOnly() }
-        }
-        if case .audioOnlyBecauseKeyProtected(let name) = advice, !acknowledgedAirPlayRoutes.contains(name) {
-            acknowledgedAirPlayRoutes.insert(name)
-            showStatus("AirPlay: questo link contiene la tua chiave TorBox e non viene dato al televisore, quindi va solo l'audio. Per il video usa un MP4 senza chiave o attiva l'invio del link diretto in Impostazioni ▸ Avanzate.", for: 9)
-        }
-    }
-
-    /// AirPlay hands the address of the video to the receiver. A TorBox link carries the viewer's key, so while one plays the picture is
-    /// kept off AirPlay (the sound still goes) unless the viewer chose in Settings to send such links, or the receiver is given the
-    /// relay's keyless address of a converted file instead.
-    private var externalPlaybackBlockedForKey: Bool {
-        guard engine.kind == .avPlayer, isPlayingThroughTorBox, conversionPlan == nil else { return false }
-        return !env.settings.value.advanced.sendDirectLinkToTV
-    }
-
-    /// With MPV the picture cannot go over AirPlay; AVPlayer can take the file, converted on the phone.
-    var canSwitchToAVPlayerForAirPlay: Bool {
-        guard engine.kind == .mpv, !isLiveContent, remuxRouting.available else { return false }
-        return remuxRouting.full || (currentContainer ?? "").lowercased() == "mkv" || PlaybackPlanner.isNativeToAVFoundation(container: currentContainer)
-    }
-
-    func switchToAVPlayerForAirPlay() {
-        acknowledgeAirPlayAlert()
-        guard canSwitchToAVPlayerForAirPlay else { return }
-        // What AVPlayer cannot open is converted, whatever the engine setting says.
-        forcedConversion = !PlaybackPlanner.isNativeToAVFoundation(container: currentContainer)
-        switchEngine(to: .avPlayer, reason: forcedConversion ? "Passo ad AVPlayer per AirPlay: converto il file sul telefono…" : "Passo ad AVPlayer per AirPlay…")
-    }
-
-    /// The viewer read the alert: it does not come back for this device during this player session.
-    func acknowledgeAirPlayAlert() {
-        if case .audioOnlyBecauseMPV(let name) = airPlayAdvice { acknowledgedAirPlayRoutes.insert(name) }
-        airPlayAlert = nil
-    }
-
-    /// The system picker is about to open.
-    func airPlayPickerWillPresent() {
-        announcedWiFiNeed = false
-        // A converted file has to be reachable from the receiver before one is chosen.
-        if engine.kind == .avPlayer { moveConversionToWiFi() }
-        guard engine.kind == .mpv else { return }
-        statusMessage = "AirPlay con questo file: solo audio."
-        scheduleStatusClear(after: 4)
-    }
-
-    // MARK: Hand-off to a remote receiver
-
-    var currentPlaybackURL: URL? {
-        switch request.source {
-        case .download(let item): return env.downloads.localURL(for: item)
-        case .stream(let stream): return StreamResolver.playbackURL(for: stream, streamingServer: env.streamPreferences().streamingServer)
-        }
-    }
-
-    var currentStreamForCast: AddonStream? { currentStream }
-
-    /// Subtitles a remote receiver would lose: the one the app draws itself, when one is on (the list of what could be chosen does
-    /// not matter, only what is shown). Embedded tracks travel with the video.
-    func externalSubtitleCount() -> Int {
-        guard let selected = selectedOption else { return 0 }
-        return selected.isEmbedded ? 0 : 1
-    }
-
-    /// Everything needed to start a remote session for the video that plays now.
-    struct CastPreparation: CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
-        var request: CastRequest
-        var delivery: CastDelivery
-        /// The real address of the source, for the compatibility check only. It may carry the account key: it is never stored or shown.
-        var evaluationURL: URL
-        var info: StreamInfo
-        var headers: [String: String]
-        /// The phone converts the file into HLS for the receiver.
-        var remuxed = false
-        /// What to send instead if the file cannot be converted (its codecs cannot be copied): the file as it is.
-        var fallback: CastRequest?
-
-        var description: String { return "CastPreparation" }
-        var debugDescription: String { return "CastPreparation" }
-        var customMirror: Mirror { return Mirror(self, children: [], displayStyle: .struct) }
-    }
-
-    enum CastPreparationOutcome {
-        case ready(CastPreparation)
-        case refused(title: String, message: String)
-    }
-
-    /// Decides how the current video reaches a Google Cast or DLNA receiver and builds the request, or says why it cannot be sent.
-    /// A video resolved through TorBox is sent from the link TorBox produced (never from the torrent's own address), and because that
-    /// link carries the viewer's key it goes through the relay unless the viewer chose, in Settings, to send the link itself.
-    func castPreparation(for target: CastTarget, sendDirectLinkToTV: Bool, relay: RelayAvailability) -> CastPreparationOutcome {
-        guard case .stream(let stream) = request.source else {
-            return .refused(title: CastRefusal.localFile.title, message: CastRefusal.localFile.message)
-        }
-        let streamingServer = env.streamPreferences().streamingServer
-        let debrid = currentDebridStream()
-        let playing = debrid ?? stream
-        let server = debrid == nil ? streamingServer : nil
-        guard let url = StreamResolver.playbackURL(for: playing, streamingServer: server) else {
-            return .refused(title: "Non trasmettibile",
-                            message: "Questa sorgente non ha un indirizzo che il televisore possa leggere (per esempio è un torrent non ancora risolto). Avvia prima la riproduzione sul telefono.")
-        }
-        let headers = playing.behaviorHints.proxyRequestHeaders
-        let traits = CastSourceTraits(isLocalFile: false, carriesAccountKey: debrid != nil, hasRequestHeaders: !headers.isEmpty)
-        let delivery: CastDelivery
-        switch CastDeliveryPlanner.decide(traits, target: target, sendDirectLinkToTV: sendDirectLinkToTV, relay: relay) {
-        case .refuse(let refusal):
-            return .refused(title: refusal.title, message: refusal.message)
-        case .deliver(let decided):
-            delivery = decided
-        }
-        let info = StreamAnalyzer.analyze(playing, streamingServer: server)
-        let container = info.container ?? ""
-        if delivery == .relay && (container == "m3u8" || container == "mpd") {
-            return .refused(title: "Serve il ponte sul telefono",
-                            message: "Le sorgenti HLS o DASH che richiedono la tua chiave o intestazioni speciali non possono passare dal ponte in questa versione.")
-        }
-        let artwork = (currentVideo?.thumbnail ?? meta.poster ?? meta.background).flatMap { URL.lenient($0) }
-        let source: CastSource
-        switch delivery {
-        case .direct: source = .direct(url)
-        case .directWithKey: source = .directWithKey(url)
-        case .relay: source = .relay(RelayUpstream(url: url, headers: headers))
-        }
-        let request = CastRequest(title: meta.name, subtitle: episodeSubtitle(), artworkURL: artwork,
-                                  contentType: CastMedia.contentType(forContainer: info.container), isLive: snapshot.isLive,
-                                  startPosition: max(snapshot.position, 0), source: source,
-                                  fileExtension: RelayMime.allowedExtensions.contains(container) ? container : "mp4")
-
-        // A Matroska file for Google Cast is converted by the phone into HLS (video and audio copied): every Cast receiver reads that,
-        // many refuse the MKV. It needs the relay; the viewer's own wish to send the direct link is respected as it is.
-        // A plain-HTTP address that carries a key or headers is not relayed at all (see `CastCompatibility.evaluate`): it stays as it was.
-        let plainHTTPWithSecrets = url.scheme?.lowercased() == "http" && CastCompatibility.hostKind(of: url) == .publicInternet
-            && (debrid != nil || !headers.isEmpty)
-        if target == .googleCast, container == "mkv", RemuxEngineFactory.isAvailable, delivery != .directWithKey, !plainHTTPWithSecrets,
-           env.settings.value.casting.convertMatroskaForGoogleCast, case .ready = relay {
-            var converted = request
-            converted.source = .relayRemux(RelayUpstream(url: url, headers: headers), conversionAudio ?? .automatic(languages: wantedAudioLanguages()))
-            converted.contentType = "application/x-mpegURL"
-            converted.fileExtension = "m3u8"
-            return .ready(CastPreparation(request: converted, delivery: .relay, evaluationURL: url, info: info, headers: headers,
-                                          remuxed: true, fallback: request))
-        }
-        return .ready(CastPreparation(request: request, delivery: delivery, evaluationURL: url, info: info, headers: headers))
-    }
-
-    var currentStreamInfo: StreamInfo? {
-        guard let stream = currentStream else { return nil }
-        var info = StreamAnalyzer.analyze(stream, streamingServer: env.streamPreferences().streamingServer,
-                                          capabilities: PlaybackEngineFactory.capabilities)
-        if let direct = currentDebridStream() {
-            // A torrent says nothing about its file: container and size are those of the file TorBox returned.
-            let resolved = StreamAnalyzer.analyze(direct, streamingServer: nil)
-            info.container = resolved.container
-            if let size = direct.behaviorHints.videoSize, size > 0 { info.sizeBytes = size }
-        }
-        return info
-    }
-
-    var addonSourceName: String? { currentStream?.addonName }
-
-    /// Local playback pauses while a TV plays; its position keeps being saved from the remote's clock.
-    func castDidStart() {
-        engine.pause()
-        recordProgress(force: true)
-    }
-
-    private var lastRemoteRecord: Double = -100
-
-    func remoteProgress(position: Double, duration: Double?) {
-        guard position > 0, abs(position - lastRemoteRecord) >= 5 else { return }
-        let total = duration ?? snapshot.duration
-        guard total > 0 else { return }
-        lastRemoteRecord = position
-        let store = env.libraryStore
-        let meta = self.meta
-        let video = currentVideo
-        Task { _ = await store.recordProgress(meta: meta, video: video, position: position, duration: total) }
-    }
-
-    /// The remote session finished or was stopped. Near the end it counts as watched; otherwise, if the user wants it,
-    /// playback continues on the phone from where the TV stopped.
-    func castDidEnd(position: Double, resumeLocally: Bool) {
-        let total = snapshot.duration
-        if total > 0, position >= total * 0.97 {
-            recordFinalCompletion()
-            handleEnded()
-            return
-        }
-        if position > 1 { engine.seek(to: position, precise: true) }
-        if resumeLocally { engine.play() }
-    }
-
-    func clearStatusSoon() { scheduleStatusClear() }
-
-    /// A line over the picture for a few seconds.
-    func showStatus(_ text: String, for seconds: Double = 6) {
-        statusMessage = text
-        scheduleStatusClear(after: seconds)
-    }
-
-    /// A newer message replaces the older one's timer, so a long message is not cut short by an earlier schedule.
-    private func scheduleStatusClear(after seconds: Double = 3.5) {
-        statusClear?.cancel()
-        statusClear = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            guard !Task.isCancelled else { return }
-            self?.statusMessage = nil
-        }
-    }
 }
 
 
