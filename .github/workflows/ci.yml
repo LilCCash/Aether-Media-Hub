@@ -109,10 +109,6 @@ jobs:
           echo "Using simulator: $NAME"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
-      # Booting takes about a minute: it happens while the app compiles instead of when the first test starts.
-      - name: Boot the simulator while building
-        run: (xcrun simctl boot "${{ steps.sim.outputs.name }}" >/dev/null 2>&1 &) ; true
-
       # The simulator keychain needs a (ad-hoc) code signature, so signing is not disabled here.
       - name: Build for testing
         id: build
@@ -206,10 +202,6 @@ jobs:
           print(pick)')
           echo "Using simulator: $NAME"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
-
-      # Booting takes about a minute: it happens while the app compiles instead of when the first test starts.
-      - name: Boot the simulator while building
-        run: (xcrun simctl boot "${{ steps.sim.outputs.name }}" >/dev/null 2>&1 &) ; true
 
       # The simulator keychain needs a (ad-hoc) code signature, so signing is not disabled here.
       - name: Build for testing
