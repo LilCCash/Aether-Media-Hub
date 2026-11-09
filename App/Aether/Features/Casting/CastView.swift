@@ -153,7 +153,7 @@ struct CastSessionControls: View {
                     Spacer()
                     Button(role: .destructive) { casting.stop() } label: { Label("Interrompi", systemImage: "stop.fill") }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.aetherSecondary)
             }
             .padding(.vertical, 4)
         }

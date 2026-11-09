@@ -106,7 +106,7 @@ struct ProfileTabView: View {
                 }
             } else {
                 Button { editing = true } label: { Text("Scegli i generi che ti piacciono").font(.footnote.weight(.semibold)) }
-                    .buttonStyle(.bordered).buttonBorderShape(.capsule)
+                    .buttonStyle(.aetherSecondary)
             }
         }
         .frame(maxWidth: .infinity)

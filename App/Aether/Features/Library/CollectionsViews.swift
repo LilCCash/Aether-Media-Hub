@@ -116,7 +116,7 @@ struct AddToCollectionMenu: View {
         } label: {
             Label("Collezioni", systemImage: "rectangle.stack.badge.plus").font(.subheadline.weight(.semibold))
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.aetherSecondary)
         .accessibilityIdentifier("detail.collections")
         .alert("Nuova collezione", isPresented: $creating) {
             TextField("Nome", text: $name)

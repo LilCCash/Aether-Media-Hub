@@ -117,9 +117,11 @@ struct GlassIconButton: View {
 /// Primary call-to-action: prominent glass on iOS 26, filled capsule before.
 struct PrimaryActionButtonStyle: ButtonStyle {
     @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .frame(minHeight: 24)
             .font(.system(.headline, design: AetherTypography.design))
             .foregroundStyle(Color(UIColor.systemBackground))
             .padding(.horizontal, 22)
@@ -129,17 +131,34 @@ struct PrimaryActionButtonStyle: ButtonStyle {
             .shadow(color: settings.accentColor.opacity(0.35), radius: 12, y: 4)
             .scaleEffect(configuration.isPressed && settings.animationsEnabled ? 0.97 : 1)
             .animation(settings.animationsEnabled ? .spring(response: 0.25, dampingFraction: 0.7) : nil, value: configuration.isPressed)
+            .opacity(isEnabled ? 1 : 0.4)
     }
 }
 
+/// Second-rank action (and the replacement of the system «bordered» buttons): glass capsule, at least 44 pt tall.
 struct SecondaryActionButtonStyle: ButtonStyle {
+    @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .frame(minHeight: 44)
             .aetherGlassCapsule(interactive: true)
             .contentShape(Capsule())
-            .opacity(configuration.isPressed ? 0.8 : 1)
+            .scaleEffect(configuration.isPressed && settings.animationsEnabled ? 0.97 : 1)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
+            .animation(settings.animationsEnabled ? .spring(response: 0.25, dampingFraction: 0.7) : nil, value: configuration.isPressed)
     }
+}
+
+extension ButtonStyle where Self == PrimaryActionButtonStyle {
+    /// The main action of a screen.
+    static var aetherPrimary: PrimaryActionButtonStyle { PrimaryActionButtonStyle() }
+}
+
+extension ButtonStyle where Self == SecondaryActionButtonStyle {
+    /// A second-rank action.
+    static var aetherSecondary: SecondaryActionButtonStyle { SecondaryActionButtonStyle() }
 }

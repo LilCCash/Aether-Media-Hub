@@ -308,9 +308,9 @@ struct UniverseDetailView: View {
             }
             if order == .custom {
                 HStack {
-                    Button(editing ? "Fatto" : "Riordina") { editing.toggle() }.buttonStyle(.bordered)
+                    Button(editing ? "Fatto" : "Riordina") { editing.toggle() }.buttonStyle(.aetherSecondary)
                     if custom != nil {
-                        Button("Ripristina") { settings.value.content.universes.customOrders[universe.id] = nil }.buttonStyle(.bordered)
+                        Button("Ripristina") { settings.value.content.universes.customOrders[universe.id] = nil }.buttonStyle(.aetherSecondary)
                     }
                 }
             }

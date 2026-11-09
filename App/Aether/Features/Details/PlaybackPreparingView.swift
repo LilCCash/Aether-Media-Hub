@@ -67,7 +67,7 @@ struct PlaybackPreparingView: View {
                 .accessibilityIdentifier("stream.debrid.progress")
                 Spacer()
                 Button("Annulla", action: cancel)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.aetherSecondary)
                     .tint(.white)
                     .padding(.bottom, 30)
                     .accessibilityLabel("Annulla l'attesa di TorBox")

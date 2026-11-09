@@ -204,7 +204,7 @@ struct CompanionSheet: View {
                     Button { Task { await ask() } } label: {
                         if asking { ProgressView() } else { Image(systemName: "paperplane.fill") }
                     }
-                    .buttonStyle(.borderedProminent).disabled(asking || question.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .buttonStyle(.aetherPrimary).disabled(asking || question.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 Text("Risponde al livello «\(level.title)»: " + (level == .none ? "senza svelare la trama." : level == .context ? "senza rovinare il finale." : "può svelare la storia."))
                     .font(.caption).foregroundStyle(Color.aetherSecondary)
@@ -263,7 +263,7 @@ struct CompanionButton: View {
     @State private var shown = false
     var body: some View {
         Button { shown = true } label: { Label("Companion", systemImage: "person.2.crop.square.stack").font(.subheadline.weight(.semibold)) }
-            .buttonStyle(.bordered)
+            .buttonStyle(.aetherSecondary)
             .accessibilityIdentifier("detail.companion")
             .sheet(isPresented: $shown) { CompanionSheet(meta: meta) }
     }

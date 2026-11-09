@@ -90,7 +90,7 @@ struct StorageOverview: View {
             Button { confirming = true } label: {
                 Label(working ? "Un momento…" : "Libera spazio", systemImage: "sparkles").frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.aetherPrimary)
             .disabled(working || recoverable == 0)
             .confirmationDialog("Libera spazio", isPresented: $confirming, titleVisibility: .visible) {
                 Button("Svuota la cache") { Task { await free(includeWatched: false) } }

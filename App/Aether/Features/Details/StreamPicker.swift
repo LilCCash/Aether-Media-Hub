@@ -1357,7 +1357,7 @@ struct DebridCacheNotice: View {
                 Button(action: retry) {
                     Text("Riprova")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.aetherSecondary)
                 .accessibilityIdentifier("stream.debrid.cacheRetry")
             }
         }
@@ -1391,7 +1391,7 @@ struct DebridProgressRow: View {
             Button(role: .cancel, action: cancel) {
                 Text("Annulla")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.aetherSecondary)
             .accessibilityLabel("Annulla l'attesa di TorBox")
             .accessibilityHint("Smette di attendere. Quello che è già stato aggiunto al tuo account TorBox resta lì.")
             .accessibilityIdentifier("stream.debrid.cancel")
@@ -1418,7 +1418,7 @@ struct DebridFailureRow: View {
                 Button(action: retry) {
                     Text("Riprova")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.aetherSecondary)
                 .accessibilityIdentifier("stream.debrid.retry")
             }
         }

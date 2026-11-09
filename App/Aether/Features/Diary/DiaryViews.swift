@@ -291,7 +291,7 @@ struct DiaryButton: View {
             Label(latest == nil ? "Segna nel diario" : "Nel diario", systemImage: latest == nil ? "book" : "book.fill")
                 .font(.subheadline.weight(.semibold))
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.aetherSecondary)
         .accessibilityIdentifier("detail.diary")
         .contextMenu {
             if latest != nil { Button { editing = make() } label: { Label("Aggiungi un rewatch", systemImage: "arrow.2.squarepath") } }

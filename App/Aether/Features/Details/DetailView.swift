@@ -1178,7 +1178,7 @@ private struct EpisodeDetailsSheet: View {
                         Button { openURL(url) } label: {
                             Label("Apri la puntata su IMDb", systemImage: "arrow.up.right.square")
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.aetherSecondary)
                     }
                     Text("Trama completa").font(.headline)
                     Text(details?.overview?.isEmpty == false ? details!.overview! : (video.overview?.isEmpty == false ? video.overview! : "La trama completa non è disponibile."))

@@ -82,7 +82,7 @@ struct PlaybackIntroView: View {
                 Spacer(minLength: 8)
                 if !starting {
                     Button("Annulla", action: cancel)
-                        .buttonStyle(.bordered).tint(.white).padding(.bottom, scene ? 12 : 26)
+                        .buttonStyle(.aetherSecondary).tint(.white).padding(.bottom, scene ? 12 : 26)
                         .accessibilityIdentifier("stream.debrid.cancel")
                 }
             }
