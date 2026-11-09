@@ -167,7 +167,7 @@ jobs:
 
       - name: Start the fixture addon server
         id: fixture
-        if: steps.build.outcome == 'success' && (((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.ui_tests != '')) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shots]')))
+        if: "!cancelled() && steps.build.outcome == 'success' && (((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.ui_tests != '')) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shots]')))"
         run: |
           swiftc -O Tools/MakeFixtureVideo.swift -o "$RUNNER_TEMP/makevideo"
           "$RUNNER_TEMP/makevideo" "$RUNNER_TEMP/sample.mp4" 150
@@ -210,7 +210,7 @@ jobs:
       # publishes the pictures on the ci-screenshots branch (replaced every time), so the look can be checked without a phone.
       - name: Screenshot tour
         id: shots
-        if: steps.fixture.outcome == 'success' && (github.event_name == 'push' && contains(github.event.head_commit.message, '[shots]'))
+        if: "!cancelled() && steps.fixture.outcome == 'success' && (github.event_name == 'push' && contains(github.event.head_commit.message, '[shots]'))"
         timeout-minutes: 25
         run: |
           set -o pipefail
@@ -226,7 +226,7 @@ jobs:
           ls -la "$RUNNER_TEMP/shots"
 
       - name: Publish the screenshots
-        if: steps.shots.outcome == 'success'
+        if: "!cancelled() && steps.shots.outcome == 'success'"
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

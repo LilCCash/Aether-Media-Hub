@@ -225,12 +225,25 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     // MARK: RemuxEngine
 
     func prepare() async throws -> RemuxPrepared {
-        return try await run {
+        let made: RemuxPrepared = try await run {
             // Asked again: the file is already open and planned.
             if let done = self.prepared { return done }
             let made = try self.prepareOnQueue()
             self.prepared = made
             return made
+        }
+        warmFirstPiece()
+        return made
+    }
+
+    /// Full conversion: the first piece (and with it the init segment) is encoded as soon as the file is planned, before the
+    /// player asks for it. The system player waits only 4 s for the init segment; encoding started at its request could take
+    /// longer (a slow phone, the simulator), and playback then did not start at all.
+    private func warmFirstPiece() {
+        guard full else { return }
+        queue.async {
+            guard !self.isClosed, self.layout != nil, self.initData == nil else { return }
+            _ = try? self.produce(segment: 0)
         }
     }
 
