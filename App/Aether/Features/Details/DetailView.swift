@@ -963,7 +963,7 @@ struct DetailView: View {
     private var episodes: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Episodi").font(.aetherTitle(22)).accessibilityAddTraits(.isHeader)
+                SectionTitle(title: "Episodi")
                 Spacer()
                 if model.meta.seasons.count > 1 {
                     Menu {

@@ -97,7 +97,7 @@ struct UniverseMapView: View {
 
     private func mapButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 15, weight: .semibold)).frame(width: 38, height: 38)
+            Image(systemName: symbol).font(.system(size: 16, weight: .semibold)).frame(width: 44, height: 44)
                 .background(Circle().fill(Color.white.opacity(0.12)))
         }
         .buttonStyle(.plain)

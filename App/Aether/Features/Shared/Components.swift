@@ -11,10 +11,30 @@ struct SectionHeader: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            HStack(alignment: .center, spacing: 8) {
-                Capsule().fill(LinearGradient(colors: [Color.accentColor, Color.accentColor.opacity(0.3)], startPoint: .top, endPoint: .bottom))
-                    .frame(width: 4, height: 20).accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
+            SectionTitle(title: title, subtitle: subtitle)
+            Spacer()
+            if let actionTitle = actionTitle, let action = action {
+                Button(actionTitle, action: action)
+                    .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+        }
+        .padding(.horizontal, Theme.pageMargin)
+        .repaintsWithTitleFont()
+    }
+}
+
+/// The title of a section (accent bar, title, optional line under it), for headers that sit in a row of their own controls.
+struct SectionTitle: View {
+    let title: String
+    var subtitle: String? = nil
+
+    var body: some View {
+        HStack(alignment: .center, spacing: Space.s) {
+            Capsule().fill(LinearGradient(colors: [Color.accentColor, Color.accentColor.opacity(0.3)], startPoint: .top, endPoint: .bottom))
+                .frame(width: 4, height: 20).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Space.hair) {
                 Text(title)
                     .font(.aetherTitle(22))
                     .accessibilityAddTraits(.isHeader)
@@ -22,14 +42,7 @@ struct SectionHeader: View {
                     Text(subtitle).font(.aetherCaption()).foregroundStyle(Color.aetherSecondary)
                 }
             }
-            }
-            Spacer()
-            if let actionTitle = actionTitle, let action = action {
-                Button(actionTitle, action: action).font(.subheadline.weight(.semibold))
-            }
         }
-        .padding(.horizontal, Theme.pageMargin)
-        .repaintsWithTitleFont()
     }
 }
 

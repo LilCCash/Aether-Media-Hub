@@ -4,14 +4,12 @@ import AetherCore
 // The sections of the title page that come from TMDB (with the user's own key): cast, trailers, producers, budget and revenue,
 // facts and similar titles. Each one is only drawn when it has something to show.
 
+/// The same section title as the rest of the app (accent bar, title typeface), so the title page reads like the Home.
 private struct TitleSectionHeader: View {
     let title: String
 
     var body: some View {
-        Text(title)
-            .font(.aetherTitle(22))
-            .accessibilityAddTraits(.isHeader)
-            .padding(.horizontal, Theme.pageMargin)
+        SectionHeader(title: title)
     }
 }
 
