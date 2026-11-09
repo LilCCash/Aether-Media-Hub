@@ -324,6 +324,24 @@ final class MPVEngine: NSObject, PlaybackEngine {
     private let headlessVideo: Bool
 
     private var core: MPVCore?
+
+    /// mpv's own counters (its client API can be read from any thread).
+    func liveStats() -> PlaybackLiveStats? {
+        guard let core = core else { return nil }
+        var stats = PlaybackLiveStats()
+        stats.videoBitrate = core.double("video-bitrate")
+        stats.audioBitrate = core.double("audio-bitrate")
+        stats.displayedFrameRate = core.double("estimated-display-fps") ?? core.double("estimated-vf-fps")
+        let dropped = (core.int("frame-drop-count") ?? 0) + (core.int("decoder-frame-drop-count") ?? 0)
+        stats.droppedFrames = Int(dropped)
+        if let hwdec = core.string("hwdec-current"), !hwdec.isEmpty, hwdec != "no" {
+            stats.decoder = "Hardware (\(hwdec))"
+        } else {
+            stats.decoder = "Software"
+        }
+        stats.bufferedSeconds = core.double("demuxer-cache-duration")
+        return stats
+    }
     private var surface: MPVSurfaceView?
     /// Set before `load` for a live channel: mpv then probes the stream briefly instead of reading megabytes before the first picture.
     private var liveStream = false

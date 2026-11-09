@@ -188,6 +188,7 @@ struct PlayerInfoSheet: View {
                         row("AirPlay", route, id: "info.airplay")
                     }
                 }
+                liveSection
                 conversionSection
                 detectedSection
                 expectationSection
@@ -212,6 +213,39 @@ struct PlayerInfoSheet: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fine") { dismiss() } } }
         }
         .presentationDetents([.large])
+    }
+
+    /// What the engine measures now, refreshed every second while the sheet is open, and why this engine plays the file.
+    private var liveSection: some View {
+        Section(header: Text("In tempo reale"),
+                footer: Text("Misurato dal motore mentre riproduce. I valori che il motore non fornisce non compaiono.")) {
+            row("Perché questo motore", engineReason, id: "info.engineReason")
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                let stats = model.engine.liveStats()
+                VStack(spacing: 10) {
+                    if let decoder = stats?.decoder { row("Decodifica", decoder, id: "info.live.decoder") }
+                    if let value = stats?.videoBitrate { row("Bitrate video", PlayerInfoSheet.bitrate(value), id: "info.live.video") }
+                    if let value = stats?.audioBitrate { row("Bitrate audio", PlayerInfoSheet.bitrate(value)) }
+                    if let value = stats?.networkBitrate { row("Velocità della rete", PlayerInfoSheet.bitrate(value)) }
+                    if let fps = stats?.displayedFrameRate { row("Fotogrammi mostrati", String(format: "%.3g al secondo", fps)) }
+                    if let dropped = stats?.droppedFrames { row("Fotogrammi persi", "\(dropped)", id: "info.live.dropped") }
+                    if let buffered = stats?.bufferedSeconds { row("Già in memoria", String(format: "%.0f s", buffered)) }
+                    if stats == nil { row("Misure", "Non disponibili per questo motore") }
+                }
+            }
+        }
+    }
+
+    private var engineReason: String {
+        if let reason = model.engineSwitchReason, !reason.isEmpty { return reason }
+        if model.engineChoice != .automatic { return "Scelto nelle impostazioni del player" }
+        if let note = model.playbackPlan?.notes.first(where: { $0.severity == .info }) { return note.text }
+        return "Scelto in automatico in base al formato del file"
+    }
+
+    static func bitrate(_ bitsPerSecond: Double) -> String {
+        if bitsPerSecond >= 1_000_000 { return String(format: "%.1f Mbit/s", bitsPerSecond / 1_000_000) }
+        return String(format: "%.0f kbit/s", bitsPerSecond / 1000)
     }
 
     /// Shown when the file plays through the on-the-fly conversion: what is copied and what is left out.

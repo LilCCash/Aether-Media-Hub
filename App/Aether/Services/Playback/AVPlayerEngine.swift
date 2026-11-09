@@ -226,6 +226,26 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         }
     }
 
+    /// From the item's access log (the last event is the current rendition) and its loaded range.
+    func liveStats() -> PlaybackLiveStats? {
+        guard let item = item else { return nil }
+        var stats = PlaybackLiveStats()
+        if let event = item.accessLog()?.events.last {
+            if event.indicatedBitrate > 0 { stats.videoBitrate = event.indicatedBitrate }
+            if event.observedBitrate > 0 { stats.networkBitrate = event.observedBitrate }
+            if event.numberOfDroppedVideoFrames >= 0 { stats.droppedFrames = event.numberOfDroppedVideoFrames }
+        }
+        if let track = item.tracks.first(where: { $0.assetTrack?.mediaType == .video }), track.currentVideoFrameRate > 0 {
+            stats.displayedFrameRate = Double(track.currentVideoFrameRate)
+        }
+        stats.decoder = "Sistema (AVFoundation)"
+        let now = player.currentTime().seconds
+        if let range = item.loadedTimeRanges.first?.timeRangeValue, range.end.seconds.isFinite, now.isFinite {
+            stats.bufferedSeconds = max(0, range.end.seconds - now)
+        }
+        return stats
+    }
+
     // MARK: Transport
 
     func currentTime() -> Double {

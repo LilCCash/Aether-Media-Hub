@@ -38,6 +38,23 @@ protocol LiveStreamHinting: AnyObject {
 /// (system player: HLS, MP4/MOV, true Dolby Vision) and `MPVEngine` (libmpv through MPVKit: MKV, AVI, TS, …).
 /// See docs/06-PLAYBACK.md for how the engine is chosen and what each one can honestly promise.
 @MainActor
+/// What the engine measures while it plays, for the «In tempo reale» part of the information sheet. Every value is nil when
+/// the engine does not know it; nothing is guessed.
+struct PlaybackLiveStats: Equatable {
+    /// Bits per second of the picture and of the sound, as decoded.
+    var videoBitrate: Double?
+    var audioBitrate: Double?
+    /// What the network delivers (AVPlayer).
+    var networkBitrate: Double?
+    /// Pictures per second actually shown.
+    var displayedFrameRate: Double?
+    var droppedFrames: Int?
+    /// «Hardware (videotoolbox)», «Software», «Sistema (AVFoundation)».
+    var decoder: String?
+    /// Seconds of video already in memory ahead of the playhead.
+    var bufferedSeconds: Double?
+}
+
 protocol PlaybackEngine: AnyObject {
     var kind: PlaybackEngineKind { get }
     var identifier: String { get }
@@ -83,6 +100,8 @@ protocol PlaybackEngine: AnyObject {
     /// Detach video output while the app is in the background so audio keeps playing.
     func setVideoDetached(_ detached: Bool)
     func teardown()
+    /// Measured now, for the information sheet (called about once a second while it is open).
+    func liveStats() -> PlaybackLiveStats?
 }
 
 extension PlaybackEngine {
@@ -90,4 +109,5 @@ extension PlaybackEngine {
     var displayName: String { kind.displayName }
     func setEmbeddedSubtitleDelay(_ seconds: Double) {}
     func setExternalPlaybackAllowed(_ allowed: Bool) {}
+    func liveStats() -> PlaybackLiveStats? { return nil }
 }

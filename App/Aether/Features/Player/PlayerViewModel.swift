@@ -108,6 +108,8 @@ final class PlayerViewModel: ObservableObject {
     var forcedConversion = false
     /// The engine was changed on purpose (a fallback) for the file now playing: a restart must keep it.
     var engineChosenByFallback = false
+    /// Why the engine in use was switched to (shown in the information sheet).
+    @Published var engineSwitchReason: String?
     // The Matroska file plays as HLS made by the phone: first on 127.0.0.1 (`conversion`), and on the relay's Wi-Fi address
     // (`conversionLease`) once an AirPlay receiver has to fetch it.
     var conversion: LocalRemuxService.Session?
@@ -819,6 +821,7 @@ final class PlayerViewModel: ObservableObject {
         guard !tornDown, kind != engine.kind else { return }
         engineSwitches += 1
         engineChosenByFallback = true
+        engineSwitchReason = reason.replacingOccurrences(of: "…", with: "")
         let position = max(snapshot.position, lastRetryPosition)
         engine.teardown()
         engine = PlaybackEngineFactory.make(kind, settings: playback, device: device)
