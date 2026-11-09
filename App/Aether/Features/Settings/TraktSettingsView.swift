@@ -73,6 +73,7 @@ struct TraktSettingsView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Trakt")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("settings.trakt")

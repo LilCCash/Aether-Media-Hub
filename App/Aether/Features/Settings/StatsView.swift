@@ -63,6 +63,7 @@ struct StatsView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Statistiche")
         .navigationBarTitleDisplayMode(.inline)
         .task {

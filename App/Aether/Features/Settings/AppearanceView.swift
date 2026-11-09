@@ -37,6 +37,7 @@ struct AppearanceSettingsView: View {
                 .accessibilityIdentifier("settings.style.reset")
             }
         }
+        .aetherPage()
         .navigationTitle("Aspetto")
         .navigationBarTitleDisplayMode(.inline)
         .animation(settings.animationsEnabled ? .easeInOut(duration: 0.2) : nil, value: appearance)

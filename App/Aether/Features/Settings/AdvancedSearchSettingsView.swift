@@ -41,6 +41,7 @@ struct AdvancedSearchSettingsView: View {
                 examplesSection
             }
         }
+        .aetherPage()
         .navigationTitle("Ricerca avanzata")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("settings.advancedSearch")
@@ -466,6 +467,7 @@ private struct AIModelPickerView: View {
             }
         }
         .searchable(text: $query)
+        .aetherPage()
         .navigationTitle("Modello")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -516,6 +518,7 @@ private struct TimingList: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Registro dei tempi")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

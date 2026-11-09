@@ -36,6 +36,7 @@ struct LiveConversionSettingsView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Conversione delle dirette")
         .navigationBarTitleDisplayMode(.inline)
     }

@@ -72,6 +72,7 @@ struct AdvancedSettingsView: View {
                 if env.network.isExpensive { Text("Connessione a consumo: i download usano la rete mobile solo se consentito.").font(.footnote).foregroundStyle(Color.aetherSecondary) }
             }
         }
+        .aetherPage()
         .navigationTitle("Avanzate")
         .onAppear(perform: validateServer)
         .confirmationDialog("Inviare la tua chiave al televisore?", isPresented: $confirmingDirectLink, titleVisibility: .visible) {
@@ -169,6 +170,7 @@ struct PlayerStatusView: View {
                 statusRow("YouTube (ytId)", "Non riproducibile nel player", color: .gray)
             }
         }
+        .aetherPage()
         .navigationTitle("Stato dei player")
         .onAppear {
             device = DeviceCapabilitiesReader.current()
@@ -239,6 +241,7 @@ struct AboutView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Informazioni")
         .coordinateSpace(name: AboutLogoView.space)
         .overlay { LogoEasterEggOverlay(model: egg) }
@@ -289,6 +292,7 @@ struct LicenseDetailView: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .aetherPage()
         .navigationTitle(license.name)
         .navigationBarTitleDisplayMode(.inline)
     }

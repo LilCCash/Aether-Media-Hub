@@ -34,6 +34,7 @@ struct SettingsRootView: View {
                 link("Informazioni e licenze", "info.circle.fill", .blue) { AboutView() }
             }
         }
+        .aetherPage()
         .navigationTitle("Impostazioni")
         .accessibilityIdentifier("settings.root")
     }
@@ -237,6 +238,7 @@ struct PlaybackSettingsView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Riproduzione")
     }
 }
@@ -261,6 +263,7 @@ struct PictureControlsView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Immagine (MPV)")
     }
 
@@ -317,6 +320,7 @@ struct SubtitleStyleView: View {
                 Button("Ripristina lo stile predefinito") { settings.value.playback.subtitleStyle = SubtitleStyle() }
             }
         }
+        .aetherPage()
         .navigationTitle("Stile dei sottotitoli")
     }
 
@@ -399,6 +403,7 @@ struct ContentSettingsView: View {
                 Button("Cancella ricerche recenti", role: .destructive) { confirmClearSearch = true }
             }
         }
+        .aetherPage()
         .navigationTitle("Contenuti e scoperta")
         .confirmationDialog("Cancellare la cronologia di visione?", isPresented: $confirmClearHistory, titleVisibility: .visible) {
             Button("Cancella", role: .destructive) { Task { await env.libraryStore.clearHistory() } }
@@ -476,6 +481,7 @@ struct StorageSettingsView: View {
                 .accessibilityIdentifier("settings.seasonDownloadAddons")
             }
         }
+        .aetherPage()
         .navigationTitle("Archiviazione")
         .task { await refresh() }
     }
@@ -522,6 +528,7 @@ struct SeasonDownloadAddonsSettingsView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Addon download stagionali")
         .task { addons = await env.addons.handles() }
     }
@@ -597,6 +604,7 @@ struct CastingSettingsView: View {
                 NavigationLink("Dispositivi, sessioni e diagnostica") { CastView() }
             }
         }
+        .aetherPage()
         .navigationTitle("Casting")
     }
 }
@@ -703,6 +711,7 @@ struct AccountDataSettingsView: View {
                 Text("Rimuove libreria, cronologia, addon (anche dal Portachiavi), download, cache e impostazioni.")
             }
         }
+        .aetherPage()
         .navigationTitle("Account e dati")
         // Any file can be picked: a backup saved or renamed by another app may not be typed as JSON, and the check is the content.
         .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json, .plainText, .data, .item]) { result in
@@ -811,6 +820,7 @@ private struct DownloadLogView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Log downloader")
         .task { await refresh() }
     }

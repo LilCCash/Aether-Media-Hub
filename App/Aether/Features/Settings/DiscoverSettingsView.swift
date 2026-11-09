@@ -84,6 +84,7 @@ struct DiscoverSettingsView: View {
             }
         }
         .environment(\.editMode, $editMode)
+        .aetherPage()
         .navigationTitle("Categorie di Scopri")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

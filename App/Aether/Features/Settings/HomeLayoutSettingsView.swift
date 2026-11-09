@@ -40,6 +40,7 @@ struct HomeLayoutSettingsView: View {
             }
         }
         .environment(\.editMode, $editMode)
+        .aetherPage()
         .navigationTitle("Personalizza la Home")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

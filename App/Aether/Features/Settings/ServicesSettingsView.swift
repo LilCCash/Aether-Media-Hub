@@ -14,6 +14,7 @@ struct ServicesSettingsView: View {
             // MARK: - Metadata services
             MetadataServicesSections()
         }
+        .aetherPage()
         .navigationTitle("Servizi")
         .task { await env.debrid.verifyIfNeeded() }
     }

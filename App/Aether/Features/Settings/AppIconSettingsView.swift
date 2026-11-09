@@ -71,6 +71,7 @@ struct AppIconSettingsView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Icona dell'app")
         .navigationBarTitleDisplayMode(.inline)
         .alert("Non riesco a cambiare l'icona", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {

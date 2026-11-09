@@ -20,6 +20,7 @@ struct WhatsNewSheet: View {
                     }
                 }
             }
+            .aetherPage()
             .navigationTitle("Novità")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -124,6 +125,7 @@ struct ExtrasSettingsView: View {
                     .accessibilityIdentifier("extras.posterTint")
             }
         }
+        .aetherPage()
         .navigationTitle("Funzioni extra")
         .sheet(isPresented: $showingNotes) { WhatsNewSheet() }
         .onChange(of: settings.value.advanced.extras.episodeNotifications) { _, _ in Task { await extras.refreshEpisodeAlerts() } }

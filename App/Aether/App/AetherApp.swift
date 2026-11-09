@@ -41,9 +41,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // Dock: a translucent blurred bar with a hairline, the selected item in the accent colour (iOS 26 draws its own glass on top).
         let bar = UITabBarAppearance()
         bar.configureWithDefaultBackground()
-        bar.backgroundEffect = UIBlurEffect(style: .systemChromeMaterialDark)
-        bar.backgroundColor = UIColor(red: 0.04, green: 0.04, blue: 0.14, alpha: 0.55)
-        bar.shadowColor = UIColor.white.withAlphaComponent(0.08)
+        // Adaptive: the same bar in light and dark (it was always the dark navy one, also with the light theme).
+        bar.backgroundEffect = UIBlurEffect(style: .systemChromeMaterial)
+        bar.backgroundColor = UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 0.04, green: 0.04, blue: 0.14, alpha: 0.55)
+                : UIColor(white: 1, alpha: 0.55)
+        }
+        bar.shadowColor = UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor.white.withAlphaComponent(0.08) : UIColor.black.withAlphaComponent(0.08)
+        }
         UITabBar.appearance().standardAppearance = bar
         UITabBar.appearance().scrollEdgeAppearance = bar
         return true

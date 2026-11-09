@@ -91,6 +91,7 @@ struct ProfileEditorView: View {
             genresSection
             invitesSection
         }
+        .aetherPage()
         .navigationTitle("Modifica profilo")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Fine") { dismiss() }.fontWeight(.semibold) } }

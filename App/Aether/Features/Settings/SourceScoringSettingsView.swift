@@ -56,6 +56,7 @@ struct SourceScoringSettingsView: View {
                 .disabled(scoring.wrappedValue.isNeutral)
             }
         }
+        .aetherPage()
         .navigationTitle("Intelligenza delle fonti")
         .navigationBarTitleDisplayMode(.inline)
     }

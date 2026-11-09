@@ -80,6 +80,7 @@ struct IndexingSettingsView: View {
                     .accessibilityIdentifier("indexing.clear")
             }
         }
+        .aetherPage()
         .navigationTitle("Indicizzazione")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { refresh() }

@@ -73,6 +73,13 @@ extension View {
     func aetherClip(_ role: Radius) -> some View {
         modifier(AetherClipModifier(role: role))
     }
+
+    /// A page of the app (lists and settings included): Aether's background with the viewer's palette, wash and black options
+    /// behind the content, instead of the plain system grey or black lists had before.
+    func aetherPage() -> some View {
+        self.scrollContentBackground(.hidden)
+            .background { AetherBackdrop() }
+    }
 }
 
 private struct AetherSurfaceModifier: ViewModifier {

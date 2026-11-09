@@ -109,6 +109,7 @@ struct LiveTVSettingsView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Live TV")
         .navigationBarTitleDisplayMode(.inline)
         .alert("Aggiungi una playlist", isPresented: $adding) {

@@ -88,6 +88,7 @@ struct AddonsView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Addon")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -239,6 +240,7 @@ struct AddonInstallSheet: View {
                     previewSection(preview)
                 }
             }
+            .aetherPage()
             .navigationTitle("Installa addon")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -529,6 +531,7 @@ struct AddonDetailView: View {
                         Text("Il link di installazione può contenere chiavi personali: trattalo come una password. Resta nel clipboard solo per 2 minuti e non viene condiviso con altri dispositivi.")
                     }
                 }
+                .aetherPage()
                 .navigationTitle(addon.displayName)
                 .navigationBarTitleDisplayMode(.inline)
                 .alert("Rinomina addon", isPresented: $renaming) {

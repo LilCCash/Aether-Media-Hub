@@ -62,6 +62,7 @@ struct CatalogLayoutSettingsView: View {
                 .disabled(layout == CatalogLayoutSettings())
             }
         }
+        .aetherPage()
         .navigationTitle("Cataloghi")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
@@ -161,6 +162,7 @@ struct StreamDisplaySettingsView: View {
                     .font(.system(.footnote, design: .monospaced))
             }
         }
+        .aetherPage()
         .navigationTitle("Sorgenti")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -210,6 +212,7 @@ struct TitleModulesSettingsView: View {
                 Toggle("Saga / collezione", isOn: settings.binding(\.content.titleModules.collection))
             }
         }
+        .aetherPage()
         .navigationTitle("Moduli della scheda")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -231,6 +234,7 @@ struct RatingsSettingsView: View {
                 }
             }
         }
+        .aetherPage()
         .navigationTitle("Voti")
         .navigationBarTitleDisplayMode(.inline)
     }

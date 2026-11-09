@@ -231,6 +231,7 @@ struct CastView: View {
                     .font(.footnote)
             }
         }
+        .aetherPage()
         .navigationTitle("Casting")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
