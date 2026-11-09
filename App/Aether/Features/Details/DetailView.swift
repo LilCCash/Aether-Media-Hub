@@ -173,6 +173,7 @@ struct DetailView: View {
     /// without `onEnded`, so what it recorded would otherwise be kept and given to the next one (which then closed the page when a
     /// scroll from the middle of the episodes reached the top).
     @State private var dragStart: CGPoint?
+    @State private var showingRecap = false
     @Environment(\.pullToDismiss) private var pullToDismiss
     @Environment(\.dismiss) private var dismissPage
     @State private var revealed = false
@@ -313,6 +314,9 @@ struct DetailView: View {
         .sheet(item: $picker) { request in
             StreamPickerSheet(request: request)
         }
+        .sheet(isPresented: $showingRecap) {
+            SeriesRecapSheet(series: model.meta.name, episodes: SeriesRecap.episodes(of: model.meta, watched: model.watchedIDs))
+        }
         .sheet(item: $episodeDetailsRequest) { request in
             EpisodeDetailsSheet(meta: model.meta, video: request.video)
         }
@@ -430,6 +434,14 @@ struct DetailView: View {
         .foregroundStyle(Color.primary.opacity(0.85))
     }
 
+    /// A series not watched for a while, on an iPhone with Apple Intelligence: the summary of what was already seen.
+    private var offersRecap: Bool {
+        guard model.isSeries, AppleIntelligence.status.isAvailable else { return false }
+        let last = model.progress.values.map { $0.updatedAt }.max()
+        return SeriesRecap.shouldOffer(watchedCount: model.watchedIDs.count, lastWatched: last)
+            && !SeriesRecap.episodes(of: model.meta, watched: model.watchedIDs).isEmpty
+    }
+
     // MARK: Actions
 
     private var actions: some View {
@@ -460,6 +472,13 @@ struct DetailView: View {
                 .accessibilityIdentifier("detail.watchlist")
 
                 trailerButton
+            }
+            if offersRecap {
+                Button { showingRecap = true } label: {
+                    Label("Dove eravamo rimasti?", systemImage: "sparkles").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.aetherSecondary)
+                .accessibilityIdentifier("detail.recap")
             }
             if !model.canPlay && !model.isLoading {
                 Label("Nessun addon attivo fornisce sorgenti per questo titolo.", systemImage: "info.circle")
@@ -1331,5 +1350,51 @@ extension EnvironmentValues {
     var pullToDismiss: (() -> Void)? {
         get { self[PullToDismissKey.self] }
         set { self[PullToDismissKey.self] = newValue }
+    }
+}
+
+
+/// «Dove eravamo rimasti?»: written on the phone by Apple Intelligence from the plots of the episodes already watched.
+private struct SeriesRecapSheet: View {
+    let series: String
+    let episodes: [SeriesRecap.Episode]
+    @Environment(\.dismiss) private var dismiss
+    @State private var text: String?
+    @State private var failed = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Space.l) {
+                    if let text = text {
+                        Text(text).font(.body).lineSpacing(4).textSelection(.enabled)
+                    } else if failed {
+                        EmptyStateView(systemImage: "sparkles", title: "Riepilogo non disponibile",
+                                       message: "Apple Intelligence non ha risposto. Riprova tra poco.")
+                    } else {
+                        HStack(spacing: Space.m) {
+                            ProgressView()
+                            Text("Ripasso gli episodi che hai visto…").foregroundStyle(Color.aetherSecondary)
+                        }
+                    }
+                    if let last = episodes.last {
+                        Label("Fino a \(last.label) «\(last.title)». Scritto sul telefono solo dalle trame degli episodi già visti: niente anticipazioni.",
+                              systemImage: "lock.shield")
+                            .font(.footnote).foregroundStyle(Color.aetherSecondary)
+                    }
+                }
+                .padding(Space.xl)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .aetherPage()
+            .navigationTitle("Dove eravamo rimasti?")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fine") { dismiss() } } }
+        }
+        .presentationDetents([.medium, .large])
+        .task {
+            guard text == nil else { return }
+            if let made = await AppleIntelligence.recap(series: series, episodes: episodes) { text = made } else { failed = true }
+        }
     }
 }
