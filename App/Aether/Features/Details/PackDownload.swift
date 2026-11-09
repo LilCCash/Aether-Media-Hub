@@ -1,6 +1,8 @@
 import SwiftUI
 import AetherCore
 
+/// Legge i file di un torrent con una stagione intera e scarica gli episodi scelti, uno dopo l'altro, dal servizio debrid.
+@MainActor
 final class PackDownloadModel: ObservableObject {
     struct Episode: Identifiable, Hashable {
         let season: Int

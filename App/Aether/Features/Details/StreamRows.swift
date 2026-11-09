@@ -446,8 +446,3 @@ struct ImportedBadgeView: View {
             .overlay(Capsule().strokeBorder(rule.borderHex.map { Color(hex: $0) } ?? Color.clear, lineWidth: 1))
     }
 }
-
-// MARK: - Scaricare più episodi di un pack
-
-/// Legge i file di un torrent con una stagione intera e scarica gli episodi scelti, uno dopo l'altro, dal servizio debrid.
-@MainActor
