@@ -11,12 +11,13 @@ final class ScreenshotTourUITests: AetherUITestCase {
         continueAfterFailure = true
     }
 
-    /// One launch per theme, the fixture addon installed once: the second launch keeps the data and only changes the theme.
+    /// One launch per theme, in a single test (one simulator start for both).
     func testTour() {
         launchWithFixtureAddon(settings: Self.settings(theme: "dark"))
         tour(theme: "dark")
         app.terminate()
-        launch(reset: false, settings: Self.settings(theme: "light"))
+        // The addon's address lives in the test keychain of the first launch only: installed again for the second.
+        launchWithFixtureAddon(settings: Self.settings(theme: "light"))
         tour(theme: "light")
     }
 

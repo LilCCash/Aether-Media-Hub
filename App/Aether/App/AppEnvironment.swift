@@ -7,6 +7,8 @@ import AetherCore
 final class AppEnvironment: ObservableObject {
     let isUITesting: Bool
     private let uiHooks: UITestHooks
+    /// The test link of the launch arguments is opened once: `bootstrap` can run again when the window comes back.
+    private var handledTestLink = false
     let paths: AppPaths
     let settings: SettingsStore
     let network: NetworkMonitor
@@ -177,7 +179,8 @@ final class AppEnvironment: ObservableObject {
         Telemetry.startMetrics(log: diagnostics)
         await diagnostics.log(.info, "app", "Avvio completato: \(addons.addons.count) addon, rete \(network.interfaceName)")
         casting.start()
-        if uiHooks.isActive, let link = uiHooks.openURL, let url = URL(string: link) {
+        if uiHooks.isActive, !handledTestLink, let link = uiHooks.openURL, let url = URL(string: link) {
+            handledTestLink = true
             router.handle(url: url)
         }
     }
