@@ -77,7 +77,16 @@ struct ContinueView: View {
             SmallItem(item: first).widgetURL(WidgetSnapshot.deepLink(first))
         } else if family == .systemLarge {
             VStack(alignment: .leading, spacing: 10) {
-                Label("Continua a guardare", systemImage: "play.circle.fill").font(.headline.weight(.bold)).foregroundStyle(accent)
+                HStack {
+                    Label("Continua a guardare", systemImage: "play.circle.fill").font(.headline.weight(.bold)).foregroundStyle(accent)
+                    Spacer()
+                    if let resume = URL(string: "aether://resume") {
+                        Link(destination: resume) {
+                            Label("Riprendi", systemImage: "play.fill").font(.caption.weight(.bold))
+                                .padding(.horizontal, 10).padding(.vertical, 5).background(accent, in: Capsule()).foregroundStyle(.black.opacity(0.85))
+                        }
+                    }
+                }
                 ForEach(0..<2, id: \.self) { row in
                     HStack(spacing: 10) {
                         ForEach(Array(items.dropFirst(row * 3).prefix(3))) { item in

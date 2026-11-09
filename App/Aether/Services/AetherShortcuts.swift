@@ -58,6 +58,38 @@ struct SimilarToIntent: AppIntent {
     }
 }
 
+/// «Aggiungi alla watchlist di Aether»: asks which title, finds it in the addons, adds it and opens its page.
+struct AddToWatchlistIntent: AppIntent {
+    static var title: LocalizedStringResource = "Aggiungi alla watchlist"
+    static var description = IntentDescription("Cerca un film o una serie e lo aggiunge alla tua watchlist di Aether.")
+    static var openAppWhenRun: Bool = true
+
+    @Parameter(title: "Titolo", requestValueDialog: "Quale titolo aggiungo alla watchlist?")
+    var name: String
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        QuickActionRouter.shared.receive("watchlist:" + name)
+        return .result()
+    }
+}
+
+/// «Apri la scheda in Aether»: asks which title and opens its page.
+struct OpenTitleIntent: AppIntent {
+    static var title: LocalizedStringResource = "Apri la scheda di un titolo"
+    static var description = IntentDescription("Cerca un film o una serie e ne apre la scheda in Aether.")
+    static var openAppWhenRun: Bool = true
+
+    @Parameter(title: "Titolo", requestValueDialog: "Di quale titolo apro la scheda?")
+    var name: String
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        QuickActionRouter.shared.receive("open:" + name)
+        return .result()
+    }
+}
+
 /// The phrases iOS knows without the viewer setting anything up; they also show in Spotlight and in the Shortcuts app.
 struct AetherShortcuts: AppShortcutsProvider {
     @AppShortcutsBuilder
@@ -74,6 +106,14 @@ struct AetherShortcuts: AppShortcutsProvider {
                     phrases: ["Riprendi l'ultimo in \(.applicationName)", "Riprendi dove ero in \(.applicationName)"],
                     shortTitle: "Riprendi l'ultimo",
                     systemImageName: "backward.end.fill")
+        AppShortcut(intent: AddToWatchlistIntent(),
+                    phrases: ["Aggiungi alla watchlist di \(.applicationName)", "Aggiungi un titolo alla watchlist di \(.applicationName)"],
+                    shortTitle: "Aggiungi alla watchlist",
+                    systemImageName: "bookmark")
+        AppShortcut(intent: OpenTitleIntent(),
+                    phrases: ["Apri la scheda in \(.applicationName)", "Apri un titolo in \(.applicationName)"],
+                    shortTitle: "Apri la scheda",
+                    systemImageName: "film")
         AppShortcut(intent: SimilarToIntent(),
                     phrases: ["Cerca titoli simili in \(.applicationName)", "Cerca qualcosa di simile in \(.applicationName)"],
                     shortTitle: "Cerca titoli simili",

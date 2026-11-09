@@ -219,6 +219,20 @@ struct RootView: View {
                     if type.hasPrefix("detail:") {
                         let parts = type.dropFirst("detail:".count).split(separator: "/", maxSplits: 1).map(String.init)
                         if parts.count == 2 { router.detail = MetaRoute(type: parts[0], id: parts[1]) }
+                    } else if type.hasPrefix("watchlist:") || type.hasPrefix("open:") {
+                        // Siri: the title the viewer named, found in the addons; added to the watchlist when asked; its page opens.
+                        let adding = type.hasPrefix("watchlist:")
+                        let query = String(type.drop(while: { $0 != ":" }).dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !query.isEmpty else { return }
+                        Task { @MainActor in
+                            if let meta = await env.searchService.bestMatch(for: query) {
+                                if adding && !library.watchlistIDs.contains(meta.id) { library.toggleWatchlist(meta) }
+                                router.detail = MetaRoute(type: meta.type, id: meta.id, preview: meta)
+                            } else {
+                                router.pendingSearch = query
+                                router.tab = .search
+                            }
+                        }
                     } else if type.hasPrefix("search:") {
                         router.pendingSearch = String(type.dropFirst("search:".count))
                         router.tab = .search

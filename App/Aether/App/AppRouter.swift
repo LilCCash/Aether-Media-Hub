@@ -108,6 +108,8 @@ final class AppRouter: ObservableObject {
     /// app: shown by the card itself it vanished when the screen turned for the player (the card is made again), and took the
     /// player's black page with it.
     @Published var picker: StreamPickerRequest?
+    /// A section of the Library asked from outside (the widget's «Watchlist» button); the Library takes it and clears it.
+    @Published var librarySection: String?
     /// The poster a title page was opened from (one title can be in several rows): the page zooms out of that one.
     var zoomSourceID: String?
     @Published var pendingAddonInput: String?
@@ -168,6 +170,11 @@ final class AppRouter: ObservableObject {
             case "live": tab = .live
             case "universe": tab = .universe
             case "library": tab = .library
+            // Widget buttons: «Watchlist» opens that list, «Riprendi» the title watched last.
+            case "watchlist":
+                librarySection = "watchlist"
+                tab = .library
+            case "resume": QuickActionRouter.shared.receive("app.aether.resume")
             default: break
             }
         }

@@ -26,6 +26,7 @@ struct LibraryView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var downloads: DownloadManager
     @State private var section: LibrarySection = .continueWatching
+    @EnvironmentObject private var router: AppRouter
     @State private var filter = ""
     @State private var confirmClear = false
 
@@ -37,6 +38,18 @@ struct LibraryView: View {
     private var showsTrakt: Bool { return choosesList && settings.value.content.trakt.libraryList == "trakt" }
 
     var body: some View {
+        page
+            .onAppear { takeRequestedSection() }
+            .onChange(of: router.librarySection) { _, _ in takeRequestedSection() }
+    }
+
+    private func takeRequestedSection() {
+        guard let raw = router.librarySection else { return }
+        router.librarySection = nil
+        if let wanted = LibrarySection(rawValue: raw) { section = wanted }
+    }
+
+    private var page: some View {
         NavigationStack {
             ZStack {
                 AetherBackdrop()

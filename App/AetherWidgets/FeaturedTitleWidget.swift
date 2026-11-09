@@ -173,8 +173,22 @@ struct FeaturedView: View {
             }
             if let info = title.info { Text(info).font(.caption).opacity(0.8).lineLimit(1) }
             if family != .systemLarge { Spacer(minLength: 0) }
-            Label("Apri la scheda", systemImage: "play.fill").font(.footnote.weight(.bold))
-                .padding(.horizontal, 14).padding(.vertical, 8).background(accentColor, in: Capsule()).foregroundStyle(.black.opacity(0.85))
+            // Two real buttons: the title's page, and the watchlist (each opens the app there).
+            HStack(spacing: 8) {
+                if let url = WidgetSnapshot.deepLink(type: title.type, id: title.id) {
+                    Link(destination: url) {
+                        Label("Apri la scheda", systemImage: "play.fill").font(.footnote.weight(.bold))
+                            .padding(.horizontal, 14).padding(.vertical, 8).background(accentColor, in: Capsule()).foregroundStyle(.black.opacity(0.85))
+                    }
+                }
+                if let watchlist = URL(string: "aether://watchlist") {
+                    Link(destination: watchlist) {
+                        Label("Watchlist", systemImage: "bookmark.fill").labelStyle(.iconOnly).font(.footnote.weight(.bold))
+                            .frame(width: 34, height: 34).background(.white.opacity(0.16), in: Circle())
+                    }
+                    .accessibilityLabel("Apri la watchlist")
+                }
+            }
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, alignment: family == .systemLarge ? .center : .leading)

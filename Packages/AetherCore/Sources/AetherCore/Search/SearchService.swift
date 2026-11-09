@@ -105,6 +105,34 @@ public final class SearchService: Sendable {
     }
 }
 
+public extension SearchService {
+    /// The title a spoken or typed name most likely means (Siri: «aggiungi … alla watchlist»): the addons are searched and the
+    /// first exact match of the name wins, else the first result of the first catalogue that answered.
+    func bestMatch(for query: String) async -> MetaItem? {
+        var rows: [SearchRow] = []
+        for await update in search(query: query, perCatalogLimit: 10) {
+            rows.append(update.row)
+            if let exact = SearchService.pickBest(query: query, rows: rows), SearchService.isExact(query: query, item: exact) {
+                return exact
+            }
+        }
+        return SearchService.pickBest(query: query, rows: rows)
+    }
+
+    static func isExact(query: String, item: MetaItem) -> Bool {
+        return MetaDeduper.normalise(item.name) == MetaDeduper.normalise(query)
+    }
+
+    /// Pure choice among the rows found so far.
+    static func pickBest(query: String, rows: [SearchRow]) -> MetaItem? {
+        let items = rows.flatMap { $0.items }
+        if let exact = items.first(where: { isExact(query: query, item: $0) }) { return exact }
+        let wanted = MetaDeduper.normalise(query)
+        if let starting = items.first(where: { MetaDeduper.normalise($0.name).hasPrefix(wanted) }) { return starting }
+        return rows.first(where: { !$0.items.isEmpty })?.items.first
+    }
+}
+
 /// Recognises the same title coming from different addons / id schemes.
 public enum MetaDeduper {
     /// Lowercased, diacritics stripped, punctuation removed, whitespace collapsed.
