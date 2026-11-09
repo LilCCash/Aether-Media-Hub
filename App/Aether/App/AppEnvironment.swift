@@ -148,6 +148,33 @@ final class AppEnvironment: ObservableObject {
         skipSegments = SkipSegmentsService(client: IntroDBClient(http: http, baseURL: introDBBase))
         let skipService = skipSegments
         downloads.skipLookup = { imdb, season, episode in await skipService.segments(imdbID: imdb, season: season, episode: episode) }
+        // A finished download keeps the subtitles of the viewer's two languages, so they work offline too.
+        let subtitleService = service
+        let subtitleHTTP = http
+        downloads.subtitleLookup = { [weak self] item in
+            guard let self = self else { return [] }
+            let languages: [String] = await MainActor.run {
+                var codes: [String] = []
+                let playback = self.settings.value.playback
+                for setting in [playback.preferredSubtitleLanguage, playback.secondarySubtitleLanguage] {
+                    if let code = SettingsStore.resolvedLanguage(setting), !codes.contains(code) { codes.append(code) }
+                }
+                return codes
+            }
+            guard !languages.isEmpty else { return [] }
+            let found = await subtitleService.subtitles(type: item.type, videoID: item.videoID ?? item.metaID, stream: nil)
+            let loader = SubtitleFileLoader(http: subtitleHTTP)
+            var result: [(language: String, data: Data, fileExtension: String)] = []
+            for language in languages {
+                let wanted = LanguageCodes.baseLanguage(language)
+                guard let match = found.first(where: { LanguageCodes.baseLanguage(LanguageCodes.normalise($0.lang)) == wanted }),
+                      let url = URL.lenient(match.url), let data = try? await loader.download(url: url), !data.isEmpty else { continue }
+                let pathExtension = url.pathExtension.lowercased()
+                let fileExtension = ["srt", "vtt", "ass", "ssa", "sub", "gz"].contains(pathExtension) ? pathExtension : "srt"
+                result.append((language: language, data: data, fileExtension: fileExtension))
+            }
+            return result
+        }
 
         credentials.onChange = { [weak self] in
             guard let self = self else { return }
@@ -172,6 +199,7 @@ final class AppEnvironment: ObservableObject {
         await downloads.restore()
         startSurfaces()
         Task { await downloads.backfillSkipSegments() }
+        Task { await downloads.backfillSubtitles() }
         Task { await trakt.bootstrap() }
         await diagnostics.configure(enabled: settings.value.privacy.keepDiagnosticLog,
                                     verbose: settings.value.advanced.verboseLogging)

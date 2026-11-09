@@ -34,6 +34,8 @@ final class DownloadManager: NSObject, ObservableObject {
     nonisolated(unsafe) static var backgroundCompletionHandler: (() -> Void)?
     /// Looks up intro / recap of an episode (imdb id, season, episode); nil when the lookup failed. Set by the environment.
     var skipLookup: ((String, Int, Int) async -> EpisodeSkipSegments?)?
+    /// Subtitles of a finished download in the viewer's languages (language code, file contents, extension), from the addons.
+    var subtitleLookup: ((DownloadItem) async -> [(language: String, data: Data, fileExtension: String)])?
 
     init(paths: AppPaths, snapshot: SettingsSnapshot, diagnostics: DiagnosticLog) {
         self.paths = paths
@@ -205,6 +207,7 @@ final class DownloadManager: NSObject, ObservableObject {
             if let removed = await store.remove(id: id), let name = removed.localFileName {
                 try? FileManager.default.removeItem(at: paths.downloadsDirectory.appendingPathComponent(name))
             }
+            for file in self.subtitleFileURLs(id: id, includingMarker: true) { try? FileManager.default.removeItem(at: file) }
             items = await store.all()
             scheduleQueue()
         }
@@ -329,6 +332,7 @@ final class DownloadManager: NSObject, ObservableObject {
         items = await store.all()
         scheduleQueue()
         Task { await self.fetchSkipSegments(id: id) }
+        Task { await self.fetchSubtitles(id: id) }
         if snapshot.get().advanced.extras.downloadNotifications, UIApplication.shared.applicationState != .active,
            let item = items.first(where: { $0.id == id }) {
             let content = UNMutableNotificationContent()
@@ -338,6 +342,53 @@ final class DownloadManager: NSObject, ObservableObject {
             let request = UNNotificationRequest(identifier: "aether.dl.\(id.uuidString)", content: content,
                                                 trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false))
             Task { try? await UNUserNotificationCenter.current().add(request) }
+        }
+    }
+
+    // MARK: Subtitles kept with a download
+
+    /// The subtitles saved next to a download (`<id>.sub.<language>.<ext>`), for the player to offer offline.
+    func subtitleFiles(for item: DownloadItem) -> [(language: String, url: URL)] {
+        return subtitleFileURLs(id: item.id, includingMarker: false).compactMap { url in
+            let parts = url.lastPathComponent.components(separatedBy: ".")
+            guard parts.count >= 4 else { return nil }
+            return (parts[2], url)
+        }
+    }
+
+    nonisolated func subtitleFileURLs(id: UUID, includingMarker: Bool) -> [URL] {
+        let prefix = id.uuidString + ".sub."
+        let files = (try? FileManager.default.contentsOfDirectory(at: downloadsDirectory, includingPropertiesForKeys: nil)) ?? []
+        return files.filter { url in
+            let name = url.lastPathComponent
+            guard name.hasPrefix(prefix) else { return false }
+            return includingMarker || !name.hasSuffix(".none")
+        }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    /// Looked up once per download: the files found are saved, or a marker says that nothing was found.
+    func fetchSubtitles(id: UUID) async {
+        guard let lookup = subtitleLookup, let item = items.first(where: { $0.id == id }), item.state == .completed,
+              subtitleFileURLs(id: id, includingMarker: true).isEmpty else { return }
+        let found = await lookup(item)
+        let directory = downloadsDirectory
+        if found.isEmpty {
+            try? Data().write(to: directory.appendingPathComponent(id.uuidString + ".sub.none"))
+            return
+        }
+        for subtitle in found {
+            let safeLanguage = subtitle.language.filter { $0.isLetter || $0 == "-" }
+            let safeExtension = subtitle.fileExtension.filter { $0.isLetter || $0.isNumber }
+            let name = "\(id.uuidString).sub.\(safeLanguage.isEmpty ? "und" : safeLanguage).\(safeExtension.isEmpty ? "srt" : safeExtension)"
+            try? subtitle.data.write(to: directory.appendingPathComponent(name), options: .atomic)
+        }
+        diagnostics.logDetached(.info, "downloader", "Sottotitoli salvati con il download \(id.uuidString): \(found.map { $0.language }.joined(separator: ", "))")
+    }
+
+    /// Downloads made before 2.0 (or while the addons did not answer) get their subtitles the next time the app is online.
+    func backfillSubtitles() async {
+        for item in items where item.state == .completed {
+            await fetchSubtitles(id: item.id)
         }
     }
 

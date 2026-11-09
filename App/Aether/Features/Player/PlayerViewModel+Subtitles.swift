@@ -309,6 +309,20 @@ extension PlayerViewModel {
         engineSubtitlesSilenced = false
         engineSubtitleSyncPending = false
         pendingEmbeddedLanguage = nil
+        addDownloadedSubtitles()
+    }
+
+    /// A video opened from the downloads offers the subtitles saved with it (they work offline), like imported files.
+    func addDownloadedSubtitles() {
+        guard case .download(let item) = request.source else { return }
+        for file in env.downloads.subtitleFiles(for: item) {
+            let id = "download-" + file.url.lastPathComponent
+            guard !localOptions.contains(where: { $0.id == id }) else { continue }
+            let name = LanguageCodes.displayName(file.language)
+            localOptions.append(SubtitleOption(id: id, title: name, detail: "Salvato con il download", language: file.language,
+                                               kind: .local(file.url), languageCode: LanguageCodes.normalise(file.language)))
+        }
+        publishSubtitleOptions()
     }
 
     // MARK: Second subtitle
