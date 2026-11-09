@@ -194,16 +194,16 @@ private struct TasteCard: View {
             LinearGradient(colors: [.clear, .black.opacity(0.92)], startPoint: .center, endPoint: .bottom)
                 .clipShape(RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous))
             VStack(alignment: .leading, spacing: 6) {
-                Text(item.name).font(.system(size: 27, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.7)
+                Text(item.name).font(.system(size: 27, weight: .heavy, design: AetherTypography.design)).lineLimit(2).minimumScaleFactor(0.7)
                 Text([item.year, item.genres.prefix(3).joined(separator: " · ")].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "  ·  "))
-                    .font(.system(size: 14, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.8))
+                    .font(.system(size: 14, weight: .semibold, design: AetherTypography.design)).foregroundStyle(.white.opacity(0.8))
                 if let overview = item.overview, !overview.isEmpty {
-                    Text(overview).font(.system(size: 14, design: .rounded)).foregroundStyle(.white.opacity(0.9)).lineLimit(4)
+                    Text(overview).font(.system(size: 14, design: AetherTypography.design)).foregroundStyle(.white.opacity(0.9)).lineLimit(4)
                 }
                 if !item.cast.isEmpty {
-                    Text("Con " + item.cast.prefix(4).joined(separator: ", ")).font(.system(size: 13, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
+                    Text("Con " + item.cast.prefix(4).joined(separator: ", ")).font(.system(size: 13, weight: .semibold, design: AetherTypography.design)).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
                 } else {
-                    Text("Cast in arrivo…").font(.system(size: 12, design: .rounded)).foregroundStyle(.white.opacity(0.45))
+                    Text("Cast in arrivo…").font(.system(size: 12, design: AetherTypography.design)).foregroundStyle(.white.opacity(0.45))
                 }
             }
             .foregroundStyle(.white)
@@ -221,7 +221,7 @@ private struct TasteCard: View {
     }
 
     private func stamp(_ text: String, _ color: Color, rotation: Double, opacity: Double, alignment: Alignment) -> some View {
-        Text(text).font(.system(size: 28, weight: .black, design: .rounded)).foregroundStyle(color)
+        Text(text).font(.system(size: 28, weight: .black, design: AetherTypography.design)).foregroundStyle(color)
             .padding(.horizontal, 12).padding(.vertical, 4)
             .overlay(RoundedRectangle(cornerRadius: Corner.chip).strokeBorder(color, lineWidth: 4))
             .rotationEffect(.degrees(rotation))

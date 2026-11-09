@@ -42,7 +42,7 @@ struct PlayerEpisodesSheet: View {
                     } label: {
                         HStack(spacing: 12) {
                             Text(video.episode.map { "\($0)" } ?? "•")
-                                .font(.system(.body, design: .rounded).weight(.bold))
+                                .font(.system(.body, design: AetherTypography.design).weight(.bold))
                                 .frame(width: 34)
                                 .foregroundStyle(video.id == model.currentVideo?.id ? Color.accentColor : .secondary)
                             VStack(alignment: .leading, spacing: 2) {

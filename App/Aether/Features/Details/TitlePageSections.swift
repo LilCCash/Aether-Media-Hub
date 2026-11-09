@@ -273,7 +273,7 @@ struct TitleRatingsSection: View {
                 HStack(spacing: 10) {
                     ForEach(ratings) { rating in
                         VStack(spacing: 2) {
-                            Text(rating.display ?? "").font(.system(.title3, design: .rounded).weight(.bold))
+                            Text(rating.display ?? "").font(.system(.title3, design: AetherTypography.design).weight(.bold))
                             Text(rating.title).font(.caption2).foregroundStyle(Color.aetherSecondary)
                         }
                         .padding(.horizontal, 14).padding(.vertical, 10)

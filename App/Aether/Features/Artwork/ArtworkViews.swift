@@ -310,7 +310,7 @@ struct WallpaperEditorView: View {
             if withClock {
                 VStack(spacing: 2) {
                     Text(Date(), format: .dateTime.weekday(.wide).day().month(.wide)).font(.system(size: size.height * 0.022, weight: .semibold))
-                    Text(Date(), format: .dateTime.hour().minute()).font(.system(size: size.height * 0.1, weight: .bold, design: .rounded))
+                    Text(Date(), format: .dateTime.hour().minute()).font(.system(size: size.height * 0.1, weight: .bold, design: AetherTypography.design))
                 }
                 .foregroundStyle(.white.opacity(0.92))
                 .frame(maxHeight: .infinity, alignment: .top)

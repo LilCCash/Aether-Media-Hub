@@ -70,7 +70,7 @@ struct CompanionSheet: View {
                     .overlay(RoundedRectangle(cornerRadius: Corner.control, style: .continuous).strokeBorder(.white.opacity(0.25), lineWidth: 1))
                 VStack(alignment: .leading, spacing: 3) {
                     Text("🍿 Ciao! Ecco chi c'è dietro e dentro").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
-                    Text(meta.name).font(.system(size: 22, weight: .heavy, design: .rounded)).foregroundStyle(.white).lineLimit(2)
+                    Text(meta.name).font(.system(size: 22, weight: .heavy, design: AetherTypography.design)).foregroundStyle(.white).lineLimit(2)
                     Text([meta.releaseInfo, meta.runtime].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.white.opacity(0.75))
                 }
                 Spacer(minLength: 0)

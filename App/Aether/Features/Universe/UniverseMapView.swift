@@ -414,7 +414,7 @@ struct StoryMapContent: View {
         return ZStack(alignment: .topLeading) {
             ForEach(shown) { item in
                 Text(String(item.year))
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold, design: AetherTypography.design))
                     .foregroundStyle(.white.opacity(0.55))
                     .position(x: item.x, y: 26)
             }
@@ -428,8 +428,8 @@ struct StoryMapContent: View {
         let color = Color(StoryMapGeometry.color(lane.id))
         return HStack(spacing: 6) {
             Circle().fill(color).frame(width: 9, height: 9)
-            Text(lane.name).font(.system(size: 14, weight: .bold, design: .rounded)).lineLimit(1)
-            Text("\(lane.entries.count)").font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.55))
+            Text(lane.name).font(.system(size: 14, weight: .bold, design: AetherTypography.design)).lineLimit(1)
+            Text("\(lane.entries.count)").font(.system(size: 12, weight: .semibold, design: AetherTypography.design)).foregroundStyle(.white.opacity(0.55))
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 10)
@@ -460,7 +460,7 @@ struct StoryMapContent: View {
                 }
                 Text(entry.name).font(.system(size: 11, weight: .semibold)).multilineTextAlignment(.center).lineLimit(2)
                     .foregroundStyle(.white).frame(width: StoryMapGeometry.nodeSize.width)
-                Text(String(entry.year)).font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.white.opacity(0.55))
+                Text(String(entry.year)).font(.system(size: 10, weight: .medium, design: AetherTypography.design)).foregroundStyle(.white.opacity(0.55))
             }
             .frame(width: StoryMapGeometry.nodeSize.width, height: StoryMapGeometry.nodeSize.height, alignment: .top)
             .contentShape(Rectangle())

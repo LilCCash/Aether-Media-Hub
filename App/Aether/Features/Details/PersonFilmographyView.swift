@@ -82,7 +82,7 @@ struct PersonFilmographyView: View {
                 .overlay(Circle().strokeBorder(LinearGradient(colors: [Color.accentColor, .white.opacity(0.4)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 3))
                 .shadow(color: Color.accentColor.opacity(0.45), radius: 18, y: 6)
                 .accessibilityLabel("Foto di \(profile.name)")
-            Text(profile.name).font(.system(size: 28, weight: .heavy, design: .rounded)).multilineTextAlignment(.center)
+            Text(profile.name).font(.system(size: 28, weight: .heavy, design: AetherTypography.design)).multilineTextAlignment(.center)
             if !profile.roles.isEmpty { Text(profile.roles.map { $0.title }.joined(separator: " · ")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.accentColor) }
             else if let job = profile.profession { Text(job).font(.subheadline.weight(.semibold)).foregroundStyle(Color.accentColor) }
             if let life = profile.lifeLine() { Text(life).font(.caption).foregroundStyle(Color.aetherSecondary) }

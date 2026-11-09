@@ -1207,12 +1207,12 @@ struct StreamRow: View {
             if quality == .unknown {
                 Image(systemName: "play.fill").font(.system(size: 15, weight: .bold))
             } else {
-                Text(quality.label).font(.system(size: quality == .uhd2160 ? 17 : 13, weight: .heavy, design: .rounded))
+                Text(quality.label).font(.system(size: quality == .uhd2160 ? 17 : 13, weight: .heavy, design: AetherTypography.design))
                     .minimumScaleFactor(0.7).lineLimit(1)
             }
             if !item.info.hdr.isEmpty {
                 Text(item.info.hdr.contains(.dolbyVision) ? "DV" : "HDR")
-                    .font(.system(size: 8, weight: .black, design: .rounded)).opacity(0.9)
+                    .font(.system(size: 8, weight: .black, design: AetherTypography.design)).opacity(0.9)
             }
         }
         .foregroundStyle(.white)
@@ -1232,7 +1232,7 @@ struct StreamRow: View {
                 HStack(alignment: .firstTextBaseline) {
                     if isBest {
                         Label("Consigliata", systemImage: "sparkles")
-                            .font(.system(.caption2, design: .rounded).weight(.bold))
+                            .font(.system(.caption2, design: AetherTypography.design).weight(.bold))
                             .foregroundStyle(settings.accentColor)
                     }
                     Spacer()
@@ -1254,7 +1254,7 @@ struct StreamRow: View {
                 }
                 if display.template.isEmpty {
                     Text(item.stream.name ?? "Sorgente")
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(2)
                     if let details = item.stream.details, !details.isEmpty {
@@ -1262,7 +1262,7 @@ struct StreamRow: View {
                     }
                 } else {
                     Text(StreamFormatter.line(template: display.template, info: item.info, stream: item.stream))
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(3)
                 }
@@ -1490,7 +1490,7 @@ struct FlowBadges: View {
                     if badge.kind == .format {
                         // The file format keeps its own look so it reads apart from quality, codec and language.
                         Text(badge.text)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(.system(size: 11, weight: .bold, design: AetherTypography.design))
                             .padding(.horizontal, 7).padding(.vertical, 3)
                             .overlay(Capsule().strokeBorder(Color.primary.opacity(0.35), lineWidth: 1))
                             .accessibilityLabel("Formato \(badge.text)")
@@ -1508,7 +1508,7 @@ struct FlowBadges: View {
 
     @ViewBuilder
     private func pill(_ badge: StreamBadge) -> some View {
-        let text = Text(badge.text).font(.system(size: 11, weight: .semibold, design: .rounded))
+        let text = Text(badge.text).font(.system(size: 11, weight: .semibold, design: AetherTypography.design))
         switch display.badgeStyle {
         case .filled:
             text.padding(.horizontal, 7).padding(.vertical, 3).background(tint(badge.kind).opacity(0.16), in: Capsule())
@@ -1590,7 +1590,7 @@ struct ImportedBadgeView: View {
     private var pill: some View {
         let accent = rule.colorHex.map { Color(hex: $0) } ?? Color.primary
         return Text(rule.label)
-            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .font(.system(size: 11, weight: .bold, design: AetherTypography.design))
             .padding(.horizontal, 7).padding(.vertical, 3)
             .foregroundStyle(accent)
             .background((rule.fillHex.map { Color(hex: $0) } ?? Color.gray).opacity(rule.fillAlpha), in: Capsule())

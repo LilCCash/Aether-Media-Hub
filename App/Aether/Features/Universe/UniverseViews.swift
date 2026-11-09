@@ -121,6 +121,7 @@ struct UniverseCard: View {
     let universe: UniverseDefinition
     let progress: UniverseProgress
     let wide: Bool
+    @Environment(\.aetherStyle) private var style
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -128,7 +129,7 @@ struct UniverseCard: View {
             RemoteImage(urlString: UniverseArt.background(universe.hero), width: 480, contentMode: .fill, placeholderSeed: universe.name, systemPlaceholder: "sparkles")
             LinearGradient(colors: [.clear, .black.opacity(0.88)], startPoint: .center, endPoint: .bottom)
             VStack(alignment: .leading, spacing: 4) {
-                Text(universe.name).font(.system(size: wide ? 20 : 17, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.8)
+                Text(universe.name).font(.system(size: wide ? 20 : 17, weight: .heavy, design: AetherTypography.design)).lineLimit(2).minimumScaleFactor(0.8)
                 Text(universe.countsLine).font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
                 if progress.watched > 0 {
                     ProgressView(value: progress.fraction).tint(.white).scaleEffect(y: 0.7)
@@ -140,8 +141,9 @@ struct UniverseCard: View {
         }
         .frame(width: wide ? 250 : nil, height: wide ? 150 : 130)
         .frame(maxWidth: wide ? 250 : .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
-        .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+        // A title card like the others of the Home: it follows «Angoli» and the frame chosen for the cards.
+        .clipShape(RoundedRectangle(cornerRadius: style.landscapeRadius, style: .continuous))
+        .aetherCardChrome(cornerRadius: style.landscapeRadius)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(universe.name), \(universe.countsLine)" + (progress.watched > 0 ? ", \(progress.percent) per cento visto" : ""))
     }
@@ -243,7 +245,7 @@ struct UniverseDetailView: View {
             RemoteImage(urlString: UniverseArt.background(universe.hero), width: 900, contentMode: .fill, placeholderSeed: universe.name, systemPlaceholder: "sparkles")
             LinearGradient(colors: [.black.opacity(0.25), .clear, .black.opacity(0.9)], startPoint: .top, endPoint: .bottom)
             VStack(alignment: .leading, spacing: 8) {
-                Text(universe.name).font(.system(size: 30, weight: .heavy, design: .rounded)).shadow(color: .black.opacity(0.5), radius: 6)
+                Text(universe.name).font(.system(size: 30, weight: .heavy, design: AetherTypography.design)).shadow(color: .black.opacity(0.5), radius: 6)
                 Text(universe.summary).font(.subheadline).foregroundStyle(.white.opacity(0.9))
                 HStack(spacing: 14) {
                     stat("\(universe.films.count)", "film")

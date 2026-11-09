@@ -643,7 +643,7 @@ struct DiscoverView: View {
     private func explorePill(_ title: String, _ icon: String, id: String, action: @escaping () -> Void) -> some View {
         Button { Haptics.tap(); action() } label: {
             Label(title, systemImage: icon)
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .aetherGlassCapsule(tint: settings.accentColor.opacity(0.35), interactive: true)

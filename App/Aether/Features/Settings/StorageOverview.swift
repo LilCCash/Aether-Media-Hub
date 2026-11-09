@@ -45,7 +45,7 @@ struct StorageOverview: View {
         let total = max(segments.reduce(0) { $0 + $1.bytes }, 1)
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text(Format.bytes(segments.reduce(0) { $0 + $1.bytes })).font(.system(size: 32, weight: .bold, design: .rounded))
+                Text(Format.bytes(segments.reduce(0) { $0 + $1.bytes })).font(.system(size: 32, weight: .bold, design: AetherTypography.design))
                 Text("usati da Aether").font(.subheadline).foregroundStyle(Color.aetherSecondary)
                 Spacer()
             }
@@ -85,7 +85,7 @@ struct StorageOverview: View {
                         .font(.caption).foregroundStyle(Color.aetherSecondary)
                 }
                 Spacer()
-                Text(Format.bytes(recoverable)).font(.system(.title3, design: .rounded).weight(.bold)).foregroundStyle(.tint)
+                Text(Format.bytes(recoverable)).font(.system(.title3, design: AetherTypography.design).weight(.bold)).foregroundStyle(.tint)
             }
             Button { confirming = true } label: {
                 Label(working ? "Un momento…" : "Libera spazio", systemImage: "sparkles").frame(maxWidth: .infinity)

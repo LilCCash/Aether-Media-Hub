@@ -170,7 +170,7 @@ struct ProfileEditorView: View {
                     Button { settings.value.content.profile.toggleGenre(genre) } label: {
                         HStack(spacing: 5) {
                             Text(genre.emoji)
-                            Text(genre.title).font(.system(size: 14, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.8)
+                            Text(genre.title).font(.system(size: 14, weight: .semibold, design: AetherTypography.design)).lineLimit(1).minimumScaleFactor(0.8)
                         }
                         .padding(.horizontal, 10).padding(.vertical, 8)
                         .frame(maxWidth: .infinity)

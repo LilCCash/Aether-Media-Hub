@@ -81,7 +81,7 @@ struct AppearanceSettingsView: View {
                 }
                 .frame(width: 104, height: 84)
                 .clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
-                Text(preset.title).font(.system(.subheadline, design: .rounded).weight(.bold))
+                Text(preset.title).font(.system(.subheadline, design: AetherTypography.design).weight(.bold))
                 Text(preset.summary).font(.caption2).foregroundStyle(Color.aetherSecondary).lineLimit(2).frame(width: 104, alignment: .leading)
             }
         }

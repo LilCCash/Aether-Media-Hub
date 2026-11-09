@@ -205,7 +205,7 @@ struct CinemaUniverseCard: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(14)
             VStack(alignment: .leading, spacing: 4) {
                 Text("IL MIO UNIVERSO DEL CINEMA \(String(year))").font(.system(size: 11, weight: .bold)).tracking(1.5).foregroundStyle(.white.opacity(0.8))
-                Text("\(data.hours) ore").font(.system(size: 44, weight: .heavy, design: .rounded)).foregroundStyle(.white)
+                Text("\(data.hours) ore").font(.system(size: 44, weight: .heavy, design: AetherTypography.design)).foregroundStyle(.white)
                 Text(data.stats.films + data.stats.episodesAndSeries == 0 ? "Guarda qualcosa e segnalo nel diario: qui comparirà il tuo anno."
                      : "\(data.stats.films) film · \(data.stats.episodesAndSeries) tra serie ed episodi")
                     .font(.subheadline).foregroundStyle(.white.opacity(0.85))
@@ -257,7 +257,7 @@ struct CinemaUniverseView: View {
     private func hero(_ data: CinemaYear) -> some View {
         VStack(spacing: 4) {
             Text("NEL \(String(data.year))").font(.system(size: 12, weight: .bold)).tracking(2).foregroundStyle(.white.opacity(0.8))
-            Text("\(data.hours)").font(.system(size: 88, weight: .black, design: .rounded)).foregroundStyle(.white)
+            Text("\(data.hours)").font(.system(size: 88, weight: .black, design: AetherTypography.design)).foregroundStyle(.white)
             Text(data.hours == 1 ? "ora di cinema" : "ore di cinema").font(.title3.weight(.semibold)).foregroundStyle(.white.opacity(0.9))
         }
         .frame(maxWidth: .infinity)
@@ -278,7 +278,7 @@ struct CinemaUniverseView: View {
     private func tile(_ title: String, _ value: String, _ icon: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: icon).foregroundStyle(.tint)
-            Text(value).font(.system(size: 30, weight: .bold, design: .rounded))
+            Text(value).font(.system(size: 30, weight: .bold, design: AetherTypography.design))
             Text(title).font(.footnote).foregroundStyle(Color.aetherSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -313,7 +313,7 @@ struct CinemaUniverseView: View {
                 ForEach(items, id: \.name) { item in
                     let weight = Double(item.count) / Double(peak)
                     Text("\(item.name) · \(item.count)")
-                        .font(.system(size: 13 + 5 * weight, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13 + 5 * weight, weight: .semibold, design: AetherTypography.design))
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .background(settings.accentColor.opacity(0.15 + 0.35 * weight), in: Capsule())
                 }

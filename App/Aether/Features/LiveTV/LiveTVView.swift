@@ -279,7 +279,7 @@ struct LiveTVView: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 if let icon = icon { Image(systemName: icon).font(.system(size: small ? 11 : 13, weight: .semibold)) }
-                Text(title).font(.system(size: small ? 13 : 15, weight: .semibold, design: .rounded)).lineLimit(1)
+                Text(title).font(.system(size: small ? 13 : 15, weight: .semibold, design: AetherTypography.design)).lineLimit(1)
             }
             .padding(.horizontal, small ? 12 : 14).padding(.vertical, small ? 7 : 9)
             .foregroundStyle(on ? Color.white : Color.primary)
@@ -442,11 +442,11 @@ private struct ChannelTile: View {
                         RemoteImage(urlString: logo, width: 160, contentMode: .fit, placeholderSeed: channel.name, systemPlaceholder: "tv")
                             .padding(18)
                     } else {
-                        Text(String(channel.name.prefix(2)).uppercased()).font(.system(size: 34, weight: .heavy, design: .rounded)).foregroundStyle(.white.opacity(0.9))
+                        Text(String(channel.name.prefix(2)).uppercased()).font(.system(size: 34, weight: .heavy, design: AetherTypography.design)).foregroundStyle(.white.opacity(0.9))
                     }
                     VStack {
                         HStack {
-                            Text("LIVE").font(.system(size: 9, weight: .heavy, design: .rounded)).foregroundStyle(.white)
+                            Text("LIVE").font(.system(size: 9, weight: .heavy, design: AetherTypography.design)).foregroundStyle(.white)
                                 .padding(.horizontal, 6).padding(.vertical, 3).background(Color.red, in: Capsule())
                             Spacer()
                         }
@@ -456,7 +456,7 @@ private struct ChannelTile: View {
                 }
                 .frame(height: 96)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(channel.name).font(.system(size: 14, weight: .semibold, design: .rounded)).lineLimit(2).multilineTextAlignment(.leading)
+                    Text(channel.name).font(.system(size: 14, weight: .semibold, design: AetherTypography.design)).lineLimit(2).multilineTextAlignment(.leading)
                     if let group = channel.group { Text(group).font(.caption2).foregroundStyle(Color.aetherSecondary).lineLimit(1) }
                 }
                 .frame(maxWidth: .infinity, minHeight: 46, alignment: .topLeading)

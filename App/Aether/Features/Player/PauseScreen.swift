@@ -102,11 +102,11 @@ struct PauseScreen: View {
                 Image(uiImage: logo).resizable().scaledToFit().frame(maxHeight: max(70, maxHeight), alignment: .leading)
                     .shadow(color: .black.opacity(0.5), radius: 8)
             } else {
-                Text(model.title).font(.system(size: 38, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.6)
+                Text(model.title).font(.system(size: 38, weight: .heavy, design: AetherTypography.design)).lineLimit(2).minimumScaleFactor(0.6)
                     .shadow(color: .black.opacity(0.5), radius: 8)
             }
             if let line = model.episodeSubtitle(), !line.isEmpty {
-                Text(line).font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.8))
+                Text(line).font(.system(size: 15, weight: .semibold, design: AetherTypography.design)).foregroundStyle(.white.opacity(0.8))
             }
         }
     }
@@ -114,8 +114,8 @@ struct PauseScreen: View {
     private var synopsisCard: some View {
         Button { panel = .synopsis } label: {
             VStack(alignment: .leading, spacing: 6) {
-                Text(synopsis).font(.system(size: 15, design: .rounded)).lineLimit(4).multilineTextAlignment(.leading)
-                Text("Leggi tutto").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(accent)
+                Text(synopsis).font(.system(size: 15, design: AetherTypography.design)).lineLimit(4).multilineTextAlignment(.leading)
+                Text("Leggi tutto").font(.system(size: 13, weight: .bold, design: AetherTypography.design)).foregroundStyle(accent)
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -130,7 +130,7 @@ struct PauseScreen: View {
         Button { panel = .cast } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("Cast").font(.system(size: 17, weight: .bold, design: .rounded))
+                    Text("Cast").font(.system(size: 17, weight: .bold, design: AetherTypography.design))
                     Spacer()
                     Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold)).foregroundStyle(accent)
                 }
@@ -156,13 +156,13 @@ struct PauseScreen: View {
                     RemoteImage(urlString: photo, width: size * 2, contentMode: .fill, placeholderSeed: member.name, systemPlaceholder: "person.fill")
                         .frame(width: size, height: size).clipShape(Circle())
                 } else {
-                    Text(String(member.name.prefix(1))).font(.system(size: size * 0.4, weight: .bold, design: .rounded))
+                    Text(String(member.name.prefix(1))).font(.system(size: size * 0.4, weight: .bold, design: AetherTypography.design))
                 }
             }
             .frame(width: size, height: size)
-            Text(member.name).font(.system(size: 11, weight: .semibold, design: .rounded)).lineLimit(2).multilineTextAlignment(.center)
+            Text(member.name).font(.system(size: 11, weight: .semibold, design: AetherTypography.design)).lineLimit(2).multilineTextAlignment(.center)
             if let role = member.role, !role.isEmpty {
-                Text(role).font(.system(size: 10, design: .rounded)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
+                Text(role).font(.system(size: 10, design: AetherTypography.design)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity)
@@ -170,9 +170,9 @@ struct PauseScreen: View {
 
     private func synopsisPanel(size: CGSize) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(model.title).font(.system(size: 20, weight: .heavy, design: .rounded))
+            Text(model.title).font(.system(size: 20, weight: .heavy, design: AetherTypography.design))
             if let line = model.episodeSubtitle(), !line.isEmpty { Text(line).font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.75)) }
-            ScrollView { Text(synopsis).font(.system(size: 17, design: .rounded)).frame(maxWidth: .infinity, alignment: .leading) }
+            ScrollView { Text(synopsis).font(.system(size: 17, design: AetherTypography.design)).frame(maxWidth: .infinity, alignment: .leading) }
         }
         .padding(22)
         .frame(width: min(size.width * 0.72, 720), height: size.height * 0.78, alignment: .topLeading)
@@ -184,7 +184,7 @@ struct PauseScreen: View {
 
     private func castPanel(size: CGSize) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Cast").font(.system(size: 20, weight: .heavy, design: .rounded))
+            Text("Cast").font(.system(size: 20, weight: .heavy, design: AetherTypography.design))
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 14)], spacing: 16) {
                     ForEach(info.cast) { member in bubble(member, size: 76) }
