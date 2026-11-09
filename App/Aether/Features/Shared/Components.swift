@@ -276,20 +276,24 @@ struct EmptyStateView: View {
     var action: (() -> Void)? = nil
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: Space.m) {
+            // The symbol in a soft disc of the accent colour: an intentional empty page, not a grey leftover.
             Image(systemName: systemImage)
-                .font(.system(size: 44, weight: .light))
-                .foregroundStyle(Color.aetherSecondary)
-                .padding(.bottom, 4)
+                .font(.system(size: 32, weight: .regular))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 76, height: 76)
+                .background(Color.accentColor.opacity(0.12), in: Circle())
+                .padding(.bottom, Space.xs)
             Text(title).font(.aetherTitle(20)).multilineTextAlignment(.center)
             if let message = message {
                 Text(message).font(.subheadline).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.center)
+                    .frame(maxWidth: 320)
             }
             if let actionTitle = actionTitle, let action = action {
-                Button(actionTitle, action: action).buttonStyle(PrimaryActionButtonStyle()).padding(.top, 6)
+                Button(actionTitle, action: action).buttonStyle(.aetherPrimary).padding(.top, Space.s)
             }
         }
-        .padding(28)
+        .padding(Space.xxl)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
