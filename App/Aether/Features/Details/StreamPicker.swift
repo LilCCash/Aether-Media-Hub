@@ -173,8 +173,12 @@ final class StreamPickerModel: ObservableObject {
         let list = ranked.filter { $0.info.support.isPlayable }
         // Real-Debrid mode only exposes torrent candidates that can be resolved through the selected RD account.
         // Direct URLs returned by unrelated addons must not leak into the RD-only source list.
+        // The direct links of the addons that answer for Real-Debrid (Torrentio and Comet switched to it, an addon marked
+        // «Real-Debrid») are Real-Debrid links, already ready: they stay.
         if debridProvider == .realdebrid && debridConfigured {
-            return list.filter { DebridStreamLogic.isTorrent($0.stream) }
+            return list.filter { item in
+                DebridStreamLogic.isTorrent(item.stream) || realDebridAddonIDs.contains(item.stream.addonID ?? "")
+            }
         }
         return DebridStreamLogic.cachedFirst(list, statuses: cacheStatuses)
     }
@@ -206,6 +210,8 @@ final class StreamPickerModel: ObservableObject {
     }
 
     var debridConfigured: Bool { return env?.debrid.isConfigured ?? false }
+    /// The addons whose links are Real-Debrid links (see `playable`).
+    private(set) var realDebridAddonIDs: Set<String> = []
     var debridProvider: DebridService.ProviderChoice { return env?.debrid.selectedProvider ?? .torbox }
 
     var hasTorrentRows: Bool {
@@ -270,9 +276,17 @@ final class StreamPickerModel: ObservableObject {
         let path = ResourcePath(resource: ResourceName.stream, type: type, id: videoID)
         let handles = await env.addons.handles()
         let debrid = env.debrid.streamContext
-        pendingAddons = RequestPlanner.addons(for: path, handles: handles)
+        let asked = RequestPlanner.addons(for: path, handles: handles)
             .filter { AddonDebridRouting.decide($0, context: debrid) != .skip }
-            .map { $0.addon.displayName }
+        pendingAddons = asked.map { $0.addon.displayName }
+        realDebridAddonIDs = Set(asked.compactMap { handle -> String? in
+            guard debrid.service == .realDebrid else { return nil }
+            if handle.addon.debridScope == .realDebrid { return handle.addon.id.uuidString }
+            if case .use(_, let switched) = AddonDebridRouting.decide(handle, context: debrid), switched != nil {
+                return handle.addon.id.uuidString
+            }
+            return nil
+        })
         if pendingAddons.isEmpty {
             isLoading = false
             return
