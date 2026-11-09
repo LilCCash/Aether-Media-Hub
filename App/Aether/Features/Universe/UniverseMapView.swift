@@ -23,10 +23,11 @@ struct UniverseMapView: View {
     var body: some View {
         let map = UniverseStoryMap.build(universe, order: order, custom: custom)
         let seen = watched
+        let next = UniverseProgress.compute(universe, order: order, custom: custom, watchedIDs: seen).next
         return NavigationStack {
             ZStack {
                 Color(red: 0.035, green: 0.04, blue: 0.07).ignoresSafeArea()
-                StoryMapSurface(map: map, seen: seen, showsYears: order == .release, command: command, settings: settings, loader: loader) { entry in
+                StoryMapSurface(map: map, seen: seen, nextID: next?.id, showsYears: order == .release, command: command, settings: settings, loader: loader) { entry in
                     opened = MetaRoute(type: entry.type, id: entry.id,
                                        preview: MetaItem(id: entry.id, type: entry.type, name: entry.name, poster: UniverseArt.poster(entry.id)))
                 }
@@ -41,7 +42,7 @@ struct UniverseMapView: View {
                             .background(.ultraThinMaterial)
                     }
                     Spacer()
-                    footer(map, seen: seen)
+                    footer(map, seen: seen, next: next)
                 }
             }
             .navigationTitle(universe.name)
@@ -53,7 +54,30 @@ struct UniverseMapView: View {
         .preferredColorScheme(.dark)
     }
 
-    private func footer(_ map: UniverseStoryMap, seen: Set<String>) -> some View {
+    private func footer(_ map: UniverseStoryMap, seen: Set<String>, next: UniverseEntry?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let next = next {
+                Button { send(.focusNext) } label: {
+                    Label(seen.isEmpty ? "Inizia da «\(next.name)»" : "Prossimo: «\(next.name)»", systemImage: "scope")
+                        .font(.footnote.weight(.semibold)).lineLimit(1)
+                        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .accessibilityHint("Mostra il titolo sulla mappa")
+            }
+            footerRow(map, seen: seen)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: Corner.sheet, style: .continuous).fill(.ultraThinMaterial))
+        .padding(.horizontal, 10)
+        .padding(.bottom, 6)
+    }
+
+    private func footerRow(_ map: UniverseStoryMap, seen: Set<String>) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("\(map.nodes.filter { seen.contains($0.id) }.count) di \(map.nodes.count) visti · \(map.lanes.count) storie")
@@ -71,12 +95,6 @@ struct UniverseMapView: View {
             mapButton("plus.magnifyingglass", label: "Avvicina") { send(.zoomIn) }
             mapButton("arrow.up.left.and.arrow.down.right", label: "Tutto l'universo") { send(.overview) }
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(.ultraThinMaterial))
-        .padding(.horizontal, 10)
-        .padding(.bottom, 6)
     }
 
     private func send(_ kind: StoryMapCommand.Kind) {
@@ -107,7 +125,7 @@ struct UniverseMapView: View {
 
 /// A request from the buttons under the map.
 struct StoryMapCommand: Equatable {
-    enum Kind { case start, zoomIn, zoomOut, overview }
+    enum Kind { case start, zoomIn, zoomOut, overview, focusNext }
     var id: Int
     var kind: Kind
 }
@@ -150,6 +168,7 @@ struct StoryMapGeometry {
 struct StoryMapSurface: UIViewRepresentable {
     let map: UniverseStoryMap
     let seen: Set<String>
+    let nextID: String?
     let showsYears: Bool
     let command: StoryMapCommand
     let settings: SettingsStore
@@ -158,6 +177,7 @@ struct StoryMapSurface: UIViewRepresentable {
 
     func makeUIView(context: Context) -> StoryMapScrollView {
         let view = StoryMapScrollView()
+        view.nextID = nextID
         view.build(map: map, content: content(), size: StoryMapGeometry.size(map))
         view.open = open
         view.handledCommand = command.id
@@ -166,6 +186,7 @@ struct StoryMapSurface: UIViewRepresentable {
 
     func updateUIView(_ view: StoryMapScrollView, context: Context) {
         view.updateContent(content())
+        view.nextID = nextID
         view.open = open
         if command.id != view.handledCommand {
             view.handledCommand = command.id
@@ -174,7 +195,7 @@ struct StoryMapSurface: UIViewRepresentable {
     }
 
     private func content() -> AnyView {
-        return AnyView(StoryMapContent(map: map, seen: seen, showsYears: showsYears, open: open)
+        return AnyView(StoryMapContent(map: map, seen: seen, nextID: nextID, showsYears: showsYears, open: open)
             .environmentObject(settings)
             .environment(\.imageLoader, loader))
     }
@@ -188,6 +209,8 @@ final class StoryMapScrollView: UIScrollView, UIScrollViewDelegate {
     private var placed = false
     private var nodes: [UniverseStoryMap.Node] = []
     var handledCommand = 0
+    /// The next title to watch: the map opens on it, and «Prossimo» goes back to it.
+    var nextID: String?
     var open: ((UniverseEntry) -> Void)?
 
     override init(frame: CGRect) {
@@ -252,7 +275,12 @@ final class StoryMapScrollView: UIScrollView, UIScrollViewDelegate {
             let lanes = min(4, max(1, (contentSizeAtOne.height - StoryMapGeometry.topPad - 120) / StoryMapGeometry.laneHeight))
             let scale = min(1.0, max(minimumZoomScale, bounds.height / (StoryMapGeometry.topPad + lanes * StoryMapGeometry.laneHeight + 140)))
             setZoomScale(scale, animated: false)
-            setContentOffset(CGPoint(x: 0, y: -contentInset.top), animated: false)
+            if !focusNext(animated: false) {
+                setContentOffset(CGPoint(x: 0, y: -contentInset.top), animated: false)
+            }
+        case .focusNext:
+            if zoomScale < 0.55 { setZoomScale(min(0.8, maximumZoomScale), animated: false) }
+            _ = focusNext(animated: true)
         case .zoomIn:
             zoom(by: 1.6, at: CGPoint(x: bounds.midX, y: bounds.midY))
         case .zoomOut:
@@ -264,6 +292,20 @@ final class StoryMapScrollView: UIScrollView, UIScrollViewDelegate {
                 apply(.start)
             }
         }
+    }
+
+    /// Brings the next title into view (in the left third of the screen, so what follows it shows too). False when there is none.
+    @discardableResult
+    private func focusNext(animated: Bool) -> Bool {
+        guard let id = nextID, let node = nodes.first(where: { $0.id == id }) else { return false }
+        let center = StoryMapGeometry.center(node)
+        let x = center.x * zoomScale - bounds.width * 0.35
+        let y = center.y * zoomScale - bounds.height * 0.42
+        let maxX = max(-contentInset.left, contentSize.width - bounds.width + contentInset.right)
+        let maxY = max(-contentInset.top, contentSize.height - bounds.height + contentInset.bottom)
+        let target = CGPoint(x: min(maxX, max(-contentInset.left, x)), y: min(maxY, max(-contentInset.top, y)))
+        setContentOffset(target, animated: animated)
+        return true
     }
 
     private func zoom(by factor: CGFloat, at point: CGPoint) {
@@ -378,6 +420,7 @@ final class StoryMapScrollView: UIScrollView, UIScrollViewDelegate {
 struct StoryMapContent: View {
     let map: UniverseStoryMap
     let seen: Set<String>
+    let nextID: String?
     let showsYears: Bool
     let open: (UniverseEntry) -> Void
 
@@ -388,7 +431,7 @@ struct StoryMapContent: View {
             if showsYears { years }
             ForEach(map.lanes) { lane in laneLabel(lane) }
             ForEach(map.nodes) { node in
-                nodeView(node, isWatched: seen.contains(node.id))
+                nodeView(node, isWatched: seen.contains(node.id), isNext: node.id == nextID)
                     .position(StoryMapGeometry.center(node))
             }
         }
@@ -440,7 +483,7 @@ struct StoryMapContent: View {
         .offset(x: max(6, start.x - StoryMapGeometry.slotWidth / 2), y: start.y - StoryMapGeometry.laneHeight / 2 - 4)
     }
 
-    private func nodeView(_ node: UniverseStoryMap.Node, isWatched: Bool) -> some View {
+    private func nodeView(_ node: UniverseStoryMap.Node, isWatched: Bool, isNext: Bool) -> some View {
         let entry = node.entry
         let color = Color(StoryMapGeometry.color(node.lane))
         return Button { open(entry) } label: {
@@ -450,8 +493,17 @@ struct StoryMapContent: View {
                         .frame(width: 84, height: 126)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(isWatched ? Color.accentColor : color, lineWidth: isWatched ? 3 : 2))
-                        .saturation(isWatched ? 1 : 0.85)
-                    if isWatched {
+                        .saturation(isWatched || isNext ? 1 : 0.85)
+                        .overlay {
+                            if isNext {
+                                RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(Color.accentColor, lineWidth: 3).padding(-4)
+                                    .shadow(color: Color.accentColor.opacity(0.8), radius: 10)
+                            }
+                        }
+                    if isNext {
+                        Text("PROSSIMO").font(.system(size: 8, weight: .heavy)).padding(.horizontal, 6).padding(.vertical, 3)
+                            .background(Capsule().fill(Color.accentColor)).foregroundStyle(Color.accentColor.readableForeground).offset(x: 8, y: -9)
+                    } else if isWatched {
                         Image(systemName: "checkmark.circle.fill").symbolRenderingMode(.palette).font(.system(size: 20)).foregroundStyle(.white, Color.accentColor).offset(x: 7, y: -7)
                     } else if entry.isSeries {
                         Text("SERIE").font(.system(size: 8, weight: .heavy)).padding(.horizontal, 5).padding(.vertical, 2)
@@ -466,6 +518,6 @@ struct StoryMapContent: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(entry.name), \(String(entry.year))\(isWatched ? ", visto" : "")")
+        .accessibilityLabel("\(entry.name), \(String(entry.year))\(isWatched ? ", visto" : "")\(isNext ? ", prossimo da guardare" : "")")
     }
 }
