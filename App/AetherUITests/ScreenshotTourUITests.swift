@@ -33,7 +33,8 @@ final class ScreenshotTourUITests: AetherUITestCase {
         pause(2)
         snap("04-libreria")
 
-        openTab("Profilo")
+        // After the addon install the Profile tab still shows the Addons list: back to its root first.
+        openMoreRoot()
         pause(2)
         snap("05-profilo")
         if tap(element("profile.settings")) {
