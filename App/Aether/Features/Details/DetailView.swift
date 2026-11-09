@@ -282,6 +282,9 @@ struct DetailView: View {
                 .accessibilityIdentifier("detail.posters")
                 Button { library.toggleFavorite(model.meta) } label: {
                     Image(systemName: library.favoriteIDs.contains(model.meta.id) ? "heart.fill" : "heart")
+                        .contentTransition(.symbolEffect(.replace))
+                        .symbolEffect(.bounce, value: library.favoriteIDs.contains(model.meta.id))
+                        .symbolEffectsRemoved(!settings.animationsEnabled)
                 }
                 .accessibilityLabel(library.favoriteIDs.contains(model.meta.id) ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti")
                 .accessibilityIdentifier("detail.favorite")
@@ -445,6 +448,9 @@ struct DetailView: View {
                     library.toggleWatchlist(model.meta)
                 } label: {
                     Image(systemName: library.watchlistIDs.contains(model.meta.id) ? "bookmark.fill" : "bookmark")
+                        .contentTransition(.symbolEffect(.replace))
+                        .symbolEffect(.bounce, value: library.watchlistIDs.contains(model.meta.id))
+                        .symbolEffectsRemoved(!settings.animationsEnabled)
                         .font(.system(size: 18, weight: .semibold))
                         .frame(width: 48, height: 48)
                         .aetherGlass(in: Circle(), interactive: true)

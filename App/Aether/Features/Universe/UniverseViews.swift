@@ -346,7 +346,7 @@ struct UniverseDetailView: View {
                                 .background(.black.opacity(0.6), in: Capsule()).foregroundStyle(.white).padding(6)
                             if source != nil {
                                 VStack { Spacer(); HStack { Spacer()
-                                    Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(.green, .white).padding(6)
+                                    Image(systemName: "checkmark.circle.fill").symbolRenderingMode(.palette).font(.title3).foregroundStyle(.green, .white).padding(6)
                                 } }
                             }
                             if entry.isSeries {

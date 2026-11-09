@@ -145,5 +145,8 @@ struct ThemedRoot: View {
             // `Color.accentColor` is what most of the app paints its accents with; without this it stayed the fixed blue of
             // the asset catalogue while the controls (`.tint`) took the colour the viewer chose, so the two never matched.
             .accentColor(settings.accentColor)
+            // Symbols with layers (a check in a circle, a person with a badge…) show them in two tones of the same colour
+            // everywhere, instead of a flat single colour in some places and layers in others.
+            .symbolRenderingMode(.hierarchical)
     }
 }

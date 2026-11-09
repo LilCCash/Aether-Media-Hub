@@ -57,37 +57,44 @@ final class ScreenshotTourUITests: AetherUITestCase {
         pause(2)
         snap("09-cerca")
 
-        openTab("Home")
-        let movie = button(labelContaining: "Aether Fixture One")
-        if tap(movie, timeout: 30), element("detail.title").waitForExistence(timeout: 20) {
-            pause(2.5)
+        // The title pages are opened with the app's own link (stremio:///detail/…): the posters are often below the fold.
+        if openTitle("stremio:///detail/movie/tt9000001") {
             snap("10-scheda-film")
             app.swipeUp()
             pause(1)
             snap("11-scheda-film-sotto")
             app.swipeDown()
+            pause(0.8)
             if tap(element("detail.play")), element("stream.row.0").waitForExistence(timeout: 30) {
                 pause(2)
                 snap("12-sorgenti")
                 _ = tap(app.buttons["Chiudi"].firstMatch, timeout: 3)
-            }
-        }
-
-        openTab("Cerca")
-        let field = app.searchFields.firstMatch
-        if field.waitForExistence(timeout: 10) {
-            field.tap()
-            field.typeText("Fixture Series")
-            pause(2)
-            snap("13-cerca-risultati")
-            if tap(button(labelContaining: "Fixture Series"), timeout: 30), element("detail.title").waitForExistence(timeout: 20) {
-                pause(2.5)
-                snap("14-scheda-serie")
-                app.swipeUp()
                 pause(1)
-                snap("15-scheda-serie-episodi")
             }
+            closeTitle()
         }
+        if openTitle("stremio:///detail/series/tt9100001") {
+            snap("13-scheda-serie")
+            app.swipeUp()
+            pause(1)
+            snap("14-scheda-serie-episodi")
+            closeTitle()
+        }
+    }
+
+    private func openTitle(_ link: String) -> Bool {
+        guard let url = URL(string: link) else { return false }
+        app.open(url)
+        guard element("detail.title").waitForExistence(timeout: 25) else { return false }
+        pause(2.5)
+        return true
+    }
+
+    private func closeTitle() {
+        // A card closes with a swipe down from the top; a pushed page with the back button.
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        if back.exists && back.isHittable { back.tap() } else { app.swipeDown(velocity: .fast) }
+        pause(1.5)
     }
 
     // MARK: Helpers

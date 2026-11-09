@@ -173,7 +173,7 @@ struct CompanionSheet: View {
                                             ZStack(alignment: .bottomTrailing) {
                                                 RemoteImage(urlString: UniverseArt.poster(entry.id), width: 240, placeholderSeed: entry.name)
                                                     .frame(width: 92, height: 138).clipShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
-                                                if watched.contains(entry.id) { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green, .white).padding(5) }
+                                                if watched.contains(entry.id) { Image(systemName: "checkmark.circle.fill").symbolRenderingMode(.palette).foregroundStyle(.green, .white).padding(5) }
                                             }
                                             Text(entry.id == release[index - (index > 0 ? 1 : 0)].id && index > 0 ? "Prima" : "Dopo").font(.caption2.weight(.bold)).foregroundStyle(Color.accentColor)
                                             Text(entry.name).font(.caption2).lineLimit(2).multilineTextAlignment(.center).frame(width: 92)

@@ -452,7 +452,7 @@ struct StoryMapContent: View {
                         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(isWatched ? Color.accentColor : color, lineWidth: isWatched ? 3 : 2))
                         .saturation(isWatched ? 1 : 0.85)
                     if isWatched {
-                        Image(systemName: "checkmark.circle.fill").font(.system(size: 20)).foregroundStyle(.white, Color.accentColor).offset(x: 7, y: -7)
+                        Image(systemName: "checkmark.circle.fill").symbolRenderingMode(.palette).font(.system(size: 20)).foregroundStyle(.white, Color.accentColor).offset(x: 7, y: -7)
                     } else if entry.isSeries {
                         Text("SERIE").font(.system(size: 8, weight: .heavy)).padding(.horizontal, 5).padding(.vertical, 2)
                             .background(Capsule().fill(color)).foregroundStyle(.white).offset(x: 4, y: -5)

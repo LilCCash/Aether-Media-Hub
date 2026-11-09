@@ -120,7 +120,7 @@ struct PrimaryActionButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(.headline, design: .rounded))
+            .font(.system(.headline, design: AetherTypography.design))
             .foregroundStyle(Color(UIColor.systemBackground))
             .padding(.horizontal, 22)
             .padding(.vertical, 13)
@@ -135,7 +135,7 @@ struct PrimaryActionButtonStyle: ButtonStyle {
 struct SecondaryActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+            .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .aetherGlassCapsule(interactive: true)
