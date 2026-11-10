@@ -179,7 +179,7 @@ struct HeroFullBleedCard: View {
                                    startPoint: .top, endPoint: .bottom)
                     HeroTextBlock(meta: meta, showsButton: false)
                         .padding(.horizontal, 20)
-                        .padding(.bottom, Self.fadeHeight + 70)
+                        .padding(.bottom, Self.fadeHeight + 40)
                 }
                 .frame(height: height)
             }
@@ -208,7 +208,7 @@ struct HeroFullBleedCard: View {
                 .accessibilityIdentifier("hero.watchlist")
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, Self.fadeHeight - 10)
+            .padding(.bottom, Self.fadeHeight - 40)
         }
         .frame(height: height)
         .mask(LinearGradient(stops: [.init(color: reachesTop ? .black : .clear, location: 0),
