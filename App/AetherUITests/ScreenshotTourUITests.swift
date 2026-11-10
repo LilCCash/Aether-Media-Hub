@@ -91,6 +91,18 @@ final class ScreenshotTourUITests: AetherUITestCase {
             snap("14-scheda-serie-episodi")
             closeTitle()
         }
+        // Last, the player (nothing comes after it in this launch, so it is not closed).
+        if openTitle("Aether Fixture One", chip: "Film"), tap(element("detail.play")), tap(element("stream.row.0"), timeout: 30) {
+            pause(8)
+            app.tap()
+            pause(1)
+            snap("15-player")
+            for name in ["Sottotitoli", "Audio"] where tap(button(labelContaining: name), timeout: 2) {
+                pause(1.2)
+                snap("16-player-\(name.lowercased())")
+                break
+            }
+        }
     }
 
     private func openTitle(_ name: String, chip: String?) -> Bool {
