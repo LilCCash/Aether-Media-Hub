@@ -49,6 +49,8 @@ struct SettingsRootView: View {
                     .foregroundStyle(.white)
                     .frame(width: 30, height: 30)
                     .background(color.gradient, in: RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
+                    .overlay(Sheen(shape: RoundedRectangle(cornerRadius: Corner.chip, style: .continuous), strength: 1.3))
+                    .shadow(color: color.opacity(0.35), radius: 4, y: 2)
                 Text(title)
             }
         }

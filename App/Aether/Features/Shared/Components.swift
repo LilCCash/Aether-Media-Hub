@@ -94,7 +94,7 @@ struct AdaptiveCardGrid<Item: Identifiable, Content: View>: View {
                 }
             LazyVGrid(columns: columns, alignment: .center, spacing: lineSpacing) {
                 ForEach(items) { item in
-                    content(item, metrics.cardWidth)
+                    content(item, metrics.cardWidth).aetherGridMotion()
                 }
             }
             .frame(maxWidth: .infinity)
@@ -281,6 +281,7 @@ struct EmptyStateView: View {
     var message: String? = nil
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
+    @State private var appeared = false
 
     var body: some View {
         VStack(spacing: Space.m) {
@@ -288,9 +289,16 @@ struct EmptyStateView: View {
             Image(systemName: systemImage)
                 .font(.system(size: 32, weight: .regular))
                 .foregroundStyle(Color.accentColor)
+                .symbolEffect(.bounce, value: appeared)
                 .frame(width: 76, height: 76)
-                .background(Color.accentColor.opacity(0.12), in: Circle())
-                .padding(.bottom, Space.xs)
+                .background(LinearGradient(colors: [Color.accentColor.opacity(0.22), Color.accentColor.opacity(0.08)],
+                                           startPoint: .top, endPoint: .bottom), in: Circle())
+                .overlay(Sheen(shape: Circle(), strength: 0.8))
+                // Two faint rings around the disc, like ripples.
+                .background(Circle().strokeBorder(Color.accentColor.opacity(0.14), lineWidth: 1).frame(width: 104, height: 104))
+                .background(Circle().strokeBorder(Color.accentColor.opacity(0.07), lineWidth: 1).frame(width: 134, height: 134))
+                .padding(.vertical, Space.l)
+                .onAppear { appeared = true }
             Text(title).font(.aetherTitle(20)).multilineTextAlignment(.center)
             if let message = message {
                 Text(message).font(.subheadline).foregroundStyle(Color.aetherSecondary).multilineTextAlignment(.center)

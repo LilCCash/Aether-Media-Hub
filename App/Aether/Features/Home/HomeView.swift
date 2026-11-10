@@ -359,6 +359,7 @@ struct PosterRowView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    .aetherRowMotion()
                     .onAppear { prefetchAhead(from: offset, width: width) }
                 }
             }

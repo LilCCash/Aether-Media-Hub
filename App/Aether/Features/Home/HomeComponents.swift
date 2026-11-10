@@ -304,7 +304,7 @@ struct ContinueWatchingRow: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 14) {
                     ForEach(items) { item in
-                        ContinueCard(progress: item, width: HomeCardMetrics.width(style: style, size: size), cardStyle: style)
+                        ContinueCard(progress: item, width: HomeCardMetrics.width(style: style, size: size), cardStyle: style).aetherRowMotion()
                     }
                 }
                 .padding(.horizontal, Theme.pageMargin)
@@ -425,7 +425,7 @@ struct NextUpRow: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 14) {
                     ForEach(items) { item in
-                        NextUpCard(item: item, cardStyle: style, width: HomeCardMetrics.width(style: style, size: size))
+                        NextUpCard(item: item, cardStyle: style, width: HomeCardMetrics.width(style: style, size: size)).aetherRowMotion()
                     }
                 }
                 .padding(.horizontal, Theme.pageMargin)

@@ -110,6 +110,7 @@ struct CardChromeModifier: ViewModifier {
         content
             .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(strokeColor, lineWidth: strokeWidth))
+            .overlay(Sheen(shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous), strength: style.chrome == .outline ? 0 : 1))
             .shadow(color: shadowColor, radius: shadowRadius, y: style.chrome == .shadow ? 5 : 0)
     }
 }

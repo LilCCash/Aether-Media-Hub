@@ -127,8 +127,11 @@ struct PrimaryActionButtonStyle: ButtonStyle {
             .padding(.horizontal, 22)
             .padding(.vertical, 13)
             .background(Capsule().fill(Color.primary))
-            .overlay(Capsule().stroke(settings.accentColor.opacity(0.5), lineWidth: 0.8))
-            .shadow(color: settings.accentColor.opacity(0.35), radius: 12, y: 4)
+            // A soft light from above and the accent at the rim: the same button, with a body.
+            .overlay(Capsule().fill(LinearGradient(colors: [settings.accentColor.opacity(0.0), settings.accentColor.opacity(0.22)],
+                                                   startPoint: .top, endPoint: .bottom)).allowsHitTesting(false))
+            .overlay(Capsule().strokeBorder(settings.accentColor.opacity(0.55), lineWidth: 0.8))
+            .shadow(color: settings.accentColor.opacity(configuration.isPressed ? 0.2 : 0.42), radius: configuration.isPressed ? 6 : 14, y: 5)
             .scaleEffect(configuration.isPressed && settings.animationsEnabled ? 0.97 : 1)
             .animation(settings.animationsEnabled ? .spring(response: 0.25, dampingFraction: 0.7) : nil, value: configuration.isPressed)
             .opacity(isEnabled ? 1 : 0.4)
