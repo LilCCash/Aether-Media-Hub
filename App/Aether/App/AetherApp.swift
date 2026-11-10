@@ -275,6 +275,13 @@ struct RootView: View {
             // The zoom is set on the presented page itself (the stack), not inside it: inside, iOS took it for a push and ignored it.
             NavigationStack { DetailView(route: route) }
                 .zoomDestination(id: route.id)
+                // For the automated tour only (see the full-screen branch below).
+                .overlay(alignment: .topLeading) {
+                    if ProcessInfo.processInfo.arguments.contains("-AETHER_UITEST") {
+                        Button { router.detail = nil } label: { Color.clear.frame(width: 44, height: 44).contentShape(Rectangle()) }
+                            .accessibilityIdentifier("detail.closeCard")
+                    }
+                }
         }
         .fullScreenCover(item: Binding(get: { detailAsSheet ? nil : router.detail }, set: { router.detail = $0 })) { route in
             NavigationStack {
