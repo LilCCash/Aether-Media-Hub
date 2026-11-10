@@ -63,10 +63,6 @@ final class ScreenshotTourUITests: AetherUITestCase {
             back()
         }
 
-        openTab("Cerca")
-        pause(1)
-        snap("09-cerca")
-
         // The title pages are opened from Scopri, where the posters are at the top of the page (a link from outside starts the
         // app again, and with it the test's empty library).
         if openTitle("Aether Fixture One", chip: nil) {
@@ -93,9 +89,7 @@ final class ScreenshotTourUITests: AetherUITestCase {
         }
         // Last, the player (nothing comes after it in this launch, so it is not closed).
         if openTitle("Aether Fixture One", chip: "Film"), tap(element("detail.play")), tap(element("stream.row.0"), timeout: 30) {
-            pause(8)
-            app.tap()
-            pause(1)
+            pause(6)
             snap("15-player")
             for name in ["Sottotitoli", "Audio"] where tap(button(labelContaining: name), timeout: 2) {
                 pause(1.2)
@@ -106,7 +100,7 @@ final class ScreenshotTourUITests: AetherUITestCase {
     }
 
     private func openTitle(_ name: String, chip: String?) -> Bool {
-        openTab("Scopri")
+        guard tap(app.tabBars.buttons["Scopri"], timeout: 8) else { return false }
         pause(1)
         if let chip = chip { _ = tap(app.buttons[chip].firstMatch); pause(2) }
         guard tap(button(labelContaining: name), timeout: 15) else { return false }
@@ -117,9 +111,12 @@ final class ScreenshotTourUITests: AetherUITestCase {
 
     private func closeTitle() {
         // A card closes with a swipe down from the top; a pushed page with the back button.
-        let back = app.navigationBars.buttons.element(boundBy: 0)
-        if back.exists && back.isHittable { back.tap() } else { app.swipeDown(velocity: .fast) }
-        pause(1.5)
+        let tab = app.tabBars.buttons["Scopri"]
+        for _ in 0..<5 where !(tab.exists && tab.isHittable) {
+            let back = app.navigationBars.buttons.element(boundBy: 0)
+            if back.exists && back.isHittable { back.tap() } else { app.swipeDown(velocity: .fast) }
+            pause(1.5)
+        }
     }
 
     // MARK: Helpers
