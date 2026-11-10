@@ -107,7 +107,7 @@ struct HomeView: View {
                         greeting
                     }
                     ForEach(settings.value.appearance.homeSections.filter { $0.isVisible }) { section in
-                        sectionView(for: section.id)
+                        sectionView(for: section.id).aetherEntrance()
                         if heroOnTop && section.id == HomeSectionConfig.hero && !network.isOnline { OfflineBanner().frame(maxWidth: .infinity) }
                     }
                     Color.clear.frame(height: 24)

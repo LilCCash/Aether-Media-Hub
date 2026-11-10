@@ -467,6 +467,7 @@ private struct ChannelTile: View {
             .overlay(alignment: .topTrailing) {
                 Button(action: onFavorite) {
                     Image(systemName: isFavorite ? "star.fill" : "star").font(.system(size: 14, weight: .bold))
+                        .aetherSymbolSwap()
                         .foregroundStyle(isFavorite ? Color.yellow : Color.white.opacity(0.85))
                         .frame(width: 34, height: 34).contentShape(Rectangle())
                 }

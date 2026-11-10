@@ -198,6 +198,7 @@ struct HeroFullBleedCard: View {
                 .accessibilityIdentifier("hero.details")
                 Button { library.toggleWatchlist(meta) } label: {
                     Image(systemName: library.watchlistIDs.contains(meta.id) ? "checkmark" : "plus")
+                        .aetherSymbolSwap()
                         .font(.system(size: 18, weight: .bold)).foregroundStyle(.white)
                         .frame(width: 48, height: 48)
                         .background(.ultraThinMaterial, in: Circle())

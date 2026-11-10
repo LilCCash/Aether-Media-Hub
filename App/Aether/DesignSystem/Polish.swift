@@ -49,3 +49,52 @@ private struct ScrollMotionModifier: ViewModifier {
         }
     }
 }
+
+extension View {
+    /// A block of a page (a section of the Home, a panel, an empty page) comes on stage the first time it is shown: it fades
+    /// in while rising a little. `order` delays the blocks of one page one after the other.
+    func aetherEntrance(_ order: Int = 0) -> some View { modifier(EntranceModifier(order: order)) }
+
+    /// A symbol that changes (＋ to ✓, an empty star to a full one) morphs into the new one instead of switching.
+    func aetherSymbolSwap() -> some View { modifier(SymbolSwapModifier()) }
+}
+
+private struct EntranceModifier: ViewModifier {
+    let order: Int
+    @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+
+    private var isOn: Bool {
+        // Automated runs never wait for a block to come on stage.
+        return settings.animationsEnabled && settings.value.appearance.entranceMotion && !settings.reduceEffects && !reduceMotion
+            && !ProcessInfo.processInfo.arguments.contains("-AETHER_UITEST")
+    }
+
+    func body(content: Content) -> some View {
+        if isOn {
+            content
+                .opacity(shown ? 1 : 0)
+                .offset(y: shown ? 0 : 14)
+                .onAppear {
+                    guard !shown else { return }
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.86).delay(min(0.3, Double(order) * 0.06))) { shown = true }
+                }
+        } else {
+            content
+        }
+    }
+}
+
+private struct SymbolSwapModifier: ViewModifier {
+    @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if settings.animationsEnabled && settings.value.appearance.symbolMotion && !reduceMotion {
+            content.contentTransition(.symbolEffect(.replace))
+        } else {
+            content
+        }
+    }
+}

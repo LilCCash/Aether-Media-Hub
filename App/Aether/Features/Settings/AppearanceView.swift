@@ -217,27 +217,47 @@ struct AppearanceSettingsView: View {
     // MARK: Motion
 
     private var motion: some View {
-        Section(header: Text("Movimento"), footer: Text("Con «Riduci gli effetti» lo sfondo diventa uniforme e il vetro opaco. Aether rispetta anche «Riduci movimento» e «Riduci trasparenza» di iOS.")) {
-            Toggle("Animazioni", isOn: settings.binding(\.appearance.animationsEnabled))
-            Toggle("Feedback tattile", isOn: settings.binding(\.appearance.haptics))
-            Picker("Apri i titoli come", selection: settings.binding(\.appearance.detailAsCard)) {
-                Text("Scheda (scorri in basso per chiudere)").tag(true)
-                Text("Schermo intero").tag(false)
+        Group {
+            Section(header: Text("Apertura dei titoli"),
+                    footer: Text("Come si apre la pagina di un film o di una serie. La pagina cinematografica prende i colori dell'artwork e si apre con uno zoom lento.")) {
+                Picker("Apri i titoli come", selection: settings.binding(\.appearance.detailAsCard)) {
+                    Text("Scheda (scorri in basso per chiudere)").tag(true)
+                    Text("Schermo intero").tag(false)
+                }
+                Toggle("Il titolo cresce dalla locandina (iOS 18+)", isOn: settings.binding(\.appearance.zoomTransition))
+                Toggle("Pagina del film cinematografica", isOn: settings.binding(\.appearance.dynamicCinematic))
+                    .accessibilityIdentifier("settings.style.cinematic")
+                if appearance.dynamicCinematic {
+                    Toggle("Colori dell'artwork sullo sfondo", isOn: settings.binding(\.appearance.moodColors))
+                    Toggle("Zoom lento e dissolvenza all'apertura", isOn: settings.binding(\.appearance.cinematicMotion))
+                }
             }
-            Toggle("Il titolo cresce dalla locandina (iOS 18+)", isOn: settings.binding(\.appearance.zoomTransition))
-            Toggle("Pagina del film cinematografica", isOn: settings.binding(\.appearance.dynamicCinematic))
-                .accessibilityIdentifier("settings.style.cinematic")
-            if appearance.dynamicCinematic {
-                Toggle("Colori dell'artwork sullo sfondo", isOn: settings.binding(\.appearance.moodColors))
-                Toggle("Zoom lento e dissolvenza all'apertura", isOn: settings.binding(\.appearance.cinematicMotion))
+            Section(header: Text("Animazioni"),
+                    footer: Text("«Animazioni» è l'interruttore generale: spento, l'app non si muove più. Acceso, puoi scegliere una per una quelle qui sotto.")) {
+                Toggle("Animazioni", isOn: settings.binding(\.appearance.animationsEnabled))
+                if appearance.animationsEnabled {
+                    motionToggle("Schede che si posano mentre scorri", "Locandine e schede si rimpiccioliscono appena ai bordi e tornano piene entrando in vista.", \.appearance.scrollMotion)
+                    motionToggle("Sezioni che entrano in scena", "Le sezioni della Home, i pannelli e le pagine vuote compaiono salendo leggermente.", \.appearance.entranceMotion)
+                    motionToggle("Icone che si trasformano", "Il ＋ diventa ✓, la stella si riempie: il simbolo cambia con una piccola animazione.", \.appearance.symbolMotion)
+                    motionToggle("Immagini che sfumano all'arrivo", "Locandine e sfondi compaiono in dissolvenza invece che di colpo.", \.appearance.imageFades)
+                    motionToggle("Zoom lento sulle immagini", "Nella Scoperta, nell'ambiente e nei titoli di coda l'immagine si muove piano.", \.appearance.kenBurns)
+                }
             }
-            if appearance.animationsEnabled {
-                Toggle("Schede che si posano mentre scorri", isOn: settings.binding(\.appearance.scrollMotion))
+            Section(header: Text("Tocco ed effetti"),
+                    footer: Text("Con «Riduci gli effetti» lo sfondo diventa uniforme, il vetro opaco e spariscono aloni e movimenti: utile per risparmiare batteria. Aether rispetta anche «Riduci movimento» e «Riduci trasparenza» di iOS.")) {
+                Toggle("Feedback tattile", isOn: settings.binding(\.appearance.haptics))
+                Toggle("Riduci gli effetti", isOn: settings.binding(\.appearance.reduceVisualEffects))
+                    .accessibilityIdentifier("settings.reduceEffects")
             }
-            Toggle("Immagini che sfumano all'arrivo", isOn: settings.binding(\.appearance.imageFades))
-            Toggle("Zoom lento nella Scoperta, nell'ambiente e nei titoli di coda", isOn: settings.binding(\.appearance.kenBurns))
-            Toggle("Riduci gli effetti", isOn: settings.binding(\.appearance.reduceVisualEffects))
-                .accessibilityIdentifier("settings.reduceEffects")
+        }
+    }
+
+    private func motionToggle(_ title: String, _ detail: String, _ path: WritableKeyPath<AppSettings, Bool>) -> some View {
+        Toggle(isOn: settings.binding(path)) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(detail).font(.caption).foregroundStyle(Color.aetherSecondary)
+            }
         }
     }
 

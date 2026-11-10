@@ -282,6 +282,7 @@ struct EmptyStateView: View {
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
     @State private var appeared = false
+    @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
         VStack(spacing: Space.m) {
@@ -290,6 +291,7 @@ struct EmptyStateView: View {
                 .font(.system(size: 32, weight: .regular))
                 .foregroundStyle(Color.accentColor)
                 .symbolEffect(.bounce, value: appeared)
+                .symbolEffectsRemoved(!settings.animationsEnabled || !settings.value.appearance.symbolMotion)
                 .frame(width: 76, height: 76)
                 .background(LinearGradient(colors: [Color.accentColor.opacity(0.22), Color.accentColor.opacity(0.08)],
                                            startPoint: .top, endPoint: .bottom), in: Circle())
@@ -310,6 +312,7 @@ struct EmptyStateView: View {
         }
         .padding(Space.xxl)
         .frame(maxWidth: .infinity)
+        .aetherEntrance()
         .accessibilityElement(children: .combine)
     }
 }

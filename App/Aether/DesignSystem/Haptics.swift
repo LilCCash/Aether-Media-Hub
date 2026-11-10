@@ -59,5 +59,6 @@ struct AetherPanel<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: style.glassCardRadius, style: .continuous))
         .aetherCardChrome(cornerRadius: style.glassCardRadius)
+        .aetherEntrance()
     }
 }

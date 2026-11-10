@@ -285,7 +285,7 @@ struct DetailView: View {
                     Image(systemName: library.favoriteIDs.contains(model.meta.id) ? "heart.fill" : "heart")
                         .contentTransition(.symbolEffect(.replace))
                         .symbolEffect(.bounce, value: library.favoriteIDs.contains(model.meta.id))
-                        .symbolEffectsRemoved(!settings.animationsEnabled)
+                        .symbolEffectsRemoved(!settings.animationsEnabled || !settings.value.appearance.symbolMotion)
                 }
                 .accessibilityLabel(library.favoriteIDs.contains(model.meta.id) ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti")
                 .accessibilityIdentifier("detail.favorite")
@@ -462,7 +462,7 @@ struct DetailView: View {
                     Image(systemName: library.watchlistIDs.contains(model.meta.id) ? "bookmark.fill" : "bookmark")
                         .contentTransition(.symbolEffect(.replace))
                         .symbolEffect(.bounce, value: library.watchlistIDs.contains(model.meta.id))
-                        .symbolEffectsRemoved(!settings.animationsEnabled)
+                        .symbolEffectsRemoved(!settings.animationsEnabled || !settings.value.appearance.symbolMotion)
                         .font(.system(size: 18, weight: .semibold))
                         .frame(width: 48, height: 48)
                         .aetherGlass(in: Circle(), interactive: true)

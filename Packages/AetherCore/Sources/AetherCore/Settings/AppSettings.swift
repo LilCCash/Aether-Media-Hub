@@ -206,6 +206,10 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var cardSheen: Bool = true
     /// Cards settle into place as they scroll into view.
     public var scrollMotion: Bool = true
+    /// Sections, panels and empty pages fade in while rising the first time they are shown.
+    public var entranceMotion: Bool = true
+    /// Symbols morph when they change and bounce when they confirm an action.
+    public var symbolMotion: Bool = true
     /// The coloured halo under the main buttons.
     public var buttonGlow: Bool = true
     /// The full-width featured picture of the Home runs up to the top edge of the screen (when it is the first section).
@@ -229,7 +233,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         case heroStyle, heroAutoScroll, heroInterval, homeSections, greetingEnabled, greetingName
         case animationsEnabled, haptics, detailAsCard, zoomTransition, dynamicCinematic, cinematicOpening, creditsExperience, reduceVisualEffects, unlockedSecrets
         case moodColors, cinematicMotion, imageFades, kenBurns, openingSound, showExplore, showCinemaCard
-        case cardSheen, scrollMotion, buttonGlow, heroEdgeToEdge
+        case cardSheen, scrollMotion, buttonGlow, heroEdgeToEdge, entranceMotion, symbolMotion
     }
 
     private static func cleanHex(_ value: String?) -> String? {
@@ -285,6 +289,8 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         imageFades = c.value(.imageFades, default: true)
         cardSheen = c.value(.cardSheen, default: true)
         scrollMotion = c.value(.scrollMotion, default: true)
+        entranceMotion = c.value(.entranceMotion, default: true)
+        symbolMotion = c.value(.symbolMotion, default: true)
         buttonGlow = c.value(.buttonGlow, default: true)
         heroEdgeToEdge = c.value(.heroEdgeToEdge, default: true)
         kenBurns = c.value(.kenBurns, default: true)
