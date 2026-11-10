@@ -46,7 +46,7 @@ struct HomeView: View {
             // Over the picture the bar is bare; once the picture has scrolled away the bar comes back with the page's name.
             .navigationTitle(heroOnTop && !heroScrolledAway ? "" : "Home")
             .navigationBarTitleDisplayMode(heroOnTop ? .inline : .large)
-            .toolbarBackground(heroOnTop ? (heroScrolledAway ? .visible : .hidden) : .automatic, for: .navigationBar)
+            .toolbarBackground(heroOnTop ? .hidden : .automatic, for: .navigationBar)
             .animation(settings.animationsEnabled ? .easeInOut(duration: 0.2) : nil, value: heroScrolledAway)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -128,6 +128,18 @@ struct HomeView: View {
                 if away != heroScrolledAway { heroScrolledAway = away }
             }
             .ignoresSafeArea(edges: heroOnTop ? .top : [])
+            // The page's own frosted strip under the clock and the bar, once the picture has gone: the system bar draws none
+            // over a page that starts at the screen's edge.
+            .overlay(alignment: .top) {
+                Rectangle().fill(.ultraThinMaterial)
+                    .frame(height: 112)
+                    .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.72), .init(color: .clear, location: 1)],
+                                         startPoint: .top, endPoint: .bottom))
+                    .opacity(heroOnTop && heroScrolledAway ? 1 : 0)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
             .accessibilityIdentifier("home.scroll")
         }
     }

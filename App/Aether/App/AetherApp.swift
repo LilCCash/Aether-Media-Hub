@@ -280,6 +280,13 @@ struct RootView: View {
             NavigationStack {
                 DetailView(route: route)
                     .environment(\.pullToDismiss, { router.detail = nil })
+                    // The automated tour closes the card with this (a pull down is not reliable there). Not present for viewers.
+                    .overlay(alignment: .topLeading) {
+                        if ProcessInfo.processInfo.arguments.contains("-AETHER_UITEST") {
+                            Button { router.detail = nil } label: { Color.clear.frame(width: 44, height: 44).contentShape(Rectangle()) }
+                                .accessibilityIdentifier("detail.closeCard")
+                        }
+                    }
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Button { router.detail = nil } label: { Image(systemName: "xmark") }

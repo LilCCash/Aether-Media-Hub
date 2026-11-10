@@ -113,6 +113,8 @@ final class ScreenshotTourUITests: AetherUITestCase {
         // A card closes with a swipe down from the top; a pushed page with the back button.
         let tab = app.tabBars.buttons["Scopri"]
         for _ in 0..<5 where !(tab.exists && tab.isHittable) {
+            let card = element("detail.closeCard")
+            if card.exists && card.isHittable { card.tap(); pause(1.5); continue }
             let close = app.buttons["Chiudi"].firstMatch
             let back = app.navigationBars.buttons.element(boundBy: 0)
             if close.exists && close.isHittable { close.tap() } else if back.exists && back.isHittable { back.tap() } else {
