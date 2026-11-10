@@ -204,7 +204,7 @@ public struct TVGuideMatcher: Sendable {
     private let table: [String: String]
 
     public init(_ guide: TVGuide) {
-        exact = Set(guide.channels.map { $0.id }).union(guide.programmes.keys)
+        exact = Set(guide.programmes.keys)
         var table: [String: String] = [:]
         for channel in guide.channels where guide.programmes[channel.id] != nil {
             for key in [channel.id] + channel.names {
