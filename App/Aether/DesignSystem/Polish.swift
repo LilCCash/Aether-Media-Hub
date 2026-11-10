@@ -98,3 +98,47 @@ private struct SymbolSwapModifier: ViewModifier {
         }
     }
 }
+
+/// The icons of the settings pages on a soft tile of the accent colour, like the coloured ones of the first page. The tile
+/// follows the size of the text it sits next to, so a small note keeps a small icon.
+struct SettingsIconLabelStyle: LabelStyle {
+    @EnvironmentObject private var settings: SettingsStore
+
+    func makeBody(configuration: Configuration) -> some View {
+        if settings.value.appearance.settingsIconTiles {
+            HStack(spacing: 10) {
+                configuration.icon
+                    .imageScale(.small)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(settings.accentColor)
+                    .padding(5)
+                    .frame(minWidth: 26, minHeight: 26)
+                    .background(settings.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                configuration.title
+            }
+        } else {
+            Label { configuration.title } icon: { configuration.icon }.labelStyle(.titleAndIcon)
+        }
+    }
+}
+
+extension View {
+    /// The artwork at the top of a title page moves slower than the page and softens as it leaves.
+    func aetherArtworkParallax() -> some View { modifier(ArtworkParallaxModifier()) }
+}
+
+private struct ArtworkParallaxModifier: ViewModifier {
+    @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if settings.animationsEnabled && settings.value.appearance.detailParallax && !settings.reduceEffects && !reduceMotion {
+            content.visualEffect { view, proxy in
+                let y = proxy.frame(in: .scrollView).minY
+                return view.offset(y: y < 0 ? -y * 0.4 : 0).blur(radius: y < 0 ? min(8, -y / 40) : 0)
+            }
+        } else {
+            content
+        }
+    }
+}

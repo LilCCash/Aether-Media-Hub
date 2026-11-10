@@ -228,12 +228,7 @@ struct PersonFilmographyView: View {
     }
 
     private func chip(_ title: String, _ selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title).font(.subheadline.weight(.semibold)).padding(.horizontal, 14).padding(.vertical, 7)
-                .background(selected ? Color.accentColor : Color.primary.opacity(0.1), in: Capsule())
-                .foregroundStyle(selected ? Color.white : Color.primary)
-        }
-        .buttonStyle(.plain)
+        FilterChip(title: title, isSelected: selected, action: action)
     }
 
     private func menuLabel(_ text: String) -> some View {

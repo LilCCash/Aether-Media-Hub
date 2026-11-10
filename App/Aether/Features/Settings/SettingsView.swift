@@ -41,7 +41,7 @@ struct SettingsRootView: View {
 
     private func link<Destination: View>(_ title: String, _ icon: String, _ color: Color, @ViewBuilder destination: () -> Destination) -> some View {
         NavigationLink {
-            destination()
+            destination().labelStyle(SettingsIconLabelStyle())
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: icon)

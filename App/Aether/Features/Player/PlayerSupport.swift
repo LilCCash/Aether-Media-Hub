@@ -180,10 +180,13 @@ struct PlayerScrubber: View {
             let playedFraction = dragFraction ?? (duration > 0 ? clamp(position / duration) : 0)
             let bufferedFraction = duration > 0 ? clamp(buffered / duration) : 0
             let thumb: CGFloat = dragFraction == nil ? 14 : 22
+            // The bar thickens under the finger.
+            let track: CGFloat = dragFraction == nil ? 5 : 9
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.25)).frame(height: 5)
-                Capsule().fill(Color.white.opacity(0.35)).frame(width: width * bufferedFraction, height: 5)
-                Capsule().fill(accent).frame(width: width * playedFraction, height: 5)
+                Capsule().fill(Color.white.opacity(0.25)).frame(height: track)
+                Capsule().fill(Color.white.opacity(0.35)).frame(width: width * bufferedFraction, height: track)
+                Capsule().fill(accent).frame(width: width * playedFraction, height: track)
+                    .shadow(color: accent.opacity(0.6), radius: dragFraction == nil ? 0 : 6)
                 Circle().fill(Color.white)
                     .frame(width: thumb, height: thumb)
                     .shadow(color: .black.opacity(0.4), radius: 3, y: 1)
@@ -193,6 +196,7 @@ struct PlayerScrubber: View {
                 }
             }
             .frame(width: width, height: proxy.size.height, alignment: .leading)
+            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: dragFraction != nil)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)

@@ -124,6 +124,7 @@ struct RatingBadge: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .background(.black.opacity(0.55), in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
         .repaintsWithTitleFont()
         .accessibilityLabel("Valutazione \(rating)")
     }
@@ -200,7 +201,7 @@ struct ProgressBar: View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
                 Capsule().fill(.white.opacity(0.28))
-                Capsule().fill(Color.white)
+                Capsule().fill(LinearGradient(colors: [Color.accentColor, .white], startPoint: .leading, endPoint: .trailing))
                     .frame(width: max(height, proxy.size.width * CGFloat(min(1, max(0, value)))))
             }
         }
@@ -372,8 +373,11 @@ struct FilterChip: View {
                 .padding(.vertical, 8)
                 .foregroundStyle(isSelected ? settings.accentColor.readableForeground : Color.primary)
                 .background(isSelected ? AnyShapeStyle(settings.accentColor.gradient) : AnyShapeStyle(Color.primary.opacity(0.08)), in: Capsule())
+                .overlay(Sheen(shape: Capsule(), strength: isSelected ? 1 : 0))
+                .shadow(color: settings.accentColor.opacity(isSelected && settings.value.appearance.buttonGlow && !settings.reduceEffects ? 0.35 : 0), radius: 8, y: 3)
+                .animation(settings.animationsEnabled ? .spring(response: 0.3, dampingFraction: 0.8) : nil, value: isSelected)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
 }

@@ -15,7 +15,8 @@ struct StreamRow: View {
     private var rating: SourceRating { SourceRating.rate(item.info, preferences: env.streamPreferences()) }
 
     private func ratingBadge(_ rating: SourceRating) -> some View {
-        let tint: Color = rating.score >= 75 ? .green : (rating.score >= 50 ? settings.accentColor : .orange)
+        // Green, mint, yellow, orange, red: the verdict at a glance, the number for who wants it.
+        let tint: Color = rating.score >= 90 ? .green : (rating.score >= 75 ? .mint : (rating.score >= 60 ? .yellow : (rating.score >= 40 ? .orange : .red)))
         return Text("\(rating.score)")
             .font(.system(.caption, design: AetherTypography.design).weight(.heavy).monospacedDigit())
             .foregroundStyle(tint)
@@ -57,6 +58,7 @@ struct StreamRow: View {
         .background(RoundedRectangle(cornerRadius: Corner.control, style: .continuous)
             .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
         .overlay(RoundedRectangle(cornerRadius: Corner.control, style: .continuous).stroke(.white.opacity(0.18), lineWidth: 1))
+        .overlay(Sheen(shape: RoundedRectangle(cornerRadius: Corner.control, style: .continuous), strength: 1.2))
         .opacity(item.info.support.isPlayable ? 1 : 0.45)
         .accessibilityHidden(true)
     }
@@ -70,7 +72,10 @@ struct StreamRow: View {
                     if isBest {
                         Label("Consigliata", systemImage: "sparkles")
                             .font(.system(.caption2, design: AetherTypography.design).weight(.bold))
-                            .foregroundStyle(settings.accentColor)
+                            .foregroundStyle(settings.accentColor.readableForeground)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(settings.accentColor.gradient, in: Capsule())
+                            .overlay(Sheen(shape: Capsule()))
                     }
                     Spacer()
                     if item.info.support.isPlayable {

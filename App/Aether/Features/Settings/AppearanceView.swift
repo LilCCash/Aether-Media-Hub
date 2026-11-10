@@ -180,7 +180,7 @@ struct AppearanceSettingsView: View {
 
     private var cards: some View {
         Section(header: Text("Locandine e schede"),
-                footer: Text("Il bordo di luce è il filo chiaro in alto a sinistra di locandine, schede e icone. L'alone è il bagliore nel colore d'accento sotto i pulsanti principali (Guarda, Installa…).")) {
+                footer: Text("Il bordo di luce è il filo chiaro in alto a sinistra di locandine, schede e icone. L'alone è il bagliore nel colore d'accento sotto i pulsanti principali (Guarda, Installa…) e i filtri scelti. Le tessere sono i riquadri colorati dietro le icone nelle pagine delle impostazioni.")) {
             Picker("Cornice", selection: settings.binding(\.appearance.cardChrome)) {
                 ForEach(CardChrome.allCases, id: \.self) { Text($0.title).tag($0) }
             }
@@ -202,6 +202,7 @@ struct AppearanceSettingsView: View {
             Toggle("Voto sulle locandine", isOn: settings.binding(\.appearance.showPosterRatings))
             Toggle("Bordo di luce sulle schede", isOn: settings.binding(\.appearance.cardSheen))
             Toggle("Alone sui pulsanti principali", isOn: settings.binding(\.appearance.buttonGlow))
+            Toggle("Icone su tessera nelle impostazioni", isOn: settings.binding(\.appearance.settingsIconTiles))
         }
     }
 
@@ -238,6 +239,7 @@ struct AppearanceSettingsView: View {
                 if appearance.animationsEnabled {
                     motionToggle("Schede che si posano mentre scorri", "Locandine e schede si rimpiccioliscono appena ai bordi e tornano piene entrando in vista.", \.appearance.scrollMotion)
                     motionToggle("Sezioni che entrano in scena", "Le sezioni della Home, i pannelli e le pagine vuote compaiono salendo leggermente.", \.appearance.entranceMotion)
+                    motionToggle("Immagine del titolo in profondità", "Nella pagina di un film l'immagine in alto scorre più lenta del resto e si sfoca uscendo.", \.appearance.detailParallax)
                     motionToggle("Icone che si trasformano", "Il ＋ diventa ✓, la stella si riempie: il simbolo cambia con una piccola animazione.", \.appearance.symbolMotion)
                     motionToggle("Immagini che sfumano all'arrivo", "Locandine e sfondi compaiono in dissolvenza invece che di colpo.", \.appearance.imageFades)
                     motionToggle("Zoom lento sulle immagini", "Nella Scoperta, nell'ambiente e nei titoli di coda l'immagine si muove piano.", \.appearance.kenBurns)

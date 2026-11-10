@@ -282,10 +282,13 @@ struct LiveTVView: View {
                 Text(title).font(.system(size: small ? 13 : 15, weight: .semibold, design: AetherTypography.design)).lineLimit(1)
             }
             .padding(.horizontal, small ? 12 : 14).padding(.vertical, small ? 7 : 9)
-            .foregroundStyle(on ? Color.white : Color.primary)
+            .foregroundStyle(on ? settings.accentColor.readableForeground : Color.primary)
             .background(on ? AnyShapeStyle(settings.accentColor.gradient) : AnyShapeStyle(.thinMaterial), in: Capsule())
+            .overlay(Sheen(shape: Capsule(), strength: on ? 1 : 0))
+            .shadow(color: settings.accentColor.opacity(on && settings.value.appearance.buttonGlow && !settings.reduceEffects ? 0.35 : 0), radius: 8, y: 3)
+            .animation(settings.animationsEnabled ? .spring(response: 0.3, dampingFraction: 0.8) : nil, value: on)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var grid: some View {

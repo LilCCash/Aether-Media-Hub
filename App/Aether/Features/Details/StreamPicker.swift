@@ -222,7 +222,7 @@ struct StreamPickerSheet: View {
                 .accessibilityLabel(request.meta.name)
         } else {
             Text(request.meta.name)
-                .font(.system(size: 28, weight: .heavy, design: .serif))
+                .font(.aetherTitle(28))
                 .multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.7)
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.6), radius: 8)

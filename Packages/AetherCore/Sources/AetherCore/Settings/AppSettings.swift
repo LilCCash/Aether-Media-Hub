@@ -210,6 +210,10 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var entranceMotion: Bool = true
     /// Symbols morph when they change and bounce when they confirm an action.
     public var symbolMotion: Bool = true
+    /// The artwork of a title page moves slower than the page while scrolling.
+    public var detailParallax: Bool = true
+    /// The icons of the settings pages sit on a soft tile of the accent colour.
+    public var settingsIconTiles: Bool = true
     /// The coloured halo under the main buttons.
     public var buttonGlow: Bool = true
     /// The full-width featured picture of the Home runs up to the top edge of the screen (when it is the first section).
@@ -233,7 +237,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         case heroStyle, heroAutoScroll, heroInterval, homeSections, greetingEnabled, greetingName
         case animationsEnabled, haptics, detailAsCard, zoomTransition, dynamicCinematic, cinematicOpening, creditsExperience, reduceVisualEffects, unlockedSecrets
         case moodColors, cinematicMotion, imageFades, kenBurns, openingSound, showExplore, showCinemaCard
-        case cardSheen, scrollMotion, buttonGlow, heroEdgeToEdge, entranceMotion, symbolMotion
+        case cardSheen, scrollMotion, buttonGlow, heroEdgeToEdge, entranceMotion, symbolMotion, detailParallax, settingsIconTiles
     }
 
     private static func cleanHex(_ value: String?) -> String? {
@@ -291,6 +295,8 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         scrollMotion = c.value(.scrollMotion, default: true)
         entranceMotion = c.value(.entranceMotion, default: true)
         symbolMotion = c.value(.symbolMotion, default: true)
+        detailParallax = c.value(.detailParallax, default: true)
+        settingsIconTiles = c.value(.settingsIconTiles, default: true)
         buttonGlow = c.value(.buttonGlow, default: true)
         heroEdgeToEdge = c.value(.heroEdgeToEdge, default: true)
         kenBurns = c.value(.kenBurns, default: true)
