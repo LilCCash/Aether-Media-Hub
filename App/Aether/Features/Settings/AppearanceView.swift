@@ -179,7 +179,8 @@ struct AppearanceSettingsView: View {
     // MARK: Cards
 
     private var cards: some View {
-        Section(header: Text("Locandine e schede")) {
+        Section(header: Text("Locandine e schede"),
+                footer: Text("Il bordo di luce è il filo chiaro in alto a sinistra di locandine, schede e icone. L'alone è il bagliore nel colore d'accento sotto i pulsanti principali (Guarda, Installa…).")) {
             Picker("Cornice", selection: settings.binding(\.appearance.cardChrome)) {
                 ForEach(CardChrome.allCases, id: \.self) { Text($0.title).tag($0) }
             }
@@ -199,6 +200,8 @@ struct AppearanceSettingsView: View {
             }
             .accessibilityIdentifier("settings.style.font")
             Toggle("Voto sulle locandine", isOn: settings.binding(\.appearance.showPosterRatings))
+            Toggle("Bordo di luce sulle schede", isOn: settings.binding(\.appearance.cardSheen))
+            Toggle("Alone sui pulsanti principali", isOn: settings.binding(\.appearance.buttonGlow))
         }
     }
 
@@ -227,6 +230,9 @@ struct AppearanceSettingsView: View {
             if appearance.dynamicCinematic {
                 Toggle("Colori dell'artwork sullo sfondo", isOn: settings.binding(\.appearance.moodColors))
                 Toggle("Zoom lento e dissolvenza all'apertura", isOn: settings.binding(\.appearance.cinematicMotion))
+            }
+            if appearance.animationsEnabled {
+                Toggle("Schede che si posano mentre scorri", isOn: settings.binding(\.appearance.scrollMotion))
             }
             Toggle("Immagini che sfumano all'arrivo", isOn: settings.binding(\.appearance.imageFades))
             Toggle("Zoom lento nella Scoperta, nell'ambiente e nei titoli di coda", isOn: settings.binding(\.appearance.kenBurns))

@@ -202,6 +202,14 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var cinematicMotion: Bool = true
     /// Pictures fade in when they arrive instead of appearing at once.
     public var imageFades: Bool = true
+    /// The thin light edge on posters, cards and filled icons.
+    public var cardSheen: Bool = true
+    /// Cards settle into place as they scroll into view.
+    public var scrollMotion: Bool = true
+    /// The coloured halo under the main buttons.
+    public var buttonGlow: Bool = true
+    /// The full-width featured picture of the Home runs up to the top edge of the screen (when it is the first section).
+    public var heroEdgeToEdge: Bool = true
     /// Slow zoom and drift of the pictures in the discovery, the ambient mode and the end credits.
     public var kenBurns: Bool = true
     /// The original chime of the opening (the opening itself is `cinematicOpening`).
@@ -221,6 +229,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         case heroStyle, heroAutoScroll, heroInterval, homeSections, greetingEnabled, greetingName
         case animationsEnabled, haptics, detailAsCard, zoomTransition, dynamicCinematic, cinematicOpening, creditsExperience, reduceVisualEffects, unlockedSecrets
         case moodColors, cinematicMotion, imageFades, kenBurns, openingSound, showExplore, showCinemaCard
+        case cardSheen, scrollMotion, buttonGlow, heroEdgeToEdge
     }
 
     private static func cleanHex(_ value: String?) -> String? {
@@ -274,6 +283,10 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         moodColors = c.value(.moodColors, default: true)
         cinematicMotion = c.value(.cinematicMotion, default: true)
         imageFades = c.value(.imageFades, default: true)
+        cardSheen = c.value(.cardSheen, default: true)
+        scrollMotion = c.value(.scrollMotion, default: true)
+        buttonGlow = c.value(.buttonGlow, default: true)
+        heroEdgeToEdge = c.value(.heroEdgeToEdge, default: true)
         kenBurns = c.value(.kenBurns, default: true)
         openingSound = c.value(.openingSound, default: true)
         showExplore = c.value(.showExplore, default: true)

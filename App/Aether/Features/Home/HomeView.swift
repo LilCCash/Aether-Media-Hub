@@ -75,7 +75,7 @@ struct HomeView: View {
     /// page has no title of its own (the picture is the title).
     private var heroOnTop: Bool {
         let appearance = settings.value.appearance
-        guard appearance.heroStyle == .fullBleed, !appearance.greetingEnabled, !model.heroItems.isEmpty, !addons.enabledAddons.isEmpty else { return false }
+        guard appearance.heroStyle == .fullBleed, appearance.heroEdgeToEdge, !appearance.greetingEnabled, !model.heroItems.isEmpty, !addons.enabledAddons.isEmpty else { return false }
         return appearance.homeSections.first(where: { $0.isVisible })?.id == HomeSectionConfig.hero
     }
 

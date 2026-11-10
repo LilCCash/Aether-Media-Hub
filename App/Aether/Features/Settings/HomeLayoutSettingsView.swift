@@ -97,6 +97,15 @@ struct HomeLayoutSettingsView: View {
             }
             .pickerStyle(.segmented)
             .accessibilityIdentifier("settings.home.heroStyle")
+            if settings.value.appearance.heroStyle == .fullBleed {
+                Toggle(isOn: settings.binding(\.appearance.heroEdgeToEdge)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Immagine fino al bordo alto")
+                        Text("Quando «In evidenza» è la prima sezione, l'immagine sale sotto l'orologio e la pagina non mostra il titolo «Home».")
+                            .font(.caption).foregroundStyle(Color.aetherSecondary)
+                    }
+                }
+            }
             Toggle("Scorrimento automatico", isOn: settings.binding(\.appearance.heroAutoScroll))
                 .accessibilityIdentifier("settings.home.heroAutoScroll")
             if settings.value.appearance.heroAutoScroll {

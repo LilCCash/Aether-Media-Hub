@@ -7,8 +7,13 @@ import SwiftUI
 struct Sheen<S: InsettableShape>: View {
     let shape: S
     var strength: Double = 1
+    @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
+        if settings.value.appearance.cardSheen && strength > 0 { edge }
+    }
+
+    private var edge: some View {
         shape.strokeBorder(LinearGradient(stops: [.init(color: .white.opacity(0.34 * strength), location: 0),
                                                   .init(color: .white.opacity(0.06 * strength), location: 0.38),
                                                   .init(color: .clear, location: 0.7)],
@@ -33,7 +38,7 @@ private struct ScrollMotionModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        if settings.animationsEnabled && !settings.reduceEffects && !reduceMotion {
+        if settings.animationsEnabled && settings.value.appearance.scrollMotion && !settings.reduceEffects && !reduceMotion {
             let horizontal = axis == .horizontal
             content.scrollTransition(.interactive(timingCurve: .easeOut).threshold(.visible(horizontal ? 0.55 : 0.12)), axis: axis) { view, phase in
                 view.scaleEffect(phase.isIdentity ? 1 : (horizontal ? 0.94 : 0.95))
