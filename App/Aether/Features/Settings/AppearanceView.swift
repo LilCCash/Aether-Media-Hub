@@ -239,7 +239,7 @@ struct AppearanceSettingsView: View {
                 if appearance.animationsEnabled {
                     motionToggle("Schede che si posano mentre scorri", "Locandine e schede si rimpiccioliscono appena ai bordi e tornano piene entrando in vista.", \.appearance.scrollMotion)
                     motionToggle("Sezioni che entrano in scena", "Le sezioni della Home, i pannelli e le pagine vuote compaiono salendo leggermente.", \.appearance.entranceMotion)
-                    motionToggle("Immagine del titolo in profondità", "Nella pagina di un film l'immagine in alto scorre più lenta del resto e si sfoca uscendo.", \.appearance.detailParallax)
+                    motionToggle("Immagine del titolo in profondità", "Nella pagina di un film l'immagine in alto scorre più lenta del resto e si sfoca uscendo; poi il titolo sale nella barra.", \.appearance.detailParallax)
                     motionToggle("Icone che si trasformano", "Il ＋ diventa ✓, la stella si riempie: il simbolo cambia con una piccola animazione.", \.appearance.symbolMotion)
                     motionToggle("Immagini che sfumano all'arrivo", "Locandine e sfondi compaiono in dissolvenza invece che di colpo.", \.appearance.imageFades)
                     motionToggle("Zoom lento sulle immagini", "Nella Scoperta, nell'ambiente e nei titoli di coda l'immagine si muove piano.", \.appearance.kenBurns)

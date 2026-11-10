@@ -21,6 +21,7 @@ enum LibrarySection: String, CaseIterable, Identifiable {
 }
 
 struct LibraryView: View {
+    @Namespace private var chipSpace
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var library: LibraryModel
     @EnvironmentObject private var settings: SettingsStore
@@ -60,13 +61,9 @@ struct LibraryView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(LibrarySection.allCases) { item in
-                                Button { withAnimation(.snappy) { section = item } } label: {
-                                    Text(item.title).font(.subheadline.weight(.semibold)).padding(.horizontal, 14).padding(.vertical, 7)
-                                        .background(section == item ? settings.accentColor : Color.primary.opacity(0.1), in: Capsule())
-                                        .foregroundStyle(section == item ? Color.white : Color.primary)
+                                FilterChip(title: item.title, isSelected: section == item, slide: chipSpace) {
+                                    withAnimation(settings.animationsEnabled ? .snappy : nil) { section = item }
                                 }
-                                .buttonStyle(.plain)
-                                .accessibilityAddTraits(section == item ? .isSelected : [])
                             }
                         }
                         .padding(.horizontal, Theme.pageMargin)

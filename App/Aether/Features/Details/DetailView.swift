@@ -166,6 +166,8 @@ struct DetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoomed = false
     @State private var atTop = true
+    /// The header has scrolled away: the title moves into the bar.
+    @State private var headerGone = false
     /// Whether the page was at its top when the current drag began: only such a drag may close it (a drag that scrolls back up
     /// to the top, in the page or in its list of episodes, must not).
     @State private var dragBeganAtTop: Bool?
@@ -203,6 +205,7 @@ struct DetailView: View {
         if #available(iOS 18.0, *) { return settings.value.appearance.zoomTransition }
         return false
     }
+    private var collapsesTitle: Bool { return settings.animationsEnabled && settings.value.appearance.detailParallax && !reduceMotion }
     private var revealsCinematically: Bool { return style.cinematic && style.motion && !reduceMotion && !zoomsIn }
 
     init(route: MetaRoute) {
@@ -246,7 +249,11 @@ struct DetailView: View {
                 .scaleEffect(revealsCinematically && !revealed ? 1.06 : 1, anchor: .top)
             }
             .coordinateSpace(name: "detailScroll")
-            .onPreferenceChange(DetailScrollOffsetKey.self) { atTop = $0 > -2 }
+            .onPreferenceChange(DetailScrollOffsetKey.self) { offset in
+                atTop = offset > -2
+                let gone = offset < -300
+                if gone != headerGone { headerGone = gone }
+            }
             .modifier(DetailScrollTopReader(atTop: $atTop))
             // The page that grows out of a poster (iOS 18 zoom) gets a pull-down-to-close gesture from iOS that also started in the
             // middle of the page, while scrolling back up through the episodes: it is switched on only at the top of the page.
@@ -269,12 +276,32 @@ struct DetailView: View {
                     if let close = pullToDismiss { close() } else { dismissPage() }
                 })
             .ignoresSafeArea(edges: .top)
+            // A frosted strip behind the bar once the header is gone, so the title in the bar reads over the page.
+            VStack(spacing: 0) {
+                Rectangle().fill(.ultraThinMaterial)
+                    .frame(height: 112)
+                    .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.72), .init(color: .clear, location: 1)],
+                                         startPoint: .top, endPoint: .bottom))
+                Spacer(minLength: 0)
+            }
+            .opacity(collapsesTitle && headerGone ? 1 : 0)
+            .animation(.easeInOut(duration: 0.2), value: headerGone)
+            .ignoresSafeArea(edges: .top)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
         .preferredColorScheme(style.cinematic ? .dark : nil)
         .onAppear { withAnimation(.easeOut(duration: 0.8)) { revealed = true } }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(model.meta.name).font(.aetherHeadline()).lineLimit(1)
+                    .opacity(collapsesTitle && headerGone ? 1 : 0)
+                    .offset(y: collapsesTitle && headerGone ? 0 : 8)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: headerGone)
+                    .accessibilityHidden(true)
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { posterPicker = true } label: {
                     Image(systemName: "photo.stack")

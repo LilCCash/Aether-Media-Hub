@@ -362,8 +362,22 @@ struct OfflineBanner: View {
 struct FilterChip: View {
     let title: String
     let isSelected: Bool
+    /// In a row of chips that share a namespace, the coloured pill slides from the old choice to the new one.
+    var slide: Namespace.ID? = nil
     let action: () -> Void
     @EnvironmentObject private var settings: SettingsStore
+
+    @ViewBuilder
+    private var pill: some View {
+        Capsule().fill(Color.primary.opacity(0.08))
+        if isSelected {
+            if let slide = slide, settings.animationsEnabled {
+                Capsule().fill(settings.accentColor.gradient).matchedGeometryEffect(id: "chip.selection", in: slide)
+            } else {
+                Capsule().fill(settings.accentColor.gradient)
+            }
+        }
+    }
 
     var body: some View {
         Button(action: action) {
@@ -372,7 +386,7 @@ struct FilterChip: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .foregroundStyle(isSelected ? settings.accentColor.readableForeground : Color.primary)
-                .background(isSelected ? AnyShapeStyle(settings.accentColor.gradient) : AnyShapeStyle(Color.primary.opacity(0.08)), in: Capsule())
+                .background { ZStack { pill } }
                 .overlay(Sheen(shape: Capsule(), strength: isSelected ? 1 : 0))
                 .shadow(color: settings.accentColor.opacity(isSelected && settings.value.appearance.buttonGlow && !settings.reduceEffects ? 0.35 : 0), radius: 8, y: 3)
                 .animation(settings.animationsEnabled ? .spring(response: 0.3, dampingFraction: 0.8) : nil, value: isSelected)

@@ -255,7 +255,7 @@ struct UniverseDetailView: View {
                     ZStack {
                         Circle().stroke(.white.opacity(0.25), lineWidth: 5)
                         Circle().trim(from: 0, to: progress.fraction).stroke(Color.white, style: StrokeStyle(lineWidth: 5, lineCap: .round)).rotationEffect(.degrees(-90))
-                        Text("\(progress.percent)%").font(.caption.weight(.bold))
+                        Text("\(progress.percent)%").font(.caption.weight(.bold)).contentTransition(.numericText()).animation(.default, value: progress.percent)
                     }
                     .frame(width: 50, height: 50)
                     .accessibilityElement(children: .ignore)
