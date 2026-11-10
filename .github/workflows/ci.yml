@@ -336,6 +336,9 @@ jobs:
           echo "=== unit tests ==="
           grep -E "Executed [0-9]+ tests?" "$RUNNER_TEMP/unit.log" | tail -2 || true
           grep -E "error: -\[|Test Case .* failed" "$RUNNER_TEMP/unit.log" | sort -u | head -40 || true
+          echo "=== screenshot tour ==="
+          grep -E "error:|Test Case .* (passed|failed)" "$RUNNER_TEMP/shots.log" | cut -c1-400 | tail -12 || true
+          grep -c "TOUR-SHOT" "$RUNNER_TEMP/shots.log" || true
           echo "=== UI tests ==="
           grep -E "Executed [0-9]+ tests?" "$RUNNER_TEMP/ui.log" | tail -2 || true
           grep -E "Test Case .* (passed|failed)" "$RUNNER_TEMP/ui.log" | sed -E 's/.*Test Case .-\[AetherUITests\.//' | head -60 || true
