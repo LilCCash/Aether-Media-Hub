@@ -304,8 +304,17 @@ struct LiveTVView: View {
                             onPlay: { play(channel) }, onFavorite: { toggleFavorite(channel) }, onCopy: { copy(channel) })
             }
         }
-        .overlay {
-            if model.isLoading { ProgressView().controlSize(.large).padding(40) }
+        .overlay(alignment: .top) {
+            if model.isLoading {
+                if model.channels.isEmpty {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+                        ForEach(0..<6, id: \.self) { _ in SkeletonTile() }
+                    }
+                    .accessibilityLabel("Caricamento in corso")
+                } else {
+                    ProgressView().controlSize(.large).padding(40)
+                }
+            }
         }
     }
 

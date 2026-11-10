@@ -97,6 +97,10 @@ struct StreamPickerSheet: View {
                             }
                         }
                         .accessibilityIdentifier("stream.loading")
+                        // While nothing has arrived yet, the shape of the rows to come instead of an empty list.
+                        if playable.isEmpty {
+                            ForEach(0..<3, id: \.self) { _ in SkeletonSourceRow() }
+                        }
                     }
                 } else if model.ranked.isEmpty || (!model.isLoading && model.debridProvider == .realdebrid && model.debridConfigured && model.playable.isEmpty) {
                     Section { emptyState }

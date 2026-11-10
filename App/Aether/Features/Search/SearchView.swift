@@ -689,6 +689,7 @@ struct SearchView: View {
             }
             .padding(.horizontal, Theme.pageMargin)
             .accessibilityIdentifier("search.progress")
+            if model.progress.done == 0 { SkeletonRow(count: 4) }
         }
         // Said before the results, not after the last row: this is what explains why there are fewer of them.
         if let summary = presentation.missingDataSummary {

@@ -22,6 +22,8 @@ struct PlayerPanelHost: View {
     @ObservedObject var model: PlayerViewModel
     let onImportSubtitle: () -> Void
     let close: () -> Void
+    @Environment(\.playerAccent) private var playerAccent
+    @EnvironmentObject private var settings: SettingsStore
     /// The current subtitle, laid out for the part of the screen the panel leaves free: drawn over the dimming, beside the panel, so
     /// the effect of a delay or a style can be judged while the panel is open.
     let subtitleLayer: (CGSize) -> AnyView
@@ -60,8 +62,13 @@ struct PlayerPanelHost: View {
                 .frame(width: width + insets.trailing)
                 .frame(maxHeight: .infinity)
                 .background(
-                    Rectangle().fill(.regularMaterial)
-                        .overlay(Color.black.opacity(0.35))
+                    // The app's glass, darker for the film behind it, with a light edge where the panel meets the picture.
+                    Rectangle().fill(.ultraThinMaterial)
+                        .overlay(Color.black.opacity(0.42))
+                        .overlay(LinearGradient(colors: [(playerAccent ?? settings.accentColor).opacity(0.16), .clear], startPoint: .top, endPoint: .center))
+                        .overlay(alignment: .leading) {
+                            LinearGradient(colors: [.white.opacity(0.32), .white.opacity(0.06)], startPoint: .top, endPoint: .bottom).frame(width: 0.8)
+                        }
                         .ignoresSafeArea()
                 )
                 .accessibilityElement(children: .contain)

@@ -251,6 +251,33 @@ struct SkeletonBlock: View {
     }
 }
 
+/// A source that is still being looked for: the shape of a row of the list of sources.
+struct SkeletonSourceRow: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            SkeletonBlock(cornerRadius: Corner.control).frame(width: 48, height: 48)
+            VStack(alignment: .leading, spacing: 8) {
+                SkeletonBlock(cornerRadius: 4).frame(width: 150, height: 12)
+                SkeletonBlock(cornerRadius: 4).frame(maxWidth: .infinity).frame(height: 10)
+                SkeletonBlock(cornerRadius: 4).frame(width: 110, height: 10)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A channel that is still loading: the shape of a tile of Live TV.
+struct SkeletonTile: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SkeletonBlock(cornerRadius: Corner.panel).frame(height: 96)
+            SkeletonBlock(cornerRadius: 4).frame(width: 90, height: 11)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 struct SkeletonRow: View {
     var posterWidth: CGFloat = 128
     var count: Int = 6
