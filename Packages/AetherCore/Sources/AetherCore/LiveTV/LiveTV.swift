@@ -38,6 +38,8 @@ public struct M3UParseResult: Equatable, Sendable {
     public var channels: [M3UChannel]
     /// Entries with an address that is not http(s), or no address at all.
     public var skipped: Int
+    /// The guides the playlist announces in its header (`url-tvg`, `x-tvg-url`), http(s) only.
+    public var guides: [String] = []
 }
 
 public enum M3UParser {
@@ -51,10 +53,19 @@ public enum M3UParser {
         var agent: String?
         var referrer: String?
         var extGroup: String?
+        var guides: [String] = []
         for rawLine in text.split(omittingEmptySubsequences: true, whereSeparator: { $0 == "\n" || $0 == "\r" }) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if line.isEmpty { continue }
-            if line.hasPrefix("#EXTINF") {
+            if line.hasPrefix("#EXTM3U") {
+                let attrs = attributes(in: String(line.dropFirst("#EXTM3U".count)))
+                for key in ["url-tvg", "x-tvg-url"] {
+                    for address in (attrs[key] ?? "").split(separator: ",") {
+                        let text = address.trimmingCharacters(in: .whitespaces)
+                        if let url = URL(string: text), ["http", "https"].contains(url.scheme?.lowercased() ?? ""), !guides.contains(text) { guides.append(text) }
+                    }
+                }
+            } else if line.hasPrefix("#EXTINF") {
                 let body = String(line.dropFirst("#EXTINF:".count))
                 let parts = splitExtInf(body)
                 pending = (attributes(in: parts.attributes), parts.name)
@@ -86,7 +97,7 @@ public enum M3UParser {
                 if channels.count >= maxChannels { break }
             }
         }
-        return M3UParseResult(channels: channels, skipped: skipped)
+        return M3UParseResult(channels: channels, skipped: skipped, guides: guides)
     }
 
     private static func nonEmpty(_ text: String?) -> String? {
@@ -191,10 +202,14 @@ public struct LiveTVSettings: Codable, Equatable, Sendable {
     public var includedCatalogs: [String] = []
     public var excludedCatalogs: [String] = []
     public var favorites: [LiveFavorite] = []
+    /// The TV guide under the channels of the playlists.
+    public var guideEnabled: Bool = true
+    /// The viewer's own XMLTV address (.xml or .xml.gz); empty for the playlist's own guide, else the public Italian one.
+    public var guideURL: String = ""
 
     public init() {}
 
-    private enum CodingKeys: String, CodingKey { case showTab, playlists, includedCatalogs, excludedCatalogs, favorites }
+    private enum CodingKeys: String, CodingKey { case showTab, playlists, includedCatalogs, excludedCatalogs, favorites, guideEnabled, guideURL }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -203,6 +218,16 @@ public struct LiveTVSettings: Codable, Equatable, Sendable {
         includedCatalogs = c.stringList(.includedCatalogs)
         excludedCatalogs = c.stringList(.excludedCatalogs)
         favorites = c.lossyArray(LiveFavorite.self, forKey: .favorites)
+        guideEnabled = c.value(.guideEnabled, default: true)
+        guideURL = c.value(.guideURL, default: "")
+    }
+
+    /// The guide to download: the viewer's address, else the one a playlist announces (`url-tvg`), else the public Italian one.
+    public func guideAddress(announced: [String]) -> String? {
+        guard guideEnabled else { return nil }
+        let own = guideURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !own.isEmpty { return own }
+        return announced.first { !$0.isEmpty } ?? TVGuide.defaultItalianURL
     }
 
     /// Is the catalog shown in Live TV? A «tv» catalog is, unless switched off; any other is only when the viewer asked for it.
