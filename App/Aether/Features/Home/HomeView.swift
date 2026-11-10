@@ -11,6 +11,7 @@ struct HomeView: View {
     @StateObject private var model = HomeViewModel()
     @State private var showingInstall = false
     @State private var showingCast = false
+    @State private var heroScrolledAway = false
     @Environment(\.aetherStyle) private var style
     /// The film at the front of the featured carousel: the Home takes the colours of this one.
     @State private var heroPageID: String?
@@ -42,9 +43,11 @@ struct HomeView: View {
                 let metas = model.heroItems + library.continueWatching.map { $0.asMeta } + library.nextUpSeeds.map { $0.asMeta }
                 FanartLogoStore.shared.prefetch(metas, env: env)
             }
-            .navigationTitle(heroOnTop ? "" : "Home")
+            // Over the picture the bar is bare; once the picture has scrolled away the bar comes back with the page's name.
+            .navigationTitle(heroOnTop && !heroScrolledAway ? "" : "Home")
             .navigationBarTitleDisplayMode(heroOnTop ? .inline : .large)
-            .toolbarBackground(heroOnTop ? .hidden : .automatic, for: .navigationBar)
+            .toolbarBackground(heroOnTop ? (heroScrolledAway ? .visible : .hidden) : .automatic, for: .navigationBar)
+            .animation(settings.animationsEnabled ? .easeInOut(duration: 0.2) : nil, value: heroScrolledAway)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     homeButton("tv.and.mediabox", "Trasmetti su un dispositivo", id: "home.cast") { showingCast = true }
@@ -63,6 +66,12 @@ struct HomeView: View {
                 AddonInstallSheet(prefill: KnownAddons.cinemetaManifestURL.absoluteString)
             }
         }
+    }
+
+    /// Where the bottom of the featured picture is in the Home's scroll view.
+    private struct HeroBottomKey: PreferenceKey {
+        static var defaultValue: CGFloat = -1
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
     }
 
     private struct ReloadKey: Equatable {
@@ -113,6 +122,11 @@ struct HomeView: View {
                     Color.clear.frame(height: 24)
                 }
             }
+            .coordinateSpace(name: "home.scroll")
+            .onPreferenceChange(HeroBottomKey.self) { bottom in
+                let away = bottom < 150
+                if away != heroScrolledAway { heroScrolledAway = away }
+            }
             .ignoresSafeArea(edges: heroOnTop ? .top : [])
             .accessibilityIdentifier("home.scroll")
         }
@@ -145,6 +159,9 @@ struct HomeView: View {
         case HomeSectionConfig.hero:
             if !model.heroItems.isEmpty {
                 HeroCarousel(items: model.heroItems, style: appearance.heroStyle, reachesTop: heroOnTop, onPage: { heroPageID = $0.id })
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: HeroBottomKey.self, value: proxy.frame(in: .named("home.scroll")).maxY)
+                    })
             }
         case HomeSectionConfig.continueWatching:
             if !library.continueWatching.isEmpty {
