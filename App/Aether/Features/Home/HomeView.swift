@@ -42,8 +42,9 @@ struct HomeView: View {
                 let metas = model.heroItems + library.continueWatching.map { $0.asMeta } + library.nextUpSeeds.map { $0.asMeta }
                 FanartLogoStore.shared.prefetch(metas, env: env)
             }
-            .navigationTitle("Home")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle(heroOnTop ? "" : "Home")
+            .navigationBarTitleDisplayMode(heroOnTop ? .inline : .large)
+            .toolbarBackground(heroOnTop ? .hidden : .automatic, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     homeButton("tv.and.mediabox", "Trasmetti su un dispositivo", id: "home.cast") { showingCast = true }
@@ -70,6 +71,14 @@ struct HomeView: View {
         var talkShows: Set<ContentScope>
     }
 
+    /// The full-width featured picture opens the Home: it then runs up to the top edge of the screen, under the clock, and the
+    /// page has no title of its own (the picture is the title).
+    private var heroOnTop: Bool {
+        let appearance = settings.value.appearance
+        guard appearance.heroStyle == .fullBleed, !appearance.greetingEnabled, !model.heroItems.isEmpty, !addons.enabledAddons.isEmpty else { return false }
+        return appearance.homeSections.first(where: { $0.isVisible })?.id == HomeSectionConfig.hero
+    }
+
     @ViewBuilder
     private var content: some View {
         if addons.enabledAddons.isEmpty {
@@ -93,16 +102,18 @@ struct HomeView: View {
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 26, pinnedViews: []) {
-                    OfflineBanner().frame(maxWidth: .infinity)
+                    if !heroOnTop && !network.isOnline { OfflineBanner().frame(maxWidth: .infinity) }
                     if settings.value.appearance.greetingEnabled {
                         greeting
                     }
                     ForEach(settings.value.appearance.homeSections.filter { $0.isVisible }) { section in
                         sectionView(for: section.id)
+                        if heroOnTop && section.id == HomeSectionConfig.hero && !network.isOnline { OfflineBanner().frame(maxWidth: .infinity) }
                     }
                     Color.clear.frame(height: 24)
                 }
             }
+            .ignoresSafeArea(edges: heroOnTop ? .top : [])
             .accessibilityIdentifier("home.scroll")
         }
     }
@@ -133,7 +144,7 @@ struct HomeView: View {
         switch id {
         case HomeSectionConfig.hero:
             if !model.heroItems.isEmpty {
-                HeroCarousel(items: model.heroItems, style: appearance.heroStyle, onPage: { heroPageID = $0.id })
+                HeroCarousel(items: model.heroItems, style: appearance.heroStyle, reachesTop: heroOnTop, onPage: { heroPageID = $0.id })
             }
         case HomeSectionConfig.continueWatching:
             if !library.continueWatching.isEmpty {

@@ -9,6 +9,8 @@ import AetherCore
 struct HeroCarousel: View {
     let items: [MetaItem]
     var style: HeroStyle = .card
+    /// The picture starts at the top edge of the screen (see `HomeView.heroOnTop`).
+    var reachesTop = false
     /// Told when another film comes to the front (by swiping or by itself), so the Home can take its colours.
     var onPage: ((MetaItem) -> Void)? = nil
     @EnvironmentObject private var settings: SettingsStore
@@ -16,7 +18,7 @@ struct HeroCarousel: View {
     @State private var position: Int? = 0
 
     private var index: Int { min(max(position ?? 0, 0), max(items.count - 1, 0)) }
-    private var pageHeight: CGFloat { style == .fullBleed ? HeroFullBleedCard.height : 430 }
+    private var pageHeight: CGFloat { style == .fullBleed ? HeroFullBleedCard.height(reachesTop: reachesTop) : 430 }
     private var turnsPages: Bool { settings.animationsEnabled && settings.value.appearance.heroAutoScroll && !reduceMotion }
     private var interval: Double { min(20, max(3, settings.value.appearance.heroInterval)) }
 
@@ -67,7 +69,7 @@ struct HeroCarousel: View {
     private func page(_ item: MetaItem) -> some View {
         switch style {
         case .card: HeroCard(meta: item)
-        case .fullBleed: HeroFullBleedCard(meta: item)
+        case .fullBleed: HeroFullBleedCard(meta: item, reachesTop: reachesTop)
         }
     }
 }
@@ -150,12 +152,16 @@ struct HeroCard: View {
 /// melting zone, on the dark scrim, so it stays readable in the light and dark appearance alike.
 struct HeroFullBleedCard: View {
     let meta: MetaItem
+    /// At the top edge of the screen: taller by the status bar, no fade at the top, a light shade under the clock.
+    var reachesTop = false
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var library: LibraryModel
 
     static let height: CGFloat = 560
+    static func height(reachesTop: Bool) -> CGFloat { return reachesTop ? height + 60 : height }
     /// The bottom stretch where the picture fades out; the text stays above it.
-    static let fadeHeight: CGFloat = 70
+    static let fadeHeight: CGFloat = 96
+    private var height: CGFloat { return Self.height(reachesTop: reachesTop) }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -163,17 +169,19 @@ struct HeroFullBleedCard: View {
                 ZStack(alignment: .bottomLeading) {
                     RemoteImage(urlString: meta.background ?? meta.poster, width: 1200, placeholderSeed: meta.name)
                         .frame(maxWidth: .infinity)
-                        .frame(height: Self.height)
+                        .frame(height: height)
                         .clipped()
-                    LinearGradient(stops: [.init(color: .clear, location: 0.25),
-                                           .init(color: .black.opacity(0.55), location: 0.6),
-                                           .init(color: .black.opacity(0.92), location: 1)],
+                    LinearGradient(stops: [.init(color: .black.opacity(reachesTop ? 0.35 : 0), location: 0),
+                                           .init(color: .clear, location: 0.22),
+                                           .init(color: .clear, location: 0.34),
+                                           .init(color: .black.opacity(0.5), location: 0.62),
+                                           .init(color: .black.opacity(0.86), location: 1)],
                                    startPoint: .top, endPoint: .bottom)
                     HeroTextBlock(meta: meta, showsButton: false)
                         .padding(.horizontal, 20)
                         .padding(.bottom, Self.fadeHeight + 70)
                 }
-                .frame(height: Self.height)
+                .frame(height: height)
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .ignore)
@@ -201,10 +209,11 @@ struct HeroFullBleedCard: View {
             .padding(.horizontal, 20)
             .padding(.bottom, Self.fadeHeight - 10)
         }
-        .frame(height: Self.height)
-        .mask(LinearGradient(stops: [.init(color: .clear, location: 0),
+        .frame(height: height)
+        .mask(LinearGradient(stops: [.init(color: reachesTop ? .black : .clear, location: 0),
                                      .init(color: .black, location: 0.04),
-                                     .init(color: .black, location: 1 - Self.fadeHeight / Self.height),
+                                     .init(color: .black, location: 1 - Self.fadeHeight / height),
+                                     .init(color: .black.opacity(0.55), location: 1 - Self.fadeHeight / height * 0.5),
                                      .init(color: .clear, location: 1)],
                              startPoint: .top, endPoint: .bottom))
     }

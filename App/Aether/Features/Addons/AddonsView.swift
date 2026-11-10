@@ -325,10 +325,12 @@ struct AddonInstallSheet: View {
             } label: {
                 HStack {
                     Spacer()
-                    if isWorking { ProgressView() } else { Text(preview.existing == nil ? "Installa" : "Aggiorna").font(.headline) }
+                    if isWorking { ProgressView().tint(settings.accentColor.readableForeground) } else { Text(preview.existing == nil ? "Installa" : "Aggiorna").font(.headline) }
                     Spacer()
                 }
+                .foregroundStyle(settings.accentColor.readableForeground)
             }
+            .listRowBackground(settings.accentColor)
             .disabled(isWorking)
             .accessibilityIdentifier("addon.install.confirm")
         }

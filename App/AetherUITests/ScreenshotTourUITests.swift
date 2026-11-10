@@ -67,8 +67,9 @@ final class ScreenshotTourUITests: AetherUITestCase {
         pause(1)
         snap("09-cerca")
 
-        // The title pages are opened with the app's own link (stremio:///detail/…): the posters are often below the fold.
-        if openTitle("stremio:///detail/movie/tt9000001") {
+        // The title pages are opened from Scopri, where the posters are at the top of the page (a link from outside starts the
+        // app again, and with it the test's empty library).
+        if openTitle("Aether Fixture One", chip: nil) {
             snap("10-scheda-film")
             app.swipeUp()
             pause(1)
@@ -83,7 +84,7 @@ final class ScreenshotTourUITests: AetherUITestCase {
             }
             closeTitle()
         }
-        if openTitle("stremio:///detail/series/tt9100001") {
+        if openTitle("Fixture Series", chip: "Serie TV") {
             snap("13-scheda-serie")
             app.swipeUp()
             pause(1)
@@ -92,9 +93,11 @@ final class ScreenshotTourUITests: AetherUITestCase {
         }
     }
 
-    private func openTitle(_ link: String) -> Bool {
-        guard let url = URL(string: link) else { return false }
-        app.open(url)
+    private func openTitle(_ name: String, chip: String?) -> Bool {
+        openTab("Scopri")
+        pause(1)
+        if let chip = chip { _ = tap(app.buttons[chip].firstMatch); pause(2) }
+        guard tap(button(labelContaining: name), timeout: 15) else { return false }
         guard element("detail.title").waitForExistence(timeout: 25) else { return false }
         pause(1.5)
         return true
