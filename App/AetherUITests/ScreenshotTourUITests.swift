@@ -89,7 +89,9 @@ final class ScreenshotTourUITests: AetherUITestCase {
         }
         // Last, the player (nothing comes after it in this launch, so it is not closed).
         if openTitle("Aether Fixture One", chip: "Film"), tap(element("detail.play")), tap(element("stream.row.0"), timeout: 30) {
-            pause(6)
+            // The cinematic opening comes first: «Guarda» starts the film.
+            _ = tap(element("player.intro.watch"), timeout: 8)
+            pause(7)
             snap("15-player")
             for name in ["Sottotitoli", "Audio"] where tap(button(labelContaining: name), timeout: 2) {
                 pause(1.2)

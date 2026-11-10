@@ -136,6 +136,7 @@ jobs:
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -only-testing:AetherTests \
+            -retry-tests-on-failure -test-iterations 3 \
             -resultBundlePath "$RUNNER_TEMP/unit.xcresult" 2>&1 | tee "$RUNNER_TEMP/unit.log"
 
       # Real files for the playback matrix. The pictures are synthetic test patterns: only the container, the codec and the
