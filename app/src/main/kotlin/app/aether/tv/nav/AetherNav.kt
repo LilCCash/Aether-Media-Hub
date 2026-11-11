@@ -22,6 +22,8 @@ import androidx.navigation.navArgument
 import app.aether.core.model.MetaItem
 import app.aether.core.model.Video
 import app.aether.tv.Session
+import app.aether.tv.aether
+import androidx.compose.runtime.collectAsState
 import app.aether.tv.StreamRequest
 import app.aether.tv.ui.components.SideNav
 import app.aether.tv.ui.screens.addons.AddonsScreen
@@ -84,9 +86,13 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
             composable(Routes.DISCOVER) { DiscoverScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }) }
             composable(Routes.SEARCH) { SearchScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }) }
             composable(Routes.RECOMMEND) { app.aether.tv.ui.screens.recommend.RecommendScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }) }
-            composable(Routes.LIBRARY) { LibraryScreen(onOpenDetail = ::openDetail, onOpenDiscover = { goTop(Routes.DISCOVER) }) }
+            composable(Routes.LIVE) {
+                app.aether.tv.ui.screens.livetv.LiveTvScreen(onOpenDetail = ::openDetail, onPlay = { nav.navigate(Routes.PLAYER) }, onPhone = { goTop(Routes.SETTINGS) })
+            }
+            composable(Routes.TRAKT) { app.aether.tv.ui.screens.trakt.TraktScreen(onOpenDetail = ::openDetail) }
+            composable(Routes.LIBRARY) { LibraryScreen(onOpenDetail = ::openDetail, onOpenDiscover = { goTop(Routes.DISCOVER) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }) }
             composable(Routes.ADDONS) { AddonsScreen(initialInput = initialAddonInput) }
-            composable(Routes.SETTINGS) { SettingsScreen(onOpenAbout = { nav.navigate(ABOUT) }) }
+            composable(Routes.SETTINGS) { SettingsScreen(onOpenAbout = { nav.navigate(ABOUT) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }, onOpenLive = { goTop(Routes.LIVE) }) }
             composable(ABOUT) { AboutScreen() }
             composable(
                 Routes.DETAIL,
@@ -120,6 +126,10 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
                 )
             }
         }
-        if (showRail) SideNav(current = route.orEmpty(), onSelect = ::goTop, modifier = Modifier.align(androidx.compose.ui.Alignment.CenterStart))
+        val settings by androidx.compose.ui.platform.LocalContext.current.aether.settings.value.collectAsState()
+        if (showRail) SideNav(
+            current = route.orEmpty(), onSelect = ::goTop, modifier = Modifier.align(androidx.compose.ui.Alignment.CenterStart),
+            hidden = buildSet { if (!settings.liveTv.showTab) add(Routes.LIVE) },
+        )
     }
 }

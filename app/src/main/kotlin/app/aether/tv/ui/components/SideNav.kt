@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -54,6 +55,7 @@ val navEntries = listOf(
     NavEntry(Routes.DISCOVER, "Scopri", Icons.Filled.Explore),
     NavEntry(Routes.SEARCH, "Cerca", Icons.Filled.Search),
     NavEntry(Routes.RECOMMEND, "Consigliami", Icons.Filled.AutoAwesome),
+    NavEntry(Routes.LIVE, "TV in diretta", Icons.Filled.LiveTv),
     NavEntry(Routes.LIBRARY, "Libreria", Icons.Filled.VideoLibrary),
     NavEntry(Routes.ADDONS, "Addon", Icons.Filled.Extension),
     NavEntry(Routes.SETTINGS, "Impostazioni", Icons.Filled.Settings),
@@ -64,7 +66,7 @@ val navEntries = listOf(
  * content rather than pushing it, so the screens never reflow.
  */
 @Composable
-fun SideNav(current: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier, entryRequester: FocusRequester? = null) {
+fun SideNav(current: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier, entryRequester: FocusRequester? = null, hidden: Set<String> = emptySet()) {
     var expanded by remember { mutableStateOf(false) }
     val animated = LocalAnimations.current
     val width by animateDpAsState(if (expanded) AetherDimens.RailExpanded else AetherDimens.RailCollapsed, tween(if (animated) 180 else 0), label = "railWidth")
@@ -92,6 +94,7 @@ fun SideNav(current: String, onSelect: (String) -> Unit, modifier: Modifier = Mo
             }
             androidx.compose.foundation.layout.Spacer(Modifier.height(10.dp))
             for (entry in navEntries) {
+                if (entry.route in hidden) continue
                 val selected = entry.route == current
                 FocusSurface(
                     onClick = { onSelect(entry.route) },

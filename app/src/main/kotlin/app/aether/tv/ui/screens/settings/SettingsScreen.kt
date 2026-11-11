@@ -70,7 +70,7 @@ import kotlinx.coroutines.withContext
 private val languageChoices = listOf("it" to "Italiano", "en" to "Inglese", "fr" to "Francese", "es" to "Spagnolo", "de" to "Tedesco", "pt" to "Portoghese", "ru" to "Russo", "ja" to "Giapponese")
 
 @Composable
-fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpenLive: () -> Unit = {}, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val engine = context.aether
     val scope = rememberCoroutineScope()
@@ -219,6 +219,11 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
                         close()
                     }, ::close)
                 }
+            }
+            actionRow("Trakt", if (engine.trakt.client.isConnected) "Collegato: sincronizzazione, scrobble e cataloghi" else "Collega il tuo account con un codice", "services.trakt") { onOpenTrakt() }
+            actionRow("TV in diretta", if (settings.liveTv.playlists.isEmpty()) "Aggiungi playlist M3U e la guida dei programmi" else "${settings.liveTv.playlists.size} playlist", "services.live") {
+                engine.settings.update { it.copy(liveTv = it.liveTv.copy(showTab = true)) }
+                onOpenLive()
             }
             if (engine.realDebrid.isConfigured) {
                 actionRow("Verifica il token Real-Debrid", "Controlla che Real-Debrid lo riconosca.", "services.realdebrid.verify") { scope.launch { notice = "Controllo…"; notice = verifyRealDebrid(engine) } }

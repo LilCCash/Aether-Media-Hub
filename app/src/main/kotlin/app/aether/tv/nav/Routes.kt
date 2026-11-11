@@ -8,6 +8,8 @@ object Routes {
     const val SEARCH = "search"
     const val RECOMMEND = "recommend"
     const val LIBRARY = "library"
+    const val LIVE = "live"
+    const val TRAKT = "trakt"
     const val ADDONS = "addons"
     const val SETTINGS = "settings"
     const val DETAIL = "detail/{type}/{id}"
@@ -19,5 +21,5 @@ object Routes {
     fun detail(type: String, id: String) = "detail/${Uri.encode(type)}/${Uri.encode(id)}"
 
     /** The screens the side menu leads to; every other screen is reached from one of them. */
-    val topLevel = listOf(HOME, DISCOVER, SEARCH, RECOMMEND, LIBRARY, ADDONS, SETTINGS)
+    val topLevel = listOf(HOME, DISCOVER, SEARCH, RECOMMEND, LIVE, LIBRARY, ADDONS, SETTINGS)
 }

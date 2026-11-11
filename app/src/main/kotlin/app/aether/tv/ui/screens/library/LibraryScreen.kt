@@ -45,7 +45,7 @@ import app.aether.tv.ui.theme.AetherDimens
 private enum class Tab(val title: String) { CONTINUE("Continua"), WATCHLIST("Watchlist"), FAVORITES("Preferiti"), HISTORY("Cronologia") }
 
 @Composable
-fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, modifier: Modifier = Modifier) {
+fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, onOpenTrakt: () -> Unit = {}, modifier: Modifier = Modifier) {
     val engine = LocalContext.current.aether
     val library = engine.library
     val revision by library.revision.collectAsStateWithLifecycle()
@@ -72,6 +72,7 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
                 val count = when (Tab.entries[i]) { Tab.CONTINUE -> continueItems.size; Tab.WATCHLIST -> watchlist.size; Tab.FAVORITES -> favorites.size; Tab.HISTORY -> history.size }
                 TvChip("${Tab.entries[i].title} ($count)", i == tabIndex, { tabIndex = i }, focusRequester = if (i == tabIndex) firstTab else null, testTag = "library.tab.$i")
             }
+            item(key = "trakt") { TvChip("Trakt", false, onOpenTrakt, testTag = "library.trakt") }
         }
         val items: List<Pair<MetaItem, PlaybackProgress?>> = when (tab) {
             Tab.CONTINUE -> continueItems.map { it.asMeta to it }
