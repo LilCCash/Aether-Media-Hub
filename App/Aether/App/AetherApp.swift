@@ -134,56 +134,48 @@ struct RootView: View {
     /// system does for a tab with the search role (before iOS 18 the five items in a row).
     @ViewBuilder
     private var tabs: some View {
-        if settings.value.appearance.homeLayout == .glass {
-            glassTabs
-        } else {
-            if #available(iOS 18.0, *) {
-                modernTabs
+        Group {
+            if settings.value.appearance.homeLayout == .glass {
+                glassTabs
             } else {
-                legacyTabs
+                if #available(iOS 18.0, *) {
+                    modernTabs
+                } else {
+                    legacyTabs
+                }
             }
         }
+        // The two bars cross-fade instead of the app seeming to start again.
+        .transition(.opacity)
+        .animation(settings.animationsEnabled ? .easeInOut(duration: 0.35) : nil, value: settings.value.appearance.homeLayout)
     }
 
-    /// The bar of the glass Home: Home, Cerca, Libreria, Download, Impostazioni. Scopri opens from the categories of the Home and
-    /// the profile from its picture.
+    /// The bar of «Vetrina»: Home, Libreria, Impostazioni, and Cerca apart on the right as in the classic bar. Scopri opens from the
+    /// categories of the Home, the profile from its picture, the downloads are in Libreria.
+    @ViewBuilder
     private var glassTabs: some View {
-        TabView(selection: $router.tab) {
-            HomeView()
-                .tabItem { Label("Home", systemImage: "house.fill") }
-                .tag(AppTab.home)
-            SearchView()
-                .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
-                .tag(AppTab.search)
-            LibraryView()
-                .tabItem { Label("Libreria", systemImage: "books.vertical.fill") }
-                .tag(AppTab.library)
-            NavigationStack { DownloadsView().navigationTitle("Download").aetherPage() }
-                .tabItem { Label("Download", systemImage: "arrow.down.circle.fill") }
-                .tag(AppTab.downloads)
-            SettingsTabView()
-                .tabItem { Label("Impostazioni", systemImage: "gearshape.fill") }
-                .tag(AppTab.settings)
-        }
-    }
-
-    private var legacyTabs: some View {
-        TabView(selection: $router.tab) {
-            HomeView()
-                .tabItem { Label("Home", systemImage: "house.fill") }
-                .tag(AppTab.home)
-            DiscoverView()
-                .tabItem { Label("Scopri", systemImage: "safari.fill") }
-                .tag(AppTab.discover)
-            LibraryView()
-                .tabItem { Label("Libreria", systemImage: "books.vertical.fill") }
-                .tag(AppTab.library)
-            SearchView()
-                .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
-                .tag(AppTab.search)
-            ProfileTabView()
-                .tabItem { Label("Profilo", systemImage: "person.crop.circle.fill") }
-                .tag(AppTab.profile)
+        if #available(iOS 18.0, *) {
+            TabView(selection: $router.tab) {
+                Tab("Home", systemImage: "house.fill", value: AppTab.home) { HomeView() }
+                Tab("Libreria", systemImage: "books.vertical.fill", value: AppTab.library) { LibraryView() }
+                Tab("Impostazioni", systemImage: "gearshape.fill", value: AppTab.settings) { SettingsTabView() }
+                Tab("Cerca", systemImage: "magnifyingglass", value: AppTab.search, role: .search) { SearchView() }
+            }
+        } else {
+            TabView(selection: $router.tab) {
+                HomeView()
+                    .tabItem { Label("Home", systemImage: "house.fill") }
+                    .tag(AppTab.home)
+                LibraryView()
+                    .tabItem { Label("Libreria", systemImage: "books.vertical.fill") }
+                    .tag(AppTab.library)
+                SettingsTabView()
+                    .tabItem { Label("Impostazioni", systemImage: "gearshape.fill") }
+                    .tag(AppTab.settings)
+                SearchView()
+                    .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
+                    .tag(AppTab.search)
+            }
         }
     }
 
@@ -217,19 +209,24 @@ struct RootView: View {
         .onAppear { router.usesGlassHome = settings.value.appearance.homeLayout == .glass }
         .onChange(of: settings.value.appearance.homeLayout) { _, layout in
             router.usesGlassHome = layout == .glass
-            // A tab of the other bar is not there any more: back to the Home.
-            let glassOnly: Set<AppTab> = [.downloads, .settings]
-            let classicOnly: Set<AppTab> = [.discover, .profile]
-            if (layout == .glass && classicOnly.contains(router.tab)) || (layout == .classic && glassOnly.contains(router.tab)) {
+            // The layout is changed from the settings: the viewer stays on that page, in the place the new bar keeps the
+            // settings (Impostazioni in «Vetrina», the profile in the classic bar), instead of being sent to the Home.
+            let fromSettings = router.tab == .settings || router.tab == .profile
+            if fromSettings {
+                router.tab = layout == .glass ? .settings : .profile
+                router.profileRoute = .homeLayout
+            } else if (layout == .glass && router.tab == .discover) || (layout == .classic && router.tab == .settings) {
                 router.tab = .home
             }
         }
         .onChange(of: router.tab) { old, new in
             Haptics.select()
             // With the glass Home, Scopri and the profile are not in the bar: asked for (a link, a shortcut), they open over it.
-            if router.usesGlassHome && (new == .discover || new == .profile) {
-                router.tab = (old == .discover || old == .profile) ? .home : old
-                if new == .discover { router.discoverSheet = true } else { router.profileSheet = true }
+            if router.usesGlassHome && (new == .discover || new == .profile || new == .downloads) {
+                router.tab = new == .downloads ? .library : .home
+                if new == .discover { router.discoverSheet = true }
+                if new == .profile { router.profileSheet = true }
+                if new == .downloads { router.librarySection = "downloads" }
             }
             if !router.usesGlassHome && new == .settings { router.tab = old == .settings ? .home : old; router.open(.settings) }
             if !router.usesGlassHome && new == .downloads { router.tab = old == .downloads ? .home : old }
@@ -242,9 +239,6 @@ struct RootView: View {
         }
         .fullScreenCover(isPresented: $router.liveSheet) {
             LiveTVView(onClose: { router.liveSheet = false })
-        }
-        .fullScreenCover(isPresented: $router.discoverSheet) {
-            DiscoverView(onClose: { router.discoverSheet = false })
         }
         .sheet(isPresented: $router.profileSheet) {
             ProfileTabView(onClose: { router.profileSheet = false })

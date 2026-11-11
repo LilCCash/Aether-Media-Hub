@@ -510,6 +510,7 @@ struct SearchView: View {
             .navigationDestination(for: UniverseDefinition.self) { UniverseDetailView(universe: $0) }
             .navigationDestination(for: PersonRoute.self) { PersonFilmographyView(route: $0) }
             .searchable(text: $model.query, placement: .navigationBarDrawer(displayMode: .always), prompt: model.searchPrompt)
+            .modifier(SearchFocusRequest(request: $router.focusSearch))
             .autocorrectionDisabled()
             .onSubmit(of: .search) {
                 let text = model.query
@@ -841,6 +842,32 @@ struct SearchView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+
+/// The search field of the Home was touched: the keyboard comes up in Cerca (iOS 18 and later; before, Cerca opens as usual).
+private struct SearchFocusRequest: ViewModifier {
+    @Binding var request: Bool
+    @FocusState private var focused: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content
+                .searchFocused($focused)
+                .onChange(of: request) { _, wanted in if wanted { focusSoon() } }
+                .onAppear { if request { focusSoon() } }
+        } else {
+            content.onAppear { request = false }
+        }
+    }
+
+    private func focusSoon() {
+        // After the tab has come on screen, or the keyboard does not take the focus.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            focused = true
+            request = false
         }
     }
 }

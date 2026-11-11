@@ -9,6 +9,8 @@ final class GlassHomeTests: XCTestCase {
         XCTAssertEqual(visible, ["Film", "Serie TV", "Anime", "Live TV"])
         XCTAssertEqual(appearance.glassHome.sections.first?.id, GlassHomeSettings.search)
         XCTAssertEqual(appearance.glassHome.sections.first(where: { $0.id == HomeSectionConfig.hero })?.isVisible, false)
+        XCTAssertEqual(appearance.glassHome.sections.map { $0.id }.prefix(3), [GlassHomeSettings.search, GlassHomeSettings.categoriesID, HomeSectionConfig.hero])
+        XCTAssertEqual(HomeLayout.glass.title, "Vetrina")
     }
 
     func testAnOlderInstallWithoutTheGlassHomeKeepsTheClassicOne() throws {

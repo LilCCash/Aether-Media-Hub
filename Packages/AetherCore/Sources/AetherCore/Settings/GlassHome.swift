@@ -4,14 +4,14 @@ import Foundation
 public enum HomeLayout: String, Codable, CaseIterable, Sendable {
     /// The Home of Aether 2.0: the featured carousel and the rows.
     case classic
-    /// A header with the logo and the profile picture, the search field, the categories and the rows on Liquid Glass cards. The bar at
-    /// the bottom becomes Home, Cerca, Libreria, Download, Impostazioni; the profile opens from the picture.
+    /// «Vetrina»: a header with the name and the profile picture, the search field, the categories and the rows on glass cards. The
+    /// bar at the bottom becomes Home, Libreria, Impostazioni (and Cerca apart); the profile opens from the picture.
     case glass
 
     public var title: String {
         switch self {
         case .classic: return "Classica"
-        case .glass: return "Liquid Glass"
+        case .glass: return "Vetrina"
         }
     }
 }
@@ -103,11 +103,10 @@ public struct GlassHomeSettings: Codable, Equatable, Sendable {
     public static let categoriesID = "categories"
 
     public static let defaultSections: [HomeSectionConfig] = [
-        HomeSectionConfig(id: search), HomeSectionConfig(id: categoriesID),
+        HomeSectionConfig(id: search), HomeSectionConfig(id: categoriesID), HomeSectionConfig(id: HomeSectionConfig.hero, isVisible: false),
         HomeSectionConfig(id: HomeSectionConfig.continueWatching), HomeSectionConfig(id: HomeSectionConfig.nextUp),
         HomeSectionConfig(id: HomeSectionConfig.forYou), HomeSectionConfig(id: HomeSectionConfig.watchlist),
         HomeSectionConfig(id: HomeSectionConfig.catalogs), HomeSectionConfig(id: HomeSectionConfig.universes),
-        HomeSectionConfig(id: HomeSectionConfig.hero, isVisible: false),
     ]
 
     public init() {}

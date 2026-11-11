@@ -8,6 +8,8 @@ enum AppTab: String, Hashable {
 /// Pages inside the Profile tab other screens can send the viewer to.
 enum ProfileRoute: Hashable {
     case settings, addons, services
+    /// Impostazioni ▸ Aspetto ▸ Personalizza la Home (where the viewer was when the Home's layout changed).
+    case homeLayout
 }
 
 /// Navigation target for a title detail screen.
@@ -127,6 +129,8 @@ final class AppRouter: ObservableObject {
     @Published var profileSheet = false
     /// The content type Scopri should show when it appears (a category of the glass Home); consumed by Scopri.
     @Published var discoverType: String?
+    /// The search field of the Home was touched: Cerca opens with the keyboard up.
+    @Published var focusSearch = false
     @Published var pendingSearch: String?
 
     func openDetail(_ meta: MetaItem) {

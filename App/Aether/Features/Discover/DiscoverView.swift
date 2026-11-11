@@ -286,6 +286,12 @@ final class DiscoverViewModel: ObservableObject {
         updateCatalogs(env: env, forceRestart: forceRestart || typeChanged)
     }
 
+    /// The type to show at the next load, without loading anything now.
+    func prefer(type: String) {
+        selectedType = ContentTypes.canonicalID(type)
+        selectedCatalog = nil
+    }
+
     func select(type: String, env: AppEnvironment) {
         let key = ContentTypes.canonicalID(type)
         if key == selectedType { return }
@@ -454,11 +460,12 @@ struct DiscoverView: View {
     @State private var showingCinematic = false
     @State private var showingCalendar = false
     @State private var showingAI = false
-    /// Shown over the glass Home (opened from a category): a button closes it.
-    var onClose: (() -> Void)? = nil
+    /// Pushed inside the Home of «Vetrina» (from a category): no stack of its own, the bar stays and the back button or a
+    /// swipe from the edge closes it.
+    var embedded = false
 
-    init(onClose: (() -> Void)? = nil) {
-        self.onClose = onClose
+    init(embedded: Bool = false) {
+        self.embedded = embedded
     }
 
     private var storedTypes: [DiscoverTypeSetting] {
@@ -470,10 +477,19 @@ struct DiscoverView: View {
     }
 
     var body: some View {
+        if embedded {
+            page
+        } else {
+            NavigationStack {
+                page.navigationDestination(for: MetaRoute.self) { DetailView(route: $0).zoomDestination(id: $0.id) }
+            }
+        }
+    }
+
+    private var page: some View {
         let layout = model.layoutState(stored: storedTypes)
         let types = model.visibleTypes(stored: storedTypes)
-        NavigationStack {
-            ZStack {
+        return ZStack {
                 AetherBackdrop()
                 VStack(spacing: 0) {
                     if settings.value.appearance.showExplore { exploreStrip }
@@ -485,7 +501,6 @@ struct DiscoverView: View {
             .sheet(isPresented: $showingCalendar) { ReleaseCalendarView() }
             .sheet(isPresented: $showingAI) { AIDiscoverySheet() }
             .navigationTitle("Scopri")
-            .navigationDestination(for: MetaRoute.self) { DetailView(route: $0).zoomDestination(id: $0.id) }
             .toolbar {
                 // Universe and Live TV live here, with the other ways of finding something to watch.
                 ToolbarItemGroup(placement: .topBarLeading) {
@@ -495,13 +510,6 @@ struct DiscoverView: View {
                     Button { router.liveSheet = true } label: { Image(systemName: "tv.fill") }
                         .accessibilityLabel("Live TV")
                         .accessibilityIdentifier("discover.live")
-                }
-                if let onClose = onClose {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(action: onClose) { Image(systemName: "xmark") }
-                            .accessibilityLabel("Chiudi Scopri")
-                            .accessibilityIdentifier("discover.close")
-                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     if model.hasLoaded && !model.capabilities.availableTypes.isEmpty {
@@ -516,8 +524,12 @@ struct DiscoverView: View {
                 }
             }
             .task(id: loadKey) {
+                // A category of the Home: Scopri loads that type from the start (choosing it after the first load raced it).
+                if let type = router.discoverType {
+                    router.discoverType = nil
+                    model.prefer(type: type)
+                }
                 await model.reload(env: env)
-                takeRequestedType()
             }
             .onChange(of: router.discoverType) { _, _ in takeRequestedType() }
             .onChange(of: storedTypes) { _, newValue in
@@ -527,7 +539,6 @@ struct DiscoverView: View {
             .sheet(isPresented: $showingCustomize) {
                 NavigationStack { DiscoverSettingsView(showsCloseButton: true) }
             }
-        }
     }
 
     /// A category of the glass Home asked for this type.

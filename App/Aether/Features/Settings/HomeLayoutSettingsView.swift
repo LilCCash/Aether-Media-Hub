@@ -24,7 +24,7 @@ struct HomeLayoutSettingsView: View {
         Form {
             Section(header: Text("Layout"),
                     footer: Text(isGlass
-                                 ? "Liquid Glass: in alto il nome di Aether e la tua foto (tocca la foto per il profilo), poi la ricerca, le categorie e le sezioni su schede di vetro. In basso: Home, Cerca, Libreria, Download e Impostazioni; Scopri si apre dalle categorie."
+                                 ? "Vetrina: in alto il nome di Aether e la tua foto (tocca la foto per il profilo), poi la ricerca, le categorie e le sezioni su schede di vetro; «In evidenza» si accende tra le sezioni qui sotto. In basso: Home, Libreria e Impostazioni, con Cerca a parte; Scopri si apre dalle categorie, i download sono in Libreria."
                                  : "Classica: l'immagine in evidenza e le righe dei cataloghi, con Home, Scopri, Libreria, Profilo e Cerca in basso.")) {
                 Picker("Layout della Home", selection: settings.binding(\.appearance.homeLayout)) {
                     ForEach(HomeLayout.allCases, id: \.self) { Text($0.title).tag($0) }

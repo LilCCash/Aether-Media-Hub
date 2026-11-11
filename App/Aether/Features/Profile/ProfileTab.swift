@@ -18,7 +18,7 @@ struct ProfileTabView: View {
         self.onClose = onClose
     }
 
-    enum Destination: Hashable { case settings, addons, services, diary, stats, universe, ratings, votes, trakt }
+    enum Destination: Hashable { case settings, addons, services, diary, stats, universe, ratings, votes, trakt, homeLayout }
 
     private var profile: ProfileSettings { return settings.value.content.profile }
     private var diary: DiarySettings { return settings.value.content.diary }
@@ -72,6 +72,7 @@ struct ProfileTabView: View {
                 case .ratings: RatingComparisonView()
                 case .votes: TasteVotesView()
                 case .trakt: TraktCatalogView(trakt: env.trakt)
+                case .homeLayout: HomeLayoutSettingsView()
                 }
             }
             .sheet(isPresented: $editing) { NavigationStack { ProfileEditorView() } }
@@ -96,6 +97,7 @@ struct ProfileTabView: View {
         case .settings: path.append(Destination.settings)
         case .addons: path.append(Destination.addons)
         case .services: path.append(Destination.settings); path.append(Destination.services)
+        case .homeLayout: path.append(Destination.settings); path.append(Destination.homeLayout)
         }
     }
 

@@ -26,9 +26,11 @@ struct HomeView: View {
                 CastSheet()
             }
             // Cinematic: the Home takes the colours of the featured film.
-            .task(id: (style.mood ? (heroPageID ?? model.heroItems.first?.id) : nil) ?? "") {
+            .task(id: "\(isGlass)-\(glassShowsHero)-" + ((style.mood ? (heroPageID ?? model.heroItems.first?.id) : nil) ?? "")) {
                 let wanted = heroPageID ?? model.heroItems.first?.id
-                guard style.mood, let hero = model.heroItems.first(where: { $0.id == wanted }) ?? model.heroItems.first else {
+                // «Vetrina» without the featured title takes no colours from it.
+                guard style.mood, !isGlass || glassShowsHero,
+                      let hero = model.heroItems.first(where: { $0.id == wanted }) ?? model.heroItems.first else {
                     CinematicMood.shared.homeColor = nil
                     CinematicMood.shared.color = nil
                     return
@@ -60,6 +62,11 @@ struct HomeView: View {
                     .zoomDestination(id: route.id)
             }
             .navigationDestination(for: UniverseDefinition.self) { UniverseDetailView(universe: $0) }
+            // «Vetrina»: Scopri opens inside the Home, under the bar, and closes with the back button or a swipe from the edge.
+            .navigationDestination(isPresented: Binding(get: { isGlass && router.discoverSheet },
+                                                        set: { router.discoverSheet = $0 })) {
+                DiscoverView(embedded: true)
+            }
             .refreshable { await model.reload(env: env, mode: .reload) }
             .task(id: ReloadKey(revision: addons.revision, token: network.reconnectToken, talkShows: settings.value.content.hiddenTalkScopes)) {
                 await model.reload(env: env, mode: .normal)
@@ -91,6 +98,10 @@ struct HomeView: View {
     }
 
     private var isGlass: Bool { return settings.value.appearance.homeLayout == .glass }
+    /// «Vetrina» with the featured title switched on: only then the page takes its picture and colours.
+    private var glassShowsHero: Bool {
+        return settings.value.appearance.glassHome.sections.contains { $0.id == HomeSectionConfig.hero && $0.isVisible }
+    }
 
     /// The glass Home: its header, then the sections in the viewer's order (search field, categories and the rows of the classic
     /// Home, drawn by the same code and fed by the same model, so switching layout loads nothing again).
@@ -106,7 +117,7 @@ struct HomeView: View {
                 Color.clear.frame(height: 24)
             }
         }
-        .background(alignment: .top) { GlassHomeAtmosphere(item: model.heroItems.first) }
+        .background(alignment: .top) { if glassShowsHero { GlassHomeAtmosphere(item: model.heroItems.first) } }
         .accessibilityIdentifier("home.scroll")
     }
 
@@ -114,7 +125,10 @@ struct HomeView: View {
     private func glassSection(_ id: String, glass: GlassHomeSettings) -> some View {
         switch id {
         case GlassHomeSettings.search:
-            GlassSearchField { router.tab = .search }
+            GlassSearchField {
+                router.focusSearch = true
+                router.tab = .search
+            }
         case GlassHomeSettings.categoriesID:
             GlassCategoryGrid(categories: glass.categories.filter { $0.isVisible && categoryIsAvailable($0) }) { category in
                 Haptics.tap()

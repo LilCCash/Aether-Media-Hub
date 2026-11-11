@@ -1,7 +1,7 @@
 import SwiftUI
 import AetherCore
 
-// The pieces of the glass Home (Impostazioni ▸ Aspetto ▸ Personalizza la Home ▸ Liquid Glass): a header with the name and the
+// The pieces of the glass Home (Impostazioni ▸ Aspetto ▸ Personalizza la Home ▸ Vetrina): a header with the name and the
 // profile picture, a search field, the categories. The rows below are the ones of the classic Home.
 
 /// «Aether» on the left; the cast button and the profile picture on the right; a greeting under them.
