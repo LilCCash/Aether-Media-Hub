@@ -57,10 +57,11 @@ on:
         type: choice
         options: [development, ad-hoc, app-store-connect]
         default: development
-  # Aether 2.0 in progress: no build on every push, only the final one (by hand). To bring the automatic builds back, put
-  # back under `push:` the lines `branches: ['**']` and `paths: [...]` (see git history of this file before Aether 2.0).
+  # A build for the SideStore source at every push that changes the app (code, packages, settings, the notes of the build).
   push:
     tags: ['v*']
+    branches: ['**']
+    paths: ['App/**', 'Packages/**', 'Config/**', 'project.yml', 'docs/devbuild-notes.md', '.github/workflows/build-ipa.yml']
 
 concurrency:
   group: build-ipa-${{ github.ref }}
