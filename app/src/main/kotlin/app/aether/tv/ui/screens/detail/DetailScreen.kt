@@ -147,7 +147,7 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
     }
 
     fun selectSeason(season: Int) = _state.update { it.copy(season = season) }
-    fun toggleWatchlist() { val s = _state.value; engine.library.setWatchlist(!s.inWatchlist, s.meta) }
+    fun toggleWatchlist() { val s = _state.value; engine.library.setWatchlist(!s.inWatchlist, s.meta); engine.trakt.watchlistChanged(s.meta, !s.inWatchlist) }
     fun toggleFavorite() { val s = _state.value; engine.library.setFavorite(!s.favorite, s.meta) }
 
     fun toggleWatched(video: Video?) {

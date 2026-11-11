@@ -16,7 +16,7 @@ import coil3.request.crossfade
 class AetherApp : Application(), SingletonImageLoader.Factory {
     /** Built on first use, off the critical path of the first frame where possible. */
     val engine: AetherEngine by lazy {
-        AetherEngine(filesDir.resolve("aether"), AndroidSecretStore(this)).also { it.syncLibraryPolicy() }
+        AetherEngine(filesDir.resolve("aether"), AndroidSecretStore(this), traktClientId = BuildConfig.TRAKT_CLIENT_ID).also { it.syncLibraryPolicy(); it.trakt.bootstrap() }
     }
 
     /**

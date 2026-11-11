@@ -113,6 +113,7 @@ data class AppSettings(
     val network: NetworkSettings = NetworkSettings(),
     val privacy: PrivacySettings = PrivacySettings(),
     val liveTv: app.aether.core.livetv.LiveTvSettings = app.aether.core.livetv.LiveTvSettings(),
+    val trakt: app.aether.core.trakt.TraktSettings = app.aether.core.trakt.TraktSettings(),
     /** The viewer's choice about the Cinemeta recommendation shown in the empty state; never installed silently. */
     val cinemetaOffered: Boolean = false,
 )

@@ -134,7 +134,33 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
     suspend fun checkTmdb(): String? = try { tmdbGet("/configuration"); null } catch (e: Throwable) { reason(e) }
     suspend fun checkTvdb(): String? = try { tvdbBearer(force = true); null } catch (e: Throwable) { reason(e) }
 
-    fun clearCaches() { richCache.clear(); episodeCache.clear(); tvdbIdCache.clear(); tvdbToken = null }
+    private val summaryCache = ConcurrentHashMap<String, MetaItem>()
+
+    /**
+     * A light fill for shelves (Trakt, lists): name, plot, poster and backdrop from one TMDB call, in the viewer's language.
+     * Without a TMDB key, or on any failure, the item comes back as it was.
+     */
+    suspend fun summary(meta: MetaItem): MetaItem {
+        val id = meta.externalIds.tmdb ?: return meta
+        if (!hasTmdb) return meta
+        val kind = if (isSeries(meta)) "tv" else "movie"
+        val cacheKey = "$kind-$id-${language()}"
+        summaryCache[cacheKey]?.let { return it }
+        val detail = runCatching { tmdbGet("/$kind/$id") }.getOrNull() ?: return meta
+        fun image(path: String?, size: String) = path?.takeIf { it.startsWith("/") && ".." !in it }?.let { "$IMAGE_BASE/$size$it" }
+        val filled = meta.copy(
+            name = detail.str(if (kind == "tv") "name" else "title")?.takeIf { it.isNotBlank() } ?: meta.name,
+            description = meta.description ?: detail.str("overview")?.takeIf { it.isNotBlank() },
+            poster = meta.poster ?: image(detail.str("poster_path"), "w342"),
+            background = meta.background ?: image(detail.str("backdrop_path"), "w780"),
+        )
+        if (summaryCache.size > 1500) summaryCache.clear()
+        summaryCache[cacheKey] = filled
+        return filled
+    }
+
+    fun clearCaches() {
+        summaryCache.clear(); richCache.clear(); episodeCache.clear(); tvdbIdCache.clear(); tvdbToken = null }
 
     private fun isTitle(meta: MetaItem) = meta.type in SERIES || meta.type == "movie"
     private fun reason(e: Throwable) = (e as? ProviderError)?.message ?: app.aether.core.net.AddonError.from(e).message

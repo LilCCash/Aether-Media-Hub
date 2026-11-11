@@ -179,6 +179,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _state.update { it.copy(isPlaying = isPlaying) }
             if (!isPlaying) saveProgress(force = true)
+            scrobble(if (isPlaying) app.aether.core.trakt.TraktClient.ScrobbleAction.START else if (player.playbackState == Player.STATE_ENDED) app.aether.core.trakt.TraktClient.ScrobbleAction.STOP else app.aether.core.trakt.TraktClient.ScrobbleAction.PAUSE)
         }
 
         override fun onTracksChanged(tracks: Tracks) = publishTracks(tracks)
@@ -585,8 +586,15 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         engine.library.recordProgress(current.meta, current.video, position / 1000.0, duration / 1000.0)
     }
 
+    /** Tells Trakt (when linked and enabled) what the player is doing. */
+    private fun scrobble(action: app.aether.core.trakt.TraktClient.ScrobbleAction) {
+        val duration = player.duration
+        if (duration <= 0) return
+        engine.trakt.scrobble(action, current.meta, current.video, player.currentPosition / 1000.0, duration / 1000.0)
+    }
+
     /** Called when the screen is left: the point reached is saved and the player stopped. */
-    fun onLeave() { saveProgress(force = true); player.pause() }
+    fun onLeave() { saveProgress(force = true); scrobble(app.aether.core.trakt.TraktClient.ScrobbleAction.STOP); player.pause() }
 
     override fun onCleared() {
         saveProgress(force = true)

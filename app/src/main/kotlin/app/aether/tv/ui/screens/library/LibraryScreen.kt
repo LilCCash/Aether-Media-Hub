@@ -122,7 +122,7 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 TvButton("Apri", { actions = null; onOpenDetail(meta) }, primary = true, focusRequester = first, modifier = Modifier.fillMaxWidth())
                 when (tab) {
-                    Tab.WATCHLIST -> TvButton("Rimuovi dalla watchlist", { library.setWatchlist(false, meta); actions = null }, modifier = Modifier.fillMaxWidth())
+                    Tab.WATCHLIST -> TvButton("Rimuovi dalla watchlist", { library.setWatchlist(false, meta); engine.trakt.watchlistChanged(meta, false); actions = null }, modifier = Modifier.fillMaxWidth())
                     Tab.FAVORITES -> TvButton("Rimuovi dai preferiti", { library.setFavorite(false, meta); actions = null }, modifier = Modifier.fillMaxWidth())
                     Tab.CONTINUE -> {
                         TvButton("Togli da «Continua a guardare»", { library.dismissFromContinueWatching(meta.id); actions = null }, modifier = Modifier.fillMaxWidth())

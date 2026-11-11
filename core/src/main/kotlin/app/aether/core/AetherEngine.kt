@@ -34,7 +34,12 @@ class AetherEngine(
     dataDir: File,
     val secrets: SecretStore,
     http: HttpClient? = null,
+    /** The public Client ID of the Aether app registered on Trakt (empty: Trakt is not offered). */
+    traktClientId: String = "",
 ) {
+    /** Background work of the services (sync, scrobble): lives as long as the engine. */
+    val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
     val settings = SettingsStore(JsonFileStore(File(dataDir, "settings.json"), AppSettings.serializer()))
 
     private fun currentPolicy() = NetworkPolicy(allowLocalNetwork = settings.value.value.network.allowLocalNetwork)
@@ -61,6 +66,7 @@ class AetherEngine(
     val debrid = DebridRouter(torBox, realDebrid) { settings.value.value.network.debridService }
     val mdbList = MdbListClient(this.http, secrets)
     val liveTv = app.aether.core.livetv.LiveTvService(this.http, settings, File(dataDir, "livetv"))
+    val trakt = app.aether.core.trakt.TraktService(app.aether.core.trakt.TraktClient(this.http, secrets, traktClientId), library, metadata, settings, scope)
     val introDb = IntroDbClient(this.http)
 
     fun syncLibraryPolicy() {

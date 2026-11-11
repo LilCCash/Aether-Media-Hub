@@ -15,6 +15,12 @@ android {
         targetSdk = 37
         versionCode = (project.findProperty("aetherVersionCode") as String?)?.toIntOrNull() ?: 200
         versionName = (project.findProperty("aetherVersionName") as String?) ?: "2.0.0"
+        // The public Client ID of the Aether app registered on Trakt (device-code login, no client secret). It is an app
+        // identifier sent in every Trakt request, not a credential; a fork can set its own with -PaetherTraktClientId or the
+        // AETHER_TRAKT_CLIENT_ID environment variable.
+        val traktClientId = (project.findProperty("aetherTraktClientId") as String?) ?: System.getenv("AETHER_TRAKT_CLIENT_ID")
+            ?: "anVbgfu810H1J949IJQlyAlzT7klUdxZbGVb0kEpGfc"
+        buildConfigField("String", "TRAKT_CLIENT_ID", "\"$traktClientId\"")
     }
 
     signingConfigs {
