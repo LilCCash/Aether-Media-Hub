@@ -6,7 +6,7 @@
 
 <p align="center">
   <em>Il tuo media center per iPhone e per Android TV, fatto a modo tuo.</em><br>
-  iPhone: versione 2.0 · iOS 17 o successivo · Android TV: Aether TV 1.0.0 Beta 1 · licenza MIT
+  iPhone: versione 2.1 · iOS 17 o successivo · Android TV: Aether TV 1.0.0 Beta 1 · licenza MIT
 </p>
 
 ---

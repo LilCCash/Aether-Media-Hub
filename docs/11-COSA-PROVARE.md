@@ -1,3 +1,21 @@
+# Cosa provare in Aether 2.1
+
+## Vetrina e personalizzazione
+1. *Impostazioni ▸ Aspetto*: la prima voce è **Layout dell'app**. Passa a **Vetrina**. **Deve succedere:** la barra cambia con una dissolvenza (Home, Libreria, Impostazioni e Cerca a parte), resti nella pagina Aspetto.
+2. Home di Vetrina: nome, foto, «Ciao!», barra di ricerca, categorie. Tocca la **foto** → si apre il Profilo (chiudi con «Fine»). Tocca la **ricerca** → Cerca con la tastiera già aperta.
+3. Tocca **Serie TV** → Scopri dentro la Home, già su Serie TV e con i titoli caricati, barra in basso visibile; torna con Indietro o scorrendo dal bordo sinistro. **Anime** compare solo se un addon ha cataloghi anime. **Live TV** apre Live TV.
+4. *Personalizza la Home* (in Vetrina): spegni foto/nome/saluto, cambia nome e simbolo a una categoria, riordina sezioni e categorie, accendi **In evidenza**. Chiudi e riapri l'app: tutto deve restare.
+5. Con In evidenza spento non deve esserci nessuna sfumatura dell'immagine del titolo dietro la Home; acceso, la Home prende i colori del titolo.
+6. **Ripristina Home predefinita**: torna la Home classica, le altre impostazioni non cambiano.
+
+## Il resto della 2.1
+1. *Impostazioni ▸ Live TV ▸ Guida TV ▸ Vista: Griglia per orario*: in Live TV compare «Canali / Guida TV»; la guida mostra i canali su una linea del tempo con una linea rossa ad «adesso»; un programma in onda avvia il canale, tenendo premuto si apre la guida del canale.
+2. Con l'accento viola, i filtri di Scopri (Genere, Anno) e di Cerca (Tipo, Genere, Rilevanza) e i pulsanti in alto devono leggersi bene su tema scuro e chiaro.
+3. Apri un film: in cima alla pagina l'immagine arriva fino al bordo, senza fascia sfocata sopra la locandina.
+4. Nella lista sorgenti, toccando una sorgente quella si illumina e le altre si attenuano; se la sorgente chiede qualcosa (un file, un download) la lista torna normale.
+
+---
+
 # Cosa provare in Aether 2.0
 
 Prima le novità della 2.0 (mai viste su un telefono), poi la lista completa delle versioni precedenti, che resta valida.

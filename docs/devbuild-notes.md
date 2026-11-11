@@ -1,3 +1,11 @@
+Aether 2.1
+- Vetrina: un secondo layout dell'app (Impostazioni ▸ Aspetto ▸ Layout dell'app). In alto il nome di Aether e la tua foto (tocca la foto per il profilo), il saluto, la barra di ricerca (apre Cerca con la tastiera) e le categorie Film, Serie TV, Anime, Live TV; sotto le sezioni della Home. In basso Home, Libreria, Impostazioni, con Cerca a parte. Scopri si apre dentro la Home dalle categorie, con la barra visibile; si chiude con Indietro o scorrendo dal bordo.
+- Personalizza la Home: per ciascun layout sezioni, ordine e schede; per Vetrina anche nome, foto, saluto e le categorie (mostra/nascondi, nome, simbolo, ordine). «Ripristina Home predefinita» riporta tutto all'inizio senza toccare il resto.
+- Guida TV a griglia: in Impostazioni ▸ Live TV ▸ Guida TV scegli «Sotto i canali» o «Griglia per orario» (tutti i canali su una linea del tempo, con la linea di «adesso»).
+- Accento leggibile: icone e scritte nel colore d'accento si schiariscono o si scuriscono da sole quando si confondono con lo sfondo; i filtri di Scopri e Cerca hanno le scritte nel colore del testo.
+- Scheda del titolo: niente più fascia sfocata sopra l'immagine in cima alla pagina.
+- La sorgente scelta si illumina e le altre si attenuano mentre il logo vola verso il player.
+
 Aether 2.0
 Aspetto (tutto attivabile o disattivabile in Impostazioni ▸ Aspetto)
 - Home che si apre con l'immagine in evidenza fino al bordo alto; scorrendo torna la barra smerigliata con «Home» (Home ▸ In evidenza ▸ Immagine fino al bordo alto).
