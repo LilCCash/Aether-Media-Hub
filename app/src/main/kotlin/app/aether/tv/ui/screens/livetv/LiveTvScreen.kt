@@ -84,7 +84,7 @@ private enum class LiveTab(val title: String) { CHANNELS("Canali"), GUIDE("Guida
  * favourite channels and the «tv» catalogs of the addons. Playlists are added in Impostazioni ▸ TV in diretta or from the phone.
  */
 @Composable
-fun LiveTvScreen(onOpenDetail: (MetaItem) -> Unit, onPlay: () -> Unit, onPhone: () -> Unit) {
+fun LiveTvScreen(onOpenDetail: (MetaItem) -> Unit, onPlay: () -> Unit) {
     val engine = LocalContext.current.aether
     val scope = rememberCoroutineScope()
     val live by engine.liveTv.state.collectAsState()
@@ -189,7 +189,9 @@ fun LiveTvScreen(onOpenDetail: (MetaItem) -> Unit, onPlay: () -> Unit, onPhone: 
         }
     }
 
-    if (showSettings) LiveTvSettingsDialog({ showSettings = false }, onPhone)
+    var phone by remember { mutableStateOf(false) }
+    if (showSettings && !phone) LiveTvSettingsDialog({ showSettings = false }, { phone = true })
+    if (phone) app.aether.tv.remote.PhoneConfigDialog { phone = false }
 
     info?.let { channel ->
         val ok = remember { FocusRequester() }

@@ -32,7 +32,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.aether.core.AetherEngine
-import app.aether.tv.ui.screens.addons.AddonRemoteServer
 import fi.iki.elonen.NanoHTTPD
 import app.aether.tv.ui.components.AetherLogo
 import app.aether.core.debrid.DebridError
@@ -181,9 +180,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpen
             keyRow("PIN TheTVDB", MetadataEnrichment.TVDbPin, "metadata.tvdbPin", "Solo per le chiavi degli abbonati.")
             actionRow("Verifica TheTVDB", "Controlla che TheTVDB accetti la chiave.", "metadata.tvdb.verify") { scope.launch { notice = "Controllo TheTVDB…"; notice = engine.metadata.checkTvdb()?.let { "TheTVDB: $it" } ?: "TheTVDB: chiave accettata." } }
             actionRow("Chiavi e backup dal telefono", "Apre una pagina sul telefono (stessa Wi-Fi): inserisci le chiavi dei servizi o carica un file di backup.", "metadata.phone") {
-                val server = AddonRemoteServer(engine)
-                val address = try { server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false); server.localUrl ?: "IP della TV:8765" } catch (e: Exception) { notice = "Non riesco ad aprire l'accesso locale: ${e.message ?: "porta occupata"}"; null }
-                if (address != null) dialog = { PhoneLinkDialog(address) { runCatching { server.stop() }; close() } }
+                dialog = { app.aether.tv.remote.PhoneConfigDialog(::close) }
             }
             }
 
@@ -424,17 +421,6 @@ private fun ImportDialog(engine: AetherEngine, context: Context, onDone: () -> U
             }
             RequestFocusOnce(first)
         }
-    }
-}
-
-@Composable
-private fun PhoneLinkDialog(address: String, onClose: () -> Unit) {
-    AetherDialog("Dal telefono", onClose, width = 720.dp) {
-        Text("Collega il telefono alla stessa Wi-Fi della TV e apri questo indirizzo nel browser:", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
-        app.aether.tv.ui.components.QrCode(address)
-        Text(address, style = MaterialTheme.typography.titleLarge, color = LocalAccent.current)
-        Text("La pagina è temporanea, protetta da un codice, e si chiude quando premi Chiudi.", style = MaterialTheme.typography.bodySmall, color = AetherColors.OnSurfaceMuted)
-        TvButton("Chiudi", onClose, primary = true, testTag = "phoneLink.close")
     }
 }
 
