@@ -457,6 +457,10 @@ struct DiscoverView: View {
     /// Shown over the glass Home (opened from a category): a button closes it.
     var onClose: (() -> Void)? = nil
 
+    init(onClose: (() -> Void)? = nil) {
+        self.onClose = onClose
+    }
+
     private var storedTypes: [DiscoverTypeSetting] {
         return settings.value.content.discoverTypes
     }

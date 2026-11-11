@@ -19,6 +19,13 @@ final class ScreenshotTourUITests: AetherUITestCase {
         // The addon's address lives in the test keychain of the first launch only: installed again for the second.
         launchWithFixtureAddon(settings: Self.settings(theme: "light"))
         tour(theme: "light")
+        app.terminate()
+        // The Liquid Glass Home, in dark.
+        self.theme = "dark"
+        launchWithFixtureAddon(settings: #"{"playback":{"controlsAutoHideSeconds":15},"appearance":{"schema":2,"theme":"dark","homeLayout":"glass"}}"#)
+        pause(3)
+        snap("17-home-glass")
+        if tap(element("home.profile")) { pause(1.5); snap("18-profilo-da-home") }
     }
 
     private static func settings(theme: String) -> String {

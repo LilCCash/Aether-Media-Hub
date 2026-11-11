@@ -136,10 +136,12 @@ struct RootView: View {
     private var tabs: some View {
         if settings.value.appearance.homeLayout == .glass {
             glassTabs
-        } else if #available(iOS 18.0, *) {
-            modernTabs
         } else {
-            legacyTabs
+            if #available(iOS 18.0, *) {
+                modernTabs
+            } else {
+                legacyTabs
+            }
         }
     }
 
@@ -226,7 +228,7 @@ struct RootView: View {
             Haptics.select()
             // With the glass Home, Scopri and the profile are not in the bar: asked for (a link, a shortcut), they open over it.
             if router.usesGlassHome && (new == .discover || new == .profile) {
-                router.tab = [.discover, .profile].contains(old) ? .home : old
+                router.tab = (old == .discover || old == .profile) ? .home : old
                 if new == .discover { router.discoverSheet = true } else { router.profileSheet = true }
             }
             if !router.usesGlassHome && new == .settings { router.tab = old == .settings ? .home : old; router.open(.settings) }

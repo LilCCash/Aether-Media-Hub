@@ -117,9 +117,30 @@ class AetherUITestCase: XCTestCase {
     }
 
     func openTab(_ name: String) {
-        let tab = app.tabBars.buttons[name]
+        var tab = app.tabBars.buttons[name]
+        if !tab.waitForExistence(timeout: 4) {
+            // iOS 26: on the search tab the bar folds into one button that brings the other tabs back.
+            let folded = app.tabBars.buttons.element(boundBy: 0)
+            if folded.exists && folded.isHittable { folded.tap() }
+            tab = app.tabBars.buttons[name]
+        }
         XCTAssertTrue(tab.waitForExistence(timeout: 10), "tab \(name) missing")
         tab.tap()
+    }
+
+    /// Profilo > Impostazioni (the gear at the top left of the profile).
+    func openSettings() {
+        openMoreRoot()
+        element("profile.settings").tap()
+        XCTAssertTrue(element("settings.root").waitForExistence(timeout: 10), "the settings did not open")
+    }
+
+    /// A row of the settings list, scrolled into view and tapped.
+    func openSettingsRow(_ title: String) {
+        let row = element("settings.\(title)")
+        for _ in 0..<6 where !(row.exists && row.isHittable) { app.swipeUp() }
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "no «\(title)» in the settings")
+        row.tap()
     }
 
     func waitUntil(_ timeout: TimeInterval = 20, _ message: String = "condition not met", _ condition: () -> Bool) {

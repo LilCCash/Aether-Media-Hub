@@ -352,6 +352,8 @@ struct AddonInstallSheet: View {
     }
 
     private func verify() async {
+        // The keyboard goes away: the preview and «Installa» are under it otherwise.
+        focused = false
         isWorking = true
         errorMessage = nil
         errorKind = nil

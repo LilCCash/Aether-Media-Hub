@@ -7,7 +7,7 @@ final class HomeCustomizationUITests: AetherUITestCase {
 
     /// The settings JSON of a run: still screen (no carousel turning under the measurement), the given appearance extras.
     private static func settings(_ appearance: String) -> String {
-        return #"{"appearance":{"animationsEnabled":false,\#(appearance)},"playback":{"controlsAutoHideSeconds":15}}"#
+        return #"{"appearance":{"schema":2,"animationsEnabled":false,\#(appearance)},"playback":{"controlsAutoHideSeconds":15}}"#
     }
 
     private static let heroHidden = #"{"id":"hero","isVisible":false}"#
@@ -112,6 +112,7 @@ final class HomeCustomizationUITests: AetherUITestCase {
         launchWithFixtureAddon(settings: Self.settings(#""homeSections":[\#(Self.heroHidden),\#(Self.otherSections),{"id":"catalogs"}]"#))
         openAppearance()
         let link = element("settings.homeLayout")
+        scrollUntilHittable(link)
         XCTAssertTrue(link.waitForExistence(timeout: 10), "no 'Personalizza la Home' entry")
         link.tap()
         let style = element("settings.home.style.catalogs")
@@ -130,6 +131,7 @@ final class HomeCustomizationUITests: AetherUITestCase {
     func testHomeLayoutScreenOffersTheHeroAndSectionOptions() {
         launchWithFixtureAddon(settings: Self.settings(#""heroStyle":"card""#))
         openAppearance()
+        scrollUntilHittable(element("settings.homeLayout"))
         element("settings.homeLayout").tap()
         XCTAssertTrue(element("settings.home.section.hero").waitForExistence(timeout: 10))
         XCTAssertTrue(element("settings.home.heroStyle").exists)
@@ -174,10 +176,8 @@ final class HomeCustomizationUITests: AetherUITestCase {
 
     func testTheLogoHidesAPopcornSurprise() {
         launch(settings: Self.settings(#""heroStyle":"card""#))
-        openMoreRoot()
-        let about = element("more.about")
-        XCTAssertTrue(about.waitForExistence(timeout: 10))
-        about.tap()
+        openSettings()
+        openSettingsRow("Informazioni e licenze")
         let logo = element("about.logo")
         XCTAssertTrue(logo.waitForExistence(timeout: 10), "no logo on the About screen")
         XCTAssertFalse(element("about.egg.message").exists)
@@ -188,20 +188,17 @@ final class HomeCustomizationUITests: AetherUITestCase {
 
         // The secret palette is now in the style screen.
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        element("profile.settings").tap()
-        let row = element("settings.Aspetto")
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
-        row.tap()
-        element("settings.style").tap()
+        openSettingsRow("Aspetto")
         let chip = element("settings.palette.popcorn")
+        scrollUntilHittable(chip)
         XCTAssertTrue(chip.waitForExistence(timeout: 10), "the Popcorn palette was not unlocked")
         chip.tap()
     }
 
     func testFewTapsOnTheLogoOnlyWarmItUp() {
         launch(settings: Self.settings(#""heroStyle":"card""#))
-        openMoreRoot()
-        element("more.about").tap()
+        openSettings()
+        openSettingsRow("Informazioni e licenze")
         let logo = element("about.logo")
         XCTAssertTrue(logo.waitForExistence(timeout: 10))
         for _ in 0..<3 { logo.tap() }
@@ -217,5 +214,31 @@ final class HomeCustomizationUITests: AetherUITestCase {
         element("settings.style").tap()
         XCTAssertTrue(element("settings.palette.sunset").waitForExistence(timeout: 10))
         try app.performAccessibilityAudit(for: [.sufficientElementDescription, .hitRegion, .trait])
+    }
+
+    // MARK: Liquid Glass Home
+
+    func testTheGlassHomeHasItsHeaderCategoriesAndBar() {
+        launchWithFixtureAddon(settings: Self.settings(#""homeLayout":"glass""#))
+        XCTAssertTrue(element("home.search").waitForExistence(timeout: 30), "the glass Home has a search field")
+        XCTAssertTrue(element("home.categories").exists, "the glass Home has its categories")
+        XCTAssertTrue(element("home.category.movie").exists, "Film is offered: the fixture addon has films")
+        XCTAssertFalse(element("home.category.anime").exists, "Anime is not offered: no addon has anime")
+        XCTAssertTrue(app.tabBars.buttons["Impostazioni"].exists, "the bar ends with Impostazioni")
+        XCTAssertTrue(app.tabBars.buttons["Download"].exists)
+        XCTAssertFalse(app.tabBars.buttons["Profilo"].exists, "the profile opens from the picture, not from the bar")
+
+        element("home.profile").tap()
+        XCTAssertTrue(element("profile.close").waitForExistence(timeout: 10), "the picture opens the profile")
+        element("profile.close").tap()
+
+        element("home.category.movie").tap()
+        XCTAssertTrue(element("discover.close").waitForExistence(timeout: 10), "a category opens Scopri")
+        XCTAssertTrue(element("discover.type.movie").waitForExistence(timeout: 20))
+        XCTAssertTrue(element("discover.type.movie").isSelected, "Scopri opens on the category's type")
+        element("discover.close").tap()
+
+        element("home.search").tap()
+        XCTAssertTrue(element("search.type").waitForExistence(timeout: 20), "the search field opens Cerca")
     }
 }

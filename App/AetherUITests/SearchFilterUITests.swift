@@ -90,9 +90,8 @@ extension AetherUITestCase {
     func openAddonsList() {
         openTab("Profilo")
         if element("addons.add").waitForExistence(timeout: 3) { return }
-        let addons = element("more.addons")
-        XCTAssertTrue(addons.waitForExistence(timeout: 10), "the addons entry is missing")
-        addons.tap()
+        openSettings()
+        openSettingsRow("Addon")
         XCTAssertTrue(element("addons.add").waitForExistence(timeout: 10), "the addon list did not open")
     }
 
@@ -143,16 +142,12 @@ extension AetherUITestCase {
 
     // MARK: Discover settings
 
-    /// Altro > Impostazioni > Aspetto > Categorie di Scopri.
+    /// Profilo > Impostazioni > Cataloghi e scoperta > Categorie di Scopri.
     func openDiscoverSettingsViaSettings() {
-        openMoreRoot()
-        element("profile.settings").tap()
-        let appearance = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Aspetto'")).firstMatch
-        XCTAssertTrue(appearance.waitForExistence(timeout: 10), "Aspetto is missing from the settings")
-        appearance.tap()
+        openSettings()
+        openSettingsRow("Cataloghi e scoperta")
         // The settings list is lazy: the link only exists once it has been scrolled into view.
-        let link = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Categorie di Scopri'")).firstMatch
-        XCTAssertTrue(app.navigationBars["Aspetto"].waitForExistence(timeout: 10), "the Aspetto page did not open")
+        let link = element("settings.discover")
         scrollUntilHittable(link)
         XCTAssertTrue(link.exists && link.isHittable, "the link to the Scopri categories cannot be reached")
         link.tap()

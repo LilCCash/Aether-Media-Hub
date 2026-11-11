@@ -14,6 +14,10 @@ struct ProfileTabView: View {
     /// Shown over the glass Home (opened from its picture): a «Fine» button closes it.
     var onClose: (() -> Void)? = nil
 
+    init(onClose: (() -> Void)? = nil) {
+        self.onClose = onClose
+    }
+
     enum Destination: Hashable { case settings, addons, services, diary, stats, universe, ratings, votes, trakt }
 
     private var profile: ProfileSettings { return settings.value.content.profile }

@@ -32,8 +32,8 @@ final class SettingsAndAccessibilityUITests: AetherUITestCase {
     // Connecting to a real AirPlay or Google Cast receiver is NOT covered here (hardware only).
     func testCastingScreenExplainsWhatIsAvailable() {
         launch()
-        openTab("Profilo")
-        element("more.casting").tap()
+        openSettings()
+        openSettingsRow("Casting")
         XCTAssertTrue(app.staticTexts["AirPlay"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["Google Cast"].exists || app.staticTexts["GOOGLE CAST"].exists)
         XCTAssertTrue(app.staticTexts["DLNA / UPnP"].exists || app.staticTexts["DLNA / UPNP"].exists)

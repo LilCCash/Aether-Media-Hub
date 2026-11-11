@@ -15,7 +15,7 @@ final class LayoutUITests: AetherUITestCase {
     }
 
     /// Animations off: the Home carousel advances by itself every few seconds, which would move the card under measurement.
-    private static let stillSettings = #"{"appearance":{"animationsEnabled":false},"playback":{"controlsAutoHideSeconds":15}}"#
+    private static let stillSettings = #"{"appearance":{"schema":2,"animationsEnabled":false},"playback":{"controlsAutoHideSeconds":15}}"#
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -88,7 +88,7 @@ final class LayoutUITests: AetherUITestCase {
     /// are excluded (their content is legitimately wider); the hero bug made one of the visible cards 1.65x the screen.
     func testNoVisibleElementIsWiderThanTheScreen() {
         let window = windowFrame
-        for tab in ["Home", "Scopri", "Cerca", "Libreria", "Altro"] {
+        for tab in ["Home", "Scopri", "Libreria", "Profilo", "Cerca"] {
             let button = app.tabBars.buttons[tab]
             guard button.waitForExistence(timeout: 10) else { continue }
             button.tap()
