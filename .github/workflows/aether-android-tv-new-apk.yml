@@ -1,0 +1,66 @@
+name: Aether Android TV · APK
+
+on:
+  push:
+    branches: [aether-android-tv-new]
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+
+concurrency:
+  group: atv-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Android SDK packages
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" > /dev/null
+      # Signing: with the repository secrets AETHER_KEYSTORE_BASE64, AETHER_KEYSTORE_PASSWORD, AETHER_KEY_ALIAS and
+      # AETHER_KEY_PASSWORD the APK is signed with that key (updates install over each other). Without them it is signed with a
+      # throw-away debug key: it installs, but every build must replace the previous one.
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.AETHER_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "AETHER_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "Signing with the release key"
+          else
+            echo "No release key in the secrets: debug signature"
+          fi
+      - name: Build
+        env:
+          AETHER_KEYSTORE_PASSWORD: ${{ secrets.AETHER_KEYSTORE_PASSWORD }}
+          AETHER_KEY_ALIAS: ${{ secrets.AETHER_KEY_ALIAS }}
+          AETHER_KEY_PASSWORD: ${{ secrets.AETHER_KEY_PASSWORD }}
+        run: ./gradlew --console=plain :app:assembleRelease -PaetherVersionCode=${{ github.run_number }}
+      - name: Check the APK
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          BT="$ANDROID_HOME/build-tools/37.0.0"
+          "$BT/aapt2" dump badging "$APK" | grep -E "^package:|leanback|LEANBACK_LAUNCHER|sdkVersion|native-code" | tee badging.txt
+          grep -q "LEANBACK_LAUNCHER" badging.txt || { echo "::error::not a TV launcher app"; exit 1; }
+          "$BT/apksigner" verify --print-certs "$APK" | head -3
+          NAME="Aether-AndroidTV-$(grep -o "versionName='[^']*'" badging.txt | cut -d"'" -f2)-${{ github.run_number }}.apk"
+          cp "$APK" "$NAME"
+          echo "APK_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "### $NAME — $(du -h "$NAME" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_NAME }}
+          path: ${{ env.APK_NAME }}
+          compression-level: 0
+          retention-days: 30

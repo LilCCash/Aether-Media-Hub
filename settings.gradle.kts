@@ -24,4 +24,4 @@ rootProject.name = "aether-android-tv"
 
 // `core` is pure Kotlin (JVM): the logic, tested in seconds without Android. `app` is the Android TV application.
 include(":core")
-// include(":app") — added with the application module
+include(":app")

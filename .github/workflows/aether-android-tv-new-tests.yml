@@ -1,0 +1,62 @@
+name: Aether Android TV · test
+
+# Only this branch carries this file, so it never runs for the iOS app or the old Android TV branch.
+on:
+  push:
+    branches: [aether-android-tv-new]
+    paths-ignore: ['**.md', 'docs/**']
+  pull_request:
+    branches: [aether-android-tv-new]
+  workflow_dispatch:
+
+concurrency:
+  group: atv-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Compile, unit tests, lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      # Caches the Gradle distribution, dependencies, build cache and configuration cache between runs.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/aether-android-tv-new' }}
+      - name: Android SDK packages
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" > /dev/null
+      # One Gradle invocation: the core tests (pure JVM, seconds), the app unit tests (Robolectric) and lint share the work.
+      - name: Tests and lint
+        run: ./gradlew --console=plain :core:test :app:testDebugUnitTest :app:lintDebug
+      - name: Results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, re
+          total = failed = 0
+          for path in glob.glob('**/build/test-results/**/*.xml', recursive=True):
+              text = open(path).read()
+              m = re.search(r'tests="(\d+)".*?failures="(\d+)".*?errors="(\d+)"', text)
+              if m:
+                  total += int(m.group(1)); failed += int(m.group(2)) + int(m.group(3))
+          line = f"Tests: {total}, failed: {failed}"
+          print(line)
+          open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a').write(line + "\n")
+          PY
+      - name: Reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atv-test-reports
+          path: |
+            **/build/reports/tests/
+            app/build/reports/lint-results-debug.*
+          retention-days: 7
