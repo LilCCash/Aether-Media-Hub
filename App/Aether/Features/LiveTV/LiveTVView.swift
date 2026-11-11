@@ -161,7 +161,9 @@ struct LiveTVView: View {
     @EnvironmentObject private var addons: AddonStore
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var playlists: LivePlaylistService
+    @EnvironmentObject private var tvGuide: TVGuideService
     @StateObject private var model = LiveTVModel()
+    @State private var guideChannel: M3UChannel?
     @State private var notice: String?
     @State private var choice: ChannelChoice?
 
@@ -225,6 +227,12 @@ struct LiveTVView: View {
             if current?.id != model.selected, let first = current { model.selected = first.id }
             await reload()
         }
+        // The TV guide, for the channels of the playlists (refreshed every 12 hours, or when its address changes).
+        .task(id: "\(liveSettings.guideEnabled)|\(liveSettings.guideURL)|\(liveSettings.playlists.count)") {
+            guard !liveSettings.playlists.isEmpty else { return }
+            await tvGuide.refresh(settings: liveSettings, announced: playlists.announcedGuides(liveSettings.playlists))
+        }
+        .sheet(item: $guideChannel) { channel in ChannelGuideSheet(channel: channel) }
         .onChange(of: model.selected) { _, _ in model.group = nil; Task { await reload() } }
         .onChange(of: model.group) { _, _ in Task { await reload(groupChange: true) } }
         .onChange(of: model.query) { _, _ in model.refilter() }
@@ -294,7 +302,7 @@ struct LiveTVView: View {
     private var grid: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
             ForEach(model.channels) { channel in
-                ChannelTile(channel: channel, isFavorite: liveSettings.isFavorite(channel.id.replacingOccurrences(of: "m3u:", with: "").replacingOccurrences(of: "addon:", with: "")),
+                ChannelTile(channel: channel, guide: guideLine(for: channel), onGuide: guideAction(for: channel), isFavorite: liveSettings.isFavorite(channel.id.replacingOccurrences(of: "m3u:", with: "").replacingOccurrences(of: "addon:", with: "")),
                             choice: choice?.channelID == channel.id ? choice : nil,
                             sourceLabel: { sourceLabel($0, $1) },
                             onChoose: { stream in
@@ -316,6 +324,19 @@ struct LiveTVView: View {
                 }
             }
         }
+    }
+
+    /// What is on now and what follows, for a playlist channel the guide knows.
+    private func guideLine(for channel: LiveChannel) -> ChannelTile.GuideLine? {
+        guard liveSettings.guideEnabled, case .m3u(let m3u) = channel.origin else { return nil }
+        let list = tvGuide.upcoming(for: m3u, count: 2)
+        guard let now = list.first, now.isOn(at: Date()) else { return nil }
+        return ChannelTile.GuideLine(now: now, next: list.count > 1 ? list[1] : nil)
+    }
+
+    private func guideAction(for channel: LiveChannel) -> (() -> Void)? {
+        guard liveSettings.guideEnabled, case .m3u(let m3u) = channel.origin, tvGuide.channelID(for: m3u) != nil else { return nil }
+        return { guideChannel = m3u }
     }
 
     private var emptyState: some View {
@@ -428,7 +449,14 @@ private final class ChannelSourceCollector {
 
 /// One channel as a tile: its logo on a coloured card, the name, and the star that keeps it among the favourites.
 private struct ChannelTile: View {
+    struct GuideLine {
+        var now: TVProgramme
+        var next: TVProgramme?
+    }
+
     let channel: LiveChannel
+    var guide: GuideLine? = nil
+    var onGuide: (() -> Void)? = nil
     let isFavorite: Bool
     /// The sources of this channel when it has several: they open in a drop-down right at the tile.
     var choice: LiveTVView.ChannelChoice?
@@ -469,7 +497,16 @@ private struct ChannelTile: View {
                 .frame(height: 96)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(channel.name).font(.system(size: 14, weight: .semibold, design: AetherTypography.design)).lineLimit(2).multilineTextAlignment(.leading)
-                    if let group = channel.group { Text(group).font(.caption2).foregroundStyle(Color.aetherSecondary).lineLimit(1) }
+                    if let guide = guide {
+                        Text(guide.now.title).font(.caption.weight(.medium)).lineLimit(1)
+                        ProgressBar(value: guide.now.progress(at: Date()), height: 3).padding(.vertical, 2)
+                        if let next = guide.next {
+                            Text("\(next.start.formatted(date: .omitted, time: .shortened)) \(next.title)")
+                                .font(.caption2).foregroundStyle(Color.aetherSecondary).lineLimit(1)
+                        }
+                    } else if let group = channel.group {
+                        Text(group).font(.caption2).foregroundStyle(Color.aetherSecondary).lineLimit(1)
+                    }
                 }
                 .frame(maxWidth: .infinity, minHeight: 46, alignment: .topLeading)
                 .padding(10)
@@ -511,9 +548,64 @@ private struct ChannelTile: View {
         }
         .contextMenu {
             Button(action: onFavorite) { Label(isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti", systemImage: isFavorite ? "star.slash" : "star") }
+            if let onGuide = onGuide { Button(action: onGuide) { Label("Guida del canale", systemImage: "list.bullet.rectangle") } }
             if case .m3u = channel.origin { Button(action: onCopy) { Label("Copia il link", systemImage: "link") } }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(channel.name)
+    }
+}
+
+
+/// The programmes of a channel from now to the end of the guide, grouped by day.
+private struct ChannelGuideSheet: View {
+    let channel: M3UChannel
+    @EnvironmentObject private var tvGuide: TVGuideService
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let list = tvGuide.upcoming(for: channel, count: 80)
+        let days = Dictionary(grouping: list) { Calendar.current.startOfDay(for: $0.start) }
+        NavigationStack {
+            List {
+                if list.isEmpty {
+                    Text("La guida non ha programmi per questo canale.").foregroundStyle(Color.aetherSecondary)
+                }
+                ForEach(days.keys.sorted(), id: \.self) { day in
+                    Section(header: Text(day.formatted(.dateTime.weekday(.wide).day().month(.wide)))) {
+                        ForEach(days[day] ?? [], id: \.self) { programme in row(programme) }
+                    }
+                }
+            }
+            .aetherPage()
+            .navigationTitle(channel.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fine") { dismiss() } } }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func row(_ programme: TVProgramme) -> some View {
+        let live = programme.isOn(at: Date())
+        return HStack(alignment: .top, spacing: Space.m) {
+            Text(programme.start.formatted(date: .omitted, time: .shortened))
+                .font(.subheadline.monospacedDigit().weight(live ? .bold : .regular))
+                .foregroundStyle(live ? Color.accentColor : Color.aetherSecondary)
+                .frame(width: 52, alignment: .leading)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(programme.title).font(.subheadline.weight(.semibold)).lineLimit(2)
+                    if live {
+                        Text("ORA").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
+                            .padding(.horizontal, 5).padding(.vertical, 2).background(Color.red, in: Capsule())
+                    }
+                }
+                if let subtitle = programme.subtitle { Text(subtitle).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(1) }
+                if live { ProgressBar(value: programme.progress(at: Date()), height: 3).padding(.vertical, 2) }
+                if let summary = programme.summary { Text(summary).font(.caption).foregroundStyle(Color.aetherSecondary).lineLimit(3) }
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 }

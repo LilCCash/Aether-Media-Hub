@@ -24,6 +24,7 @@ struct AetherApp: App {
                 .environmentObject(env.relay)
                 .environmentObject(env.extras)
                 .environmentObject(env.livePlaylists)
+                .environmentObject(env.tvGuide)
                 .environment(\.imageLoader, env.images)
                 .task { await env.bootstrap() }
                 .onOpenURL { env.router.handle(url: $0) }

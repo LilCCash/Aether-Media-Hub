@@ -1,54 +1,17 @@
-Aether, rifatta e riordinata
-- Un'app sola, un'interfaccia sola: l'interfaccia Pro è diventata lo standard e l'interruttore Classica/Pro non esiste più. Barra di sistema in Liquid Glass con quattro schede (Home, Scopri, Libreria, Profilo) e la Ricerca separata a destra.
-- Theater Mode rimosso. Universe e Live TV sono solo i due pulsanti in alto a sinistra in Scopri; Diario, timeline e statistiche vivono solo nel Profilo.
-- Profilo: foto, nome e generi con la matita in alto a destra; sotto, «Il mio universo del cinema» (le tue ore, mese per mese), diario e timeline, statistiche, confronto dei voti, gioco dei gusti. Le Impostazioni sono l'ingranaggio in alto a sinistra, riordinate in gruppi: Aspetto, Contenuti, Account e servizi, Dispositivo.
-Aspetto (rifatto da zero)
-- Stili pronti: Aether, Cinema Black, Neon, Luxury, Minimal. Poi colori (tema, accento libero, atmosfera, AMOLED), sfondo (stile, intensità, colore), schede (cornice, angoli, dimensione, carattere), movimento (animazioni, feedback tattile, zoom dalla locandina, pagina del film cinematografica). Ogni voce cambia davvero l'app.
+Aether 2.0
+Aspetto (tutto attivabile o disattivabile in Impostazioni ▸ Aspetto)
+- Home che si apre con l'immagine in evidenza fino al bordo alto; scorrendo torna la barra smerigliata con «Home» (Home ▸ In evidenza ▸ Immagine fino al bordo alto).
+- Bordo di luce su locandine, schede e icone; alone nel colore d'accento sotto i pulsanti principali e i filtri scelti; icone su tessera nelle pagine delle impostazioni (Locandine e schede).
+- Animazioni nuove, ognuna con il suo interruttore (Animazioni): schede che si posano mentre scorri, sezioni che entrano in scena, icone che si trasformano, immagine del titolo in profondità con il titolo che sale nella barra.
+- Aspetto riordinato in Apertura dei titoli, Animazioni, Tocco ed effetti. Accento, carattere, angoli e densità valgono davvero ovunque, in chiaro e in scuro.
+- Sorgenti con punteggio da 0 a 100 a colori e il perché (tieni premuto una sorgente); «Consigliata» in evidenza. Sagome al posto della rotellina mentre arrivano sorgenti, canali e risultati.
+Player
+- Pannello «In tempo reale» nelle informazioni: bitrate, fotogrammi persi, decodifica, buffer, e perché è stato scelto quel motore.
+- Doppi sottotitoli: una seconda lingua sopra la prima (Sottotitoli ▸ 2ª lingua). Barra che si ingrossa sotto il dito; pannelli nel vetro dell'app.
 Novità
-- Artwork: locandine, sfondi e loghi di ogni titolo; sfondi per iPhone (schermata di blocco e Home) da salvare nelle Foto; modalità ambiente a tutto schermo.
-- Scopri: Scoperta cinematografica a pagine, Calendario uscite con promemoria, consigli dell'AI sui tuoi gusti.
-- Universe: mappa grafica della timeline. Archiviazione: barra con Film, Serie, Cache, Altro e spazio recuperabile.
-- Player: apertura cinematografica con suono originale (opzionale), titoli di coda in scena, chat durante «Guarda insieme». Le fonti che falliscono spesso scendono in lista (si può spegnere).
-Ritocchi di questa build
-- Avvio della riproduzione: appena tocchi una fonte si apre il player nero con il logo che torna alla sua dimensione e, quando tutto è pronto, il tasto «Guarda». Si spegne a parte per film, episodi e canali live (Impostazioni ▸ Riproduzione).
-- Live TV: toccando un canale con più fonti scegli la fonte da un menu. Suono d'apertura più leggero (un riser breve). Titoli di coda con un pulsante a fine film, chiudendoli torni al player.
-- Opzioni del player a tendina che non sfarfalla. Anteprime dei fotogrammi più robuste. Persone nei risultati di ricerca, foto in bolla intere, Libreria con schede più larghe, titolo scritto nella scheda del film, scheda aperta anche a schermo intero (Aspetto), Scoperta con chiusura e copertine pronte, gioco dei gusti con anche i film vecchi.
-Novità di questa build
-- Addon e debrid: nella pagina di ogni addon che dà fonti c'è «Servizio debrid» con tre scelte: Entrambi (predefinito), TorBox, Real-Debrid. Con TorBox attivo tutto resta come prima: gli addon sono usati esattamente come configurati, e sono esclusi solo quelli segnati «Real-Debrid». Con Real-Debrid attivo sono esclusi quelli segnati «TorBox»; quelli segnati «Real-Debrid» (per esempio una seconda installazione di MediaFusion fatta con Real-Debrid) sono usati così come sono; Torrentio e Comet lasciati su «Entrambi» vengono interrogati con il tuo token Real-Debrid al posto del servizio configurato, chiedendo solo le fonti già pronte su Real-Debrid (Torrentio: niente link «download»; Comet: solo in cache e niente P2P). La configurazione salvata dell'addon non cambia mai: Aether modifica l'indirizzo solo nel momento in cui chiede le fonti. Se l'indirizzo di Torrentio o Comet non si riesce a leggere, con Real-Debrid quell'addon non viene chiesto e la lista sorgenti lo segnala.
-- Correzione: con Real-Debrid attivo la lista sorgenti teneva solo i torrent e scartava i collegamenti diretti, quindi spariva tutto quello che Torrentio, Comet e MediaFusion danno per Real-Debrid. Ora i collegamenti degli addon che rispondono per Real-Debrid (Torrentio e Comet riscritti, addon segnati «Real-Debrid») restano; i collegamenti diretti degli altri addon restano esclusi come prima.
-Correzioni di questa build
-- Conversione completa: mentre guardi un pezzo del video, Aether ricodifica già il successivo, e l'intestazione del video non aspetta più in fila dietro la ricodifica. Prima, se un pezzo richiedeva più di 4 secondi, il lettore di sistema si fermava al passaggio tra un pezzo e l'altro.
-- Scelta della sorgente da «Continua a guardare» e «Prossimi episodi»: girando lo schermo per il player la pagina nera con il logo spariva (la lista sorgenti era legata alla scheda della Home, che iOS ricrea alla rotazione). Ora la lista si apre dalla radice dell'app e la pagina del lettore resta; in più, se iOS la togliesse comunque, Aether la rimette (nel registro: «Apertura: la pagina del lettore è stata tolta da iOS, la rimetto»).
-- «Continua a guardare» e «Prossimi episodi»: tenendo premuto c'è «Vai alla scheda del titolo».
-- Mappa degli universi: pinch e trascinamento rispondono sempre, anche iniziando il gesto sopra una locandina (prima i pulsanti delle locandine a volte si tenevano il primo dito). Un tocco su una locandina apre il titolo.
-- Scheda del titolo aperta a tutto schermo con lo zoom dalla locandina (iOS 18): tornando su nella lista degli episodi la scheda si chiudeva. Non era il gesto di Aether ma quello di iOS legato allo zoom, che scattava tirando giù anche a metà pagina. Ora è attivo solo quando la pagina è in cima (nel registro: «Scheda del titolo: gesto di chiusura di iOS attivo solo in cima (…)»). Corretto anche il gesto di Aether: un gesto annullato dallo scorrimento non passa più il suo stato al successivo.
-- Archivi TorBox, oltre agli ZIP: anche i RAR (RAR4 e RAR5), sia un unico RAR sia l'episodio diviso su più volumi (.part1.rar…, .rar/.r00…). Come per gli ZIP serve che il video sia salvato senza compressione (il caso abituale). Nel registro: «RAR: … volumi …».
-- AirPlay degli episodi letti da un archivio: scegliendo un dispositivo AirPlay il video passa sull'indirizzo Wi-Fi e riparte dallo stesso punto (servono Wi-Fi e «Consenti rete locale»).
-- Download di un episodio dentro uno ZIP o in un RAR a volume unico: viene scaricato solo il suo pezzo dell'archivio (anche in background). Un episodio diviso su più volumi RAR si guarda in streaming ma non si scarica.
-- TorBox: un torrent che è un unico ZIP con tutti gli episodi (es. i pacchetti di serie MIRCrew) ora si riproduce. Aether legge solo l'indice dello ZIP, trova l'episodio e lo legge dall'interno come un file normale, senza scaricare l'archivio: parte subito e si può andare avanti e indietro. Funziona quando i video sono salvati nello ZIP senza compressione (il caso abituale); se sono compressi lo dice. Nel registro: «ZIP: … video …», «ZIP: episodio «…»». Gli episodi dentro uno ZIP non si possono scaricare singolarmente.
-- TorBox: subito dopo l'aggiunta di un torrent (anche da cache) TorBox può dare un elenco dei file provvisorio, con i video segnati come «compressi». Aether ora lo rilegge fino a 6 volte (circa 18 secondi) prima di dire che i file sono in un archivio. Nel registro c'è il riepilogo dei file di ogni lettura (quanti video, compressi, archivi, con qualche nome).
-- Scelta della sorgente: il logo ora gira verso destra (come il player) e l'animazione è fluida anche mentre l'app prepara la fonte (fatta con Core Animation).
-- Mappa degli universi: linee, locandine e nomi sono un'unica superficie che si muove e si ingrandisce tutta insieme (scorrimento con inerzia, pinch e doppio tocco di iOS): le linee restano ferme rispetto ai titoli e non c'è più lag.
-- Formato del video: adattato, il video resta dentro le aree sicure dello schermo (niente sotto la Dynamic Island); il pulsante a tutto schermo del player lo allarga come prima.
-- Sottotitoli: oltre agli addon, Aether chiede al catalogo completo di OpenSubtitles.org nelle lingue dei sottotitoli scelte (o nella lingua del telefono). Per molti film l'addon OpenSubtitles v3 non ha l'italiano: ora compare. Si spegne in Impostazioni ▸ Player ▸ Lingue.
-Novità della build precedente
-- Conversione completa per AVPlayer e AirPlay (Impostazioni ▸ Player ▸ Motore ▸ «Conversione»: Leggera o Completa). Completa: quello che il lettore di sistema non legge viene ricodificato sul telefono (video H.264 10 bit, VP9, AV1, MPEG-2… con il codificatore hardware; audio DTS, TrueHD, FLAC… in AAC 5.1/stereo). Resta fuori solo il Dolby Vision profilo 5.
-- Sottotitoli di testo del file (SRT, ASS, WebVTT…) passano nella conversione, anche in quella leggera, e si scelgono dal pannello Sottotitoli; vanno anche su AirPlay. Quelli a immagine (Blu-ray/DVD) no.
-- AirPlay anche dei titoli scaricati che vanno convertiti; con MPV il messaggio AirPlay offre «Usa AVPlayer».
-- Conversione delle dirette (Impostazioni ▸ Player ▸ Motore ▸ «Conversione delle dirette»): i canali che AVPlayer non apre (MPEG-TS) vengono convertiti al volo, con la scelta di quali addon e playlist; audio MP2 in AAC, con la Completa anche video MPEG-2 in H.264. Vanno anche su AirPlay.
-- Mappa degli universi rifatta: linee narrative (una per storia), collegamenti tra film della stessa storia e frecce dove le storie si incontrano; pinch per avvicinare/allontanare, trascina per muoverti, doppio tocco per lo zoom, pulsanti per vedere tutto l'universo.
-- Scelta della sorgente: sfondo del film, logo al posto del titolo, tessera della qualità in ogni riga; al tocco il logo vola al centro, si ingrandisce e ruota mentre lo schermo diventa nero, e intanto l'app prepara già la fonte; poi la pagina di avvio con «Guarda».
-Correzioni della build precedente
-- Libreria ▸ Continua e Abbandonati: schede orizzontali, tre per riga, larghe quanto lo schermo.
-- Player MPV: i file HDR e Dolby Vision non passano più dall'uscita «software» del Picture in Picture sperimentale (che li mostrava scuri e arancioni); si riaprono da soli sull'uscita normale, che li converte per lo schermo. L'uscita normale è sempre SDR (sRGB).
-- Zoom dalla locandina: la scheda cresce dalla locandina toccata, sia come scheda (foglio) sia a schermo intero, anche con la pagina del film cinematografica.
-- Scorri in basso dall'inizio della pagina per chiudere un titolo: scheda, schermo intero o pagina aperta in una scheda dell'app.
-- Universe: Spider-Man: Brand New Day (MCU e Spider-Man), Wonder Man e VisionQuest; MCU completo (speciali, serie Disney+ e Netflix); nuovo universo Spider-Man.
-- Live TV: si parte poco dopo la prima fonte trovata e il lettore fa una sonda breve; nel registro i tempi «Apertura:».
-- Impostazioni ▸ Avanzate ▸ Notifiche: notifica di prova.
-- Pagina di avvio: con sfondo e trama le misure si adattano allo schermo in orizzontale (niente tagli).
-Correzioni precedenti
-- Avvio della riproduzione: la pagina nera col logo si apre subito sopra l'elenco delle fonti e mostra lei cosa sta facendo; il riser parte insieme al logo, «Guarda» porta dritti al film. Con «Apertura cinematografica» (o «Modalità Cinema») la pagina mostra sfondo, anno, durata, generi e trama. Scheda del film: lo sfondo parte dal bordo alto.
-- Live TV: cataloghi che rispondevano con una pagina web invece dei dati ora si caricano (secondo tentativo come browser, messaggio chiaro se il servizio è offline).
-- Pulsanti di Scopri simmetrici. Nessuna voce ripetuta in più punti.
-Aggiornando, l'aspetto parte dal nuovo standard (nome, ordine della Home e libreria restano).
+- Guida TV per le playlist M3U: cosa va in onda ora e dopo sotto ogni canale, guida del canale tenendolo premuto. Usa la guida indicata dalla playlist o una guida pubblica dei canali italiani; puoi mettere il tuo indirizzo (Impostazioni ▸ Live TV ▸ Guida TV).
+- «Dove eravamo rimasti?»: su una serie ferma da almeno tre settimane, un riepilogo scritto sul telefono da Apple Intelligence con le sole trame degli episodi già visti.
+- Mappa degli universi: il prossimo titolo da guardare è evidenziato e la mappa si apre su di lui.
+- Siri e Comandi: «Aggiungi alla watchlist…», «Apri la scheda di…». Widget: Riprendi, Apri la watchlist, Apri la scheda.
+- I download portano con sé i sottotitoli, anche senza rete.
+- Se un salvataggio non riesce (spazio pieno…) l'app lo dice con un avviso in alto e riprova da sola.

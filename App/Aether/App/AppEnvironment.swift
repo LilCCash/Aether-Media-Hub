@@ -47,6 +47,7 @@ final class AppEnvironment: ObservableObject {
     /// Data that could not be written (shown as a banner over the app until a later write succeeds).
     let saveProblems = SaveProblemMonitor()
     let livePlaylists = LivePlaylistService()
+    let tvGuide = TVGuideService()
     let liveActivity = DownloadActivityService()
     let widgetBridge = WidgetBridge()
     let watchTogether = WatchTogetherService()

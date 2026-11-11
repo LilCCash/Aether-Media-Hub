@@ -20,6 +20,17 @@ final class LivePlaylistService: ObservableObject {
     }
 
     private func file(_ id: UUID) -> URL { return directory.appendingPathComponent(id.uuidString + ".json") }
+    private func guidesFile(_ id: UUID) -> URL { return directory.appendingPathComponent(id.uuidString + ".guides.json") }
+
+    /// The TV guides the playlists announce in their header (`url-tvg`), in the order of the playlists.
+    func announcedGuides(_ playlists: [LivePlaylist]) -> [String] {
+        var all: [String] = []
+        for playlist in playlists {
+            guard let data = try? Data(contentsOf: guidesFile(playlist.id)), let list = try? JSONDecoder().decode([String].self, from: data) else { continue }
+            for address in list where !all.contains(address) { all.append(address) }
+        }
+        return all
+    }
 
     /// The channels of the playlist: from memory, else from the cache on disk.
     func cached(_ id: UUID) -> [M3UChannel] {
@@ -68,6 +79,7 @@ final class LivePlaylistService: ObservableObject {
         messages[id] = nil
         updated[id] = nil
         try? FileManager.default.removeItem(at: file(id))
+        try? FileManager.default.removeItem(at: guidesFile(id))
     }
 
     private func parse(_ data: Data) -> M3UParseResult {
@@ -83,6 +95,7 @@ final class LivePlaylistService: ObservableObject {
         channels[id] = result.channels
         updated[id] = Date()
         if let data = try? JSONEncoder().encode(result.channels) { try? data.write(to: file(id), options: .atomic) }
+        if let data = try? JSONEncoder().encode(result.guides) { try? data.write(to: guidesFile(id), options: .atomic) }
         messages[id] = result.skipped > 0 ? "\(result.skipped) canali ignorati (indirizzo non supportato)." : nil
     }
 }

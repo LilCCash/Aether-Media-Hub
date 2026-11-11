@@ -3,6 +3,22 @@
 Numerazione = quella scelta il 3/11/2026 (da `12-ANALISI-PER-IOS.md`). ✅ fatto e compilato in CI · 🟡 scritto, **non provato su iPhone** · ☐ da fare.
 Priorità: build e CI veloci e affidabili, poi le funzioni. Le funzioni nuove hanno un interruttore nelle impostazioni dove ha senso.
 
+## Aether 2.0 (11/11/2026)
+- 🟡 **1** Documenti, README e note allineati alla versione 2.0
+- 🟡 **2** Pannello tecnico «In tempo reale» nel player
+- 🟡 **3** Doppi sottotitoli
+- 🟡 **4** Avviso quando un salvataggio non riesce, con nuovo tentativo
+- 🟡 **5** Logger, signpost e MetricKit nel registro diagnostico
+- 🟡 **6** Sottotitoli salvati con i download
+- 🟡 **7** «Dove eravamo rimasti?» (Apple Intelligence)
+- 🟡 **8** Punteggio delle sorgenti con il perché
+- 🟡 **9** Siri: aggiungi alla watchlist, apri la scheda
+- 🟡 **10** Widget: riprendi, watchlist, apri la scheda
+- 🟡 **11** Guida TV (XMLTV) per le playlist M3U
+- 🟡 **12** Prossimo titolo evidenziato nella mappa degli universi
+- ✅ **18** `PlayerViewModel` e lista sorgenti divisi in file
+- 🟡 **P** Pulizia grafica, personalizzazioni sistemate in chiaro e scuro, animazioni con interruttore
+
 ## Infrastruttura (priorità massima)
 - ✅ **6** Swift nella sandbox: `swift test` del Core in locale
 - ✅ **12** CI veloce e affidabile (UI test solo su richiesta, timeout, nuovi tentativi, Core su Linux, screenshot dei fallimenti)

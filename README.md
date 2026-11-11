@@ -6,7 +6,7 @@
 
 <p align="center">
   <em>Il tuo media center per iPhone e per Android TV, fatto a modo tuo.</em><br>
-  iPhone: versione 1.4 · iOS 17 o successivo · Android TV: Aether TV 1.0.0 Beta 1 · licenza MIT
+  iPhone: versione 2.0 · iOS 17 o successivo · Android TV: Aether TV 1.0.0 Beta 1 · licenza MIT
 </p>
 
 ---
@@ -56,7 +56,7 @@ Se qualcosa non funziona, in *Impostazioni ▸ Account e dati* puoi attivare un 
 Il codice compila e centinaia di test automatici girano a ogni modifica su macOS. Ma un test automatico non sostituisce un iPhone vero.
 
 - ✅ **Provato su un iPhone** (da chi sviluppa l'app): il player e i suoi tocchi, TorBox con i torrent già in cache, l'aspetto dell'elenco sorgenti, i filtri di Cerca e Scopri.
-- 🟡 **Scritto e provato solo in simulatore, non su un iPhone:** le novità della 1.1 e della 1.3 (Theater Mode, ponte e conversione MKV, ripristino da file, scheda del titolo, pannelli del player), Salta intro, le griglie di Libreria e Scopri.
+- 🟡 **Scritto e provato solo in simulatore, non su un iPhone:** le novità della 2.0 (aspetto e animazioni, guida TV, doppi sottotitoli, «Dove eravamo rimasti?», Siri e widget), quelle della 1.1 e della 1.3 (Theater Mode, ponte e conversione MKV, ripristino da file, scheda del titolo, pannelli del player), Salta intro, le griglie di Libreria e Scopri.
 - ⚠️ **Theater Mode non l'ho mai visto su uno schermo:** è controllato solo da test automatici; aspetto e animazioni vanno giudicati a occhio.
 - ⚠️ **Mai provato dal vivo:** AirPlay con Apple TV, Google Cast e DLNA verso un televisore vero, Picture in Picture, aspetto di HDR e Dolby Vision, VoiceOver.
 - ⚠️ **Picture in Picture:** funziona solo con i file aperti dal motore di Apple (MP4, MOV). Con MKV e AVI (cioè la maggior parte dei file) il motore è MPV, che non lo supporta, e l'app te lo dice. Se usi Aether dentro un contenitore come LiveContainer, iOS può rifiutarlo comunque.

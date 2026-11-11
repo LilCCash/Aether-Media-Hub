@@ -1,4 +1,37 @@
-# Cosa provare in Aether 1.2 Beta 1 (e come)
+# Cosa provare in Aether 2.0
+
+Prima le novità della 2.0 (mai viste su un telefono), poi la lista completa delle versioni precedenti, che resta valida.
+
+## A. Aspetto e personalizzazioni (Impostazioni ▸ Aspetto)
+1. **Tema chiaro e scuro**: *Colori ▸ Automatico / Chiaro / Scuro*. Gira Home, Scopri, Libreria, Profilo, Impostazioni, una scheda film, la lista sorgenti e il player. **Deve succedere:** testi leggibili ovunque, niente fasce grigie o nere fuori posto, barra in basso dello stesso tono della pagina.
+2. **Accento**: scegli ciascun colore (anche uno personalizzato chiaro, per esempio giallo). **Deve succedere:** pulsanti, filtri scelti, barre di avanzamento, icone delle impostazioni e checkmark prendono tutti lo stesso colore; il testo sopra un accento chiaro diventa nero.
+3. **Stili pronti** (Aether, Cinema Black, Neon, Luxury, Minimal): ognuno cambia colori, sfondo, cornice, angoli e carattere insieme.
+4. **Carattere dei titoli** e **Angoli** (*Locandine e schede*): titoli di sezioni, schede e sorgenti cambiano carattere; locandine e schede cambiano angoli.
+5. **Densità**: compatta stringe righe e griglie di Home, Scopri, Libreria.
+6. **Bordo di luce**, **Alone sui pulsanti principali**, **Icone su tessera nelle impostazioni**: spegnili uno alla volta e controlla che l'effetto sparisca (locandine, pulsante Guarda, icone dentro Riproduzione / Live TV…).
+7. **Animazioni**: con l'interruttore generale spento non si muove più nulla; acceso, prova una per una *Schede che si posano*, *Sezioni che entrano in scena*, *Icone che si trasformano* (＋/✓ nella Home, stella in Live TV, cuore nella scheda), *Immagine del titolo in profondità* (scorrendo una scheda film l'immagine scorre più lenta, poi il titolo sale nella barra).
+8. **Riduci gli effetti**: sfondo uniforme, niente aloni né movimenti.
+9. **Home ▸ In evidenza ▸ Immagine fino al bordo alto**: l'immagine sale sotto l'orologio; scorrendo, compare una striscia smerigliata con «Home». Spento: la Home ha il suo titolo grande come prima.
+- **Se non va:** dimmi quale voce, in chiaro o in scuro, e manda una foto.
+
+## B. Sorgenti e player
+1. Lista sorgenti: ogni sorgente ha un punteggio colorato (verde ≥ 90 … rosso < 40); tenendola premuta compaiono i motivi. Mentre le sorgenti arrivano ci sono sagome grigie al posto della lista vuota.
+2. Player ▸ informazioni (ⓘ): sezione **In tempo reale** che si aggiorna ogni secondo, e **Perché questo motore**.
+3. Player ▸ Sottotitoli ▸ **2ª lingua**: scegli una seconda traccia; deve comparire sopra la prima, più piccola.
+4. Trascina la barra di avanzamento: si ingrossa sotto il dito. I pannelli Sottotitoli e Audio sono di vetro scuro, leggibili anche col tema chiaro.
+5. Scarica un episodio con i sottotitoli attivi, metti il telefono in modalità aereo e riproducilo: i sottotitoli devono esserci.
+
+## C. Novità
+1. **Guida TV** (*Impostazioni ▸ Live TV ▸ Guida TV*, acceso di default): aggiungi la playlist italiana. **Deve succedere:** dopo qualche secondo sotto i canali principali (Rai, Mediaset, La7…) compaiono il programma in onda con una barretta e il successivo con l'ora; tenendo premuto un canale ▸ *Guida del canale*. Radio e canali minori possono non averla. Prova anche un tuo indirizzo XMLTV (.xml o .xml.gz).
+2. **«Dove eravamo rimasti?»**: su un iPhone con Apple Intelligence, una serie con almeno 3 episodi visti e l'ultimo visto più di 3 settimane fa. Il pulsante compare sotto «Guarda»; il riepilogo non deve raccontare episodi non visti.
+3. **Mappa degli universi**: si apre centrata sul prossimo titolo da vedere (bordo d'accento, etichetta «PROSSIMO»); «Prossimo: …» in basso ci riporta.
+4. **Siri / Comandi**: «Aggiungi … alla watchlist di Aether», «Apri la scheda di … in Aether».
+5. **Widget**: «Riprendi» (grande), icona watchlist e «Apri la scheda» (titolo in evidenza).
+6. **Avviso di salvataggio**: difficile da provocare; se compare in alto «Non riesco a salvare…», segnalamelo.
+
+---
+
+## Lista completa delle versioni precedenti (dalla 1.2 Beta 1)
 
 Lista pensata per chi prova l'IPA su un iPhone vero (anche in LiveContainer). Per ogni prova: **Come** si fa, **Deve succedere** cosa vedere, **Se non va** cosa mi serve sapere.
 Le prove sono ordinate dalle più importanti (cose nuove o mai viste su un telefono) alle più normali. Segna accanto a ciascuna ✅ / ❌ / ➖ (non applicabile).

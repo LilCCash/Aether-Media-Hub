@@ -8,6 +8,7 @@ struct LiveTVSettingsView: View {
     @EnvironmentObject private var addons: AddonStore
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var playlists: LivePlaylistService
+    @EnvironmentObject private var tvGuide: TVGuideService
     @State private var adding = false
     @State private var newName = ""
     @State private var newURL = ""
@@ -83,6 +84,30 @@ struct LiveTVSettingsView: View {
                             }
                         }
                     }
+                }
+            }
+
+            Section(header: Text("Guida TV"),
+                    footer: Text("Sotto i canali delle playlist compare cosa va in onda ora e dopo; tieni premuto un canale per la sua guida. Senza un indirizzo, Aether usa la guida indicata dalla playlist o, se manca, una guida pubblica dei canali italiani (epgshare01). Accetta file XMLTV, anche compressi (.xml.gz). Si aggiorna ogni 12 ore.")) {
+                Toggle("Mostra la guida TV", isOn: settings.binding(\.content.liveTV.guideEnabled))
+                if live.guideEnabled {
+                    TextField("Indirizzo della guida (facoltativo)", text: settings.binding(\.content.liveTV.guideURL))
+                        .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tvGuide.guide.isEmpty ? "Guida non ancora scaricata" : "\(tvGuide.guide.programmes.count) canali nella guida")
+                            if !tvGuide.guide.isEmpty {
+                                Text("Aggiornata \(tvGuide.guide.fetchedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(Color.aetherSecondary)
+                            }
+                        }
+                        Spacer()
+                        if tvGuide.isLoading { ProgressView() } else {
+                            Button("Aggiorna") {
+                                Task { await tvGuide.refresh(settings: live, announced: playlists.announcedGuides(live.playlists), force: true) }
+                            }
+                        }
+                    }
+                    if let message = tvGuide.message { Text(message).font(.caption).foregroundStyle(.orange) }
                 }
             }
 
