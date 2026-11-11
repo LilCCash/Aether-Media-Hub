@@ -97,6 +97,8 @@ data class NetworkSettings(
     val cacheResponses: Boolean = true,
     /** A Stremio-compatible streaming server for torrents the user runs himself (optional). */
     val streamingServerUrl: String = "",
+    /** The debrid service torrents are played through (Impostazioni ▸ Servizi). */
+    val debridService: app.aether.core.debrid.DebridService = app.aether.core.debrid.DebridService.TORBOX,
 )
 
 @Serializable
@@ -110,6 +112,7 @@ data class AppSettings(
     val content: ContentSettings = ContentSettings(),
     val network: NetworkSettings = NetworkSettings(),
     val privacy: PrivacySettings = PrivacySettings(),
+    val liveTv: app.aether.core.livetv.LiveTvSettings = app.aether.core.livetv.LiveTvSettings(),
     /** The viewer's choice about the Cinemeta recommendation shown in the empty state; never installed silently. */
     val cinemetaOffered: Boolean = false,
 )

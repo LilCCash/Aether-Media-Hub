@@ -1,5 +1,7 @@
 package app.aether.tv.ui.screens.addons
 
+import app.aether.core.addons.AddonDebridScope
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -135,6 +137,15 @@ fun AddonsScreen(initialInput: String?, modifier: Modifier = Modifier) {
                         onRefresh = { scope.launch { val outcome = engine.registry.refresh(addon.id); message = outcome?.error ?: "«${addon.displayName}» aggiornato (versione ${outcome?.newVersion ?: addon.manifest.version})." } },
                         onRename = { renaming = addon },
                         onRemove = { removing = addon },
+                        onScope = {
+                            val next = AddonDebridScope.entries[(addon.debridScope.ordinal + 1) % AddonDebridScope.entries.size]
+                            scope.launch { engine.registry.setDebridScope(next, addon.id) }
+                            message = when (next) {
+                                AddonDebridScope.BOTH -> "«${addon.displayName}» si usa con TorBox e con Real-Debrid (Torrentio e Comet vengono adattati da soli)."
+                                AddonDebridScope.TORBOX -> "«${addon.displayName}» si usa solo quando il servizio in uso è TorBox."
+                                AddonDebridScope.REAL_DEBRID -> "«${addon.displayName}» si usa solo quando il servizio in uso è Real-Debrid."
+                            }
+                        },
                         onConfigure = {
                             scope.launch {
                                 val url = engine.registry.transportUrl(addon.id)?.replace("/manifest.json", "/configure")
@@ -179,7 +190,7 @@ fun AddonsScreen(initialInput: String?, modifier: Modifier = Modifier) {
 @Composable
 private fun AddonCard(
     addon: InstalledAddon, canUp: Boolean, canDown: Boolean,
-    onToggle: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onCatalogs: () -> Unit, onRefresh: () -> Unit, onRename: () -> Unit, onRemove: () -> Unit, onConfigure: () -> Unit,
+    onToggle: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onCatalogs: () -> Unit, onRefresh: () -> Unit, onRename: () -> Unit, onRemove: () -> Unit, onConfigure: () -> Unit, onScope: () -> Unit,
 ) {
     val manifest = addon.manifest
     Column(
@@ -210,6 +221,7 @@ private fun AddonCard(
             if (canDown) item { TvIconButton(Icons.Filled.KeyboardArrowDown, "Sposta giù", onDown, size = 38.dp, testTag = "addon.down") }
             if (manifest.catalogs.isNotEmpty()) item { TvChip("Cataloghi", false, onCatalogs, testTag = "addon.catalogs") }
             if (manifest.behaviorHints.configurable) item { TvChip("Configura", false, onConfigure) }
+            if (manifest.resources.any { it.name == "stream" }) item { TvChip("Debrid: ${addon.debridScope.title}", false, onScope, testTag = "addon.scope") }
             item { TvChip("Aggiorna", false, onRefresh) }
             item { TvChip("Rinomina", false, onRename) }
             item { TvChip("Rimuovi", false, onRemove, testTag = "addon.remove") }

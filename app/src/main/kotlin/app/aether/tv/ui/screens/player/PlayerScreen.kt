@@ -297,9 +297,9 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
         if (state.askDownload) {
             val yes = remember { FocusRequester() }
             AetherDialog("Torrent non in cache", vm::declineDownload) {
-                Text("TorBox non ha questo torrent già pronto: scaricarlo richiede tempo, spazio e traffico sul tuo account TorBox. Vuoi scaricarlo?", style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnSurfaceMuted)
+                Text(app.aether.tv.ui.screens.detail.downloadPrompt(state.debridName), style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnSurfaceMuted)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvButton("Scarica su TorBox", vm::confirmDownload, primary = true, focusRequester = yes, testTag = "player.confirmDownload")
+                    TvButton("Scarica su ${state.debridName}", vm::confirmDownload, primary = true, focusRequester = yes, testTag = "player.confirmDownload")
                     TvButton("No, altra sorgente", vm::declineDownload)
                 }
                 RequestFocusOnce(yes)

@@ -32,6 +32,8 @@ data class InstalledAddon(
     val isOfficial: Boolean = false,
     /** The secret URL is missing (restored from a backup, store cleared): the addon must be added again. */
     val needsReinstall: Boolean = false,
+    /** The debrid service the viewer meant this addon for (Torrentio/Comet are switched to Real-Debrid when it is active). */
+    val debridScope: AddonDebridScope = AddonDebridScope.BOTH,
 ) {
     val displayName: String get() = nameOverride?.takeIf { it.isNotEmpty() } ?: manifest.name
     val secretKey: String get() = AddonRegistry.SECRET_PREFIX + id
@@ -186,6 +188,8 @@ class AddonRegistry(
     }
 
     suspend fun setEnabled(enabled: Boolean, id: String) = lock.withLock { loadLocked(); update(id) { it.copy(isEnabled = enabled) } }
+
+    suspend fun setDebridScope(scope: AddonDebridScope, id: String) = lock.withLock { loadLocked(); update(id) { it.copy(debridScope = scope) } }
 
     suspend fun setNameOverride(name: String?, id: String) =
         lock.withLock { loadLocked(); update(id) { it.copy(nameOverride = name?.trim()?.takeIf { n -> n.isNotEmpty() }) } }

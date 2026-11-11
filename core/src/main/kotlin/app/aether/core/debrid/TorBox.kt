@@ -37,6 +37,14 @@ sealed class DebridError(override val message: String, val isRetryable: Boolean 
     class RateLimited : DebridError("TorBox chiede di rallentare: riprova tra poco.", isRetryable = true)
     class Failed(detail: String) : DebridError(detail)
     object Cancelled : DebridError("Operazione annullata.")
+    object RealDebridNotConfigured : DebridError("Per usare Real-Debrid serve il token API: inseriscilo in Impostazioni ▸ Servizi.")
+    object RealDebridInvalidKey : DebridError("Real-Debrid ha rifiutato il token: controllalo in Impostazioni ▸ Servizi.")
+    object RealDebridNotInAccount : DebridError("Real-Debrid non permette di sapere prima se un torrent è pronto: avvia «Scarica su Real-Debrid» per aggiungerlo al tuo account.")
+    class RealDebridApi(code: String) : DebridError("Real-Debrid ha risposto con un errore (${safe(code)}).")
+    class RealDebridItemFailed(state: String) : DebridError("Real-Debrid non riesce a preparare questo torrent (stato: ${safe(state)}).")
+    class RealDebridNetwork : DebridError("Impossibile contattare Real-Debrid.", isRetryable = true)
+    class RealDebridRateLimited : DebridError("Real-Debrid chiede di rallentare: riprova tra poco.", isRetryable = true)
+    class RealDebridUnavailable(status: Int) : DebridError("Real-Debrid non è disponibile in questo momento (HTTP $status).", isRetryable = true)
 
     companion object {
         fun safe(code: String) = code.take(40).filter { it.isLetterOrDigit() || it in "_-" }

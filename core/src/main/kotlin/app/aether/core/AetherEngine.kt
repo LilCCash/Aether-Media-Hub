@@ -4,7 +4,9 @@ import app.aether.core.addons.AddonClient
 import app.aether.core.addons.AddonRegistry
 import app.aether.core.addons.AddonRegistryState
 import app.aether.core.addons.AddonService
-import app.aether.core.debrid.DebridResolver
+import app.aether.core.debrid.DebridRouter
+import app.aether.core.debrid.RealDebridClient
+import app.aether.core.metadata.MdbListClient
 import app.aether.core.debrid.TorBoxClient
 import app.aether.core.library.LibraryPolicy
 import app.aether.core.library.LibraryState
@@ -55,7 +57,10 @@ class AetherEngine(
         LibraryPolicy(watchedThreshold = settings.value.value.playback.watchedThreshold, recordHistory = settings.value.value.privacy.recordHistory),
     )
     val torBox = TorBoxClient(this.http, secrets)
-    val debrid = DebridResolver(torBox)
+    val realDebrid = RealDebridClient(this.http, secrets)
+    val debrid = DebridRouter(torBox, realDebrid) { settings.value.value.network.debridService }
+    val mdbList = MdbListClient(this.http, secrets)
+    val liveTv = app.aether.core.livetv.LiveTvService(this.http, settings, File(dataDir, "livetv"))
     val introDb = IntroDbClient(this.http)
 
     fun syncLibraryPolicy() {
@@ -78,18 +83,21 @@ class AetherEngine(
             addonOrder = registry.all().map { it.id },
             ordering = s.playback.streamOrdering,
             capabilities = PlaybackCapabilities(
-                debridAvailable = torBox.isConfigured,
+                debridAvailable = debrid.isConfigured,
                 streamingServer = s.network.streamingServerUrl.trim().ifEmpty { null },
             ),
         )
     }
 
-    /** The keys a backup may carry: TMDB, TheTVDB (with PIN) and TorBox. */
+    /** The keys a backup may carry (same names as the iOS backup): TorBox, Real-Debrid, TMDB, TheTVDB (with PIN), fanart.tv, MDBList. */
     fun backupKeys(): Map<String, String> = buildMap {
         secrets.get(MetadataEnrichment.TMDbKey)?.takeIf { it.isNotBlank() }?.let { put("tmdb", it) }
         secrets.get(MetadataEnrichment.TVDbKey)?.takeIf { it.isNotBlank() }?.let { put("tvdb", it) }
         secrets.get(MetadataEnrichment.TVDbPin)?.takeIf { it.isNotBlank() }?.let { put("tvdbPin", it) }
         secrets.get(TorBoxClient.KEY_SECRET)?.takeIf { it.isNotBlank() }?.let { put("torbox", it) }
+        secrets.get(RealDebridClient.KEY_SECRET)?.takeIf { it.isNotBlank() }?.let { put("realdebrid", it) }
+        secrets.get(MetadataEnrichment.FanartKey)?.takeIf { it.isNotBlank() }?.let { put("fanart", it) }
+        secrets.get(MdbListClient.KEY_SECRET)?.takeIf { it.isNotBlank() }?.let { put("mdblist", it) }
     }
 
     /** Stores the keys of a backup so the services are configured by themselves; returns the names that were set. */
@@ -99,6 +107,9 @@ class AetherEngine(
         keys["tvdb"]?.let { secrets.put(MetadataEnrichment.TVDbKey, it.trim()); done.add("TheTVDB") }
         keys["tvdbPin"]?.let { secrets.put(MetadataEnrichment.TVDbPin, it.trim()) }
         keys["torbox"]?.let { try { torBox.saveKey(it); done.add("TorBox") } catch (_: IllegalArgumentException) { } }
+        keys["realdebrid"]?.let { try { realDebrid.saveKey(it); done.add("Real-Debrid") } catch (_: IllegalArgumentException) { } }
+        keys["fanart"]?.trim()?.takeIf { it.isNotEmpty() }?.let { secrets.put(MetadataEnrichment.FanartKey, it); done.add("fanart.tv") }
+        keys["mdblist"]?.trim()?.takeIf { it.isNotEmpty() }?.let { secrets.put(MdbListClient.KEY_SECRET, it); done.add("MDBList") }
         if (done.isNotEmpty()) metadata.clearCaches()
         return done
     }

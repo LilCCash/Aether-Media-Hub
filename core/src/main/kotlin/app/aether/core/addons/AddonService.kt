@@ -1,5 +1,7 @@
 package app.aether.core.addons
 
+import app.aether.core.debrid.StreamDebridContext
+
 import app.aether.core.model.AddonStream
 import app.aether.core.model.AddonSubtitle
 import app.aether.core.model.ExtraValue
@@ -128,18 +130,32 @@ class AddonService(
      * Streams from every addon that declares `stream` for this type/video id, emitted as each addon answers. Cancelling the collector
      * cancels the outstanding requests. A 404 means "no streams", not an error.
      */
-    fun streams(type: String, videoId: String, mode: AddonClient.LoadMode = AddonClient.LoadMode.NORMAL): Flow<StreamBatch> = callbackFlow {
+    fun streams(
+        type: String,
+        videoId: String,
+        mode: AddonClient.LoadMode = AddonClient.LoadMode.NORMAL,
+        debrid: StreamDebridContext? = null,
+    ): Flow<StreamBatch> = callbackFlow {
         val path = ResourcePath(ResourceName.STREAM, type, videoId)
         val candidates = RequestPlanner.addons(path, handles())
         val job = launch {
             coroutineScope {
-                for (handle in candidates) {
+                for (original in candidates) {
+                    val decision = AddonDebridRouting.decide(original, debrid)
+                    if (decision is AddonDebridRouting.Decision.Skip) continue
+                    if (decision is AddonDebridRouting.Decision.Unreadable) {
+                        trySend(StreamBatch(original.id, original.addon.displayName, emptyList(),
+                            AddonError.InvalidUrl("indirizzo non adattabile a Real-Debrid: riconfigura l'addon"), false))
+                        continue
+                    }
+                    val use = decision as AddonDebridRouting.Decision.Use
+                    val handle = if (use.url == original.transportUrl) original else original.copy(transportUrl = use.url)
                     launch {
                         val batch = try {
                             val payload = perform(handle, path, mode)
-                            val items = (payload.payload as? AddonPayload.Streams)?.items.orEmpty().map {
-                                it.copy(addonId = handle.addon.id, addonName = handle.addon.displayName)
-                            }
+                            val items = (payload.payload as? AddonPayload.Streams)?.items.orEmpty()
+                                .filter { use.switched == null || AddonDebridRouting.isReadyOnRealDebrid(it, use.switched) }
+                                .map { it.copy(addonId = handle.addon.id, addonName = handle.addon.displayName) }
                             StreamBatch(handle.id, handle.addon.displayName, items, null, payload.isStale)
                         } catch (error: Throwable) {
                             if (error is CancellationException) throw error

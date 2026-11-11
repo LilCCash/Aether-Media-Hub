@@ -82,6 +82,8 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         val subtitleNote: String? = null,
         /** While TorBox prepares the link: what is going on. The player shows the film's logo meanwhile. */
         val preparing: Preparing? = null,
+        /** «TorBox» or «Real-Debrid», for the texts about the torrent. */
+        val debridName: String = "TorBox",
         val logoUrl: String? = null,
         /** True once the first picture is ready; until then the logo screen covers the player. */
         val started: Boolean = false,
@@ -154,6 +156,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
     private val _state = MutableStateFlow(
         UiState(
             title = request.meta.name,
+            debridName = engine.debrid.service.title,
             subtitle = request.video?.let { listOfNotNull(it.episodeLabel, it.title.takeIf { t -> t.isNotBlank() }).joinToString(" · ") }?.takeIf { it.isNotEmpty() },
             hasNext = nextOf(request) != null,
             hasPrevious = previousOf(request) != null,
@@ -467,7 +470,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
     private fun resolvePending(allowDownload: Boolean) {
         val p = request.pending ?: return
         resolveJob?.cancel()
-        _state.update { it.copy(preparing = Preparing("Controllo TorBox…", null, null), error = null, askDownload = false) }
+        _state.update { it.copy(preparing = Preparing("Controllo ${engine.debrid.service.title}…", null, null), error = null, askDownload = false) }
         resolveJob = viewModelScope.launch {
             try {
                 val link = engine.debrid.resolve(
@@ -487,14 +490,14 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
                 if (error is CancellationException) throw error
                 _state.update { it.copy(preparing = null) }
                 val debrid = error as? app.aether.core.debrid.DebridError
-                if (debrid is app.aether.core.debrid.DebridError.NotCached) _state.update { it.copy(askDownload = true) }
+                if (debrid is app.aether.core.debrid.DebridError.NotCached || debrid is app.aether.core.debrid.DebridError.RealDebridNotInAccount) _state.update { it.copy(askDownload = true) }
                 else _state.update { it.copy(error = debrid?.message ?: app.aether.core.net.AddonError.from(error).message) }
             }
         }
     }
 
     fun confirmDownload() = resolvePending(allowDownload = true)
-    fun declineDownload() = _state.update { it.copy(askDownload = false, error = "Il torrent non è in cache su TorBox: scegli un'altra sorgente.") }
+    fun declineDownload() = _state.update { it.copy(askDownload = false, error = "Il torrent non è pronto su ${engine.debrid.service.title}: scegli un'altra sorgente.") }
     fun chooseFile(file: DebridFile?) { _state.update { it.copy(fileChoice = null) }; fileReply?.complete(file); fileReply = null }
 
     fun retry() {

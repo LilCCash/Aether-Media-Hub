@@ -36,6 +36,8 @@ import app.aether.tv.ui.screens.addons.AddonRemoteServer
 import fi.iki.elonen.NanoHTTPD
 import app.aether.tv.ui.components.AetherLogo
 import app.aether.core.debrid.DebridError
+import app.aether.core.debrid.DebridService
+import app.aether.core.metadata.MdbListClient
 import app.aether.core.metadata.MetadataEnrichment
 import app.aether.core.library.BackupCodec
 import app.aether.core.library.BackupContents
@@ -166,10 +168,12 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             keyRow("Chiave TMDB", MetadataEnrichment.TMDbKey, "metadata.tmdb", "Chiave API v3 (32 caratteri) oppure token di lettura v4 («eyJ…»). Aggiunge cast con foto, trailer, produzioni e titoli simili.")
             actionRow("Verifica TMDB", "Controlla che TMDB accetti la chiave.", "metadata.tmdb.verify") { scope.launch { notice = "Controllo TMDB…"; notice = engine.metadata.checkTmdb()?.let { "TMDB: $it" } ?: "TMDB: chiave accettata." } }
             keyRow("Chiave TheTVDB", MetadataEnrichment.TVDbKey, "metadata.tvdb", "Chiave API v4. Aggiunge trame, locandine e immagini degli episodi.")
-            keyRow("Chiave fanart.tv (facoltativa)", MetadataEnrichment.FanartKey, "metadata.fanart", "Usata per i loghi dei film. Se vuota, l'app usa la chiave di progetto inclusa.")
+            keyRow("Chiave fanart.tv (facoltativa)", MetadataEnrichment.FanartKey, "metadata.fanart", "La tua chiave personale di fanart.tv: mostra i loghi dei titoli. Senza chiave i loghi non compaiono.")
+            keyRow("Chiave MDBList (facoltativa)", MdbListClient.KEY_SECRET, "metadata.mdblist", "La chiave di mdblist.com: aggiunge nella scheda i voti di IMDb, Rotten Tomatoes, Metacritic, Letterboxd e altri.")
+            actionRow("Verifica MDBList", "Controlla che MDBList accetti la chiave.", "metadata.mdblist.verify") { scope.launch { notice = "Controllo MDBList…"; notice = engine.mdbList.check()?.let { "MDBList: $it" } ?: "MDBList: chiave accettata." } }
             keyRow("PIN TheTVDB", MetadataEnrichment.TVDbPin, "metadata.tvdbPin", "Solo per le chiavi degli abbonati.")
             actionRow("Verifica TheTVDB", "Controlla che TheTVDB accetti la chiave.", "metadata.tvdb.verify") { scope.launch { notice = "Controllo TheTVDB…"; notice = engine.metadata.checkTvdb()?.let { "TheTVDB: $it" } ?: "TheTVDB: chiave accettata." } }
-            actionRow("Chiavi e backup dal telefono", "Apre una pagina sul telefono (stessa Wi-Fi): inserisci le chiavi TMDB, TheTVDB, TorBox o carica un file di backup.", "metadata.phone") {
+            actionRow("Chiavi e backup dal telefono", "Apre una pagina sul telefono (stessa Wi-Fi): inserisci le chiavi dei servizi o carica un file di backup.", "metadata.phone") {
                 val server = AddonRemoteServer(engine)
                 val address = try { server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false); server.localUrl ?: "IP della TV:8765" } catch (e: Exception) { notice = "Non riesco ad aprire l'accesso locale: ${e.message ?: "porta occupata"}"; null }
                 if (address != null) dialog = { PhoneLinkDialog(address) { runCatching { server.stop() }; close() } }
@@ -191,7 +195,10 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             }
 
             if (tab == 5) {
-            actionRow("Chiave TorBox", if (engine.torBox.isConfigured) "Impostata" else "Non impostata", "services.torbox") {
+            choiceRow("Servizio debrid in uso", n.debridService.title, "services.debrid") {
+                choose("Servizio debrid in uso", DebridService.entries.map { it to it.title }, n.debridService) { v -> update { it.copy(network = it.network.copy(debridService = v)) } }
+            }
+            actionRow("Chiave TorBox", if (engine.torBox.isConfigured) "Impostata · cifrata sul dispositivo" else "Non impostata", "services.torbox") {
                 var text by mutableStateOf("")
                 dialog = {
                     TextDialog("Chiave TorBox", "Serve per riprodurre i torrent tramite il tuo account TorBox. La chiave resta sul dispositivo, cifrata, e viene mandata solo a TorBox.", text, true, { text = it }, {
@@ -202,7 +209,20 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             }
             if (engine.torBox.isConfigured) {
                 actionRow("Verifica la chiave TorBox", "Controlla che TorBox la riconosca.", "services.torbox.verify") { scope.launch { notice = "Controllo…"; notice = verifyKey(engine) } }
-                actionRow("Rimuovi la chiave TorBox", "Cancella la chiave dal dispositivo.", "services.torbox.remove") { engine.torBox.removeKey(); notice = "Chiave rimossa." }
+                actionRow("Rimuovi la chiave TorBox", "Cancella la chiave dal dispositivo.", "services.torbox.remove") { engine.torBox.removeKey(); notice = "Chiave TorBox rimossa." }
+            }
+            actionRow("Token Real-Debrid", if (engine.realDebrid.isConfigured) "Impostato · cifrato sul dispositivo" else "Non impostato", "services.realdebrid") {
+                var text by mutableStateOf("")
+                dialog = {
+                    TextDialog("Token Real-Debrid", "Il token API privato da real-debrid.com/apitoken. Resta sul dispositivo, cifrato; va solo a Real-Debrid e negli indirizzi di Torrentio e Comet quando Real-Debrid è il servizio in uso.", text, true, { text = it }, {
+                        try { engine.realDebrid.saveKey(text); scope.launch { notice = verifyRealDebrid(engine) } } catch (_: IllegalArgumentException) { notice = "Il token non è valido: niente spazi o caratteri speciali." }
+                        close()
+                    }, ::close)
+                }
+            }
+            if (engine.realDebrid.isConfigured) {
+                actionRow("Verifica il token Real-Debrid", "Controlla che Real-Debrid lo riconosca.", "services.realdebrid.verify") { scope.launch { notice = "Controllo…"; notice = verifyRealDebrid(engine) } }
+                actionRow("Rimuovi il token Real-Debrid", "Cancella il token dal dispositivo.", "services.realdebrid.remove") { engine.realDebrid.removeKey(); notice = "Token Real-Debrid rimosso." }
             }
             }
 
@@ -214,8 +234,8 @@ fun SettingsScreen(onOpenAbout: () -> Unit, modifier: Modifier = Modifier) {
             actionRow("Ripristina da un backup", "Un file creato da Aether per Android TV o per iPhone.", "data.import") { dialog = { ImportDialog(engine, context, ::close) { notice = it } } }
             actionRow("Ripristina le impostazioni", "Riporta le impostazioni ai valori iniziali (non tocca addon e libreria).", "data.resetSettings") { engine.settings.reset(); notice = "Impostazioni ripristinate." }
             actionRow("Cancella tutti i dati", "Addon, libreria, cronologia, impostazioni e chiavi.", "data.wipe") {
-                dialog = { ConfirmDialog("Cancellare tutto?", "Verranno cancellati addon, libreria, cronologia, impostazioni e la chiave TorBox. Non si può annullare.", "Cancella tutto", {
-                    scope.launch { engine.registry.removeAll(); engine.library.deleteAll(); engine.settings.reset(); engine.torBox.removeKey(); engine.cache.clear(); notice = "Tutti i dati sono stati cancellati." }; close()
+                dialog = { ConfirmDialog("Cancellare tutto?", "Verranno cancellati addon, libreria, cronologia, impostazioni e le chiavi dei servizi. Non si può annullare.", "Cancella tutto", {
+                    scope.launch { engine.registry.removeAll(); engine.library.deleteAll(); engine.settings.reset(); engine.torBox.removeKey(); engine.realDebrid.removeKey(); engine.cache.clear(); notice = "Tutti i dati sono stati cancellati." }; close()
                 }, ::close) }
             }
             }
@@ -242,6 +262,15 @@ private suspend fun verifyKey(engine: AetherEngine): String = try {
     e.message
 } catch (e: Throwable) {
     "Non riesco a contattare TorBox."
+}
+
+private suspend fun verifyRealDebrid(engine: AetherEngine): String = try {
+    val user = engine.realDebrid.fetchUser()
+    "Real-Debrid ha riconosciuto il token (account ${user.planName})" + if (user.isPremium) "." else ": molte funzioni richiedono Premium."
+} catch (e: DebridError) {
+    e.message
+} catch (e: Throwable) {
+    "Non riesco a contattare Real-Debrid."
 }
 
 // MARK: Rows

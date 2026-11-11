@@ -8,6 +8,8 @@ import app.aether.core.debrid.DebridFile
 import app.aether.core.debrid.DebridProgress
 import app.aether.core.debrid.DebridRequest
 import app.aether.core.debrid.DebridResolver
+import app.aether.core.debrid.DebridService
+import app.aether.core.playback.SourceRating
 import app.aether.core.model.AddonStream
 import app.aether.core.model.StreamSource
 import app.aether.core.net.AddonError
@@ -42,6 +44,10 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
         val addonFilter: String? = null,
         val cached: Set<String> = emptySet(),
         val torBoxConfigured: Boolean = false,
+        /** «TorBox» or «Real-Debrid»: the service torrents go through. */
+        val debridName: String = "TorBox",
+        /** The 0–100 mark of each source, by id. */
+        val ratings: Map<String, SourceRating> = emptyMap(),
         val resolvingId: String? = null,
         val progress: DebridProgress? = null,
         val rowFailure: Pair<String, String>? = null,
@@ -54,7 +60,7 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
         val visible: List<RankedStream> get() = ranked.filter { addonFilter == null || it.stream.addonName == addonFilter }
     }
 
-    private val _state = MutableStateFlow(UiState(torBoxConfigured = engine.torBox.isConfigured))
+    private val _state = MutableStateFlow(UiState(torBoxConfigured = engine.debrid.isConfigured, debridName = engine.debrid.service.title))
     val state: StateFlow<UiState> get() = _state
     private val _play = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -96,7 +102,7 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
                 rerank(emptyList(), errors, done = true)
                 return@launch
             }
-            engine.addons.streams(meta.type, videoId).collect { batch ->
+            engine.addons.streams(meta.type, videoId, debrid = engine.debrid.streamContext()).collect { batch ->
                 received++
                 answered.add(batch.addonId)
                 batch.error?.let { errors[batch.addonName] = it.message }
@@ -111,13 +117,15 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
     private suspend fun rerank(pending: List<String>, errors: Map<String, String>, done: Boolean) {
         val preferences = preferences()
         val ranked = StreamSelector.rank(collected.toList(), preferences)
-        _state.update { it.copy(ranked = ranked, pendingAddons = pending, errors = errors, loading = !done, torBoxConfigured = engine.torBox.isConfigured) }
+        val ratings = ranked.associate { it.id to SourceRating.rate(it.info, preferences) }
+        _state.update { it.copy(ranked = ranked, ratings = ratings, pendingAddons = pending, errors = errors, loading = !done, torBoxConfigured = engine.debrid.isConfigured) }
         checkCache(ranked)
         if (done) maybeAutoSelect(ranked, preferences.ordering)
     }
 
     private fun checkCache(ranked: List<RankedStream>) {
-        if (!engine.torBox.isConfigured) return
+        // Only TorBox can say beforehand what is ready; Real-Debrid retired its availability check.
+        if (engine.debrid.service != DebridService.TORBOX || !engine.torBox.isConfigured) return
         val hashes = ranked.mapNotNull { (it.stream.source as? StreamSource.Torrent)?.infoHash?.lowercase() }.distinct().filter { it !in _state.value.cached }
         if (hashes.isEmpty()) return
         cacheJob?.cancel()
@@ -147,7 +155,7 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
 
     fun isCached(item: RankedStream): Boolean? {
         val torrent = item.stream.source as? StreamSource.Torrent ?: return null
-        if (!engine.torBox.isConfigured) return null
+        if (engine.debrid.service != DebridService.TORBOX || !engine.torBox.isConfigured) return null
         return if (torrent.infoHash.lowercase() in _state.value.cached) true else null
     }
 
@@ -168,10 +176,10 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
     }
 
     private fun resolveTorrent(item: RankedStream, source: StreamSource.Torrent, allowDownload: Boolean) {
-        if (!engine.torBox.isConfigured) {
+        if (!engine.debrid.isConfigured) {
             val server = engine.settings.value.value.network.streamingServerUrl.trim().ifEmpty { null }
             val url = StreamResolver.playbackUrl(item.stream, server)
-            if (url != null) handOver(item, url) else _state.update { it.copy(blocked = DebridError.NotConfigured.message) }
+            if (url != null) handOver(item, url) else _state.update { it.copy(blocked = if (engine.debrid.service == DebridService.TORBOX) DebridError.NotConfigured.message else DebridError.RealDebridNotConfigured.message) }
             return
         }
         if (!allowDownload) {
@@ -180,7 +188,7 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
             return
         }
         resolveJob?.cancel()
-        _state.update { it.copy(resolvingId = item.id, progress = DebridProgress("Controllo TorBox…", null, null), rowFailure = null) }
+        _state.update { it.copy(resolvingId = item.id, progress = DebridProgress("Controllo ${engine.debrid.service.title}…", null, null), rowFailure = null) }
         resolveJob = viewModelScope.launch {
             try {
                 val link = engine.debrid.resolve(
@@ -200,7 +208,7 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
                 if (error is CancellationException) { _state.update { it.copy(resolvingId = null, progress = null) }; throw error }
                 val debrid = error as? DebridError
                 _state.update { it.copy(resolvingId = null, progress = null) }
-                if (debrid is DebridError.NotCached) _state.update { it.copy(askDownload = item) }
+                if (debrid is DebridError.NotCached || debrid is DebridError.RealDebridNotInAccount) _state.update { it.copy(askDownload = item) }
                 else _state.update { it.copy(rowFailure = item.id to (debrid?.message ?: AddonError.from(error).message)) }
             }
         }

@@ -36,6 +36,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.aether.core.model.StreamSource
 import app.aether.core.playback.Languages
 import app.aether.core.playback.PlaybackSupport
+import app.aether.core.playback.SourceRating
 import app.aether.core.playback.RankedStream
 import app.aether.tv.Session
 import app.aether.tv.aether
@@ -101,7 +102,7 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
                 items(playable.size, key = { playable[it].id }) { index ->
                     val item = playable[index]
                     StreamRow(
-                        item, best = index == 0, cached = vm.isCached(item), torBox = state.torBoxConfigured,
+                        item, best = index == 0, cached = vm.isCached(item), torBox = state.torBoxConfigured, debridName = state.debridName, rating = state.ratings[item.id],
                         requester = if (index == 0) firstRow else null, onClick = { vm.select(item) },
                     )
                     if (state.resolvingId == item.id) {
@@ -124,7 +125,7 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
                 }
                 items(unplayable.size, key = { "u-" + unplayable[it].id }) { index ->
                     val item = unplayable[index]
-                    StreamRow(item, best = false, cached = null, torBox = state.torBoxConfigured, requester = null, onClick = { vm.select(item) })
+                    StreamRow(item, best = false, cached = null, torBox = state.torBoxConfigured, debridName = state.debridName, rating = state.ratings[item.id], requester = null, onClick = { vm.select(item) })
                 }
                 if (state.errors.isNotEmpty() && state.ranked.isNotEmpty()) item(key = "errors") {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 8.dp)) {
@@ -147,9 +148,9 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
     state.askDownload?.let { item ->
         val yes = remember { FocusRequester() }
         AetherDialog("Torrent non in cache", vm::cancelDownloadPrompt) {
-            Text("TorBox non ha questo torrent già pronto: scaricarlo richiede tempo, spazio e traffico sul tuo account TorBox. Vuoi scaricarlo?", style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnSurfaceMuted)
+            Text(downloadPrompt(state.debridName), style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnSurfaceMuted)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TvButton("Scarica su TorBox", { vm.confirmDownload(item) }, primary = true, focusRequester = yes, testTag = "streams.confirmDownload")
+                TvButton("Scarica su ${state.debridName}", { vm.confirmDownload(item) }, primary = true, focusRequester = yes, testTag = "streams.confirmDownload")
                 TvButton("Annulla", vm::cancelDownloadPrompt)
             }
             RequestFocusOnce(yes)
@@ -183,8 +184,24 @@ private fun ResolveProgress(message: String, fraction: Double?, detail: String?,
     }
 }
 
+internal fun downloadPrompt(service: String) =
+    "$service non ha questo torrent già pronto: scaricarlo richiede tempo, spazio e traffico sul tuo account $service. Vuoi scaricarlo?"
+
+private fun focusedReasons(rating: SourceRating) = rating.reasons.isNotEmpty()
+
+/** The 0–100 mark of the source, coloured by verdict. */
 @Composable
-private fun StreamRow(item: RankedStream, best: Boolean, cached: Boolean?, torBox: Boolean, requester: FocusRequester?, onClick: () -> Unit) {
+private fun RatingBadge(rating: SourceRating) {
+    val color = when {
+        rating.score >= 75 -> AetherColors.Success
+        rating.score >= 40 -> AetherColors.SurfaceFocused
+        else -> AetherColors.Warning
+    }
+    Badge("${rating.score} · ${rating.verdict}", color = color, contentColor = if (rating.score >= 75 || rating.score < 40) AetherColors.Background else AetherColors.OnBackground)
+}
+
+@Composable
+private fun StreamRow(item: RankedStream, best: Boolean, cached: Boolean?, torBox: Boolean, debridName: String, rating: SourceRating?, requester: FocusRequester?, onClick: () -> Unit) {
     val info = item.info
     val stream = item.stream
     val playable = info.support.isPlayable
@@ -199,6 +216,7 @@ private fun StreamRow(item: RankedStream, best: Boolean, cached: Boolean?, torBo
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (best) Badge("Consigliata", color = LocalAccent.current, contentColor = AetherColors.Background)
+                rating?.let { RatingBadge(it) }
                 Text(stream.name ?: "Sorgente", style = MaterialTheme.typography.titleMedium, color = if (playable) AetherColors.OnBackground else AetherColors.OnSurfaceMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 stream.addonName?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, maxLines = 1) }
             }
@@ -212,12 +230,15 @@ private fun StreamRow(item: RankedStream, best: Boolean, cached: Boolean?, torBo
                     Badge("Torrent")
                     if (torBox) {
                         if (cached == true) Badge("In cache", color = AetherColors.Success, contentColor = AetherColors.Background)
-                        else Badge("TorBox", color = AetherColors.SurfaceFocused)
+                        else Badge(debridName, color = AetherColors.SurfaceFocused)
                     }
                 }
             }
             val support = info.support
             if (support is PlaybackSupport.Unsupported) Text(support.reason.message, style = MaterialTheme.typography.labelSmall, color = AetherColors.Warning, maxLines = 2)
+            rating?.takeIf { focusedReasons(it) }?.let { r ->
+                Text(r.reasons.take(3).joinToString(" · ") { (if (it.isPositive) "+ " else "− ") + it.text }, style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             for (warning in info.warnings.take(2)) Text(warning, style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, maxLines = 1)
         }
     }

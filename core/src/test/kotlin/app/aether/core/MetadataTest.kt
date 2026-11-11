@@ -82,7 +82,7 @@ class MetadataExtrasTest {
     @Test fun logoPrefersTheViewersLanguageThenLikes() = runBlocking {
         val http = FakeHttp().on("webservice.fanart.tv/v3/movies/tt1", body = """{"hdmovielogo":[
             {"url":"https://x/en.png","lang":"en","likes":"9"},{"url":"https://x/it.png","lang":"it","likes":"1"}]}""")
-        val logo = MetadataEnrichment(http, InMemorySecretStore()) { "it-IT" }.titleLogo(MetaItem("tt1", "movie", "X"))
+        val logo = MetadataEnrichment(http, InMemorySecretStore().also { it.put(MetadataEnrichment.FanartKey, "k") }) { "it-IT" }.titleLogo(MetaItem("tt1", "movie", "X"))
         assertEquals("https://x/it.png", logo)
         assertTrue("api_key=" in http.requests.single().url)
     }
