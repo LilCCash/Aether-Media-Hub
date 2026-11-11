@@ -63,7 +63,9 @@ struct PlayerPanelHost: View {
                 .frame(maxHeight: .infinity)
                 .background(
                     // The app's glass, darker for the film behind it, with a light edge where the panel meets the picture.
+                    // Always the dark glass: the panel's text is white, and in the light appearance the light material washed it out.
                     Rectangle().fill(.ultraThinMaterial)
+                        .environment(\.colorScheme, .dark)
                         .overlay(Color.black.opacity(0.42))
                         .overlay(LinearGradient(colors: [(playerAccent ?? settings.accentColor).opacity(0.16), .clear], startPoint: .top, endPoint: .center))
                         .overlay(alignment: .leading) {
