@@ -90,6 +90,8 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
         val favorite: Boolean = false,
         val primary: Video? = null,
         val rich: app.aether.core.metadata.RichDetails? = null,
+        /** IMDb, Rotten Tomatoes, Metacritic… from MDBList, when the viewer set a key. */
+        val ratings: List<app.aether.core.metadata.MdbRating> = emptyList(),
     )
 
     private val _state = MutableStateFlow(UiState(Session.preview(type, id) ?: MetaItem(id, type, id)))
@@ -118,6 +120,11 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
                 refreshLibrary()
                 val rich = engine.metadata.rich(meta)
                 _state.update { it.copy(rich = rich) }
+                val tmdb = rich?.tmdbId ?: meta.externalIds.tmdb
+                if (tmdb != null && engine.mdbList.isConfigured) {
+                    val ratings = engine.mdbList.ratings(tmdb, isMovie = meta.type == "movie")
+                    _state.update { it.copy(ratings = ratings) }
+                }
             } catch (error: Throwable) {
                 if (error is kotlin.coroutines.cancellation.CancellationException) throw error
                 _state.update { it.copy(loading = false, error = AddonError.from(error).message) }
@@ -272,6 +279,13 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                                 }
                                 Text("Tieni premuto OK su un episodio per segnarlo come visto o non visto.", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
                             }
+                        }
+                    }
+                }
+                if (state.ratings.isNotEmpty()) item(key = "ratings") {
+                    androidx.compose.foundation.layout.Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        for (rating in state.ratings.take(8)) {
+                            app.aether.tv.ui.components.Badge("${rating.title} ${rating.display}")
                         }
                     }
                 }

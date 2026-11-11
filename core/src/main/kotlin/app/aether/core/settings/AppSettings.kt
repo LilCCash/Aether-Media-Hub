@@ -35,6 +35,13 @@ data class AppearanceSettings(
     val showNextUp: Boolean = true,
     /** Ids of Home sections the viewer hid ("continue", "nextup", or a catalog reference id). */
     val hiddenHomeSections: List<String> = emptyList(),
+    /** The order of the Home sections chosen by the viewer (same ids); sections not listed keep their natural place after these. */
+    val homeSectionOrder: List<String> = emptyList(),
+    /** The big featured titles at the top of the Home. */
+    val showHero: Boolean = true,
+    /** «Ciao, Nome!» at the top of the Home. */
+    val showGreeting: Boolean = false,
+    val greetingName: String = "",
 )
 
 @Serializable

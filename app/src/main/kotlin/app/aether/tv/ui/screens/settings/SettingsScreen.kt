@@ -110,6 +110,13 @@ fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpen
             choiceRow("Sfondo", a.background.title, "appearance.background") { choose("Sfondo", app.aether.core.settings.BackgroundStyle.entries.map { it to it.title }, a.background) { v -> update { it.copy(appearance = it.appearance.copy(background = v)) } } }
             choiceRow("Angoli di locandine e pulsanti", a.corners.title, "appearance.corners") { choose("Angoli di locandine e pulsanti", app.aether.core.settings.CornerStyle.entries.map { it to it.title }, a.corners) { v -> update { it.copy(appearance = it.appearance.copy(corners = v)) } } }
             toggleRow("Animazioni", "Ingrandimenti, dissolvenze e movimenti dell'interfaccia.", a.animationsEnabled, "appearance.animations") { v -> update { it.copy(appearance = it.appearance.copy(animationsEnabled = v)) } }
+            actionRow("Personalizza la Home", "Ordine delle sezioni e quali mostrare.", "appearance.homeLayout") { dialog = { HomeLayoutDialog(::close) } }
+            toggleRow("Saluto in cima alla Home", "«Ciao, ${a.greetingName.ifBlank { "…" }}!» sopra i titoli.", a.showGreeting, "appearance.greeting") { v -> update { it.copy(appearance = it.appearance.copy(showGreeting = v)) } }
+            actionRow("Il tuo nome", a.greetingName.ifBlank { "Non impostato" }, "appearance.name") {
+                var text by mutableStateOf(a.greetingName)
+                dialog = { TextDialog("Il tuo nome", "Usato per il saluto della Home. Resta solo su questo dispositivo.", text, false, { text = it }, { update { s -> s.copy(appearance = s.appearance.copy(greetingName = text.trim().take(30), showGreeting = text.isNotBlank() || s.appearance.showGreeting)) }; close() }, ::close) }
+            }
+            toggleRow("Titoli in evidenza", "Il grande riquadro con i titoli in cima alla Home.", a.showHero, "appearance.hero") { v -> update { it.copy(appearance = it.appearance.copy(showHero = v)) } }
             toggleRow("Titolo in evidenza che scorre", "Nella Home passa da un titolo all'altro da solo.", a.heroAutoScroll, "appearance.heroAuto") { v -> update { it.copy(appearance = it.appearance.copy(heroAutoScroll = v)) } }
             toggleRow("Mostra «Continua a guardare»", "Nella Home.", a.showContinueWatching, "appearance.continue") { v -> update { it.copy(appearance = it.appearance.copy(showContinueWatching = v)) } }
             toggleRow("Mostra «Prossimo episodio»", "Nella Home, per le serie che stai seguendo.", a.showNextUp, "appearance.nextUp") { v -> update { it.copy(appearance = it.appearance.copy(showNextUp = v)) } }

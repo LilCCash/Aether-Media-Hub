@@ -85,14 +85,21 @@ fun HomeScreen(
                 }
             }
             else -> {
-                if (state.hero.isNotEmpty() && memory.key.isEmpty()) RequestFocusOnce(heroRequester, state.hero.firstOrNull()?.id)
+                if (settings.appearance.showHero && state.hero.isNotEmpty() && memory.key.isEmpty()) RequestFocusOnce(heroRequester, state.hero.firstOrNull()?.id)
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 56.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    if (state.hero.isNotEmpty()) item(key = "hero") {
+                    if (settings.appearance.showGreeting) item(key = "greeting") {
+                        val name = settings.appearance.greetingName.trim()
+                        Column(Modifier.padding(start = AetherDimens.ScreenHorizontal, top = AetherDimens.ScreenVertical, bottom = 4.dp)) {
+                            Text(if (name.isEmpty()) "Ciao!" else "Ciao, $name!", style = MaterialTheme.typography.displaySmall, color = AetherColors.OnBackground)
+                            Text("Cosa vuoi guardare oggi?", style = MaterialTheme.typography.titleMedium, color = AetherColors.OnSurfaceMuted)
+                        }
+                    }
+                    if (settings.appearance.showHero && state.hero.isNotEmpty()) item(key = "hero") {
                         HeroBanner(
                             items = state.hero,
                             autoScroll = settings.appearance.heroAutoScroll,
@@ -102,9 +109,15 @@ fun HomeScreen(
                             onDetails = onOpenDetail,
                             playRequester = heroRequester,
                         )
-                    } else item(key = "top-space") { Box(Modifier.height(AetherDimens.ScreenVertical)) }
+                    } else if (!settings.appearance.showGreeting) item(key = "top-space") { Box(Modifier.height(AetherDimens.ScreenVertical)) }
 
-                    if (state.showContinue && "continue" !in state.hiddenSections && state.continueWatching.isNotEmpty()) item(key = "continue") {
+                    val order = settings.appearance.homeSectionOrder
+                    val sectionIds = (listOf("continue", "nextup") + state.rows.map { it.ref.id })
+                        .sortedBy { id -> order.indexOf(id).let { if (it < 0) Int.MAX_VALUE else it } }
+                    for (sectionId in sectionIds) {
+                        if (sectionId in state.hiddenSections) continue
+                        when (sectionId) {
+                            "continue" -> if (state.showContinue && state.continueWatching.isNotEmpty()) item(key = "continue") {
                         ContentRow(
                             title = "Continua a guardare",
                             items = state.continueWatching,
@@ -119,8 +132,8 @@ fun HomeScreen(
                                 onFocused = onFocused,
                             )
                         }
-                    }
-                    if (state.showNextUp && "nextup" !in state.hiddenSections && state.nextUp.isNotEmpty()) item(key = "nextup") {
+                            }
+                            "nextup" -> if (state.showNextUp && state.nextUp.isNotEmpty()) item(key = "nextup") {
                         ContentRow(
                             title = "Prossimo episodio",
                             items = state.nextUp,
@@ -136,10 +149,10 @@ fun HomeScreen(
                                 width = 150.dp,
                             )
                         }
-                    }
-                    for (row in state.rows) {
-                        if (row.ref.id in state.hiddenSections) continue
-                        item(key = row.ref.id) {
+                            }
+                            else -> {
+                                val row = state.rows.firstOrNull { it.ref.id == sectionId } ?: continue
+                                item(key = row.ref.id) {
                             when (row.status) {
                                 HomeViewModel.RowStatus.LOADING -> RowPlaceholder(rowTitle(row))
                                 HomeViewModel.RowStatus.FAILED -> Column(Modifier.fillMaxWidth().padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -163,6 +176,8 @@ fun HomeScreen(
                                             onFocused = onFocused,
                                         )
                                     }
+                                }
+                            }
                                 }
                             }
                         }
