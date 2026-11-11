@@ -10,6 +10,8 @@ enum ProfileRoute: Hashable {
     case settings, addons, services
     /// Impostazioni ▸ Aspetto ▸ Personalizza la Home (where the viewer was when the Home's layout changed).
     case homeLayout
+    /// Impostazioni ▸ Aspetto.
+    case appearance
 }
 
 /// Navigation target for a title detail screen.
@@ -131,6 +133,8 @@ final class AppRouter: ObservableObject {
     @Published var discoverType: String?
     /// The search field of the Home was touched: Cerca opens with the keyboard up.
     @Published var focusSearch = false
+    /// The settings page the layout was changed from: the viewer is brought back there in the new bar.
+    var layoutReturnRoute: ProfileRoute = .homeLayout
     @Published var pendingSearch: String?
 
     func openDetail(_ meta: MetaItem) {

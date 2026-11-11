@@ -214,7 +214,8 @@ struct RootView: View {
             let fromSettings = router.tab == .settings || router.tab == .profile
             if fromSettings {
                 router.tab = layout == .glass ? .settings : .profile
-                router.profileRoute = .homeLayout
+                router.profileRoute = router.layoutReturnRoute
+                router.layoutReturnRoute = .homeLayout
             } else if (layout == .glass && router.tab == .discover) || (layout == .classic && router.tab == .settings) {
                 router.tab = .home
             }

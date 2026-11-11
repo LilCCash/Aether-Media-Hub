@@ -16,6 +16,7 @@ struct SettingsTabView: View {
                     case .addons: AddonsView()
                     case .services: ServicesSettingsView()
                     case .homeLayout: HomeLayoutSettingsView()
+                    case .appearance: AppearanceSettingsView()
                     }
                 }
         }

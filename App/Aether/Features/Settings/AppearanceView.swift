@@ -6,11 +6,28 @@ import AetherCore
 /// cinema extras. Every row changes the app at once; the preview at the top shows what a card looks like with the choices made.
 struct AppearanceSettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var router: AppRouter
 
     private var appearance: AppearanceSettings { settings.value.appearance }
 
     var body: some View {
         Form {
+            // First of all, which app: the two layouts of the Home and of the bar.
+            Section(header: Text("Layout dell'app"),
+                    footer: Text(appearance.homeLayout == .glass
+                                 ? "Vetrina: la Home si apre con il tuo nome, la foto del profilo, la ricerca e le categorie; in basso Home, Libreria e Impostazioni, con Cerca a parte. Il profilo si apre dalla foto, Scopri dalle categorie."
+                                 : "Classica: la Home si apre con il titolo in evidenza; in basso Home, Scopri, Libreria e Profilo, con Cerca a parte.")) {
+                Picker("Layout dell'app", selection: Binding(get: { appearance.homeLayout }, set: { layout in
+                    router.layoutReturnRoute = .appearance
+                    settings.value.appearance.homeLayout = layout
+                })) {
+                    ForEach(HomeLayout.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("settings.appLayout")
+                NavigationLink { HomeLayoutSettingsView() } label: { Label("Personalizza la Home", systemImage: "rectangle.3.group") }
+                    .accessibilityIdentifier("settings.homeLayout")
+            }
             Section {
                 StylePreview()
                     .listRowInsets(EdgeInsets())
@@ -20,7 +37,6 @@ struct AppearanceSettingsView: View {
             colours
             background
             cards
-            home
             motion
             cinema
             shortcuts
@@ -207,13 +223,6 @@ struct AppearanceSettingsView: View {
     }
 
     // MARK: Home
-
-    private var home: some View {
-        Section(header: Text("Home"), footer: Text("Sezioni e ordine, il carosello in evidenza e il saluto. Nomi e ordine dei cataloghi sono in Impostazioni ▸ Cataloghi e scoperta.")) {
-            NavigationLink { HomeLayoutSettingsView() } label: { Label("Personalizza la Home", systemImage: "rectangle.3.group") }
-                .accessibilityIdentifier("settings.homeLayout")
-        }
-    }
 
     // MARK: Motion
 
