@@ -35,8 +35,9 @@ public struct HomeCategory: Codable, Hashable, Identifiable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
-        let fallback = HomeCategory.defaults.first { $0.id == id }
+        let key = try c.decode(String.self, forKey: .id)
+        id = key
+        let fallback = HomeCategory.available.first { $0.id == key }
         title = (try? c.decode(String.self, forKey: .title)) ?? fallback?.title ?? id
         symbol = (try? c.decode(String.self, forKey: .symbol)) ?? fallback?.symbol ?? "square.grid.2x2"
         isVisible = c.value(.isVisible, default: true)
