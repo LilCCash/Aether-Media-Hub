@@ -134,10 +134,34 @@ struct RootView: View {
     /// system does for a tab with the search role (before iOS 18 the five items in a row).
     @ViewBuilder
     private var tabs: some View {
-        if #available(iOS 18.0, *) {
+        if settings.value.appearance.homeLayout == .glass {
+            glassTabs
+        } else if #available(iOS 18.0, *) {
             modernTabs
         } else {
             legacyTabs
+        }
+    }
+
+    /// The bar of the glass Home: Home, Cerca, Libreria, Download, Impostazioni. Scopri opens from the categories of the Home and
+    /// the profile from its picture.
+    private var glassTabs: some View {
+        TabView(selection: $router.tab) {
+            HomeView()
+                .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(AppTab.home)
+            SearchView()
+                .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
+                .tag(AppTab.search)
+            LibraryView()
+                .tabItem { Label("Libreria", systemImage: "books.vertical.fill") }
+                .tag(AppTab.library)
+            NavigationStack { DownloadsView().navigationTitle("Download").aetherPage() }
+                .tabItem { Label("Download", systemImage: "arrow.down.circle.fill") }
+                .tag(AppTab.downloads)
+            SettingsTabView()
+                .tabItem { Label("Impostazioni", systemImage: "gearshape.fill") }
+                .tag(AppTab.settings)
         }
     }
 
@@ -178,6 +202,7 @@ struct RootView: View {
     @EnvironmentObject private var library: LibraryModel
     @EnvironmentObject private var extras: ExtrasService
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
     @Namespace private var titleZoom
 
     private var detailAsSheet: Bool { return settings.value.appearance.detailAsCard }
@@ -185,9 +210,27 @@ struct RootView: View {
     var body: some View {
         tabs
         .overlay(alignment: .top) { SaveProblemBanner(monitor: env.saveProblems) }
-        .tint(settings.accentColor)
+        // Symbols and labels in the accent (the bar, the buttons of the bars, links) in a shade that reads on the page.
+        .tint(settings.accentColor.legible(on: colorScheme))
+        .onAppear { router.usesGlassHome = settings.value.appearance.homeLayout == .glass }
+        .onChange(of: settings.value.appearance.homeLayout) { _, layout in
+            router.usesGlassHome = layout == .glass
+            // A tab of the other bar is not there any more: back to the Home.
+            let glassOnly: Set<AppTab> = [.downloads, .settings]
+            let classicOnly: Set<AppTab> = [.discover, .profile]
+            if (layout == .glass && classicOnly.contains(router.tab)) || (layout == .classic && glassOnly.contains(router.tab)) {
+                router.tab = .home
+            }
+        }
         .onChange(of: router.tab) { old, new in
             Haptics.select()
+            // With the glass Home, Scopri and the profile are not in the bar: asked for (a link, a shortcut), they open over it.
+            if router.usesGlassHome && (new == .discover || new == .profile) {
+                router.tab = [.discover, .profile].contains(old) ? .home : old
+                if new == .discover { router.discoverSheet = true } else { router.profileSheet = true }
+            }
+            if !router.usesGlassHome && new == .settings { router.tab = old == .settings ? .home : old; router.open(.settings) }
+            if !router.usesGlassHome && new == .downloads { router.tab = old == .downloads ? .home : old }
             // Universe and Live TV are not in the bar: a request for them (a shortcut) opens them as full pages over the tabs.
             if new == .universe { router.tab = old == .universe ? .home : old; router.universeSheet = true }
             if new == .live { router.tab = old == .live ? .home : old; router.liveSheet = true }
@@ -197,6 +240,12 @@ struct RootView: View {
         }
         .fullScreenCover(isPresented: $router.liveSheet) {
             LiveTVView(onClose: { router.liveSheet = false })
+        }
+        .fullScreenCover(isPresented: $router.discoverSheet) {
+            DiscoverView(onClose: { router.discoverSheet = false })
+        }
+        .sheet(isPresented: $router.profileSheet) {
+            ProfileTabView(onClose: { router.profileSheet = false })
         }
         .environment(\.zoomNamespace, titleZoom)
         .preferredColorScheme(settings.colorScheme)

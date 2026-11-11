@@ -193,6 +193,17 @@ public struct LiveFavorite: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
+public enum LiveGuideStyle: String, Codable, CaseIterable, Sendable {
+    case rows, grid
+
+    public var title: String {
+        switch self {
+        case .rows: return "Sotto i canali"
+        case .grid: return "Griglia per orario"
+        }
+    }
+}
+
 public struct LiveTVSettings: Codable, Equatable, Sendable {
     /// The «Live TV» entry in the bottom bar.
     public var showTab: Bool = false
@@ -206,10 +217,12 @@ public struct LiveTVSettings: Codable, Equatable, Sendable {
     public var guideEnabled: Bool = true
     /// The viewer's own XMLTV address (.xml or .xml.gz); empty for the playlist's own guide, else the public Italian one.
     public var guideURL: String = ""
+    /// How the guide is shown: under each channel (now and next) or as a grid of all the channels by time.
+    public var guideStyle: LiveGuideStyle = .rows
 
     public init() {}
 
-    private enum CodingKeys: String, CodingKey { case showTab, playlists, includedCatalogs, excludedCatalogs, favorites, guideEnabled, guideURL }
+    private enum CodingKeys: String, CodingKey { case showTab, playlists, includedCatalogs, excludedCatalogs, favorites, guideEnabled, guideURL, guideStyle }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -220,6 +233,7 @@ public struct LiveTVSettings: Codable, Equatable, Sendable {
         favorites = c.lossyArray(LiveFavorite.self, forKey: .favorites)
         guideEnabled = c.value(.guideEnabled, default: true)
         guideURL = c.value(.guideURL, default: "")
+        guideStyle = c.value(.guideStyle, default: .rows)
     }
 
     /// The guide to download: the viewer's address, else the one a playlist announces (`url-tvg`), else the public Italian one.

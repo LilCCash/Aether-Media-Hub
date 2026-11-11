@@ -75,6 +75,25 @@ extension Color {
     /// Text and icons that are present but quieter than secondary (hints, disabled).
     static var aetherTertiary: Color { Color.primary.opacity(0.55) }
 
+    /// This colour as text or a symbol on the page: a dark accent (the default violet) is lightened on the dark page and a light
+    /// one (gold, mint) darkened on the light page, so icons and labels on glass do not melt into a background of the same hue.
+    /// Fills keep the colour as chosen.
+    func legible(on scheme: ColorScheme) -> Color {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        guard UIColor(self).getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return self }
+        func linear(_ value: CGFloat) -> CGFloat {
+            return value <= 0.03928 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        let luminance = 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+        func mix(_ target: CGFloat, _ amount: CGFloat) -> Color {
+            return Color(red: Double(red + (target - red) * amount), green: Double(green + (target - green) * amount),
+                         blue: Double(blue + (target - blue) * amount), opacity: Double(alpha))
+        }
+        if scheme == .dark && luminance < 0.32 { return mix(1, 0.42) }
+        if scheme == .light && luminance > 0.5 { return mix(0, 0.35) }
+        return self
+    }
+
     /// Black or white, whichever reads better on this colour (text on an accent fill: white on gold or jade was hard to read).
     var readableForeground: Color {
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
@@ -103,6 +122,21 @@ extension View {
 
     /// A page of the app (lists and settings included): Aether's background with the viewer's palette, wash and black options
     /// behind the content, instead of the plain system grey or black lists had before.
+    /// No system blur under the bar at the top of a page whose picture runs to the top edge (iOS 26 drew a frosted band over the
+    /// artwork even with the page at rest).
+    @ViewBuilder
+    func aetherNoTopScrollEdge(_ hidden: Bool = true) -> some View {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectHidden(hidden, for: .top)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
+    }
+
     func aetherPage() -> some View {
         self.scrollContentBackground(.hidden)
             .background { AetherBackdrop() }

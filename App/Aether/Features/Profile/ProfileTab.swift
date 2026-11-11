@@ -11,6 +11,8 @@ struct ProfileTabView: View {
     @State private var path = NavigationPath()
     @State private var editing = false
     @State private var playing = false
+    /// Shown over the glass Home (opened from its picture): a «Fine» button closes it.
+    var onClose: (() -> Void)? = nil
 
     enum Destination: Hashable { case settings, addons, services, diary, stats, universe, ratings, votes, trakt }
 
@@ -44,6 +46,11 @@ struct ProfileTabView: View {
                         .accessibilityLabel("Impostazioni")
                         .accessibilityIdentifier("profile.settings")
                 }
+                if let onClose = onClose {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Fine", action: onClose).fontWeight(.semibold).accessibilityIdentifier("profile.close")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { editing = true } label: { Image(systemName: "pencil.circle.fill") }
                         .accessibilityLabel("Modifica il profilo")
@@ -67,17 +74,18 @@ struct ProfileTabView: View {
             .fullScreenCover(isPresented: $playing) { TasteGameView() }
             .onChange(of: router.profileRoute) { _, route in consume(route) }
             .onChange(of: router.pendingAddonInput) { _, input in
-                if input != nil { router.open(.addons) }
+                if input != nil && !router.usesGlassHome { router.open(.addons) }
             }
             .onAppear {
                 consume(router.profileRoute)
-                if router.pendingAddonInput != nil { router.open(.addons) }
+                if router.pendingAddonInput != nil && !router.usesGlassHome { router.open(.addons) }
             }
         }
     }
 
     private func consume(_ route: ProfileRoute?) {
-        guard let route = route else { return }
+        // With the glass Home these pages open in the Impostazioni item of the bar, not in the profile.
+        guard let route = route, !router.usesGlassHome else { return }
         router.profileRoute = nil
         path = NavigationPath()
         switch route {

@@ -181,6 +181,10 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var greetingEnabled: Bool = false
     /// Shown in the greeting. Stored in the settings backup like everything else, unencrypted.
     public var greetingName: String = ""
+    /// Which of the two Homes is shown (the classic one unless the viewer chooses the glass one).
+    public var homeLayout: HomeLayout = .classic
+    /// The header, the categories and the sections of the glass Home.
+    public var glassHome = GlassHomeSettings()
     // Movimento
     public var animationsEnabled: Bool = true
     /// Soft taps on buttons, switches and when something is saved.
@@ -235,6 +239,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         case schema, theme, accent, customAccentHex, customBackgroundHex, amoled, palette, backdrop, backdropIntensity
         case cardChrome, cornerStyle, posterSize, density, showPosterRatings, titleFont
         case heroStyle, heroAutoScroll, heroInterval, homeSections, greetingEnabled, greetingName
+        case homeLayout, glassHome
         case animationsEnabled, haptics, detailAsCard, zoomTransition, dynamicCinematic, cinematicOpening, creditsExperience, reduceVisualEffects, unlockedSecrets
         case moodColors, cinematicMotion, imageFades, kenBurns, openingSound, showExplore, showCinemaCard
         case cardSheen, scrollMotion, buttonGlow, heroEdgeToEdge, entranceMotion, symbolMotion, detailParallax, settingsIconTiles
@@ -299,6 +304,8 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         settingsIconTiles = c.value(.settingsIconTiles, default: true)
         buttonGlow = c.value(.buttonGlow, default: true)
         heroEdgeToEdge = c.value(.heroEdgeToEdge, default: true)
+        homeLayout = c.value(.homeLayout, default: .classic)
+        glassHome = c.value(.glassHome, default: GlassHomeSettings())
         kenBurns = c.value(.kenBurns, default: true)
         openingSound = c.value(.openingSound, default: true)
         showExplore = c.value(.showExplore, default: true)

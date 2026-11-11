@@ -10,9 +10,46 @@ struct HomeLayoutSettingsView: View {
 
     private static let footerText = "Usa l'interruttore per nascondere una sezione. Tocca «Riordina» per cambiare l'ordine, oppure usa le azioni «Sposta su» e «Sposta giù» di VoiceOver. Per ogni sezione scegli come sono fatte le schede e quanto sono grandi: «Auto» segue la dimensione generale scelta in Aspetto. Le sezioni vuote non vengono mai mostrate."
 
+    private var isGlass: Bool { return settings.value.appearance.homeLayout == .glass }
+    /// The sections being edited: the classic Home's or the glass Home's (each layout keeps its own order and choices).
+    private var sectionsPath: WritableKeyPath<AppSettings, [HomeSectionConfig]> {
+        return isGlass ? \.appearance.glassHome.sections : \.appearance.homeSections
+    }
+    private func current(_ id: String) -> HomeSectionConfig {
+        return settings.value[keyPath: sectionsPath].first(where: { $0.id == id }) ?? HomeSectionConfig(id: id)
+    }
+
     var body: some View {
-        let sections = settings.value.appearance.homeSections
+        let sections = settings.value[keyPath: sectionsPath]
         Form {
+            Section(header: Text("Layout"),
+                    footer: Text(isGlass
+                                 ? "Liquid Glass: in alto il nome di Aether e la tua foto (tocca la foto per il profilo), poi la ricerca, le categorie e le sezioni su schede di vetro. In basso: Home, Cerca, Libreria, Download e Impostazioni; Scopri si apre dalle categorie."
+                                 : "Classica: l'immagine in evidenza e le righe dei cataloghi, con Home, Scopri, Libreria, Profilo e Cerca in basso.")) {
+                Picker("Layout della Home", selection: settings.binding(\.appearance.homeLayout)) {
+                    ForEach(HomeLayout.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("settings.home.layout")
+            }
+            if isGlass {
+                Section(header: Text("Intestazione"),
+                        footer: Text("Il saluto usa il nome qui sotto, se c'è («Ciao, Giulia!»). Il nome resta su questo dispositivo, ma finisce nel backup delle impostazioni, che non è cifrato.")) {
+                    Toggle("Nome di Aether", isOn: settings.binding(\.appearance.glassHome.showLogo))
+                    Toggle("Foto del profilo", isOn: settings.binding(\.appearance.glassHome.showAvatar))
+                        .accessibilityIdentifier("settings.home.glass.avatar")
+                    Toggle("Saluto", isOn: settings.binding(\.appearance.glassHome.showGreeting))
+                    if settings.value.appearance.glassHome.showGreeting {
+                        TextField("Il tuo nome (facoltativo)", text: nameBinding)
+                            .textInputAutocapitalization(.words)
+                            .submitLabel(.done)
+                    }
+                    NavigationLink { HomeCategoriesSettingsView() } label: {
+                        LabeledContent("Categorie", value: "\(settings.value.appearance.glassHome.categories.filter { $0.isVisible }.count) visibili")
+                    }
+                    .accessibilityIdentifier("settings.home.categories")
+                }
+            }
             Section(header: Text("Sezioni"), footer: Text(HomeLayoutSettingsView.footerText)) {
                 ForEach(sections) { section in
                     row(section, in: sections)
@@ -20,9 +57,10 @@ struct HomeLayoutSettingsView: View {
                 .onMove { source, destination in
                     var next = sections
                     next.move(fromOffsets: source, toOffset: destination)
-                    settings.value.appearance.homeSections = next
+                    settings.value[keyPath: sectionsPath] = next
                 }
             }
+            if !isGlass {
             Section(header: Text("Saluto"),
                     footer: Text("Una riga in cima alla Home, per esempio «Buonasera, Giulia». Il nome resta su questo dispositivo, ma finisce nel backup delle impostazioni, che non è cifrato.")) {
                 Toggle("Mostra un saluto", isOn: settings.binding(\.appearance.greetingEnabled))
@@ -34,8 +72,9 @@ struct HomeLayoutSettingsView: View {
                         .accessibilityIdentifier("settings.home.greetingName")
                 }
             }
+            }
             Section {
-                Button("Ripristina la Home") { confirmingReset = true }
+                Button("Ripristina Home predefinita") { confirmingReset = true }
                     .accessibilityIdentifier("settings.home.reset")
             }
         }
@@ -52,14 +91,19 @@ struct HomeLayoutSettingsView: View {
             }
         }
         .confirmationDialog("Ripristinare la Home?", isPresented: $confirmingReset, titleVisibility: .visible) {
-            Button("Ripristina ordine, stili e dimensioni", role: .destructive) {
+            Button("Ripristina", role: .destructive) {
+                let defaults = AppearanceSettings()
+                settings.value.appearance.homeLayout = defaults.homeLayout
+                settings.value.appearance.glassHome = defaults.glassHome
                 settings.value.appearance.homeSections = HomeSectionConfig.defaultOrder
-                settings.value.appearance.heroStyle = .card
-                settings.value.appearance.heroAutoScroll = true
+                settings.value.appearance.heroStyle = defaults.heroStyle
+                settings.value.appearance.heroAutoScroll = defaults.heroAutoScroll
+                settings.value.appearance.heroInterval = defaults.heroInterval
+                settings.value.appearance.heroEdgeToEdge = defaults.heroEdgeToEdge
             }
             Button("Annulla", role: .cancel) {}
         } message: {
-            Text("Le sezioni tornano all'ordine originale, tutte visibili, con le schede di Aether 1.0.")
+            Text("Torna la Home classica; sezioni, categorie, ordine e schede di entrambe le Home tornano come all'inizio. Le altre impostazioni non cambiano.")
         }
     }
 
@@ -70,7 +114,7 @@ struct HomeLayoutSettingsView: View {
         let styles = HomeCardStyle.allowed(for: section.id)
         let showsOptions = section.isVisible && !editMode.isEditing
         VStack(alignment: .leading, spacing: 10) {
-            Toggle(HomeSectionConfig.title(for: section.id), isOn: visibility(section.id))
+            Toggle(GlassHomeSettings.title(for: section.id), isOn: visibility(section.id))
                 .accessibilityIdentifier("settings.home.section.\(section.id)")
             if showsOptions && section.id == HomeSectionConfig.hero {
                 heroOptions
@@ -159,12 +203,12 @@ struct HomeLayoutSettingsView: View {
     }
 
     private func visibility(_ id: String) -> Binding<Bool> {
-        return Binding(get: { settings.value.appearance.section(id).isVisible },
+        return Binding(get: { current(id).isVisible },
                        set: { value in update(id) { $0.isVisible = value } })
     }
 
     private func styleBinding(_ id: String) -> Binding<HomeCardStyle> {
-        return Binding(get: { settings.value.appearance.section(id).effectiveStyle ?? .poster },
+        return Binding(get: { current(id).effectiveStyle ?? .poster },
                        set: { value in
                            // The section's own default is stored as "no choice" so a future default still applies.
                            update(id) { $0.style = value == HomeCardStyle.defaultStyle(for: id) ? nil : value }
@@ -172,16 +216,135 @@ struct HomeLayoutSettingsView: View {
     }
 
     private func sizeBinding(_ id: String) -> Binding<PosterSize?> {
-        return Binding(get: { settings.value.appearance.section(id).size },
+        return Binding(get: { current(id).size },
                        set: { value in update(id) { $0.size = value } })
     }
 
     private func update(_ id: String, _ change: (inout HomeSectionConfig) -> Void) {
-        guard let index = settings.value.appearance.homeSections.firstIndex(where: { $0.id == id }) else { return }
-        change(&settings.value.appearance.homeSections[index])
+        guard let index = settings.value[keyPath: sectionsPath].firstIndex(where: { $0.id == id }) else { return }
+        change(&settings.value[keyPath: sectionsPath][index])
     }
 
     private func move(_ id: String, by delta: Int) {
-        settings.value.appearance.homeSections = HomeSectionOrdering.moved(settings.value.appearance.homeSections, id: id, by: delta)
+        settings.value[keyPath: sectionsPath] = HomeSectionOrdering.moved(settings.value[keyPath: sectionsPath], id: id, by: delta)
+    }
+}
+
+/// The categories of the glass Home: which are shown, their name, their symbol and their order.
+struct HomeCategoriesSettingsView: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var addons: AddonStore
+    @State private var editMode: EditMode = EditMode.inactive
+
+    private var categories: [HomeCategory] { return settings.value.appearance.glassHome.categories }
+
+    var body: some View {
+        Form {
+            Section(footer: Text("Una categoria apre Scopri sul suo tipo (Live TV apre Live TV). Compare solo se un addon installato ha cataloghi di quel tipo. Tocca «Riordina» per cambiare l'ordine.")) {
+                ForEach(categories) { category in
+                    row(category)
+                }
+                .onMove { source, destination in
+                    var next = categories
+                    next.move(fromOffsets: source, toOffset: destination)
+                    settings.value.appearance.glassHome.categories = next
+                }
+            }
+            Section {
+                Button("Ripristina le categorie") {
+                    settings.value.appearance.glassHome.categories = HomeCategory.normalise([])
+                }
+            }
+        }
+        .environment(\.editMode, $editMode)
+        .aetherPage()
+        .navigationTitle("Categorie")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(editMode.isEditing ? "Fine" : "Riordina") {
+                    withAnimation { editMode = editMode.isEditing ? EditMode.inactive : EditMode.active }
+                }
+            }
+        }
+    }
+
+    private func row(_ category: HomeCategory) -> some View {
+        HStack(spacing: Space.m) {
+            NavigationLink {
+                HomeCategorySymbolPicker(selection: binding(category.id, \.symbol))
+            } label: {
+                Image(systemName: category.symbol)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.tint)
+                    .frame(width: 34, height: 34)
+                    .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
+            }
+            .fixedSize()
+            .accessibilityLabel("Simbolo di \(category.title)")
+            VStack(alignment: .leading, spacing: 2) {
+                TextField("Nome", text: binding(category.id, \.title))
+                    .font(.body.weight(.medium))
+                    .submitLabel(.done)
+                if !isAvailable(category) {
+                    Text("Nessun addon installato offre questo tipo").font(.caption).foregroundStyle(Color.aetherSecondary)
+                }
+            }
+            Toggle("Mostra \(category.title)", isOn: binding(category.id, \.isVisible)).labelsHidden()
+        }
+        .accessibilityIdentifier("settings.home.category.\(category.id)")
+    }
+
+    private func isAvailable(_ category: HomeCategory) -> Bool {
+        if category.opensLiveTV { return true }
+        let wanted = ContentTypes.canonicalID(category.id)
+        return addons.enabledAddons.contains { $0.manifest.catalogs.contains { ContentTypes.canonicalID($0.type) == wanted } }
+    }
+
+    private func binding<T>(_ id: String, _ path: WritableKeyPath<HomeCategory, T>) -> Binding<T> {
+        return Binding(get: {
+            let category = settings.value.appearance.glassHome.categories.first { $0.id == id } ?? HomeCategory.available.first { $0.id == id }!
+            return category[keyPath: path]
+        }, set: { value in
+            guard let index = settings.value.appearance.glassHome.categories.firstIndex(where: { $0.id == id }) else { return }
+            var category = settings.value.appearance.glassHome.categories[index]
+            category[keyPath: path] = value
+            if let text = value as? String, (path as AnyKeyPath) == (\HomeCategory.title as AnyKeyPath) { category.title = String(text.prefix(24)) }
+            settings.value.appearance.glassHome.categories[index] = category
+        })
+    }
+}
+
+/// The symbols a category can have.
+struct HomeCategorySymbolPicker: View {
+    @Binding var selection: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: Space.m)], spacing: Space.m) {
+                ForEach(HomeCategory.symbols, id: \.self) { symbol in
+                    Button {
+                        selection = symbol
+                        Haptics.select()
+                        dismiss()
+                    } label: {
+                        Image(systemName: symbol)
+                            .font(.system(size: 24, weight: .medium))
+                            .frame(width: 64, height: 64)
+                            .foregroundStyle(symbol == selection ? Color.accentColor.readableForeground : Color.primary)
+                            .background(symbol == selection ? AnyShapeStyle(Color.accentColor.gradient) : AnyShapeStyle(Color.aetherSurface),
+                                        in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityLabel(symbol)
+                    .accessibilityAddTraits(symbol == selection ? .isSelected : [])
+                }
+            }
+            .padding(Theme.pageMargin)
+        }
+        .aetherPage()
+        .navigationTitle("Simbolo")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

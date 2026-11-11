@@ -2,7 +2,7 @@ import SwiftUI
 import AetherCore
 
 enum AppTab: String, Hashable {
-    case home, discover, universe, live, library, search, profile
+    case home, discover, universe, live, library, search, profile, downloads, settings
 }
 
 /// Pages inside the Profile tab other screens can send the viewer to.
@@ -118,8 +118,15 @@ final class AppRouter: ObservableObject {
 
     func open(_ route: ProfileRoute) {
         profileRoute = route
-        tab = .profile
+        tab = usesGlassHome ? .settings : .profile
     }
+
+    /// The glass Home is chosen: the bar is Home, Cerca, Libreria, Download, Impostazioni, and Scopri and the profile open over it.
+    @Published var usesGlassHome = false
+    /// The profile, opened from the picture of the glass Home.
+    @Published var profileSheet = false
+    /// The content type Scopri should show when it appears (a category of the glass Home); consumed by Scopri.
+    @Published var discoverType: String?
     @Published var pendingSearch: String?
 
     func openDetail(_ meta: MetaItem) {

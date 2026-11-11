@@ -44,9 +44,11 @@ struct HomeView: View {
                 FanartLogoStore.shared.prefetch(metas, env: env)
             }
             // Over the picture the bar is bare; once the picture has scrolled away the bar comes back with the page's name.
-            .navigationTitle(heroOnTop && !heroScrolledAway ? "" : "Home")
-            .navigationBarTitleDisplayMode(heroOnTop ? .inline : .large)
+            .navigationTitle(isGlass || (heroOnTop && !heroScrolledAway) ? "" : "Home")
+            .navigationBarTitleDisplayMode(heroOnTop || isGlass ? .inline : .large)
             .toolbarBackground(heroOnTop ? .hidden : .automatic, for: .navigationBar)
+            // The glass Home draws its own header (logo, cast, profile picture).
+            .toolbar(isGlass ? .hidden : .automatic, for: .navigationBar)
             .animation(settings.animationsEnabled ? .easeInOut(duration: 0.2) : nil, value: heroScrolledAway)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -84,13 +86,64 @@ struct HomeView: View {
     /// page has no title of its own (the picture is the title).
     private var heroOnTop: Bool {
         let appearance = settings.value.appearance
-        guard appearance.heroStyle == .fullBleed, appearance.heroEdgeToEdge, !appearance.greetingEnabled, !model.heroItems.isEmpty, !addons.enabledAddons.isEmpty else { return false }
+        guard !isGlass, appearance.heroStyle == .fullBleed, appearance.heroEdgeToEdge, !appearance.greetingEnabled, !model.heroItems.isEmpty, !addons.enabledAddons.isEmpty else { return false }
         return appearance.homeSections.first(where: { $0.isVisible })?.id == HomeSectionConfig.hero
+    }
+
+    private var isGlass: Bool { return settings.value.appearance.homeLayout == .glass }
+
+    /// The glass Home: its header, then the sections in the viewer's order (search field, categories and the rows of the classic
+    /// Home, drawn by the same code and fed by the same model, so switching layout loads nothing again).
+    private var glassContent: some View {
+        let glass = settings.value.appearance.glassHome
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 24) {
+                GlassHomeHeader(glass: glass, onCast: { showingCast = true })
+                if !network.isOnline { OfflineBanner().frame(maxWidth: .infinity) }
+                ForEach(glass.sections.filter { $0.isVisible }) { section in
+                    glassSection(section.id, glass: glass).aetherEntrance()
+                }
+                Color.clear.frame(height: 24)
+            }
+        }
+        .background(alignment: .top) { GlassHomeAtmosphere(item: model.heroItems.first) }
+        .accessibilityIdentifier("home.scroll")
+    }
+
+    @ViewBuilder
+    private func glassSection(_ id: String, glass: GlassHomeSettings) -> some View {
+        switch id {
+        case GlassHomeSettings.search:
+            GlassSearchField { router.tab = .search }
+        case GlassHomeSettings.categoriesID:
+            GlassCategoryGrid(categories: glass.categories.filter { $0.isVisible && categoryIsAvailable($0) }) { category in
+                Haptics.tap()
+                if category.opensLiveTV {
+                    router.liveSheet = true
+                } else {
+                    router.discoverType = category.id
+                    router.discoverSheet = true
+                }
+            }
+        default:
+            sectionView(for: id, sections: glass.sections)
+        }
+    }
+
+    /// A category leads somewhere real: Live TV is always there, a content type only when an installed addon has catalogs of it.
+    private func categoryIsAvailable(_ category: HomeCategory) -> Bool {
+        if category.opensLiveTV { return true }
+        let wanted = ContentTypes.canonicalID(category.id)
+        return addons.enabledAddons.contains { addon in
+            addon.manifest.catalogs.contains { ContentTypes.canonicalID($0.type) == wanted }
+        }
     }
 
     @ViewBuilder
     private var content: some View {
-        if addons.enabledAddons.isEmpty {
+        if isGlass && !addons.enabledAddons.isEmpty {
+            glassContent
+        } else if addons.enabledAddons.isEmpty {
             ScrollView {
                 VStack(spacing: 24) {
                     OfflineBanner()
@@ -123,6 +176,7 @@ struct HomeView: View {
                 }
             }
             .coordinateSpace(name: "home.scroll")
+            .aetherNoTopScrollEdge(heroOnTop)
             .onPreferenceChange(HeroBottomKey.self) { bottom in
                 let away = bottom < 150
                 if away != heroScrolledAway { heroScrolledAway = away }
@@ -162,9 +216,10 @@ struct HomeView: View {
     }
 
     @ViewBuilder
-    private func sectionView(for id: String) -> some View {
+    private func sectionView(for id: String, sections: [HomeSectionConfig]? = nil) -> some View {
         let appearance = settings.value.appearance
-        let config = appearance.section(id)
+        // The glass Home keeps its own styles and sizes for the same sections.
+        let config = sections?.first(where: { $0.id == id }) ?? appearance.section(id)
         let style = config.effectiveStyle ?? .poster
         let size = config.effectiveSize(general: appearance.posterSize)
         switch id {

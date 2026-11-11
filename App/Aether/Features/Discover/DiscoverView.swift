@@ -59,7 +59,12 @@ struct FilterMenuLabel: View {
     let systemImage: String
 
     var body: some View {
-        Label(title, systemImage: systemImage)
+        // The words in the colour of the text, the symbol in the accent: on glass of the same hue the accent alone did not read.
+        Label {
+            Text(title).foregroundStyle(Color.primary)
+        } icon: {
+            Image(systemName: systemImage).foregroundStyle(.tint)
+        }
             .font(.system(.footnote, design: AetherTypography.design).weight(.semibold))
             .lineLimit(1)
             .padding(.horizontal, 14)
@@ -449,6 +454,8 @@ struct DiscoverView: View {
     @State private var showingCinematic = false
     @State private var showingCalendar = false
     @State private var showingAI = false
+    /// Shown over the glass Home (opened from a category): a button closes it.
+    var onClose: (() -> Void)? = nil
 
     private var storedTypes: [DiscoverTypeSetting] {
         return settings.value.content.discoverTypes
@@ -485,6 +492,13 @@ struct DiscoverView: View {
                         .accessibilityLabel("Live TV")
                         .accessibilityIdentifier("discover.live")
                 }
+                if let onClose = onClose {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: onClose) { Image(systemName: "xmark") }
+                            .accessibilityLabel("Chiudi Scopri")
+                            .accessibilityIdentifier("discover.close")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     if model.hasLoaded && !model.capabilities.availableTypes.isEmpty {
                         Button {
@@ -497,7 +511,11 @@ struct DiscoverView: View {
                     }
                 }
             }
-            .task(id: loadKey) { await model.reload(env: env) }
+            .task(id: loadKey) {
+                await model.reload(env: env)
+                takeRequestedType()
+            }
+            .onChange(of: router.discoverType) { _, _ in takeRequestedType() }
             .onChange(of: storedTypes) { _, newValue in
                 model.syncLayout(stored: newValue, env: env)
             }
@@ -506,6 +524,13 @@ struct DiscoverView: View {
                 NavigationStack { DiscoverSettingsView(showsCloseButton: true) }
             }
         }
+    }
+
+    /// A category of the glass Home asked for this type.
+    private func takeRequestedType() {
+        guard let type = router.discoverType, model.hasLoaded else { return }
+        router.discoverType = nil
+        model.select(type: type, env: env)
     }
 
     // MARK: Controls
@@ -642,7 +667,11 @@ struct DiscoverView: View {
 
     private func explorePill(_ title: String, _ icon: String, id: String, action: @escaping () -> Void) -> some View {
         Button { Haptics.tap(); action() } label: {
-            Label(title, systemImage: icon)
+            Label {
+                Text(title).foregroundStyle(Color.primary)
+            } icon: {
+                Image(systemName: icon).foregroundStyle(.tint)
+            }
                 .font(.system(.subheadline, design: AetherTypography.design).weight(.semibold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)

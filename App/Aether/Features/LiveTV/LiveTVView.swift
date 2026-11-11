@@ -164,6 +164,13 @@ struct LiveTVView: View {
     @EnvironmentObject private var tvGuide: TVGuideService
     @StateObject private var model = LiveTVModel()
     @State private var guideChannel: M3UChannel?
+    /// With «Griglia per orario»: the channels or the guide.
+    @State private var showingTimeline = false
+
+    private var offersTimeline: Bool {
+        return liveSettings.guideEnabled && liveSettings.guideStyle == .grid && !tvGuide.guide.isEmpty
+            && model.channels.contains { channel in if case .m3u = channel.origin { return true } else { return false } }
+    }
     @State private var notice: String?
     @State private var choice: ChannelChoice?
 
@@ -190,7 +197,24 @@ struct LiveTVView: View {
                         sourceChips
                         groupChips
                         if let message = model.message { Label(message, systemImage: "info.circle").font(.footnote).foregroundStyle(Color.aetherSecondary).padding(.horizontal, 4) }
-                        grid
+                        if offersTimeline {
+                            Picker("Vista", selection: $showingTimeline) {
+                                Text("Canali").tag(false)
+                                Text("Guida TV").tag(true)
+                            }
+                            .pickerStyle(.segmented)
+                            .accessibilityIdentifier("live.view")
+                        }
+                        if offersTimeline && showingTimeline {
+                            TVGuideTimeline(channels: model.channels.compactMap { channel in
+                                if case .m3u(let m3u) = channel.origin, tvGuide.channelID(for: m3u) != nil {
+                                    return TVGuideTimeline.Row(channel: channel, m3u: m3u)
+                                }
+                                return nil
+                            }, onPlay: { play($0) }, onGuide: { guideChannel = $0 })
+                        } else {
+                            grid
+                        }
                         if model.canLoadMore {
                             Button { Task { await reload(more: true) } } label: { Label("Carica altri canali", systemImage: "arrow.down.circle") }
                                 .buttonStyle(SecondaryActionButtonStyle()).frame(maxWidth: .infinity)
@@ -607,5 +631,130 @@ private struct ChannelGuideSheet: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
+    }
+}
+
+
+/// All the channels of the playlist on one line of time: from half an hour ago to six hours ahead, with a line at «now». A programme
+/// on air plays the channel; any programme opens the guide of its channel with a long press.
+private struct TVGuideTimeline: View {
+    struct Row: Identifiable {
+        let channel: LiveChannel
+        let m3u: M3UChannel
+        var id: String { return channel.id }
+    }
+
+    let channels: [Row]
+    let onPlay: (LiveChannel) -> Void
+    let onGuide: (M3UChannel) -> Void
+    @EnvironmentObject private var tvGuide: TVGuideService
+    @EnvironmentObject private var settings: SettingsStore
+
+    private static let pointsPerMinute: CGFloat = 4
+    private static let rowHeight: CGFloat = 64
+    private static let labelWidth: CGFloat = 76
+    private static let hours: Double = 6
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let start = Self.windowStart(context.date)
+            let end = start.addingTimeInterval(Self.hours * 3600)
+            HStack(alignment: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: 28)
+                    ForEach(channels) { pair in label(pair.channel) }
+                }
+                .frame(width: Self.labelWidth)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    ZStack(alignment: .topLeading) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ruler(start: start)
+                            ForEach(channels) { pair in row(pair, start: start, end: end, now: context.date) }
+                        }
+                        // «Now».
+                        Rectangle().fill(Color.red)
+                            .frame(width: 2, height: 28 + Self.rowHeight * CGFloat(channels.count))
+                            .offset(x: x(context.date, from: start) - 1)
+                            .accessibilityHidden(true)
+                    }
+                    .frame(width: x(end, from: start), alignment: .leading)
+                }
+            }
+        }
+        .accessibilityIdentifier("live.timeline")
+    }
+
+    /// Half an hour before now, on the half hour.
+    private static func windowStart(_ now: Date) -> Date {
+        let earlier = now.timeIntervalSince1970 - 1800
+        return Date(timeIntervalSince1970: (earlier / 1800).rounded(.down) * 1800)
+    }
+
+    private func x(_ date: Date, from start: Date) -> CGFloat {
+        return CGFloat(date.timeIntervalSince(start) / 60) * Self.pointsPerMinute
+    }
+
+    private func label(_ channel: LiveChannel) -> some View {
+        Group {
+            if let logo = channel.logo, !logo.isEmpty {
+                RemoteImage(urlString: logo, width: 120, contentMode: .fit, placeholderSeed: channel.name, systemPlaceholder: "tv")
+                    .padding(8)
+            } else {
+                Text(channel.name).font(.caption.weight(.semibold)).lineLimit(2).multilineTextAlignment(.center).padding(4)
+            }
+        }
+        .frame(width: Self.labelWidth - 8, height: Self.rowHeight - 8)
+        .background(Color.aetherSurface, in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
+        .frame(height: Self.rowHeight)
+        .accessibilityLabel(channel.name)
+    }
+
+    private func ruler(start: Date) -> some View {
+        let marks = Int(Self.hours * 2)
+        return ZStack(alignment: .topLeading) {
+            ForEach(0..<marks, id: \.self) { index in
+                let time = start.addingTimeInterval(Double(index) * 1800)
+                Text(time.formatted(date: .omitted, time: .shortened))
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(Color.aetherSecondary)
+                    .offset(x: x(time, from: start) + 4, y: 6)
+            }
+        }
+        .frame(height: 28, alignment: .topLeading)
+        .accessibilityHidden(true)
+    }
+
+    private func row(_ pair: Row, start: Date, end: Date, now: Date) -> some View {
+        let programmes = tvGuide.channelID(for: pair.m3u).map { tvGuide.guide.programmes($0, between: start, and: end) } ?? []
+        return ZStack(alignment: .topLeading) {
+            Color.clear.frame(height: Self.rowHeight)
+            ForEach(programmes, id: \.self) { programme in
+                let left = max(0, x(programme.start, from: start))
+                let right = min(x(end, from: start), x(programme.stop, from: start))
+                block(programme, live: programme.isOn(at: now), now: now)
+                    .frame(width: max(8, right - left - 3), height: Self.rowHeight - 8)
+                    .offset(x: left, y: 4)
+                    .onTapGesture { if programme.isOn(at: now) { onPlay(pair.channel) } else { onGuide(pair.m3u) } }
+                    .onLongPressGesture { onGuide(pair.m3u) }
+            }
+        }
+    }
+
+    private func block(_ programme: TVProgramme, live: Bool, now: Date) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(programme.title).font(.caption.weight(.semibold)).lineLimit(1)
+            Text("\(programme.start.formatted(date: .omitted, time: .shortened))–\(programme.stop.formatted(date: .omitted, time: .shortened))")
+                .font(.caption2.monospacedDigit()).foregroundStyle(Color.aetherSecondary).lineLimit(1)
+            if live { ProgressBar(value: programme.progress(at: now), height: 3) }
+        }
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(live ? AnyShapeStyle(Color.accentColor.opacity(0.22)) : AnyShapeStyle(Color.aetherSurface),
+                    in: RoundedRectangle(cornerRadius: Corner.chip, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Corner.chip, style: .continuous)
+            .strokeBorder(live ? Color.accentColor.opacity(0.6) : Color.aetherHairline, lineWidth: live ? 1 : 0.5))
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(live ? .isButton : [])
     }
 }

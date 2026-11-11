@@ -29,6 +29,8 @@ struct StreamPickerSheet: View {
     /// Where the logo is in the header, on screen: the flight to the player starts there.
     @State private var logoFrame: CGRect = .zero
     @State private var flight: LogoFlight = .idle
+    /// The source just touched: it lights up and the others step back while the logo flies to the player.
+    @State private var chosenID: String?
 
     /// The logo leaving the list for the player: it grows, turns with the screen and the list goes black, while the source is prepared.
     enum LogoFlight { case idle, lifted, landed }
@@ -43,6 +45,14 @@ struct StreamPickerSheet: View {
     /// does not wait for the animation, only the black page does.
     private func launch(_ item: RankedStream) {
         let flies = settings.animationsEnabled && flight == .idle && logoFrame.width > 0
+        if settings.animationsEnabled {
+            Haptics.tap()
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { chosenID = item.id }
+            // A source that does not go to the player (a question, a file to pick, an error) gives the list back as it was.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                if !model.usesLaunchPage { withAnimation(.easeOut(duration: 0.2)) { chosenID = nil } }
+            }
+        }
         if flies {
             model.launchHold = 0.62
             flight = .landed
@@ -70,6 +80,8 @@ struct StreamPickerSheet: View {
         NavigationStack {
             List {
                 header
+                    // The player's page left and the list is back (a failure, the player closed): no source stays lit.
+                    .onChange(of: model.usesLaunchPage) { _, uses in if !uses { chosenID = nil } }
                     .listRowBackground(Color.clear)
                 if model.addonNames.count > 1 {
                     Section { chips }.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
@@ -266,6 +278,17 @@ struct StreamPickerSheet: View {
             launch(item)
         }
         .listRowBackground(Color.white.opacity(offset == 0 ? 0.11 : 0.06))
+        .opacity(chosenID != nil && chosenID != item.id ? 0.35 : 1)
+        .scaleEffect(chosenID == item.id ? 1.02 : 1)
+        .overlay {
+            if chosenID == item.id {
+                RoundedRectangle(cornerRadius: Corner.control, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: 1.5)
+                    .padding(-6)
+                    .shadow(color: Color.accentColor.opacity(0.6), radius: 8)
+                    .allowsHitTesting(false)
+            }
+        }
         .accessibilityIdentifier("stream.row.\(offset)")
         .swipeActions(edge: .trailing) {
             Button { Task { await model.download(item, env: env) } } label: {

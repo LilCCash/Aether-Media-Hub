@@ -249,6 +249,7 @@ struct DetailView: View {
                 .scaleEffect(revealsCinematically && !revealed ? 1.06 : 1, anchor: .top)
             }
             .coordinateSpace(name: "detailScroll")
+            .aetherNoTopScrollEdge()
             .onPreferenceChange(DetailScrollOffsetKey.self) { offset in
                 atTop = offset > -2
                 let gone = offset < -300

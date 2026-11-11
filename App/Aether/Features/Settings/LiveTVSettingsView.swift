@@ -88,9 +88,13 @@ struct LiveTVSettingsView: View {
             }
 
             Section(header: Text("Guida TV"),
-                    footer: Text("Sotto i canali delle playlist compare cosa va in onda ora e dopo; tieni premuto un canale per la sua guida. Senza un indirizzo, Aether usa la guida indicata dalla playlist o, se manca, una guida pubblica dei canali italiani (epgshare01). Accetta file XMLTV, anche compressi (.xml.gz). Si aggiorna ogni 12 ore.")) {
+                    footer: Text("«Sotto i canali»: sotto ogni canale delle playlist cosa va in onda ora e dopo; tieni premuto un canale per la sua guida. «Griglia per orario»: in Live TV compare «Guida TV», con tutti i canali su una linea del tempo; tocca un programma in onda per guardarlo. Senza un indirizzo, Aether usa la guida indicata dalla playlist o, se manca, una guida pubblica dei canali italiani (epgshare01). Accetta file XMLTV, anche compressi (.xml.gz). Si aggiorna ogni 12 ore.")) {
                 Toggle("Mostra la guida TV", isOn: settings.binding(\.content.liveTV.guideEnabled))
                 if live.guideEnabled {
+                    Picker("Vista", selection: settings.binding(\.content.liveTV.guideStyle)) {
+                        ForEach(LiveGuideStyle.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .accessibilityIdentifier("settings.live.guideStyle")
                     TextField("Indirizzo della guida (facoltativo)", text: settings.binding(\.content.liveTV.guideURL))
                         .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     HStack {
