@@ -179,6 +179,26 @@ struct RootView: View {
         }
     }
 
+    private var legacyTabs: some View {
+        TabView(selection: $router.tab) {
+            HomeView()
+                .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(AppTab.home)
+            DiscoverView()
+                .tabItem { Label("Scopri", systemImage: "safari.fill") }
+                .tag(AppTab.discover)
+            LibraryView()
+                .tabItem { Label("Libreria", systemImage: "books.vertical.fill") }
+                .tag(AppTab.library)
+            SearchView()
+                .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
+                .tag(AppTab.search)
+            ProfileTabView()
+                .tabItem { Label("Profilo", systemImage: "person.crop.circle.fill") }
+                .tag(AppTab.profile)
+        }
+    }
+
     @available(iOS 18.0, *)
     private var modernTabs: some View {
         TabView(selection: $router.tab) {
