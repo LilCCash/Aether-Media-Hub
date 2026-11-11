@@ -75,7 +75,7 @@ final class TorBoxUITests: AetherUITestCase {
     private func openServices() {
         openMoreRoot()
         element("profile.settings").tap()
-        let services = element("settings.Servizi")
+        let services = element("settings.Servizi e chiavi")
         var swipes = 0
         while !services.waitForExistence(timeout: 5) && swipes < 6 {
             app.swipeUp()

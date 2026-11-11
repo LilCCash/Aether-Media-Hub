@@ -138,6 +138,8 @@ class AetherUITestCase: XCTestCase {
     /// A row of the settings list, scrolled into view and tapped.
     func openSettingsRow(_ title: String) {
         let row = element("settings.\(title)")
+        // The list may be scrolled anywhere (after coming back from a page): first to its top, then down to the row.
+        if !(row.exists && row.isHittable) { for _ in 0..<3 { app.swipeDown() } }
         for _ in 0..<6 where !(row.exists && row.isHittable) { app.swipeUp() }
         XCTAssertTrue(row.waitForExistence(timeout: 5), "no «\(title)» in the settings")
         row.tap()
@@ -188,6 +190,9 @@ class AetherUITestCase: XCTestCase {
         for attempt in 0..<3 {
             let row = element("stream.row.0")
             if row.exists { row.tap() }
+            // The cinematic opening waits for «Guarda» before the film starts.
+            let watch = element("player.intro.watch")
+            if watch.waitForExistence(timeout: attempt == 0 ? 15 : 8) { watch.tap() }
             if element("player.playPause").waitForExistence(timeout: attempt == 0 ? 25 : 15) { return }
             let panel = element("player.error")
             if panel.exists {

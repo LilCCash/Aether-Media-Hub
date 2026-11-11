@@ -145,14 +145,12 @@ final class HomeCustomizationUITests: AetherUITestCase {
     func testStyleScreenListsThePalettesButNotTheSecretOne() {
         launchWithFixtureAddon(settings: Self.settings(#""heroStyle":"card""#))
         openAppearance()
-        let link = element("settings.style")
-        XCTAssertTrue(link.waitForExistence(timeout: 10))
-        link.tap()
+        // The palettes are on the Aspetto page itself, further down.
+        scrollUntilHittable(element("settings.palette.sunset"))
         XCTAssertTrue(element("settings.palette.sunset").waitForExistence(timeout: 10))
         XCTAssertTrue(element("settings.palette.aether").exists)
         XCTAssertFalse(element("settings.palette.popcorn").exists, "the secret palette must stay hidden until it is found")
         element("settings.palette.sunset").tap()
-        XCTAssertTrue(element("settings.style.preview").exists)
     }
 
     // MARK: Cast button
@@ -211,7 +209,7 @@ final class HomeCustomizationUITests: AetherUITestCase {
     func testNewSettingsScreensPassTheAccessibilityAudit() throws {
         launchWithFixtureAddon(settings: Self.settings(#""heroStyle":"card""#))
         openAppearance()
-        element("settings.style").tap()
+        scrollUntilHittable(element("settings.palette.sunset"))
         XCTAssertTrue(element("settings.palette.sunset").waitForExistence(timeout: 10))
         try app.performAccessibilityAudit(for: [.sufficientElementDescription, .hitRegion, .trait])
     }
