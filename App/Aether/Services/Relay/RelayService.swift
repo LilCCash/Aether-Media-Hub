@@ -188,7 +188,10 @@ final class RelayService: ObservableObject, RelayPublishing {
                              identity: SessionIdentity) async throws -> (source: RelaySource, sessionLeaf: String?, urlLeaf: String, plan: RemuxPlan?) {
         let requestedExtension = request.fileExtension.lowercased()
         if requestedExtension == "m3u8" || requestedExtension == "mpd" {
-            let source = AdaptiveStreamRelaySource(upstream: request.upstream, guardian: guardian, extension: requestedExtension)
+            let source = AdaptiveStreamRelaySource(upstream: request.upstream, guardian: guardian, extension: requestedExtension,
+                                                       onUpstreamRejected: { [weak self] _ in
+                Task { @MainActor in self?.upstreamRejected(identity.id) }
+            })
             do {
                 _ = try await source.prepare()
             } catch {
