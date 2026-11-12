@@ -77,7 +77,7 @@ enum SSDPScanner {
             destination.sin_port = SSDP.port.bigEndian
             guard inet_pton(AF_INET, host, &destination.sin_addr) == 1 else { continue }
 
-            let result = withUnsafePointer(to: &destination) { pointer -> Int in
+            _ = withUnsafePointer(to: &destination) { pointer -> Int in
                 pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                     sendto(descriptor, packet, packet.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
                 }
