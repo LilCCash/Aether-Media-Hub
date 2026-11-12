@@ -58,7 +58,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
         item {
             FocusSurface({}, Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Licenza", style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground)
-                Text("Aether è distribuito con licenza MIT (vedi il file LICENSE del repository).", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
+                Text("Aether è distribuito con licenza MIT (vedi il file LICENSE del repository). Caratteri Manrope e Nunito: SIL Open Font License 1.1. Universi e premi da dati pubblici (Wikidata, CC0); sottotitoli da OpenSubtitles.org; locandine dei titoli da metahub.", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
             } }
         }
         item { Text("Librerie di terze parti", style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(horizontal = 4.dp)) }

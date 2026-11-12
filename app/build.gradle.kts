@@ -14,7 +14,7 @@ android {
         minSdk = 24
         targetSdk = 37
         versionCode = (project.findProperty("aetherVersionCode") as String?)?.toIntOrNull() ?: 200
-        versionName = (project.findProperty("aetherVersionName") as String?) ?: "2.0.0"
+        versionName = (project.findProperty("aetherVersionName") as String?) ?: "3.0.0"
         // The public Client ID of the Aether app registered on Trakt (device-code login, no client secret). It is an app
         // identifier sent in every Trakt request, not a credential; a fork can set its own with -PaetherTraktClientId or the
         // AETHER_TRAKT_CLIENT_ID environment variable.

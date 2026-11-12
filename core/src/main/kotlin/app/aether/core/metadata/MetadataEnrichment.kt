@@ -146,6 +146,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         return runCatching {
             tmdbGet("/search/person", "query" to query.trim(), "include_adult" to "false").arr("results")
                 .filter { it.int("id") != null && !it.str("name").isNullOrBlank() && it.str("profile_path") != null }
+                .distinctBy { it.int("id") }
                 .sortedByDescending { it.dbl("popularity") ?: 0.0 }
                 .take(limit)
                 .map { r ->
@@ -375,7 +376,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
             tmdbId = id, isMovie = !series,
             cast = credits?.arr("cast").orEmpty().take(16).mapNotNull { p ->
                 RichDetails.Person(p.str("name") ?: return@mapNotNull null, p.str("character")?.takeIf { it.isNotBlank() }, p.str("profile_path")?.let { "$IMAGE_BASE/w185$it" }, p.int("id"))
-            },
+            }.distinctBy { it.name + it.role.orEmpty() },
             directors = if (series) emptyList() else credits?.arr("crew").orEmpty().filter { it.str("job") == "Director" }.mapNotNull { it.str("name") }.distinct(),
             creators = detail.arr("created_by").mapNotNull { it.str("name") },
             companies = detail.arr("production_companies").mapNotNull { it.str("name") }.take(6),
@@ -386,7 +387,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
                 val sid = s.int("id") ?: return@mapNotNull null
                 RichDetails.Similar(sid, s.str("title") ?: s.str("name") ?: return@mapNotNull null, s.str("poster_path")?.let { "$IMAGE_BASE/w342$it" },
                     (s.str("release_date") ?: s.str("first_air_date"))?.take(4), !series)
-            }.filter { it.poster != null },
+            }.filter { it.poster != null }.distinctBy { it.tmdbId },
             status = detail.str("status")?.takeIf { it.isNotBlank() },
             countries = detail.arr("production_countries").mapNotNull { it.str("name") },
             originalLanguage = detail.str("original_language"),

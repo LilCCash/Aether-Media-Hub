@@ -359,7 +359,7 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                                 app.aether.tv.ui.components.PersonBubble(person.name, person.photo, person.role, requester, onFocused, testTag = "detail.cast.${person.name}") { person.id?.let { onOpenPerson(it, person.name) } ?: vm.openPersonByName(person.name, onOpenPerson) }
                             }
                         } else if (meta.cast.isNotEmpty()) item(key = "cast") {
-                            ContentRow("Cast", meta.cast.take(20), { it }, rowId = "cast") { name, requester, onFocused ->
+                            ContentRow("Cast", meta.cast.distinct().take(20), { it }, rowId = "cast") { name, requester, onFocused ->
                                 app.aether.tv.ui.components.PersonBubble(name, null, null, requester, onFocused, testTag = "detail.cast.$name") { vm.openPersonByName(name, onOpenPerson) }
                             }
                         }

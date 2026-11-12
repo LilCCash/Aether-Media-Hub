@@ -23,10 +23,10 @@ Classi: E essenziale · I importante · S secondaria · P specifica di piattafor
 | **Scopri** | | | | |
 | 11 | Tipi da addon, ordine/visibilità tipi, cataloghi per tipo, filtri genere/anno, griglia paginata — `DiscoverLayout`, `CatalogPager`, `ResultFilters` | E | tipi, cataloghi, filtro genere, griglia paginata | 🟡 |
 | 12 | Scoperta cinematografica, Calendario uscite con promemoria, «Per te» (AI) — `DiscoveryViews`, `ReleaseCalendar` | S | non portato: Scoperta, Calendario uscite e «Per te» | ☐ |
-| 13 | Universe (mappa, progresso, prossimo titolo) — `Universe/*` | S | Universe non portato | ☐ |
+| 13 | Universe (mappa, progresso, prossimo titolo) — `Universe/*` | S | gli stessi 15 universi dell'iPhone (dati in `universes.json`), ordine di uscita e della storia, mappa a linea del tempo con visti e prossimo, «Segui sulla Home» con la riga «I tuoi universi», universi collegati, chip «Universo» nella scheda | 🟡 |
 | **Cerca** | | | | |
 | 14 | Ricerca su tutti gli addon con progresso, filtri tipo/genere/ordinamento, persone, cronologia — `SearchService`, `SearchView` | E | Cerca TV con tastiera TV, debounce, annullamento | 🟡 |
-| 15 | Ricerca avanzata (intenti naturali, AI facoltativa) — `AdvancedSearchService`, `NaturalQueryParser` | S | ricerca avanzata (intenti naturali) non portata; nessuna AI | ☐ |
+| 15 | Ricerca avanzata (intenti naturali, AI facoltativa) — `AdvancedSearchService`, `NaturalQueryParser` | S | `NaturalQueryParser` portato (generi, anni, decenni, paesi, «simili a…», durata, ordinamento) ed eseguito su TMDB (discover, parole chiave, raccomandazioni); ricerca di persone con foto; nessuna AI | 🟡 |
 | **Scheda titolo** | | | | |
 | 16 | Locandina, sfondo, logo (fanart), voti (IMDb, Metacritic, RT, MDBList), generi, durata, trama, cast/regia con foto, trailer, correlati, dettagli produzione — `TitlePageSections`, `MetadataEnricher`, `TMDBClient`, `TVDBClient`, `FanartClient`, `MDBListClient` | E | TMDB/TVDB, cast con foto, trailer, simili, produzione; voti MDBList (IMDb, RT, Metacritic…); logo fanart con chiave personale | 🟡 |
 | 17 | Serie: stagioni, episodi con trama/immagine/visto, segna stagione vista, prossimo episodio — `NextEpisodeResolver` | E | 🟡 |
@@ -35,24 +35,24 @@ Classi: E essenziale · I importante · S secondaria · P specifica di piattafor
 | 20 | Artwork: scelta locandina/sfondo/logo — `ArtworkViews`, `PosterPicker` | O | ☐ |
 | **Sorgenti e riproduzione** | | | | |
 | 21 | Lista sorgenti: analisi (qualità, codec, HDR, audio, lingua, dimensione, formato), punteggio 0–100 con motivi, ordinamento, filtro, badge personalizzati, sorgente consigliata — `StreamAnalyzer`, `SourceRating`, `StreamSelector`, `StreamDisplaySettings` | E | analisi, punteggio 0–100 con motivi (`SourceRating`, anche in base a decoder e HDR della TV), ordinamento, filtro per addon, consigliata | ✅ |
-| 22 | Player: play/pausa, ricerca con anteprima, salti ±, tracce audio, sottotitoli (addon, incorporati, file), stile e ritardo sottotitoli, doppi sottotitoli, velocità, info tecniche «In tempo reale», ripresa, prossimo episodio con conto alla rovescia, salta intro/riassunto (IntroDB), timer, blocco — `Player/*` | E | Media3: tracce audio, sottotitoli addon/incorporati con stile e ritardo, velocità, ripresa, prossimo episodio, IntroDB, timer; doppi sottotitoli ⛔ | 🟡 |
+| 22 | Player: play/pausa, ricerca con anteprima, salti ±, tracce audio, sottotitoli (addon, incorporati, file), stile e ritardo sottotitoli, doppi sottotitoli, velocità, info tecniche «In tempo reale», ripresa, prossimo episodio con conto alla rovescia, salta intro/riassunto (IntroDB), timer, blocco — `Player/*` | E | Media3 con pannello in vetro: tracce audio, sottotitoli della sorgente/addon/OpenSubtitles.org (SRT, VTT, ASS, MicroDVD, gzip/ZIP) con stile e ritardo, ricerca su OpenSubtitles.org per lingua, velocità, ripresa, prossimo episodio, IntroDB, timer, orario di fine; doppi sottotitoli ⛔ | 🟡 |
 | 23 | Motori AVPlayer/MPV, conversione MKV per AVPlayer, remux — `Remux/*`, `PlaybackPlanner` | P | 🔁 ExoPlayer legge MKV/HEVC/AV1 nativamente; decoder audio software per AC3/EAC3/DTS dove manca il passthrough | 🔁 |
 | 24 | Rilevamento capacità (HDR10/DV/HEVC/AV1) e fallback — `DeviceVideoCapabilities` | E | `DeviceCapabilities`: decoder da `MediaCodecList`, HDR da `Display.HdrCapabilities`; usati nel punteggio, visibili in Impostazioni ▸ Informazioni | ✅ |
 | 25 | PiP, audio in background | P | Picture-in-Picture con il tasto Home durante un video (dove la TV lo supporta) | 🟡 |
 | 26 | AirPlay / Google Cast / DLNA, ponte, «Guarda insieme» | P | ⛔ la TV è il ricevitore; non trasmette | ⛔ |
-| 27 | Apertura cinematografica, titoli di coda in scena, schermata di pausa | O | ☐ |
+| 27 | Apertura cinematografica, titoli di coda in scena, schermata di pausa | O | schermata iniziale con logo che entra, scena (sfondo, anno, durata, generi, trama) e tasto «Guarda»; schermata di pausa con logo, trama e cast; titoli di coda a fine film; tutto disattivabile | 🟡 |
 | **Debrid** | | | | |
-| 28 | TorBox: chiave, cache, aggiunta torrent, file, archivi ZIP/RAR, link, cloud — `TorBoxClient`, `ZipArchive`, `RarArchive` | E | chiave, cache, torrent, scelta file, link; archivi ZIP/RAR e cloud ⛔ (segnalati, non aperti) | 🟡 |
+| 28 | TorBox: chiave, cache, aggiunta torrent, file, archivi ZIP/RAR, link, cloud — `TorBoxClient`, `ZipArchive`, `RarArchive` | E | chiave, cache, torrent, scelta file, link; video dentro ZIP e RAR (anche a volumi) letti a pezzi con richieste Range (`ArchiveDataSource`); Cloud di TorBox e Real-Debrid in Libreria | 🟡 |
 | 29 | Real-Debrid: OAuth device code, disponibilità solo reale, link — `RealDebridClient`, `RealDebridServiceSections` | E | token API privato (inseribile dal telefono); il device code OAuth non è usato perché l'app iOS usa lo stesso token; nessuna disponibilità finta | 🟡 |
 | 30 | Selezione provider e filtro sorgenti per provider — `DebridResolver` | E | ✅ |
 | **Libreria e dati** | | | | |
-| 31 | Watchlist, preferiti, visti, abbandonati, collezioni, cronologia, continua a guardare, progresso — `LibraryStore`, `Collections` | E | watchlist, preferiti, visti, cronologia, continua; collezioni e abbandonati ⛔ | 🟡 |
+| 31 | Watchlist, preferiti, visti, abbandonati, collezioni, cronologia, continua a guardare, progresso — `LibraryStore`, `Collections` | E | tutto: collezioni personali (crea, rinomina, elimina, aggiungi dalla scheda) e «Abbandonati» (iniziati e lasciati da più di un mese) | 🟡 |
 | 32 | Backup/ripristino compatibile iOS (unisci/sostituisci) — `Backup` | E | stesso formato, unisci/sostituisci, chiavi di tutti i servizi | ✅ |
-| 33 | Diario, statistiche, «Il mio universo del cinema», confronto voti, gioco dei gusti — `Diary`, `StatsView`, `TasteGame` | S | ☐ |
+| 33 | Diario, statistiche, «Il mio universo del cinema», confronto voti, gioco dei gusti — `Diary`, `StatsView`, `TasteGame` | S | diario automatico a fine visione e «Segna nel diario» con voto a mezze stelle; statistiche per anno (ore, film, episodi, generi, volti, mese per mese); confronto con il voto IMDb; gioco dei gusti; profilo con avatar e generi preferiti | 🟡 |
 | 34 | Trakt: collegamento (device code), sincronizzazione visti/watchlist/progresso — `Trakt/*` | I | device code con QR, sincronizzazione watchlist/visti nei due sensi, scrobble dal player, cataloghi e liste | 🟡 |
 | 35 | Sincronizzazione tramite cartella/iCloud — `ContentSync`, `FolderSyncService` | P | backup e ripristino dal telefono | 🔁 |
 | **Download** | | | | |
-| 36 | Download episodi/film, stagioni intere, pacchetti, concorrenza, avanzamento, annulla, riprendi, sottotitoli salvati, spazio — `DownloadManager`, `Downloads` | E | WorkManager in primo piano, ripresa con Range, pausa, elimina, controllo spazio, riproduzione offline; stagioni intere e sottotitoli salvati ⛔ | 🟡 |
+| 36 | Download episodi/film, stagioni intere, pacchetti, concorrenza, avanzamento, annulla, riprendi, sottotitoli salvati, spazio — `DownloadManager`, `Downloads` | E | WorkManager in primo piano, ripresa con Range, pausa, elimina, controllo spazio, riproduzione offline; «Scarica la stagione» (sorgente scelta come la scelta automatica, stesso gruppo di release); sottotitoli salvati accanto al video in SRT | 🟡 |
 | **Live TV** | | | | |
 | 37 | Playlist M3U, cataloghi tv degli addon, preferiti, guida TV XMLTV (sotto i canali / griglia) — `LiveTV`, `TVGuide` | I | 🟡 |
 | **Impostazioni** | | | | |
@@ -60,7 +60,7 @@ Classi: E essenziale · I importante · S secondaria · P specifica di piattafor
 | 39 | Riproduzione: lingue audio/sottotitoli, stile sottotitoli, qualità massima, ordinamento, salti, ripresa, prossimo episodio, salta intro — `PlaybackSettings` | E | 🟡 |
 | 40 | Contenuti: lingua, adulti, talk show, cataloghi, tipi di Scopri, moduli scheda, voti — `ContentSettings` | I | 🟡 |
 | 41 | Servizi e chiavi: TMDB, TVDB, fanart, MDBList, OpenSubtitles, TorBox, Real-Debrid, Trakt | E | TMDB, TVDB, fanart, MDBList, TorBox, Real-Debrid, Trakt; OpenSubtitles è un addon | ✅ |
-| 42 | Archiviazione, cache, privacy, diagnostica/registro | I | 🟡 |
+| 42 | Archiviazione, cache, privacy, diagnostica/registro | I | registro diagnostico locale con oscuramento di indirizzi e chiavi, schermata in Informazioni | 🟡 |
 | **Configurazione da telefono (QR)** | | | | |
 | 43 | Riferimento Android: server LAN NanoHTTPD con token, form per addon, chiavi TMDB/TVDB/TorBox, ripristino backup | E | porta e token (256 bit) casuali, approvazione del telefono sulla TV, un solo telefono, scadenza 10 min (max 30), chiusura dopo token errati, controllo Origin, nessuna chiave mostrata; testato | ✅ |
 | **Profilo** | | | | |
@@ -70,6 +70,6 @@ Classi: E essenziale · I importante · S secondaria · P specifica di piattafor
 
 ## Riepilogo (fine lavoro)
 
-- ✅ 10 · 🟡 23 (fatto, compilato e coperto dove possibile da test, da provare su una TV vera) · 🔁 2 · ⛔ 4 · ☐ 6 (Scoperta/Calendario, Universe, ricerca avanzata, artwork, apertura cinematografica, diario/statistiche).
+- Aggiornamento v3: Universe, ricerca avanzata, diario/statistiche, apertura cinematografica, collezioni/abbandonati, ZIP/RAR e Cloud, stagioni intere e sottotitoli salvati, attori con filmografia e premi Wikidata, sezioni della scheda, profilo e registro diagnostico portati (🟡). Restano ☐ Scoperta/Calendario e artwork.
 - Nessuna funzione segnata come fatta è un pulsante vuoto: dove una parte manca è scritta nella colonna Android.
 - Non verificato su hardware: questa build è stata compilata e testata (unit test core e app) senza un dispositivo Android TV.
