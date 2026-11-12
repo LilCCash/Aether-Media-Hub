@@ -126,7 +126,7 @@ public enum CastCompatibility {
             if container == "mkv" {
                 warnings.append("MKV è supportato solo da alcuni dispositivi (Chromecast Ultra, Google TV, Android TV).")
             }
-            if (container == "m3u8" || container == "mpd") && !remuxed {
+            if (container == "m3u8" || container == "mpd") && !remuxed && !relayed {
                 warnings.append("HLS/DASH su Google Cast richiedono che il server invii gli header CORS.")
             }
             if container.isEmpty {
