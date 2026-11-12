@@ -57,12 +57,16 @@ final class DLNABackend: CastBackend {
         var locations: [URL] = []
         var notes: [String] = []
 
-        if ssdpEnabled {
-            let outcome = await SSDPScanner.scan()
+        if ssdpEnabled || !manualHosts.isEmpty {
+            // A manually entered local IP gets a unicast M-SEARCH attempt even when Apple has
+            // not granted multicast networking. Automatic multicast remains opt-in.
+            let outcome = await SSDPScanner.scan(unicastHosts: manualHosts, includeMulticast: ssdpEnabled)
             if let failure = outcome.failure { notes.append(failure) }
             locations.append(contentsOf: outcome.responses.map { $0.location })
-            if outcome.failure == nil && outcome.responses.isEmpty {
-                notes.append("SSDP: nessun renderer ha risposto.")
+            if outcome.responses.isEmpty {
+                notes.append(ssdpEnabled
+                    ? "SSDP: nessun renderer ha risposto."
+                    : "SSDP unicast: il dispositivo non ha risposto alla ricerca diretta; provo gli indirizzi manuali.")
             }
         }
 
