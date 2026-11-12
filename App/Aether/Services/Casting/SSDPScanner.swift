@@ -38,7 +38,10 @@ enum SSDPScanner {
         var timeout = timeval(tv_sec: 0, tv_usec: 250_000)
         setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
 
-        let packet = [UInt8](SSDP.searchRequest())
+        // Different renderer stacks answer different standard UPnP search targets.
+        // Query the root device, all services/devices, and the MediaRenderer explicitly.
+        let packets = ["ssdp:all", "upnp:rootdevice", SSDP.mediaRendererTarget]
+            .map { [UInt8](SSDP.searchRequest(target: $0)) }
         var multicastFailure: String?
         var multicastSent = false
 
@@ -52,7 +55,7 @@ enum SSDPScanner {
             destination.sin_port = SSDP.port.bigEndian
             inet_pton(AF_INET, SSDP.multicastAddress, &destination.sin_addr)
 
-            for _ in 0..<2 {
+            for packet in packets {
                 let result = withUnsafePointer(to: &destination) { pointer -> Int in
                     pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                         sendto(descriptor, packet, packet.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
@@ -63,7 +66,7 @@ enum SSDPScanner {
                 } else {
                     multicastSent = true
                 }
-                usleep(150_000)
+                usleep(100_000)
             }
         }
 
@@ -77,9 +80,11 @@ enum SSDPScanner {
             destination.sin_port = SSDP.port.bigEndian
             guard inet_pton(AF_INET, host, &destination.sin_addr) == 1 else { continue }
 
-            _ = withUnsafePointer(to: &destination) { pointer -> Int in
-                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    sendto(descriptor, packet, packet.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            for packet in packets {
+                _ = withUnsafePointer(to: &destination) { pointer -> Int in
+                    pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                        sendto(descriptor, packet, packet.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    }
                 }
             }
         }
