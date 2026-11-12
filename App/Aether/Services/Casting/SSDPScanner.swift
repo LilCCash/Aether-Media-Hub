@@ -87,7 +87,7 @@ enum SSDPScanner {
 
         if includeMulticast && !sentAny && unicastHosts.isEmpty {
             let reason = multicastFailure ?? "errore sconosciuto"
-            return Outcome(responses: [], failure: "Invio multicast rifiutato dal sistema (\\(reason)). Serve l'entitlement multicast di Apple.")
+            return Outcome(responses: [], failure: "Invio multicast rifiutato dal sistema (\(reason)). Serve l'entitlement multicast di Apple.")
         }
 
         var found: [String: SSDP.Response] = [:]
@@ -116,8 +116,8 @@ enum SSDPScanner {
         } else {
             candidate = trimmed
         }
-        guard case .v4 = IPAddress.parse(candidate),
-              let address = IPAddress.parse(candidate),
+        guard let address = IPAddress.parse(candidate),
+              case .v4 = address,
               address.addressClass == .privateNetwork || address.addressClass == .linkLocal else { return nil }
         return candidate
     }
