@@ -61,6 +61,8 @@ data class AppearanceSettings(
     val showGreeting: Boolean = false,
     val greetingName: String = "",
     val graphics: GraphicsQuality = GraphicsQuality.AUTO,
+    /** Extra margin around the picture, in percent of the screen, for TVs that crop the edges (0–6). */
+    val overscanPercent: Int = 0,
     val graphicsOverrides: GraphicsOverrides = GraphicsOverrides(),
 )
 

@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -69,6 +70,8 @@ fun TopBar(
     visible: Boolean = true,
     hidden: Set<String> = emptySet(),
     entryRequester: FocusRequester? = null,
+    /** Where Down from the bar goes: the page under it (whatever it shows). */
+    contentRequester: FocusRequester? = null,
 ) {
     var hasFocus by remember { mutableStateOf(false) }
     val graphics = LocalGraphics.current
@@ -84,7 +87,7 @@ fun TopBar(
             .focusGroup(),
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 20.dp).height(48.dp),
+            Modifier.fillMaxWidth().padding(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = AetherDimens.ScreenVertical - 4.dp).height(48.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -92,7 +95,7 @@ fun TopBar(
             Spacer(Modifier.weight(1f))
             for (entry in navEntries) {
                 if (entry.route in hidden) continue
-                TabPill(entry, entry.route == current, { onSelect(entry.route) }, if (entry.route == current) entryRequester else null)
+                TabPill(entry, entry.route == current, { onSelect(entry.route) }, if (entry.route == current) entryRequester else null, contentRequester)
             }
             Spacer(Modifier.weight(1f))
             Spacer(Modifier.width(64.dp))
@@ -101,11 +104,13 @@ fun TopBar(
 }
 
 @Composable
-private fun TabPill(entry: NavEntry, selected: Boolean, onClick: () -> Unit, requester: FocusRequester?) {
+private fun TabPill(entry: NavEntry, selected: Boolean, onClick: () -> Unit, requester: FocusRequester?, content: FocusRequester?) {
     val round = entry.icon != null
     FocusSurface(
         onClick = onClick,
-        modifier = (if (round) Modifier.size(44.dp) else Modifier.height(44.dp)).semanticsLabel(entry.label),
+        modifier = (if (round) Modifier.size(44.dp) else Modifier.height(44.dp)).semanticsLabel(entry.label)
+            // Down always enters the page, even when the bar floats over a picture with nothing right below the pill.
+            .then(if (content != null) Modifier.focusProperties { down = content } else Modifier),
         shape = RoundedCornerShape(22.dp),
         focusScale = 1.1f,
         containerColor = if (selected) Color(0x40FFFFFF) else Color.Transparent,

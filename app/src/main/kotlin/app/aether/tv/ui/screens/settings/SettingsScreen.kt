@@ -139,6 +139,9 @@ fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpen
             toggleRow("Immagini dietro le pagine", "La locandina sfumata dietro le schede e la luce colorata di sfondo.", g.backdropArt, "appearance.backdropArt") { v -> update { it.copy(appearance = it.appearance.copy(graphicsOverrides = it.appearance.graphicsOverrides.copy(backdropArt = v))) } }
             toggleRow("Sfocature", if (android.os.Build.VERSION.SDK_INT >= 31) "Vetro sfocato dietro pannelli e scheda (il più pesante)." else "Serve Android 12: su questa TV non è disponibile.", g.blur, "appearance.blur") { v -> update { it.copy(appearance = it.appearance.copy(graphicsOverrides = it.appearance.graphicsOverrides.copy(blur = v))) } }
             toggleRow("Dissolvenza delle immagini", "Le locandine compaiono sfumando invece che di colpo.", g.imageFades, "appearance.fades") { v -> update { it.copy(appearance = it.appearance.copy(graphicsOverrides = it.appearance.graphicsOverrides.copy(imageFades = v))) } }
+            choiceRow("Margini dello schermo", if (a.overscanPercent == 0) "Standard" else "+${a.overscanPercent}%", "appearance.overscan") {
+                choose("Margini dello schermo", (0..6).map { it to if (it == 0) "Standard (consigliato)" else "+$it% — se la TV taglia i bordi" }, a.overscanPercent) { v -> update { it.copy(appearance = it.appearance.copy(overscanPercent = v)) } }
+            }
             section("Aspetto")
             choiceRow("Colore d'accento", a.accent.title, "appearance.accent") { choose("Colore d'accento", AccentChoice.entries.map { it to it.title }, a.accent) { v -> update { it.copy(appearance = it.appearance.copy(accent = v)) } } }
             choiceRow("Dimensione delle locandine", a.posterSize.title, "appearance.posterSize") { choose("Dimensione delle locandine", PosterSize.entries.map { it to it.title }, a.posterSize) { v -> update { it.copy(appearance = it.appearance.copy(posterSize = v)) } } }

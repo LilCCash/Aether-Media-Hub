@@ -29,18 +29,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         addonInput = addonFrom(intent)
-        setContent {
-            val settings by aether.settings.value.collectAsStateWithLifecycle()
-            val accent = Color(settings.appearance.accent.argb)
-            val autoLevel = androidx.compose.runtime.remember { app.aether.tv.ui.theme.Graphics.autoLevel(this) }
-            val graphics = androidx.compose.runtime.remember(settings.appearance) { app.aether.tv.ui.theme.Graphics.resolve(settings.appearance, autoLevel) }
-            AetherTheme(accent = accent, animations = settings.appearance.animationsEnabled, corner = settings.appearance.corners.dp.dp, graphics = graphics) {
-                androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(app.aether.tv.ui.theme.AetherColors.Background)) {
-                    app.aether.tv.ui.theme.AppBackdrop(settings.appearance.background, accent, settings.appearance.animationsEnabled)
-                    AetherNav(initialAddonInput = addonInput)
-                }
-            }
-        }
+        setContent { AetherRoot(addonInput, (application as AetherApp).keyboardInputOnly) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -63,4 +52,27 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun addonFrom(intent: Intent?): String? = intent?.dataString?.let { AddonUrl.installUrlFromDeepLink(it) }
+}
+
+
+/** The whole app: theme, background and navigation (the tour tests compose it the same way). */
+@androidx.compose.runtime.Composable
+fun AetherRoot(addonInput: String?, keyboardInputOnly: Boolean) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // On a TV without a touchscreen the input is the remote: Compose is told so, and every button can take the focus.
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+    if (keyboardInputOnly) androidx.compose.runtime.SideEffect { inputMode.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard) }
+    val settings by context.aether.settings.value.collectAsStateWithLifecycle()
+    val accent = Color(settings.appearance.accent.argb)
+    val autoLevel = androidx.compose.runtime.remember { app.aether.tv.ui.theme.Graphics.autoLevel(context) }
+    val graphics = androidx.compose.runtime.remember(settings.appearance) { app.aether.tv.ui.theme.Graphics.resolve(settings.appearance, autoLevel) }
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val pct = settings.appearance.overscanPercent.coerceIn(0, 6)
+    val overscan = app.aether.tv.ui.theme.Overscan((configuration.screenWidthDp * pct / 100).dp, (configuration.screenHeightDp * pct / 100).dp)
+    AetherTheme(accent = accent, animations = settings.appearance.animationsEnabled, corner = settings.appearance.corners.dp.dp, graphics = graphics, overscan = overscan) {
+        androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(app.aether.tv.ui.theme.AetherColors.Background)) {
+            app.aether.tv.ui.theme.AppBackdrop(settings.appearance.background, accent, settings.appearance.animationsEnabled)
+            AetherNav(initialAddonInput = addonInput)
+        }
+    }
 }

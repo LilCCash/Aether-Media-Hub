@@ -69,7 +69,8 @@ fun FocusSurface(
     val graphics = LocalGraphics.current
     val scale by animateFloatAsState(
         if (focused) focusScale else 1f,
-        if (graphics.animations) spring(dampingRatio = 0.72f, stiffness = 520f) else tween(0),
+        // A short ease, no bounce: a springy overshoot reads as flicker when the remote moves fast.
+        tween(graphics.ms(150), easing = androidx.compose.animation.core.FastOutSlowInEasing),
         label = "focusScale",
     )
     val background by animateColorAsState(if (focused) focusedContainerColor else containerColor, tween(graphics.ms(140)), label = "focusColor")

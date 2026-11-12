@@ -25,6 +25,10 @@ import app.aether.core.model.Video
 import app.aether.tv.Session
 import app.aether.tv.aether
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.foundation.focusGroup
 import app.aether.tv.StreamRequest
 import app.aether.tv.ui.components.TopBar
 import app.aether.tv.ui.screens.addons.AddonsScreen
@@ -43,6 +47,7 @@ import app.aether.tv.ui.theme.AetherDimens
 private const val ABOUT = "about"
 
 /** The screens of the app and the way between them. Back from a section goes to the Home; from the Home it leaves the app. */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
     val nav: NavHostController = rememberNavController()
@@ -50,6 +55,18 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
     val route = entry?.destination?.route
     val showRail = route in Routes.topLevel
     val topBarVisible = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
+    // The page and the tab bar know each other: Down from the bar enters the page (restoring where the viewer was), Up from the
+    // top of a page reaches the bar. On every new section the page takes the focus by itself, so nothing starts on the bar.
+    val contentFocus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+    val barFocus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(route) {
+        if (route == null || route == Routes.PLAYER) return@LaunchedEffect
+        kotlinx.coroutines.delay(120)
+        repeat(20) {
+            if (runCatching { contentFocus.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
+            kotlinx.coroutines.delay(100)
+        }
+    }
     androidx.compose.runtime.LaunchedEffect(route) { topBarVisible.value = true }
 
     fun openDetail(meta: MetaItem) { Session.putPreview(meta); nav.navigate(Routes.detail(meta.type, meta.id)) }
@@ -78,7 +95,11 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
             navController = nav,
             startDestination = if (initialAddonInput != null) Routes.ADDONS else Routes.HOME,
             // The tab bar floats over the sections; the Home lets its featured titles run under it, the others start below it.
-            modifier = Modifier.fillMaxSize().padding(top = if (showRail && route != Routes.HOME) AetherDimens.TopBar else 0.dp),
+            modifier = Modifier.fillMaxSize().padding(top = if (showRail && route != Routes.HOME) AetherDimens.TopBar else 0.dp)
+                .focusRequester(contentFocus)
+                .focusProperties { exit = { direction -> if (direction == androidx.compose.ui.focus.FocusDirection.Up && showRail) barFocus else androidx.compose.ui.focus.FocusRequester.Default } }
+                .focusRestorer()
+                .focusGroup(),
             enterTransition = { fadeIn(tween(220)) },
             exitTransition = { fadeOut(tween(160)) },
             popEnterTransition = { fadeIn(tween(220)) },
@@ -148,6 +169,8 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
         if (showRail) TopBar(
             current = route.orEmpty(), onSelect = ::goTop, modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter),
             visible = topBarVisible.value || route != Routes.HOME,
+            entryRequester = barFocus,
+            contentRequester = contentFocus,
             hidden = buildSet { if (!settings.liveTv.showTab) add(Routes.LIVE) },
         )
     }

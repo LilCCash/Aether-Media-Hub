@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.focus.focusRestorer
 import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.AetherDimens
 
@@ -43,6 +44,7 @@ fun rememberFocusMemory(): FocusMemory {
 }
 
 /** A titled, horizontally scrolling row of cards. [content] gets the item and may ask for the focus through [restore]. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun <T> ContentRow(
     title: String,
@@ -62,12 +64,12 @@ fun <T> ContentRow(
     val requester = remember(restoreKey) { FocusRequester() }
     var arrived by remember(restoreKey) { androidx.compose.runtime.mutableStateOf(false) }
     if (restoreIndex >= 0) {
-        LaunchedEffect(restoreKey, unique.size) {
+        // Once per return to the screen (not on every reload of the catalog): the remote must never be pulled back while it moves.
+        LaunchedEffect(restoreKey) {
             state.scrollToItem(restoreIndex)
-            // The poster may not be attached yet: ask again until the focus has really arrived (a few tries, then give up quietly).
-            repeat(25) {
+            repeat(6) {
                 if (arrived) return@LaunchedEffect
-                runCatching { requester.requestFocus() }
+                if (runCatching { requester.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
                 kotlinx.coroutines.delay(60)
             }
         }
@@ -77,6 +79,7 @@ fun <T> ContentRow(
             Text(title, style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(end = 12.dp))
             trailing?.invoke()
         }
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides app.aether.tv.ui.theme.EdgeScroll) {
         LazyRow(
             state = state,
             // Room above and below for a lifted card and its shadow.
@@ -88,6 +91,7 @@ fun <T> ContentRow(
                 val itemKey = key(item)
                 card(item, if (index == restoreIndex) requester else null) { arrived = true; memory?.remember("$rowId|$itemKey") }
             }
+        }
         }
     }
 }

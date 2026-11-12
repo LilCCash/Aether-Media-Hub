@@ -13,11 +13,16 @@ import coil3.memory.MemoryCache
 import coil3.request.allowRgb565
 import coil3.request.crossfade
 
-class AetherApp : Application(), SingletonImageLoader.Factory {
+open class AetherApp : Application(), SingletonImageLoader.Factory {
     /** Built on first use, off the critical path of the first frame where possible. */
-    val engine: AetherEngine by lazy {
+    val engine: AetherEngine by lazy { createEngine() }
+
+    /** The remote is the only input: focus is always drawn and every element can take it (the tests force it too). */
+    open val keyboardInputOnly: Boolean get() = !packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN)
+
+    /** The tests build the engine on fake storage and a fake network. */
+    protected open fun createEngine(): AetherEngine =
         AetherEngine(filesDir.resolve("aether"), AndroidSecretStore(this), traktClientId = BuildConfig.TRAKT_CLIENT_ID, downloadsDir = (getExternalFilesDir("Downloads") ?: filesDir.resolve("downloads"))).also { it.syncLibraryPolicy(); it.deviceDecoders = DeviceCapabilities.decoders(); it.deviceHdr = DeviceCapabilities.hdrFormats(this); it.trakt.bootstrap() }
-    }
 
     /**
      * Posters and backdrops: decoded at the size of their card, RGB_565 where there is no transparency (half the memory), a modest

@@ -59,12 +59,17 @@ object AetherColors {
     val Scrim = Color(0xE60A0A0C)
 }
 
-/** The area TVs may crop (overscan) and the margins the layouts keep. */
+/** Extra margin for TVs that crop the edges of the picture (Impostazioni ▸ Aspetto ▸ Margini dello schermo), in dp. */
+val LocalOverscan = staticCompositionLocalOf { Overscan(0.dp, 0.dp) }
+
+data class Overscan(val horizontal: Dp, val vertical: Dp)
+
+/** The area TVs may crop (overscan) and the margins the layouts keep (the safe area of Android TV plus the viewer's own margin). */
 object AetherDimens {
-    val ScreenHorizontal = 56.dp
-    val ScreenVertical = 28.dp
+    val ScreenHorizontal: Dp @Composable @androidx.compose.runtime.ReadOnlyComposable get() = 56.dp + LocalOverscan.current.horizontal
+    val ScreenVertical: Dp @Composable @androidx.compose.runtime.ReadOnlyComposable get() = 28.dp + LocalOverscan.current.vertical
     /** Room left at the top of a section for the tab bar. */
-    val TopBar = 78.dp
+    val TopBar: Dp @Composable @androidx.compose.runtime.ReadOnlyComposable get() = 84.dp + LocalOverscan.current.vertical
     val RailCollapsed = 0.dp
     val RailExpanded = 0.dp
     val RowSpacing = 18.dp
@@ -142,7 +147,8 @@ private val AetherTypography = Typography(
 )
 
 @Composable
-fun AetherTheme(accent: Color, animations: Boolean = true, corner: Dp = 14.dp, graphics: Graphics = Graphics.Default, content: @Composable () -> Unit) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+fun AetherTheme(accent: Color, animations: Boolean = true, corner: Dp = 14.dp, graphics: Graphics = Graphics.Default, overscan: Overscan = Overscan(0.dp, 0.dp), content: @Composable () -> Unit) {
     val scheme = darkColorScheme(
         primary = accent,
         onPrimary = Color.White,
@@ -161,6 +167,8 @@ fun AetherTheme(accent: Color, animations: Boolean = true, corner: Dp = 14.dp, g
         LocalAnimations provides (animations && graphics.animations),
         LocalCorner provides corner,
         LocalGraphics provides graphics,
+        LocalOverscan provides overscan,
+        androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides PivotScroll,
     ) {
         MaterialTheme(colorScheme = scheme, typography = AetherTypography, content = content)
     }
