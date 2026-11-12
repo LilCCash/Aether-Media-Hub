@@ -21,6 +21,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
     private let guardian: UpstreamGuard
     private let rootLeaf: String
     private let rootType: String
+    private let onUpstreamRejected: (@Sendable (Int) -> Void)?
     private let session: URLSession
     private let lock = NSLock()
     private var routes: [String: Route] = [:]
@@ -29,9 +30,11 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
     private var pending: [String: Data] = [:]
     private var closed = false
 
-    init(upstream: RelayUpstream, guardian: UpstreamGuard, extension ext: String) {
+    init(upstream: RelayUpstream, guardian: UpstreamGuard, extension ext: String,
+         onUpstreamRejected: (@Sendable (Int) -> Void)? = nil) {
         self.upstream = upstream
         self.guardian = guardian
+        self.onUpstreamRejected = onUpstreamRejected
         let normalized = ext.lowercased()
         rootLeaf = normalized == "mpd" ? "video.mpd" : "video.m3u8"
         rootType = normalized == "mpd" ? "application/dash+xml" : "application/vnd.apple.mpegurl"
@@ -139,7 +142,10 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
                 current = next
                 continue
             }
-            guard (200...299).contains(http.statusCode) else { throw RelayError.upstreamRejected(status: http.statusCode) }
+            guard (200...299).contains(http.statusCode) else {
+                if [401, 403, 404, 410].contains(http.statusCode) { onUpstreamRejected?(http.statusCode) }
+                throw RelayError.upstreamRejected(status: http.statusCode)
+            }
             return data
         }
         throw RelayError.upstreamUnreachable(code: -1)
