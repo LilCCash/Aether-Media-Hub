@@ -187,7 +187,9 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         let matches = regex.matches(in: line, range: NSRange(location: 0, length: (line as NSString).length)).reversed()
         for match in matches where match.numberOfRanges > 1 {
             let value = (line as NSString).substring(with: match.range(at: 1))
-            let local = try localReference(value, baseURL: baseURL)
+            let lineType = line.uppercased()
+            let forcedType = (lineType.contains("#EXT-X-KEY") || lineType.contains("#EXT-X-SESSION-KEY")) ? "application/octet-stream" : nil
+            let local = try localReference(value, baseURL: baseURL, contentTypeOverride: forcedType)
             mutable.replaceCharacters(in: match.range(at: 1), with: local)
         }
         return mutable as String
@@ -243,17 +245,17 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
 
     // MARK: Local resource names
 
-    private func localReference(_ reference: String, baseURL: URL) throws -> String {
+    private func localReference(_ reference: String, baseURL: URL, contentTypeOverride: String? = nil) throws -> String {
         guard !reference.lowercased().hasPrefix("data:"),
               let url = URL(string: reference.replacingOccurrences(of: "&amp;", with: "&"), relativeTo: baseURL)?.absoluteURL,
               ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { throw RelayError.upstreamNotMedia }
         let key = url.absoluteString
         lock.lock()
         if let existing = routeNames[key] { lock.unlock(); return existing }
-        let ext = url.pathExtension.lowercased()
+        let ext = contentTypeOverride == "application/octet-stream" ? "" : url.pathExtension.lowercased()
         let safeExt = ext.range(of: #"^[a-z0-9]{1,8}$"#, options: .regularExpression) != nil ? ext : "bin"
         let leaf = randomLeaf(extension: safeExt)
-        routes[leaf] = Route(url: url, contentType: mimeType(for: leaf))
+        routes[leaf] = Route(url: url, contentType: contentTypeOverride ?? mimeType(for: leaf))
         routeNames[key] = leaf
         lock.unlock()
         return leaf
