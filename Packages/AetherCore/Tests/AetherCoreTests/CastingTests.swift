@@ -71,6 +71,16 @@ final class CastCompatibilityTests: XCTestCase {
         XCTAssertFalse(CastCompatibility.evaluate(url: hls.0, info: hls.1, target: .dlna).messages.isEmpty, "DLNA HLS warns")
     }
 
+    func testAuthenticatedAdaptiveStreamsCanUseTheGoogleCastRelay() {
+        for address in ["https://cdn.example.com/live.m3u8", "https://cdn.example.com/movie.mpd"] {
+            let (url, details) = info(address)
+            let verdict = CastCompatibility.evaluate(url: url, info: details, headers: ["Authorization": "Bearer test"],
+                                                     target: .googleCast, delivery: .relay)
+            XCTAssertFalse(verdict.isBlocked, address)
+            XCTAssertFalse(verdict.messages.contains(where: { $0.localizedCaseInsensitiveContains("CORS") }), address)
+        }
+    }
+
     func testExternalSubtitlesWarnPerProtocol() {
         let (url, details) = info("https://cdn.example.com/a.mp4")
         for target in CastTarget.allCases {
