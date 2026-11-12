@@ -351,8 +351,10 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         guard let resolved = URL(string: reference, relativeTo: baseURL)?.absoluteURL else { return nil }
         let parsedReference = URL(string: reference)
         let isRelative = parsedReference?.scheme == nil && parsedReference?.host == nil
-        guard isRelative, !reference.contains("?"), resolved.query == nil,
-              let query = baseURL.query, resolved.host == baseURL.host,
+        let sameOrigin = resolved.scheme?.lowercased() == baseURL.scheme?.lowercased()
+            && resolved.host?.lowercased() == baseURL.host?.lowercased() && resolved.port == baseURL.port
+        guard (isRelative || sameOrigin), !reference.contains("?"), resolved.query == nil,
+              let query = baseURL.query,
               var components = URLComponents(url: resolved, resolvingAgainstBaseURL: false) else { return resolved }
         components.query = query
         return components.url
