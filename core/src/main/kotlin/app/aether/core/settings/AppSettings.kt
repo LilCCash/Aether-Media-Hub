@@ -81,6 +81,8 @@ data class PlaybackSettings(
     val defaultSleepTimerMinutes: Int = 0,
     /** The film's logo (from fanart.tv) shown while the source is being prepared. */
     val showTitleLogos: Boolean = true,
+    /** Pressing Home during a video keeps it in a small window (Picture-in-Picture), where the TV allows it. */
+    val pictureInPicture: Boolean = true,
 )
 
 @Serializable

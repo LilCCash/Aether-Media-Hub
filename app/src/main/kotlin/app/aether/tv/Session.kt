@@ -42,4 +42,9 @@ object Session {
 
     /** An addon address received through a `stremio://` or `aether://` link, waiting for the addons screen to ask the viewer. */
     @Volatile var pendingAddonInput: String? = null
+
+    /** The player is on screen (Home then opens the small window instead of stopping the video). */
+    @Volatile var playerActive: Boolean = false
+    /** The app is shown in the Picture-in-Picture window: the player hides its controls. */
+    val inPictureInPicture = androidx.compose.runtime.mutableStateOf(false)
 }

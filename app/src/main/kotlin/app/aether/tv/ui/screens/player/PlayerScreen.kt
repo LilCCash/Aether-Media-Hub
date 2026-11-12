@@ -124,6 +124,13 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
 
     fun exit() { vm.onLeave(); onExit() }
 
+    DisposableEffect(Unit) {
+        Session.playerActive = true
+        onDispose { Session.playerActive = false }
+    }
+    val inPip by Session.inPictureInPicture
+    LaunchedEffect(inPip) { if (inPip) { controlsVisible = false; panel = Panel.NONE } }
+
     LaunchedEffect(Unit) { vm.goNext.collect { onNextEpisode(it) } }
     // A film (or the last episode) that has ended closes the player after a moment, back to where it was chosen.
     LaunchedEffect(state.ended, state.hasNext) {
