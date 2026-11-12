@@ -157,9 +157,14 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
 
     private func rewriteHLS(_ input: String, baseURL: URL) throws -> String {
         let upper = input.uppercased()
-        if upper.contains("EXT-X-DEFINE") || upper.contains("{$") { throw RelayError.upstreamNotMedia }
-        if upper.contains("METHOD=SAMPLE-AES") || upper.contains("KEYFORMAT=") && !upper.contains("KEYFORMAT=\"IDENTITY\"") {
+        if upper.contains("EXT-X-DEFINE") || upper.contains("{$") || upper.contains("METHOD=SAMPLE-AES") {
             throw RelayError.upstreamNotMedia
+        }
+        if let formats = try? NSRegularExpression(pattern: #"KEYFORMAT="([^"]+)""#, options: .caseInsensitive) {
+            let ns = input as NSString
+            for match in formats.matches(in: input, range: NSRange(location: 0, length: ns.length)) where match.numberOfRanges > 1 {
+                if ns.substring(with: match.range(at: 1)).lowercased() != "identity" { throw RelayError.upstreamNotMedia }
+            }
         }
         var output: [String] = []
         for rawLine in input.components(separatedBy: .newlines) {
