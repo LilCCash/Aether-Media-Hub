@@ -638,7 +638,21 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         val position = player.currentPosition
         if (duration <= 0 || position < 0) return
         savedAt = now
-        engine.library.recordProgress(current.meta, current.video, position / 1000.0, duration / 1000.0)
+        val finished = engine.library.recordProgress(current.meta, current.video, position / 1000.0, duration / 1000.0)
+        // A title watched to the end goes into the diary by itself (the viewer can rate it later).
+        if (finished) {
+            val m = current.meta
+            val v = current.video
+            engine.library.saveDiary(
+                app.aether.core.library.DiaryEntry(
+                    metaId = m.id, type = m.type, name = m.name, poster = m.poster, year = m.releaseInfo, genres = m.genres,
+                    runtimeMinutes = (duration / 60_000).toInt().takeIf { it > 0 }, people = (m.directors + m.cast.take(4)),
+                    episodeLabel = v?.episodeLabel?.let { label -> listOfNotNull(label, v.title.takeIf { it.isNotBlank() }).joinToString(" · ") },
+                    publicRating = m.imdbRating?.replace(',', '.')?.toDoubleOrNull(),
+                ),
+            )
+            engine.log.info("diario", "visto fino alla fine: ${m.name}")
+        }
     }
 
     /** Tells Trakt (when linked and enabled) what the player is doing. */

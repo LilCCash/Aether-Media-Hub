@@ -1,0 +1,1592 @@
+{
+"universes": [
+{
+"id": "mcu",
+"name": "Marvel Cinematic Universe",
+"summary": "Il grande universo condiviso di supereroi: dagli Avengers ai Guardiani, dal multiverso agli spin-off in serie.",
+"hero": "tt4154796",
+"entries": [
+{
+"id": "tt0371746",
+"name": "Iron Man",
+"year": 2008,
+"series": false
+},
+{
+"id": "tt0800080",
+"name": "The Incredible Hulk",
+"year": 2008,
+"series": false
+},
+{
+"id": "tt1228705",
+"name": "Iron Man 2",
+"year": 2010,
+"series": false
+},
+{
+"id": "tt0800369",
+"name": "Thor",
+"year": 2011,
+"series": false
+},
+{
+"id": "tt0458339",
+"name": "Captain America: The First Avenger",
+"year": 2011,
+"series": false
+},
+{
+"id": "tt0848228",
+"name": "The Avengers",
+"year": 2012,
+"series": false
+},
+{
+"id": "tt1300854",
+"name": "Iron Man 3",
+"year": 2013,
+"series": false
+},
+{
+"id": "tt1981115",
+"name": "Thor: The Dark World",
+"year": 2013,
+"series": false
+},
+{
+"id": "tt1843866",
+"name": "Captain America: The Winter Soldier",
+"year": 2014,
+"series": false
+},
+{
+"id": "tt2015381",
+"name": "Guardians of the Galaxy",
+"year": 2014,
+"series": false
+},
+{
+"id": "tt2395427",
+"name": "Avengers: Age of Ultron",
+"year": 2015,
+"series": false
+},
+{
+"id": "tt0478970",
+"name": "Ant-Man",
+"year": 2015,
+"series": false
+},
+{
+"id": "tt3498820",
+"name": "Captain America: Civil War",
+"year": 2016,
+"series": false
+},
+{
+"id": "tt1211837",
+"name": "Doctor Strange",
+"year": 2016,
+"series": false
+},
+{
+"id": "tt3896198",
+"name": "Guardians of the Galaxy: Vol. 2",
+"year": 2017,
+"series": false
+},
+{
+"id": "tt2250912",
+"name": "Spider-Man: Homecoming",
+"year": 2017,
+"series": false
+},
+{
+"id": "tt3501632",
+"name": "Thor: Ragnarok",
+"year": 2017,
+"series": false
+},
+{
+"id": "tt1825683",
+"name": "Black Panther",
+"year": 2018,
+"series": false
+},
+{
+"id": "tt4154756",
+"name": "Avengers: Infinity War",
+"year": 2018,
+"series": false
+},
+{
+"id": "tt5095030",
+"name": "Ant-Man and the Wasp",
+"year": 2018,
+"series": false
+},
+{
+"id": "tt4154664",
+"name": "Captain Marvel",
+"year": 2019,
+"series": false
+},
+{
+"id": "tt4154796",
+"name": "Avengers: Endgame",
+"year": 2019,
+"series": false
+},
+{
+"id": "tt6320628",
+"name": "Spider-Man: Far from Home",
+"year": 2019,
+"series": false
+},
+{
+"id": "tt3480822",
+"name": "Black Widow",
+"year": 2021,
+"series": false
+},
+{
+"id": "tt9376612",
+"name": "Shang-Chi and the Legend of the Ten Rings",
+"year": 2021,
+"series": false
+},
+{
+"id": "tt9032400",
+"name": "Eternals",
+"year": 2021,
+"series": false
+},
+{
+"id": "tt10872600",
+"name": "Spider-Man: No Way Home",
+"year": 2021,
+"series": false
+},
+{
+"id": "tt9419884",
+"name": "Doctor Strange in the Multiverse of Madness",
+"year": 2022,
+"series": false
+},
+{
+"id": "tt10648342",
+"name": "Thor: Love and Thunder",
+"year": 2022,
+"series": false
+},
+{
+"id": "tt15318872",
+"name": "Werewolf by Night",
+"year": 2022,
+"series": false
+},
+{
+"id": "tt9114286",
+"name": "Black Panther: Wakanda Forever",
+"year": 2022,
+"series": false
+},
+{
+"id": "tt13623136",
+"name": "The Guardians of the Galaxy Holiday Special",
+"year": 2022,
+"series": false
+},
+{
+"id": "tt10954600",
+"name": "Ant-Man and the Wasp: Quantumania",
+"year": 2023,
+"series": false
+},
+{
+"id": "tt6791350",
+"name": "Guardians of the Galaxy Vol. 3",
+"year": 2023,
+"series": false
+},
+{
+"id": "tt10676048",
+"name": "The Marvels",
+"year": 2023,
+"series": false
+},
+{
+"id": "tt6263850",
+"name": "Deadpool & Wolverine",
+"year": 2024,
+"series": false
+},
+{
+"id": "tt14513804",
+"name": "Captain America: Brave New World",
+"year": 2025,
+"series": false
+},
+{
+"id": "tt20969586",
+"name": "Thunderbolts*",
+"year": 2025,
+"series": false
+},
+{
+"id": "tt10676052",
+"name": "The Fantastic Four: First Steps",
+"year": 2025,
+"series": false
+},
+{
+"id": "tt22084616",
+"name": "Spider-Man: Brand New Day",
+"year": 2026,
+"series": false
+},
+{
+"id": "tt2364582",
+"name": "Agents of S.H.I.E.L.D.",
+"year": 2013,
+"series": true
+},
+{
+"id": "tt3475734",
+"name": "Agent Carter",
+"year": 2015,
+"series": true
+},
+{
+"id": "tt3322312",
+"name": "Daredevil",
+"year": 2015,
+"series": true
+},
+{
+"id": "tt2357547",
+"name": "Jessica Jones",
+"year": 2015,
+"series": true
+},
+{
+"id": "tt3322314",
+"name": "Luke Cage",
+"year": 2016,
+"series": true
+},
+{
+"id": "tt3322310",
+"name": "Iron Fist",
+"year": 2017,
+"series": true
+},
+{
+"id": "tt4230076",
+"name": "The Defenders",
+"year": 2017,
+"series": true
+},
+{
+"id": "tt5675620",
+"name": "The Punisher",
+"year": 2017,
+"series": true
+},
+{
+"id": "tt9140560",
+"name": "WandaVision",
+"year": 2021,
+"series": true
+},
+{
+"id": "tt9208876",
+"name": "The Falcon and the Winter Soldier",
+"year": 2021,
+"series": true
+},
+{
+"id": "tt9140554",
+"name": "Loki",
+"year": 2021,
+"series": true
+},
+{
+"id": "tt10168312",
+"name": "What If...?",
+"year": 2021,
+"series": true
+},
+{
+"id": "tt10160804",
+"name": "Hawkeye",
+"year": 2021,
+"series": true
+},
+{
+"id": "tt10234724",
+"name": "Moon Knight",
+"year": 2022,
+"series": true
+},
+{
+"id": "tt10857164",
+"name": "Ms. Marvel",
+"year": 2022,
+"series": true
+},
+{
+"id": "tt10857160",
+"name": "She Hulk: Attorney at Law",
+"year": 2022,
+"series": true
+},
+{
+"id": "tt13157618",
+"name": "Secret Invasion",
+"year": 2023,
+"series": true
+},
+{
+"id": "tt15571732",
+"name": "Agatha All Along",
+"year": 2024,
+"series": true
+},
+{
+"id": "tt13623148",
+"name": "I Am Groot",
+"year": 2022,
+"series": true
+},
+{
+"id": "tt13966962",
+"name": "Echo",
+"year": 2024,
+"series": true
+},
+{
+"id": "tt18923754",
+"name": "Daredevil: Born Again",
+"year": 2025,
+"series": true
+},
+{
+"id": "tt13623126",
+"name": "Ironheart",
+"year": 2025,
+"series": true
+},
+{
+"id": "tt16027074",
+"name": "Your Friendly Neighborhood Spider-Man",
+"year": 2025,
+"series": true
+},
+{
+"id": "tt13968252",
+"name": "Eyes of Wakanda",
+"year": 2025,
+"series": true
+},
+{
+"id": "tt16027014",
+"name": "Marvel Zombies",
+"year": 2025,
+"series": true
+},
+{
+"id": "tt21066182",
+"name": "Wonder Man",
+"year": 2026,
+"series": true
+},
+{
+"id": "tt23112594",
+"name": "VisionQuest",
+"year": 2026,
+"series": true
+}
+],
+"chronological": [
+"tt0458339",
+"tt4154664",
+"tt0371746",
+"tt1228705",
+"tt0800080",
+"tt0800369",
+"tt0848228",
+"tt1981115",
+"tt1300854",
+"tt1843866",
+"tt2015381",
+"tt3896198",
+"tt2395427",
+"tt0478970",
+"tt3498820",
+"tt3480822",
+"tt1825683",
+"tt2250912",
+"tt3501632",
+"tt1211837",
+"tt4154756",
+"tt5095030",
+"tt4154796",
+"tt9140560",
+"tt6320628",
+"tt10872600"
+],
+"chronologicalNote": "Ordine cronologico ricostruito da fonti editoriali: può differire dalle timeline pubblicate dagli studi."
+},
+{
+"id": "spiderman",
+"name": "Spider-Man",
+"summary": "L'Uomo Ragno al cinema: le trilogie di Raimi, Webb e Holland, i film animati dello Spider-Verse e gli spin-off della Sony.",
+"hero": "tt10872600",
+"entries": [
+{
+"id": "tt0145487",
+"name": "Spider-Man",
+"year": 2002,
+"series": false
+},
+{
+"id": "tt0316654",
+"name": "Spider-Man 2",
+"year": 2004,
+"series": false
+},
+{
+"id": "tt0413300",
+"name": "Spider-Man 3",
+"year": 2007,
+"series": false
+},
+{
+"id": "tt0948470",
+"name": "The Amazing Spider-Man",
+"year": 2012,
+"series": false
+},
+{
+"id": "tt1872181",
+"name": "The Amazing Spider-Man 2",
+"year": 2014,
+"series": false
+},
+{
+"id": "tt2250912",
+"name": "Spider-Man: Homecoming",
+"year": 2017,
+"series": false
+},
+{
+"id": "tt4633694",
+"name": "Spider-Man: Into the Spider-Verse",
+"year": 2018,
+"series": false
+},
+{
+"id": "tt1270797",
+"name": "Venom",
+"year": 2018,
+"series": false
+},
+{
+"id": "tt6320628",
+"name": "Spider-Man: Far from Home",
+"year": 2019,
+"series": false
+},
+{
+"id": "tt7097896",
+"name": "Venom: Let There Be Carnage",
+"year": 2021,
+"series": false
+},
+{
+"id": "tt10872600",
+"name": "Spider-Man: No Way Home",
+"year": 2021,
+"series": false
+},
+{
+"id": "tt5108870",
+"name": "Morbius",
+"year": 2022,
+"series": false
+},
+{
+"id": "tt9362722",
+"name": "Spider-Man: Across the Spider-Verse",
+"year": 2023,
+"series": false
+},
+{
+"id": "tt11057302",
+"name": "Madame Web",
+"year": 2024,
+"series": false
+},
+{
+"id": "tt8790086",
+"name": "Kraven the Hunter",
+"year": 2024,
+"series": false
+},
+{
+"id": "tt16366836",
+"name": "Venom: The Last Dance",
+"year": 2024,
+"series": false
+},
+{
+"id": "tt16027074",
+"name": "Your Friendly Neighborhood Spider-Man",
+"year": 2025,
+"series": true
+},
+{
+"id": "tt22084616",
+"name": "Spider-Man: Brand New Day",
+"year": 2026,
+"series": false
+}
+],
+"chronological": null,
+"chronologicalNote": null
+},
+{
+"id": "starwars",
+"name": "Star Wars",
+"summary": "La saga della galassia lontana lontana: trilogie, film antologici e serie.",
+"hero": "tt0080684",
+"entries": [
+{
+"id": "tt0076759",
+"name": "Star Wars: Episode IV - A New Hope",
+"year": 1977,
+"series": false
+},
+{
+"id": "tt0080684",
+"name": "Star Wars: Episode V - The Empire Strikes Back",
+"year": 1980,
+"series": false
+},
+{
+"id": "tt0086190",
+"name": "Star Wars: Episode VI - Return of the Jedi",
+"year": 1983,
+"series": false
+},
+{
+"id": "tt0120915",
+"name": "Star Wars: Episode I - The Phantom Menace",
+"year": 1999,
+"series": false
+},
+{
+"id": "tt0121765",
+"name": "Star Wars: Episode II - Attack of the Clones",
+"year": 2002,
+"series": false
+},
+{
+"id": "tt0121766",
+"name": "Star Wars: Episode III - Revenge of the Sith",
+"year": 2005,
+"series": false
+},
+{
+"id": "tt2488496",
+"name": "Star Wars: Episode VII - The Force Awakens",
+"year": 2015,
+"series": false
+},
+{
+"id": "tt3748528",
+"name": "Rogue One: A Star Wars Story",
+"year": 2016,
+"series": false
+},
+{
+"id": "tt2527336",
+"name": "Star Wars: Episode VIII - The Last Jedi",
+"year": 2017,
+"series": false
+},
+{
+"id": "tt3778644",
+"name": "Solo: A Star Wars Story",
+"year": 2018,
+"series": false
+},
+{
+"id": "tt2527338",
+"name": "Star Wars: Episode IX - The Rise of Skywalker",
+"year": 2019,
+"series": false
+},
+{
+"id": "tt0458290",
+"name": "Star Wars: The Clone Wars",
+"year": 2008,
+"series": true
+},
+{
+"id": "tt2930604",
+"name": "Star Wars: Rebels",
+"year": 2014,
+"series": true
+},
+{
+"id": "tt8111088",
+"name": "The Mandalorian",
+"year": 2019,
+"series": true
+},
+{
+"id": "tt13668894",
+"name": "The Book of Boba Fett",
+"year": 2021,
+"series": true
+},
+{
+"id": "tt8466564",
+"name": "Obi-Wan Kenobi",
+"year": 2022,
+"series": true
+},
+{
+"id": "tt9253284",
+"name": "Andor",
+"year": 2022,
+"series": true
+},
+{
+"id": "tt13622776",
+"name": "Ahsoka",
+"year": 2023,
+"series": true
+}
+],
+"chronological": [
+"tt0120915",
+"tt0121765",
+"tt0458290",
+"tt0121766",
+"tt8466564",
+"tt3778644",
+"tt9253284",
+"tt3748528",
+"tt0076759",
+"tt0080684",
+"tt0086190",
+"tt8111088",
+"tt13668894",
+"tt13622776",
+"tt2488496",
+"tt2527336",
+"tt2527338"
+],
+"chronologicalNote": "Ordine cronologico della storia ricostruito da fonti editoriali."
+},
+{
+"id": "hp",
+"name": "Wizarding World",
+"summary": "Il mondo di Harry Potter e degli Animali fantastici.",
+"hero": "tt1201607",
+"entries": [
+{
+"id": "tt0241527",
+"name": "Harry Potter and the Sorcerer's Stone",
+"year": 2001,
+"series": false
+},
+{
+"id": "tt0295297",
+"name": "Harry Potter and the Chamber of Secrets",
+"year": 2002,
+"series": false
+},
+{
+"id": "tt0304141",
+"name": "Harry Potter and the Prisoner of Azkaban",
+"year": 2004,
+"series": false
+},
+{
+"id": "tt0330373",
+"name": "Harry Potter and the Goblet of Fire",
+"year": 2005,
+"series": false
+},
+{
+"id": "tt0373889",
+"name": "Harry Potter and the Order of the Phoenix",
+"year": 2007,
+"series": false
+},
+{
+"id": "tt0417741",
+"name": "Harry Potter and the Half-Blood Prince",
+"year": 2009,
+"series": false
+},
+{
+"id": "tt0926084",
+"name": "Harry Potter and the Deathly Hallows: Part 1",
+"year": 2010,
+"series": false
+},
+{
+"id": "tt1201607",
+"name": "Harry Potter and the Deathly Hallows: Part 2",
+"year": 2011,
+"series": false
+},
+{
+"id": "tt3183660",
+"name": "Fantastic Beasts and Where to Find Them",
+"year": 2016,
+"series": false
+},
+{
+"id": "tt4123430",
+"name": "Fantastic Beasts: The Crimes of Grindelwald",
+"year": 2018,
+"series": false
+},
+{
+"id": "tt4123432",
+"name": "Fantastic Beasts: The Secrets of Dumbledore",
+"year": 2022,
+"series": false
+}
+],
+"chronological": [
+"tt3183660",
+"tt4123430",
+"tt4123432"
+],
+"chronologicalNote": "Per la saga principale ordine di uscita e ordine della storia coincidono; gli Animali fantastici sono ambientati prima."
+},
+{
+"id": "lotr",
+"name": "Middle-earth",
+"summary": "La Terra di Mezzo di Tolkien al cinema e in serie.",
+"hero": "tt0167260",
+"entries": [
+{
+"id": "tt0120737",
+"name": "The Lord of the Rings: The Fellowship of the Ring",
+"year": 2001,
+"series": false
+},
+{
+"id": "tt0167261",
+"name": "The Lord of the Rings: The Two Towers",
+"year": 2002,
+"series": false
+},
+{
+"id": "tt0167260",
+"name": "The Lord of the Rings: The Return of the King",
+"year": 2003,
+"series": false
+},
+{
+"id": "tt0903624",
+"name": "The Hobbit: An Unexpected Journey",
+"year": 2012,
+"series": false
+},
+{
+"id": "tt1170358",
+"name": "The Hobbit: The Desolation of Smaug",
+"year": 2013,
+"series": false
+},
+{
+"id": "tt2310332",
+"name": "The Hobbit: The Battle of the Five Armies",
+"year": 2014,
+"series": false
+},
+{
+"id": "tt7631058",
+"name": "The Lord of the Rings: The Rings of Power",
+"year": 2022,
+"series": true
+}
+],
+"chronological": [
+"tt7631058",
+"tt0903624",
+"tt1170358",
+"tt2310332",
+"tt0120737",
+"tt0167261",
+"tt0167260"
+],
+"chronologicalNote": "Ordine della storia ricostruito da fonti editoriali."
+},
+{
+"id": "alien",
+"name": "Alien",
+"summary": "Il terrore nello spazio: dalla Nostromo alle colonie.",
+"hero": "tt0090605",
+"entries": [
+{
+"id": "tt0078748",
+"name": "Alien",
+"year": 1979,
+"series": false
+},
+{
+"id": "tt0090605",
+"name": "Aliens",
+"year": 1986,
+"series": false
+},
+{
+"id": "tt0103644",
+"name": "Alien³",
+"year": 1992,
+"series": false
+},
+{
+"id": "tt0118583",
+"name": "Alien: Resurrection",
+"year": 1997,
+"series": false
+},
+{
+"id": "tt0370263",
+"name": "Alien vs. Predator",
+"year": 2004,
+"series": false
+},
+{
+"id": "tt0758730",
+"name": "Aliens vs. Predator: Requiem",
+"year": 2007,
+"series": false
+},
+{
+"id": "tt1446714",
+"name": "Prometheus",
+"year": 2012,
+"series": false
+},
+{
+"id": "tt2316204",
+"name": "Alien: Covenant",
+"year": 2017,
+"series": false
+},
+{
+"id": "tt18412256",
+"name": "Alien: Romulus",
+"year": 2024,
+"series": false
+},
+{
+"id": "tt13623632",
+"name": "Alien: Earth",
+"year": 2025,
+"series": true
+}
+],
+"chronological": [
+"tt1446714",
+"tt2316204",
+"tt13623632",
+"tt0078748",
+"tt18412256",
+"tt0090605",
+"tt0103644",
+"tt0118583"
+],
+"chronologicalNote": "Ordine della storia ricostruito da fonti editoriali (i due crossover con Predator sono considerati a parte)."
+},
+{
+"id": "predator",
+"name": "Predator",
+"summary": "Il cacciatore più letale della galassia.",
+"hero": "tt0093773",
+"entries": [
+{
+"id": "tt0093773",
+"name": "Predator",
+"year": 1987,
+"series": false
+},
+{
+"id": "tt0100403",
+"name": "Predator 2",
+"year": 1990,
+"series": false
+},
+{
+"id": "tt1424381",
+"name": "Predators",
+"year": 2010,
+"series": false
+},
+{
+"id": "tt3829266",
+"name": "The Predator",
+"year": 2018,
+"series": false
+},
+{
+"id": "tt11866324",
+"name": "Prey",
+"year": 2022,
+"series": false
+},
+{
+"id": "tt36463894",
+"name": "Predator: Killer of Killers",
+"year": 2025,
+"series": false
+},
+{
+"id": "tt31227572",
+"name": "Predator: Badlands",
+"year": 2025,
+"series": false
+}
+],
+"chronological": [
+"tt11866324",
+"tt0093773",
+"tt0100403",
+"tt1424381",
+"tt3829266"
+],
+"chronologicalNote": "Ordine della storia ricostruito da fonti editoriali (esclusi i titoli più recenti)."
+},
+{
+"id": "jurassic",
+"name": "Jurassic Park",
+"summary": "Dinosauri tornati in vita: dal parco alle isole del dominio.",
+"hero": "tt0107290",
+"entries": [
+{
+"id": "tt0107290",
+"name": "Jurassic Park",
+"year": 1993,
+"series": false
+},
+{
+"id": "tt0119567",
+"name": "The Lost World: Jurassic Park",
+"year": 1997,
+"series": false
+},
+{
+"id": "tt0163025",
+"name": "Jurassic Park III",
+"year": 2001,
+"series": false
+},
+{
+"id": "tt0369610",
+"name": "Jurassic World",
+"year": 2015,
+"series": false
+},
+{
+"id": "tt4881806",
+"name": "Jurassic World: Fallen Kingdom",
+"year": 2018,
+"series": false
+},
+{
+"id": "tt8041270",
+"name": "Jurassic World: Dominion",
+"year": 2022,
+"series": false
+},
+{
+"id": "tt31036941",
+"name": "Jurassic World: Rebirth",
+"year": 2025,
+"series": false
+},
+{
+"id": "tt10436228",
+"name": "Jurassic World: Camp Cretaceous",
+"year": 2020,
+"series": true
+}
+],
+"chronological": null,
+"chronologicalNote": null
+},
+{
+"id": "ff",
+"name": "Fast & Furious",
+"summary": "Corse, famiglia e imprese impossibili.",
+"hero": "tt1596343",
+"entries": [
+{
+"id": "tt0232500",
+"name": "The Fast and the Furious",
+"year": 2001,
+"series": false
+},
+{
+"id": "tt0322259",
+"name": "2 Fast 2 Furious",
+"year": 2003,
+"series": false
+},
+{
+"id": "tt0463985",
+"name": "The Fast and the Furious: Tokyo Drift",
+"year": 2006,
+"series": false
+},
+{
+"id": "tt1013752",
+"name": "Fast & Furious",
+"year": 2009,
+"series": false
+},
+{
+"id": "tt1596343",
+"name": "Fast Five",
+"year": 2011,
+"series": false
+},
+{
+"id": "tt1905041",
+"name": "Fast & Furious 6",
+"year": 2013,
+"series": false
+},
+{
+"id": "tt2820852",
+"name": "Furious 7",
+"year": 2015,
+"series": false
+},
+{
+"id": "tt4630562",
+"name": "The Fate of the Furious",
+"year": 2017,
+"series": false
+},
+{
+"id": "tt6806448",
+"name": "Fast & Furious Presents: Hobbs & Shaw",
+"year": 2019,
+"series": false
+},
+{
+"id": "tt5433138",
+"name": "F9: The Fast Saga",
+"year": 2021,
+"series": false
+},
+{
+"id": "tt5433140",
+"name": "Fast X",
+"year": 2023,
+"series": false
+}
+],
+"chronological": [
+"tt0232500",
+"tt0322259",
+"tt1013752",
+"tt1596343",
+"tt1905041",
+"tt0463985",
+"tt2820852",
+"tt4630562",
+"tt6806448",
+"tt5433138",
+"tt5433140"
+],
+"chronologicalNote": "Tokyo Drift è collocato dopo il sesto film, come mostra la trama."
+},
+{
+"id": "mi",
+"name": "Mission: Impossible",
+"summary": "Le missioni di Ethan Hunt.",
+"hero": "tt4912910",
+"entries": [
+{
+"id": "tt0117060",
+"name": "Mission: Impossible",
+"year": 1996,
+"series": false
+},
+{
+"id": "tt0120755",
+"name": "Mission: Impossible II",
+"year": 2000,
+"series": false
+},
+{
+"id": "tt0317919",
+"name": "Mission: Impossible III",
+"year": 2006,
+"series": false
+},
+{
+"id": "tt1229238",
+"name": "Mission: Impossible - Ghost Protocol",
+"year": 2011,
+"series": false
+},
+{
+"id": "tt2381249",
+"name": "Mission: Impossible - Rogue Nation",
+"year": 2015,
+"series": false
+},
+{
+"id": "tt4912910",
+"name": "Mission: Impossible - Fallout",
+"year": 2018,
+"series": false
+},
+{
+"id": "tt9603212",
+"name": "Mission: Impossible - Dead Reckoning Part One",
+"year": 2023,
+"series": false
+},
+{
+"id": "tt9603208",
+"name": "Mission: Impossible - The Final Reckoning",
+"year": 2025,
+"series": false
+}
+],
+"chronological": null,
+"chronologicalNote": null
+},
+{
+"id": "bond",
+"name": "James Bond",
+"summary": "Le missioni dell'agente 007 prodotte da Eon.",
+"hero": "tt1074638",
+"entries": [
+{
+"id": "tt0055928",
+"name": "Dr. No",
+"year": 1962,
+"series": false
+},
+{
+"id": "tt0057076",
+"name": "From Russia with Love",
+"year": 1963,
+"series": false
+},
+{
+"id": "tt0058150",
+"name": "Goldfinger",
+"year": 1964,
+"series": false
+},
+{
+"id": "tt0059800",
+"name": "Thunderball",
+"year": 1965,
+"series": false
+},
+{
+"id": "tt0062512",
+"name": "You Only Live Twice",
+"year": 1967,
+"series": false
+},
+{
+"id": "tt0064757",
+"name": "On Her Majesty's Secret Service",
+"year": 1969,
+"series": false
+},
+{
+"id": "tt0066995",
+"name": "Diamonds Are Forever",
+"year": 1971,
+"series": false
+},
+{
+"id": "tt0070328",
+"name": "Live and Let Die",
+"year": 1973,
+"series": false
+},
+{
+"id": "tt0071807",
+"name": "The Man with the Golden Gun",
+"year": 1974,
+"series": false
+},
+{
+"id": "tt0076752",
+"name": "The Spy Who Loved Me",
+"year": 1977,
+"series": false
+},
+{
+"id": "tt0079574",
+"name": "Moonraker",
+"year": 1979,
+"series": false
+},
+{
+"id": "tt0082398",
+"name": "For Your Eyes Only",
+"year": 1981,
+"series": false
+},
+{
+"id": "tt0086034",
+"name": "Octopussy",
+"year": 1983,
+"series": false
+},
+{
+"id": "tt0090264",
+"name": "A View to a Kill",
+"year": 1985,
+"series": false
+},
+{
+"id": "tt0093428",
+"name": "The Living Daylights",
+"year": 1987,
+"series": false
+},
+{
+"id": "tt0097742",
+"name": "Licence to Kill",
+"year": 1989,
+"series": false
+},
+{
+"id": "tt0113189",
+"name": "GoldenEye",
+"year": 1995,
+"series": false
+},
+{
+"id": "tt0120347",
+"name": "Tomorrow Never Dies",
+"year": 1997,
+"series": false
+},
+{
+"id": "tt0143145",
+"name": "The World Is Not Enough",
+"year": 1999,
+"series": false
+},
+{
+"id": "tt0246460",
+"name": "Die Another Day",
+"year": 2002,
+"series": false
+},
+{
+"id": "tt0381061",
+"name": "Casino Royale",
+"year": 2006,
+"series": false
+},
+{
+"id": "tt0830515",
+"name": "Quantum of Solace",
+"year": 2008,
+"series": false
+},
+{
+"id": "tt1074638",
+"name": "Skyfall",
+"year": 2012,
+"series": false
+},
+{
+"id": "tt2379713",
+"name": "Spectre",
+"year": 2015,
+"series": false
+},
+{
+"id": "tt2382320",
+"name": "No Time to Die",
+"year": 2021,
+"series": false
+}
+],
+"chronological": null,
+"chronologicalNote": null
+},
+{
+"id": "monsterverse",
+"name": "MonsterVerse",
+"summary": "I titani di Monarch: Godzilla, Kong e i loro mondi.",
+"hero": "tt5034838",
+"entries": [
+{
+"id": "tt0831387",
+"name": "Godzilla",
+"year": 2014,
+"series": false
+},
+{
+"id": "tt3731562",
+"name": "Kong: Skull Island",
+"year": 2017,
+"series": false
+},
+{
+"id": "tt3741700",
+"name": "Godzilla: King of the Monsters",
+"year": 2019,
+"series": false
+},
+{
+"id": "tt5034838",
+"name": "Godzilla vs. Kong",
+"year": 2021,
+"series": false
+},
+{
+"id": "tt14539740",
+"name": "Godzilla X Kong: The New Empire",
+"year": 2024,
+"series": false
+},
+{
+"id": "tt17220216",
+"name": "Monarch: Legacy of Monsters",
+"year": 2023,
+"series": true
+}
+],
+"chronological": [
+"tt17220216",
+"tt3731562",
+"tt0831387",
+"tt3741700",
+"tt5034838",
+"tt14539740"
+],
+"chronologicalNote": "Ordine della storia ricostruito da fonti editoriali."
+},
+{
+"id": "dc",
+"name": "DC Universe",
+"summary": "I supereroi DC sul grande schermo: il DCEU e il nuovo DCU.",
+"hero": "tt0974015",
+"entries": [
+{
+"id": "tt0770828",
+"name": "Man of Steel",
+"year": 2013,
+"series": false
+},
+{
+"id": "tt2975590",
+"name": "Batman v Superman: Dawn of Justice",
+"year": 2016,
+"series": false
+},
+{
+"id": "tt1386697",
+"name": "Suicide Squad",
+"year": 2016,
+"series": false
+},
+{
+"id": "tt0451279",
+"name": "Wonder Woman",
+"year": 2017,
+"series": false
+},
+{
+"id": "tt0974015",
+"name": "Justice League",
+"year": 2017,
+"series": false
+},
+{
+"id": "tt1477834",
+"name": "Aquaman",
+"year": 2018,
+"series": false
+},
+{
+"id": "tt0448115",
+"name": "Shazam!",
+"year": 2019,
+"series": false
+},
+{
+"id": "tt7713068",
+"name": "Birds of Prey and the Fantabulous Emancipation of One Harley Quinn",
+"year": 2020,
+"series": false
+},
+{
+"id": "tt7126948",
+"name": "Wonder Woman 1984",
+"year": 2020,
+"series": false
+},
+{
+"id": "tt6334354",
+"name": "The Suicide Squad",
+"year": 2021,
+"series": false
+},
+{
+"id": "tt6443346",
+"name": "Black Adam",
+"year": 2022,
+"series": false
+},
+{
+"id": "tt10151854",
+"name": "Shazam! Fury of the Gods",
+"year": 2023,
+"series": false
+},
+{
+"id": "tt0439572",
+"name": "The Flash",
+"year": 2023,
+"series": false
+},
+{
+"id": "tt9362930",
+"name": "Blue Beetle",
+"year": 2023,
+"series": false
+},
+{
+"id": "tt9663764",
+"name": "Aquaman and the Lost Kingdom",
+"year": 2023,
+"series": false
+},
+{
+"id": "tt13146488",
+"name": "Peacemaker",
+"year": 2022,
+"series": true
+},
+{
+"id": "tt5950044",
+"name": "Superman",
+"year": 2025,
+"series": false
+}
+],
+"chronological": null,
+"chronologicalNote": "Mescola il DCEU (2013–2023) e l'inizio del nuovo DCU (dal 2022)."
+},
+{
+"id": "got",
+"name": "Game of Thrones",
+"summary": "Il Trono di Spade e le sue storie ambientate a Westeros.",
+"hero": "tt0944947",
+"entries": [
+{
+"id": "tt0944947",
+"name": "Game of Thrones",
+"year": 2011,
+"series": true
+},
+{
+"id": "tt11198330",
+"name": "House of the Dragon",
+"year": 2022,
+"series": true
+}
+],
+"chronological": [
+"tt11198330",
+"tt0944947"
+],
+"chronologicalNote": "Ordine della storia: House of the Dragon è ambientata circa 200 anni prima."
+},
+{
+"id": "twd",
+"name": "The Walking Dead",
+"summary": "L'universo degli zombie di Robert Kirkman in serie.",
+"hero": "tt1520211",
+"entries": [
+{
+"id": "tt1520211",
+"name": "The Walking Dead",
+"year": 2010,
+"series": true
+},
+{
+"id": "tt3743822",
+"name": "Fear the Walking Dead",
+"year": 2015,
+"series": true
+},
+{
+"id": "tt10148174",
+"name": "The Walking Dead: World Beyond",
+"year": 2020,
+"series": true
+},
+{
+"id": "tt15669534",
+"name": "Tales of the Walking Dead",
+"year": 2022,
+"series": true
+},
+{
+"id": "tt18546730",
+"name": "The Walking Dead: Dead City",
+"year": 2023,
+"series": true
+},
+{
+"id": "tt13062500",
+"name": "The Walking Dead: Daryl Dixon",
+"year": 2023,
+"series": true
+},
+{
+"id": "tt9859436",
+"name": "The Walking Dead: The Ones Who Live",
+"year": 2024,
+"series": true
+}
+],
+"chronological": null,
+"chronologicalNote": null
+}
+],
+"links": [
+{
+"first": "mcu",
+"second": "spiderman",
+"note": "I quattro film con Tom Holland e la serie animata fanno parte di entrambi gli universi."
+},
+{
+"first": "alien",
+"second": "predator",
+"note": "Crossover: Alien vs. Predator (2004) e Aliens vs. Predator 2 (2007) uniscono i due universi."
+}
+]
+}

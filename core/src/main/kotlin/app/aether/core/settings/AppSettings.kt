@@ -178,6 +178,10 @@ data class AppSettings(
     val trakt: app.aether.core.trakt.TraktSettings = app.aether.core.trakt.TraktSettings(),
     /** The viewer's choice about the Cinemeta recommendation shown in the empty state; never installed silently. */
     val cinemetaOffered: Boolean = false,
+    /** Universes the viewer follows (shown on the Home) and the order chosen for each. */
+    val followedUniverses: List<String> = emptyList(),
+    val universeOrders: Map<String, String> = emptyMap(),
+    val profile: app.aether.core.profile.ProfileSettings = app.aether.core.profile.ProfileSettings(),
 )
 
 /** The settings, persisted on every change, observable as a [StateFlow]. */

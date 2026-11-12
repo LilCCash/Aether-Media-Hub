@@ -117,7 +117,7 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
                 app.aether.tv.ui.screens.livetv.LiveTvScreen(onOpenDetail = ::openDetail, onPlay = { nav.navigate(Routes.PLAYER) })
             }
             composable(Routes.TRAKT) { app.aether.tv.ui.screens.trakt.TraktScreen(onOpenDetail = ::openDetail) }
-            composable(Routes.LIBRARY) { LibraryScreen(onOpenDetail = ::openDetail, onOpenDiscover = { goTop(Routes.DISCOVER) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }, onPlay = { nav.navigate(Routes.PLAYER) }) }
+            composable(Routes.LIBRARY) { LibraryScreen(onOpenDetail = ::openDetail, onOpenDiscover = { goTop(Routes.DISCOVER) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }, onPlay = { nav.navigate(Routes.PLAYER) }, onOpenUniverse = { nav.navigate(Routes.universe(it)) }) }
             composable(Routes.ADDONS) { AddonsScreen(initialInput = initialAddonInput) }
             composable(Routes.SETTINGS) { SettingsScreen(onOpenAbout = { nav.navigate(ABOUT) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }, onOpenLive = { goTop(Routes.LIVE) }) }
             composable(ABOUT) { AboutScreen() }
@@ -127,7 +127,7 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
             ) { backStack ->
                 val type = backStack.arguments?.getString("type").orEmpty()
                 val id = backStack.arguments?.getString("id").orEmpty()
-                DetailScreen(type, id, onPlay = ::openStreams, onOpenTitle = { t, i -> nav.navigate(Routes.detail(t, i)) }, onOpenPerson = { pid, name -> nav.navigate(Routes.person(pid, name)) })
+                DetailScreen(type, id, onPlay = ::openStreams, onOpenTitle = { t, i -> nav.navigate(Routes.detail(t, i)) }, onOpenPerson = { pid, name -> nav.navigate(Routes.person(pid, name)) }, onOpenUniverse = { nav.navigate(Routes.universe(it)) })
             }
             composable(Routes.PERSON) { entry ->
                 app.aether.tv.ui.screens.detail.PersonScreen(
@@ -135,6 +135,15 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
                     onOpenTitle = { t, i -> nav.navigate(Routes.detail(t, i)) },
                 )
             }
+            composable(Routes.UNIVERSE, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                app.aether.tv.ui.screens.universe.UniverseScreen(
+                    entry.arguments?.getString("id").orEmpty(), onOpenTitle = { t, i -> nav.navigate(Routes.detail(t, i)) }, onOpenUniverse = { nav.navigate(Routes.universe(it)) },
+                )
+            }
+            composable(Routes.PROFILE) {
+                app.aether.tv.ui.screens.profile.ProfileScreen(onOpenDetail = ::openDetail, onOpenTaste = { nav.navigate(Routes.TASTE) }, onOpenTitle = { t, i -> nav.navigate(Routes.detail(t, i)) })
+            }
+            composable(Routes.TASTE) { app.aether.tv.ui.screens.profile.TasteGameScreen(onOpenDetail = ::openDetail) }
             composable(Routes.STREAMS) {
                 StreamsScreen(onPlayerReady = { nav.navigate(Routes.PLAYER) }, onBack = { nav.popBackStack() })
             }

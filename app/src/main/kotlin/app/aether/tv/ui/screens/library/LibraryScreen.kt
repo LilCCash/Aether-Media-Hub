@@ -1,5 +1,8 @@
 package app.aether.tv.ui.screens.library
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -44,11 +47,11 @@ import app.aether.tv.ui.components.rememberFocusMemory
 import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.AetherDimens
 
-private enum class Tab(val title: String) { CONTINUE("Continua"), WATCHLIST("Watchlist"), FAVORITES("Preferiti"), HISTORY("Cronologia"), DOWNLOADS("Download") }
+private enum class Tab(val title: String) { CONTINUE("Continua"), WATCHLIST("Watchlist"), FAVORITES("Preferiti"), COLLECTIONS("Collezioni"), UNIVERSES("Universi"), ABANDONED("Abbandonati"), HISTORY("Cronologia"), DOWNLOADS("Download") }
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, onOpenTrakt: () -> Unit = {}, onPlay: () -> Unit = {}, modifier: Modifier = Modifier) {
+fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, onOpenTrakt: () -> Unit = {}, onPlay: () -> Unit = {}, modifier: Modifier = Modifier, onOpenUniverse: (String) -> Unit = {}) {
     val engine = LocalContext.current.aether
     val library = engine.library
     val revision by library.revision.collectAsStateWithLifecycle()
@@ -66,6 +69,11 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
     val favorites = remember(revision) { library.favorites() }
     val history = remember(revision) { library.history(300) }
     val downloads by engine.downloads.items.collectAsStateWithLifecycle()
+    val abandoned = remember(revision) { library.abandoned() }
+    val collections = remember(revision) { library.collections() }
+    val watchedIds = remember(revision) { library.history(2000).filter { it.isCompleted }.map { it.metaId }.toSet() + library.diary().map { it.metaId } }
+    var openCollection by rememberSaveable { mutableStateOf<String?>(null) }
+    var naming by remember { mutableStateOf<String?>(null) }
 
     if (memory.key.isEmpty()) RequestFocusOnce(firstTab, tabIndex)
 
@@ -73,8 +81,8 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
         Text("Libreria", style = MaterialTheme.typography.headlineLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
         LazyRow(contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(Tab.entries.size) { i ->
-                val count = when (Tab.entries[i]) { Tab.CONTINUE -> continueItems.size; Tab.WATCHLIST -> watchlist.size; Tab.FAVORITES -> favorites.size; Tab.HISTORY -> history.size; Tab.DOWNLOADS -> downloads.size }
-                TvChip("${Tab.entries[i].title} ($count)", i == tabIndex, { tabIndex = i }, focusRequester = if (i == tabIndex) firstTab else null, testTag = "library.tab.$i")
+                val count = when (Tab.entries[i]) { Tab.CONTINUE -> continueItems.size; Tab.WATCHLIST -> watchlist.size; Tab.FAVORITES -> favorites.size; Tab.HISTORY -> history.size; Tab.DOWNLOADS -> downloads.size; Tab.ABANDONED -> abandoned.size; Tab.COLLECTIONS -> collections.size; Tab.UNIVERSES -> app.aether.core.universe.UniverseCatalog.all.size }
+                TvChip("${Tab.entries[i].title} ($count)", i == tabIndex, { tabIndex = i; openCollection = null }, focusRequester = if (i == tabIndex) firstTab else null, testTag = "library.tab.$i")
             }
             item(key = "trakt") { TvChip("Trakt", false, onOpenTrakt, testTag = "library.trakt") }
         }
@@ -83,22 +91,30 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
             Tab.WATCHLIST -> watchlist.map { it.asMeta to null }
             Tab.FAVORITES -> favorites.map { it.asMeta to null }
             Tab.HISTORY -> history.map { it.asMeta to it }
-            Tab.DOWNLOADS -> emptyList()
+            Tab.ABANDONED -> abandoned.map { it.asMeta to it }
+            Tab.COLLECTIONS -> collections.firstOrNull { it.id == openCollection }?.items.orEmpty().map { MetaItem(it.id, it.type, it.name, it.poster) to null }
+            Tab.DOWNLOADS, Tab.UNIVERSES -> emptyList()
         }.distinctBy { it.first.id + (it.second?.videoId ?: "") }
         if (tab == Tab.DOWNLOADS) {
             DownloadList(downloads, onPlay)
+        } else if (tab == Tab.UNIVERSES) {
+            UniverseGrid(watchedIds, onOpenUniverse)
+        } else if (tab == Tab.COLLECTIONS && openCollection == null) {
+            CollectionGrid(collections, onOpen = { openCollection = it }, onNew = { naming = "" })
         } else if (items.isEmpty()) {
             EmptyState(
-                when (tab) { Tab.CONTINUE -> "Niente da riprendere"; Tab.WATCHLIST -> "La watchlist è vuota"; Tab.FAVORITES -> "Nessun preferito"; Tab.HISTORY -> "La cronologia è vuota"; Tab.DOWNLOADS -> "" },
+                when (tab) { Tab.CONTINUE -> "Niente da riprendere"; Tab.WATCHLIST -> "La watchlist è vuota"; Tab.FAVORITES -> "Nessun preferito"; Tab.HISTORY -> "La cronologia è vuota"; Tab.ABANDONED -> "Nessun titolo abbandonato"; Tab.COLLECTIONS -> "La collezione è vuota"; else -> "" },
                 when (tab) {
                     Tab.CONTINUE -> "Quello che inizi a guardare e non finisci compare qui, con il punto in cui ti sei fermato."
                     Tab.WATCHLIST -> "Dalla pagina di un titolo premi «+» per ricordarti di guardarlo."
                     Tab.FAVORITES -> "Dalla pagina di un titolo premi il cuore per tenerlo qui."
                     Tab.HISTORY -> "Quello che guardi compare qui (se la cronologia è attiva nelle impostazioni di privacy)."
-                    Tab.DOWNLOADS -> ""
+                    Tab.ABANDONED -> "Quello che inizi e lasci per più di un mese compare qui."
+                    Tab.COLLECTIONS -> "Dalla pagina di un titolo premi «Aggiungi a una collezione»."
+                    else -> ""
                 },
                 Modifier.fillMaxWidth().padding(top = 32.dp),
-                icon = when (tab) { Tab.CONTINUE -> Icons.Filled.PlayCircle; Tab.WATCHLIST -> Icons.Filled.Bookmark; Tab.FAVORITES -> Icons.Filled.Favorite; Tab.HISTORY -> Icons.Filled.History; Tab.DOWNLOADS -> Icons.Filled.History },
+                icon = when (tab) { Tab.CONTINUE -> Icons.Filled.PlayCircle; Tab.WATCHLIST -> Icons.Filled.Bookmark; Tab.FAVORITES -> Icons.Filled.Favorite; else -> Icons.Filled.History },
             ) { TvButton("Scopri qualcosa", onOpenDiscover, primary = true) }
         } else {
             androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides app.aether.tv.ui.theme.GridScroll) { LazyVerticalGrid(
@@ -121,6 +137,14 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
                 }
             } }
         }
+        if (tab == Tab.COLLECTIONS && openCollection != null) Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val c = collections.firstOrNull { it.id == openCollection }
+            TvChip("← Tutte le collezioni", false, { openCollection = null }, testTag = "library.collections.back")
+            if (c != null) {
+                TvChip("Rinomina", false, { naming = c.name })
+                TvChip("Elimina la collezione", false, { library.deleteCollection(c.id); openCollection = null })
+            }
+        }
         if (tab == Tab.HISTORY && history.isNotEmpty()) Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 4.dp)) { TvChip("Cancella la cronologia", false, { confirmClear = true }, testTag = "library.clearHistory") }
         if (tab == Tab.HISTORY || tab == Tab.CONTINUE) Text("Tieni premuto OK su un titolo per le azioni.", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
     }
@@ -137,10 +161,30 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
                         TvButton("Togli da «Continua a guardare»", { library.dismissFromContinueWatching(meta.id); actions = null }, modifier = Modifier.fillMaxWidth())
                     }
                     Tab.HISTORY -> progress?.let { p -> TvButton("Rimuovi dalla cronologia", { library.removeHistory(p.id); actions = null }, modifier = Modifier.fillMaxWidth()) }
-                    Tab.DOWNLOADS -> {}
+                    Tab.ABANDONED -> TvButton("Non mi interessa più", { library.dismissFromContinueWatching(meta.id); actions = null }, modifier = Modifier.fillMaxWidth())
+                    Tab.COLLECTIONS -> openCollection?.let { cid -> TvButton("Togli dalla collezione", { library.toggleInCollection(cid, meta); actions = null }, modifier = Modifier.fillMaxWidth()) }
+                    else -> {}
                 }
             }
             RequestFocusOnce(first)
+        }
+    }
+    naming?.let { initial ->
+        var text by remember { mutableStateOf(initial) }
+        val field = remember { FocusRequester() }
+        AetherDialog(if (initial.isEmpty()) "Nuova collezione" else "Rinomina la collezione", { naming = null }, width = 560.dp) {
+            app.aether.tv.ui.components.TvTextField(text, { text = it.take(40) }, "Nome (per esempio «Horror anni 80»)", Modifier.fillMaxWidth(), focusRequester = field, onImeAction = {
+                if (initial.isEmpty()) library.createCollection(text)?.let { openCollection = null } else openCollection?.let { library.renameCollection(it, text) }
+                naming = null
+            })
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                TvButton("Salva", {
+                    if (initial.isEmpty()) library.createCollection(text) else openCollection?.let { library.renameCollection(it, text) }
+                    naming = null
+                }, primary = true, enabled = text.isNotBlank())
+                TvButton("Annulla", { naming = null })
+            }
+            RequestFocusOnce(field)
         }
     }
     if (confirmClear) {
@@ -218,6 +262,73 @@ private fun DownloadList(downloads: List<app.aether.core.downloads.DownloadItem>
                 TvButton("Elimina", { app.aether.tv.downloads.DownloadWorker.remove(context, item.id); selected = null }, modifier = Modifier.fillMaxWidth(), testTag = "download.delete")
             }
             RequestFocusOnce(first)
+        }
+    }
+}
+
+
+/** Libreria ▸ Collezioni: every list as a card with a mosaic of its posters; the first card makes a new one. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun CollectionGrid(collections: List<app.aether.core.library.LibraryCollection>, onOpen: (String) -> Unit, onNew: () -> Unit) {
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides app.aether.tv.ui.theme.GridScroll) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(260.dp),
+            contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 12.dp, bottom = 48.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxSize(),
+        ) {
+            item(key = "new") {
+                app.aether.tv.ui.components.FocusSurface(onNew, Modifier.fillMaxWidth().height(170.dp), glow = true, testTag = "library.collections.new") {
+                    Column(Modifier.align(androidx.compose.ui.Alignment.Center), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("+", style = MaterialTheme.typography.displaySmall, color = app.aether.tv.ui.theme.LocalAccent.current)
+                        Text("Nuova collezione", style = MaterialTheme.typography.titleMedium, color = AetherColors.OnBackground)
+                    }
+                }
+            }
+            items(collections, key = { it.id }) { c ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    app.aether.tv.ui.components.FocusSurface({ onOpen(c.id) }, Modifier.fillMaxWidth().height(170.dp), glow = true, testTag = "library.collection.${c.name}") {
+                        Row(Modifier.fillMaxSize()) {
+                            val posters = c.items.take(4)
+                            if (posters.isEmpty()) Box(Modifier.fillMaxSize().background(AetherColors.SurfaceRaised))
+                            posters.forEach { app.aether.tv.ui.components.RemoteImage(it.poster, it.name, Modifier.weight(1f).fillMaxHeight()) }
+                        }
+                        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent, androidx.compose.ui.graphics.Color(0xCC000000)))))
+                        Column(Modifier.align(androidx.compose.ui.Alignment.BottomStart).padding(14.dp)) {
+                            Text(c.name, style = MaterialTheme.typography.titleLarge, color = androidx.compose.ui.graphics.Color.White, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            Text(if (c.items.size == 1) "1 titolo" else "${c.items.size} titoli", style = MaterialTheme.typography.labelMedium, color = AetherColors.OnSurfaceMuted)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Libreria ▸ Universi: the sagas of cinema, each with its picture and how far the viewer is. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun UniverseGrid(watched: Set<String>, onOpen: (String) -> Unit) {
+    val all = app.aether.core.universe.UniverseCatalog.all
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides app.aether.tv.ui.theme.GridScroll) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(300.dp),
+            contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 12.dp, bottom = 48.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxSize(),
+        ) {
+            items(all, key = { it.id }) { u ->
+                val progress = app.aether.core.universe.UniverseProgress.compute(u, app.aether.core.universe.UniverseOrder.RELEASE, watched)
+                app.aether.tv.ui.components.FocusSurface({ onOpen(u.id) }, Modifier.fillMaxWidth().height(170.dp), glow = true, testTag = "library.universe.${u.id}",
+                    onFocused = { app.aether.tv.ui.Ambient.show(u.heroBackground) }) {
+                    app.aether.tv.ui.components.RemoteImage(u.heroBackground, u.name, Modifier.fillMaxSize())
+                    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(0x33000000), androidx.compose.ui.graphics.Color(0xE6000000)))))
+                    Column(Modifier.align(androidx.compose.ui.Alignment.BottomStart).padding(14.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(u.name, style = MaterialTheme.typography.titleLarge, color = androidx.compose.ui.graphics.Color.White, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text("${u.entries.size} titoli" + (u.years?.let { " · ${it.first}–${it.last}" } ?: "") + if (progress.watched > 0) " · visti ${progress.watched}" else "", style = MaterialTheme.typography.labelMedium, color = AetherColors.OnSurfaceMuted, maxLines = 1)
+                        if (progress.watched > 0) app.aether.tv.ui.components.ProgressLine(progress.fraction, Modifier.fillMaxWidth())
+                    }
+                }
+            }
         }
     }
 }

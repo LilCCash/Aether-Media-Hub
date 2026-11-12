@@ -91,10 +91,14 @@ class RecommendViewModel(private val engine: AetherEngine) : ViewModel() {
         val types = RequestPlanner.availableTypes(handles).filter { it == "movie" || it == "series" }
         val type = requested?.takeIf { it in types } ?: types.firstOrNull()
         val genres = type?.let { RequestPlanner.genreOptions(handles, it) }.orEmpty()
-        _state.update { it.copy(loadingAddons = false, types = types, type = type, genres = genres, genre = it.genre?.takeIf { g -> g in genres } ?: genres.firstOrNull()) }
+        _state.update { it.copy(loadingAddons = false, types = types, type = type, genres = genres, genre = it.genre?.takeIf { g -> g in genres } ?: preferredGenre(genres) ?: genres.firstOrNull()) }
     }
 
     fun setType(type: String) { viewModelScope.launch { applyType(type) } }
+    /** The first genre the viewer's profile likes that the catalogs offer. */
+    private fun preferredGenre(genres: List<String>): String? =
+        engine.settings.value.value.profile.topGenres().firstNotNullOfOrNull { g -> genres.firstOrNull { it.equals(g.cinemeta, true) || it.equals(g.title, true) } }
+
     fun setGenre(genre: String) = _state.update { it.copy(genre = genre) }
     fun toggle(meta: MetaItem) = _state.update { it.copy(picked = if (meta.id in it.picked) it.picked - meta.id else it.picked + meta.id) }
     fun restart() = _state.update { it.copy(step = Step.CHOOSE, picked = emptySet(), results = emptyList(), candidates = emptyList(), error = null) }

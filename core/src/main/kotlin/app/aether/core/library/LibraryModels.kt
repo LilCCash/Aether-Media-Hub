@@ -76,6 +76,8 @@ data class LibraryState(
     val entries: Map<String, LibraryEntry> = emptyMap(),
     val progress: Map<String, PlaybackProgress> = emptyMap(),
     val searchHistory: List<SearchHistoryItem> = emptyList(),
+    val diary: List<DiaryEntry> = emptyList(),
+    val collections: List<LibraryCollection> = emptyList(),
 )
 
 data class LibraryPolicy(
@@ -131,6 +133,9 @@ object LibraryMerge {
             entries = entries,
             progress = progress,
             searchHistory = latest.values.sortedByDescending { it.date }.take(maxSearchHistory),
+            // Viewings and lists are joined by id; the local copy wins on a clash.
+            diary = (local.diary + remote.diary).distinctBy { it.id }.sortedByDescending { it.watchedAt },
+            collections = (local.collections + remote.collections.filter { r -> local.collections.none { it.id == r.id || it.name.equals(r.name, true) } }),
         )
     }
 }

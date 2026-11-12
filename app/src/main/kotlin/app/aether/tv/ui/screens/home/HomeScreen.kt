@@ -122,7 +122,7 @@ fun HomeScreen(
                     } else if (!settings.appearance.showGreeting) item(key = "top-space") { Box(Modifier.height(AetherDimens.TopBar + 8.dp)) }
 
                     val order = settings.appearance.homeSectionOrder
-                    val sectionIds = (listOf("continue", "nextup") + state.rows.map { it.ref.id })
+                    val sectionIds = (listOf("continue", "nextup", "universes") + state.rows.map { it.ref.id })
                         .sortedBy { id -> order.indexOf(id).let { if (it < 0) Int.MAX_VALUE else it } }
                     for (sectionId in sectionIds) {
                         if (sectionId in state.hiddenSections) continue
@@ -159,6 +159,24 @@ fun HomeScreen(
                                 width = 150.dp,
                             )
                         }
+                            }
+                            "universes" -> if (settings.followedUniverses.isNotEmpty()) item(key = "universes") {
+                                val engine = androidx.compose.ui.platform.LocalContext.current.let { (it.applicationContext as app.aether.tv.AetherApp).engine }
+                                val revision by engine.library.revision.collectAsStateWithLifecycle()
+                                val nexts = androidx.compose.runtime.remember(revision, settings.followedUniverses, settings.universeOrders) {
+                                    val watched = engine.library.history(3000).filter { it.isCompleted }.map { it.metaId }.toSet() + engine.library.diary().map { it.metaId }
+                                    settings.followedUniverses.mapNotNull { app.aether.core.universe.UniverseCatalog.universe(it) }.mapNotNull { u ->
+                                        val order = settings.universeOrders[u.id]?.let { o -> app.aether.core.universe.UniverseOrder.entries.firstOrNull { it.name == o } } ?: app.aether.core.universe.UniverseOrder.RELEASE
+                                        app.aether.core.universe.UniverseProgress.compute(u, order, watched).next?.let { u to it }
+                                    }
+                                }
+                                if (nexts.isNotEmpty()) ContentRow("I tuoi universi · prossimo da vedere", nexts, { it.first.id }, rowId = "universes", memory = memory) { (u, e), requester, onFocused ->
+                                    PosterCard(
+                                        app.aether.core.model.MetaItem(e.id, e.type, e.name, poster = e.poster, background = e.background, releaseInfo = "${e.year}"),
+                                        onClick = { onOpenDetail(app.aether.core.model.MetaItem(e.id, e.type, e.name, poster = e.poster, background = e.background)) },
+                                        focusRequester = requester, onFocused = onFocused, badge = u.name,
+                                    )
+                                }
                             }
                             else -> {
                                 val row = state.rows.firstOrNull { it.ref.id == sectionId } ?: continue

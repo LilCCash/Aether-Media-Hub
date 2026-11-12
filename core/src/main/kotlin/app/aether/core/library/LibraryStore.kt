@@ -204,6 +204,81 @@ class LibraryStore(
 
     // MARK: Search history
 
+    // MARK: Diary
+
+    @Synchronized
+    fun diary(): List<DiaryEntry> { ensureLoaded(); return state.diary.sortedByDescending { it.watchedAt } }
+
+    /** Adds or replaces a viewing; a second viewing of the same title is a rewatch. */
+    @Synchronized
+    fun saveDiary(entry: DiaryEntry) {
+        ensureLoaded()
+        val fixed = entry.copy(rating = entry.rating?.coerceIn(1, 10), rewatch = entry.rewatch || state.diary.any { it.metaId == entry.metaId && it.id != entry.id && it.episodeLabel == entry.episodeLabel })
+        val list = state.diary.filter { it.id != entry.id } + fixed
+        state = state.copy(diary = list.sortedByDescending { it.watchedAt }.take(5000))
+        changed()
+    }
+
+    @Synchronized
+    fun removeDiary(id: String) { ensureLoaded(); state = state.copy(diary = state.diary.filter { it.id != id }); changed() }
+
+    // MARK: Collections
+
+    @Synchronized
+    fun collections(): List<LibraryCollection> { ensureLoaded(); return state.collections }
+
+    /** A new list (or the one with that name); null when the name is empty or longer than 40 letters. */
+    @Synchronized
+    fun createCollection(name: String): LibraryCollection? {
+        ensureLoaded()
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || trimmed.length > 40) return null
+        state.collections.firstOrNull { it.name.equals(trimmed, ignoreCase = true) }?.let { return it }
+        val made = LibraryCollection(name = trimmed)
+        state = state.copy(collections = state.collections + made)
+        changed()
+        return made
+    }
+
+    @Synchronized
+    fun renameCollection(id: String, name: String) {
+        ensureLoaded()
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || trimmed.length > 40) return
+        state = state.copy(collections = state.collections.map { if (it.id == id) it.copy(name = trimmed) else it }); changed()
+    }
+
+    @Synchronized
+    fun deleteCollection(id: String) { ensureLoaded(); state = state.copy(collections = state.collections.filter { it.id != id }); changed() }
+
+    @Synchronized
+    fun toggleInCollection(id: String, meta: MetaItem) {
+        ensureLoaded()
+        state = state.copy(collections = state.collections.map { c ->
+            if (c.id != id) c else if (c.items.any { it.id == meta.id }) c.copy(items = c.items.filter { it.id != meta.id })
+            else c.copy(items = listOf(CollectionItem(meta.id, meta.type, meta.name, meta.poster)) + c.items)
+        })
+        changed()
+    }
+
+    @Synchronized
+    fun collectionsContaining(metaId: String): List<LibraryCollection> { ensureLoaded(); return state.collections.filter { c -> c.items.any { it.id == metaId } } }
+
+    /** Titles started and left alone for more than [days] days (not finished, not dismissed), the longest forgotten first. */
+    @Synchronized
+    fun abandoned(days: Int = 30, limit: Int = 60): List<PlaybackProgress> {
+        ensureLoaded()
+        val cutoff = now() - days * 86_400_000L
+        val latest = HashMap<String, PlaybackProgress>()
+        for (record in state.progress.values) {
+            val current = latest[record.metaId]
+            if (current != null && current.updatedAt >= record.updatedAt) continue
+            latest[record.metaId] = record
+        }
+        return latest.values.filter { !it.isCompleted && it.updatedAt < cutoff && it.position >= 60 && !ContentType.isLive(it.type) }
+            .sortedBy { it.updatedAt }.take(limit)
+    }
+
     @Synchronized
     fun searchHistory(): List<SearchHistoryItem> { ensureLoaded(); return state.searchHistory }
 

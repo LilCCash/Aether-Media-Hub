@@ -43,7 +43,7 @@ fun HomeLayoutDialog(onDismiss: () -> Unit) {
     var sections by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     LaunchedEffect(Unit) {
         val refs = RequestPlanner.feedCatalogs(engine.registry.handles())
-        sections = listOf("continue" to "Continua a guardare", "nextup" to "Prossimo episodio") + refs.map { it.id to "${it.title} · ${it.addonName}" }
+        sections = listOf("continue" to "Continua a guardare", "nextup" to "Prossimo episodio", "universes" to "I tuoi universi") + refs.map { it.id to "${it.title} · ${it.addonName}" }
     }
     val order = settings.appearance.homeSectionOrder
     val ordered = sections.sortedBy { (id, _) -> order.indexOf(id).let { if (it < 0) Int.MAX_VALUE else it } }

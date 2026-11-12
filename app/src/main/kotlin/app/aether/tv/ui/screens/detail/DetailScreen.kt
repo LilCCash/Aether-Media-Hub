@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -187,7 +189,7 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -> Unit, onOpenTitle: (String, String) -> Unit = { _, _ -> }, onOpenPerson: (Int, String) -> Unit = { _, _ -> }, modifier: Modifier = Modifier) {
+fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -> Unit, onOpenTitle: (String, String) -> Unit = { _, _ -> }, onOpenPerson: (Int, String) -> Unit = { _, _ -> }, modifier: Modifier = Modifier, onOpenUniverse: (String) -> Unit = {}) {
     val context = LocalContext.current
     val engine = context.aether
     val vm: DetailViewModel = viewModel(key = "detail/$type/$id") { DetailViewModel(engine, type, id) }
@@ -216,6 +218,20 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
             RequestFocusOnce(close)
         }
     }
+    var diaryOpen by remember { mutableStateOf(false) }
+    var collectionsOpen by remember { mutableStateOf(false) }
+    if (diaryOpen) {
+        val video = if (meta.hasEpisodes) state.primary else null
+        app.aether.tv.ui.screens.profile.DiaryEditor(
+            app.aether.core.library.DiaryEntry(
+                metaId = meta.id, type = meta.type, name = meta.name, poster = meta.poster, year = meta.releaseInfo, genres = meta.genres,
+                runtimeMinutes = state.rich?.runtimeMinutes ?: meta.runtime?.filter { it.isDigit() }?.toIntOrNull(), people = meta.directors + meta.cast.take(4),
+                episodeLabel = video?.episodeLabel, publicRating = meta.imdbRating?.replace(',', '.')?.toDoubleOrNull() ?: state.rich?.voteAverage,
+            ),
+            onSave = { engine.library.saveDiary(it); diaryOpen = false }, onDelete = null,
+        ) { diaryOpen = false }
+    }
+    if (collectionsOpen) CollectionsDialog(meta) { collectionsOpen = false }
     val graphics = app.aether.tv.ui.theme.LocalGraphics.current
     // The backdrop scrolls away with the header (tvOS: the picture belongs to the first page of the title).
     val headerGone = listState.firstVisibleItemIndex > 0
@@ -265,6 +281,10 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                             ProgressLine(resume.fraction)
                             Text("Ti sei fermato a ${formatDuration(resume.position)}", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceMuted)
                         }
+                        val universes = remember(meta.id, meta.externalIds.imdb) { app.aether.core.universe.UniverseCatalog.containing(meta.externalIds.imdb ?: meta.id) }
+                        if (universes.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            universes.forEach { u -> TvChip("Universo · ${u.name}", false, { onOpenUniverse(u.id) }, testTag = "detail.universe.${u.id}") }
+                        }
                         if (!state.canPlay && !state.loading) Text("Nessun addon attivo fornisce sorgenti per questo titolo.", style = MaterialTheme.typography.bodyMedium, color = AetherColors.Warning)
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
                             TvButton(
@@ -282,6 +302,8 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                                 val watched = meta.id in state.watched
                                 TvIconButton(if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, if (watched) "Segna come non visto" else "Segna come visto", { vm.toggleWatched(null) }, active = watched, testTag = "detail.watched")
                             }
+                            TvIconButton(Icons.Filled.EditNote, "Segna nel diario", { diaryOpen = true }, testTag = "detail.diary")
+                            TvIconButton(Icons.AutoMirrored.Filled.PlaylistAdd, "Aggiungi a una collezione", { collectionsOpen = true }, testTag = "detail.collections")
                             meta.trailers.firstOrNull()?.let { trailer ->
                                 TvIconButton(Icons.Filled.SmartDisplay, "Guarda il trailer", {
                                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(trailer.watchUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
@@ -408,6 +430,33 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                 }
             }
         }
+    }
+}
+
+/** «Aggiungi a una collezione»: every list with a check where the title is, and a new list made on the spot. */
+@Composable
+private fun CollectionsDialog(meta: MetaItem, onDismiss: () -> Unit) {
+    val engine = LocalContext.current.aether
+    val revision by engine.library.revision.collectAsStateWithLifecycle()
+    val lists = remember(revision) { engine.library.collections() }
+    var name by remember { mutableStateOf("") }
+    val first = remember { FocusRequester() }
+    app.aether.tv.ui.components.AetherDialog("Aggiungi a una collezione", onDismiss, width = 640.dp) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            lists.forEachIndexed { i, c ->
+                val inside = c.items.any { it.id == meta.id }
+                TvChip((if (inside) "✓ " else "") + c.name + " · ${c.items.size}", inside, { engine.library.toggleInCollection(c.id, meta) }, focusRequester = if (i == 0) first else null, testTag = "collection.$i")
+            }
+            if (lists.isEmpty()) Text("Non hai ancora collezioni: creane una qui sotto.", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
+            app.aether.tv.ui.components.TvTextField(name, { name = it.take(40) }, "Nuova collezione", Modifier.fillMaxWidth(), focusRequester = if (lists.isEmpty()) first else null, onImeAction = {
+                engine.library.createCollection(name)?.let { engine.library.toggleInCollection(it.id, meta) }; name = ""
+            })
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                TvButton("Crea e aggiungi", { engine.library.createCollection(name)?.let { engine.library.toggleInCollection(it.id, meta) }; name = "" }, enabled = name.isNotBlank())
+                TvButton("Fatto", onDismiss, primary = true)
+            }
+        }
+        RequestFocusOnce(first)
     }
 }
 

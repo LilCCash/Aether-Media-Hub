@@ -3,6 +3,10 @@ package app.aether.tv.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -104,7 +108,16 @@ fun TopBar(
                 TabPill(entry, entry.route == current, { onSelect(entry.route) }, if (entry.route == current) entryRequester else null, contentRequester)
             }
             Spacer(Modifier.weight(1f))
-            Spacer(Modifier.width(64.dp))
+            // Who is watching: the avatar of the profile, round, at the right end.
+            val profile = (androidx.compose.ui.platform.LocalContext.current.applicationContext as app.aether.tv.AetherApp).engine.settings.value.collectAsStateWithLifecycle().value.profile
+            val selected = current == Routes.PROFILE
+            FocusSurface(
+                { onSelect(Routes.PROFILE) },
+                Modifier.size(48.dp).semanticsLabel("Profilo").then(if (contentRequester != null) Modifier.focusProperties { down = contentRequester } else Modifier),
+                shape = androidx.compose.foundation.shape.CircleShape, focusScale = 1.12f, edge = true, glow = true,
+                focusRequester = if (selected) entryRequester else null, testTag = "nav.profile",
+                containerColor = Color.Transparent, focusedContainerColor = Color.Transparent,
+            ) { ProfileAvatarView(profile.avatar, Modifier.fillMaxSize(), ring = selected) }
         }
     }
 }
@@ -132,6 +145,22 @@ private fun TabPill(entry: NavEntry, selected: Boolean, onClick: () -> Unit, req
             Box(Modifier.fillMaxHeight().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
                 Text(entry.label, style = MaterialTheme.typography.labelLarge, color = color, maxLines = 1, modifier = Modifier.alpha(1f))
             }
+        }
+    }
+}
+
+
+/** The avatar of a profile: its emoji on its two-colour gradient. */
+@Composable
+fun ProfileAvatarView(id: String, modifier: Modifier = Modifier, ring: Boolean = false) {
+    val avatar = app.aether.core.profile.ProfileAvatars.avatar(id)
+    Box(
+        modifier.background(Brush.linearGradient(listOf(Color(avatar.from), Color(avatar.to))), androidx.compose.foundation.shape.CircleShape)
+            .then(if (ring) Modifier.border(2.dp, Color.White, androidx.compose.foundation.shape.CircleShape) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(avatar.emoji, fontSize = (maxHeight.value * 0.5f).sp)
         }
     }
 }
