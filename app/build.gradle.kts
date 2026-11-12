@@ -92,7 +92,6 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material.icons)
-    implementation(libs.androidx.tv.material)
     implementation(libs.androidx.compose.material3)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
