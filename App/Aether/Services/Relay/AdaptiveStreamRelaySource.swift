@@ -123,10 +123,9 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
 
             var request = URLRequest(url: current, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
             request.httpMethod = "GET"
-            if guardian.mayCarrySessionHeaders(to: current, origin: upstream.url) {
-                request.allHTTPHeaderFields = RelayHeaderPolicy.upstreamRequestHeaders(session: upstream.headers, range: nil,
-                                                                                  includeSession: guardian.mayCarrySessionHeaders(to: current, origin: upstream.url))
-            }
+            request.allHTTPHeaderFields = RelayHeaderPolicy.upstreamRequestHeaders(
+                session: upstream.headers, range: nil,
+                includeSession: guardian.mayCarrySessionHeaders(to: current, origin: upstream.url))
             let (data, response): (Data, URLResponse)
             do { (data, response) = try await session.data(for: request) }
             catch { throw RelayError.mapping(error) }
@@ -255,11 +254,10 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         var validationURL = raw
         for token in tokens { validationURL = validationURL.replacingOccurrences(of: token.placeholder, with: "1") }
         guard URL(string: validationURL, relativeTo: baseURL) != nil else { return nil }
-        let prefix = "r" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(16))
-        var local = localPattern
-        for index in tokens.indices {
-            local = local.replacingOccurrences(of: "__DYN\(index)__", with: prefix + tokens[index].placeholder)
-        }
+        let prefix = "r" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(12))
+        let ext = URL(fileURLWithPath: raw).pathExtension.lowercased()
+        let safeExt = ext.range(of: #"^[a-z0-9]{1,8}$"#, options: .regularExpression) != nil ? ext : "bin"
+        let local = prefix + "_" + tokens.map { $0.placeholder }.joined(separator: "_") + "." + safeExt
         var regexPattern = NSRegularExpression.escapedPattern(for: local)
         for token in tokens {
             let escaped = NSRegularExpression.escapedPattern(for: token.placeholder)
