@@ -106,7 +106,7 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
             engine.addons.streams(meta.type, videoId, debrid = engine.debrid.streamContext()).collect { batch ->
                 received++
                 answered.add(batch.addonId)
-                batch.error?.let { errors[batch.addonName] = it.message }
+                batch.error?.let { errors[batch.addonName] = it.message; engine.log.warn("sorgenti", "${batch.addonName}: ${it.message}") }
                 val known = collected.map { it.id }.toHashSet()
                 collected.addAll(batch.streams.filter { known.add(it.id) })
                 rerank(names.filterKeys { it !in answered }.values.toList(), errors, done = received >= addonCount)

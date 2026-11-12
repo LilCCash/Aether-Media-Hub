@@ -164,7 +164,7 @@ data class NetworkSettings(
 )
 
 @Serializable
-data class PrivacySettings(val recordHistory: Boolean = true)
+data class PrivacySettings(val recordHistory: Boolean = true, val diagnosticLog: Boolean = true)
 
 @Serializable
 data class AppSettings(

@@ -22,7 +22,7 @@ open class AetherApp : Application(), SingletonImageLoader.Factory {
 
     /** The tests build the engine on fake storage and a fake network. */
     protected open fun createEngine(): AetherEngine =
-        AetherEngine(filesDir.resolve("aether"), AndroidSecretStore(this), traktClientId = BuildConfig.TRAKT_CLIENT_ID, downloadsDir = (getExternalFilesDir("Downloads") ?: filesDir.resolve("downloads"))).also { it.syncLibraryPolicy(); it.deviceDecoders = DeviceCapabilities.decoders(); it.deviceHdr = DeviceCapabilities.hdrFormats(this); it.trakt.bootstrap() }
+        AetherEngine(filesDir.resolve("aether"), AndroidSecretStore(this), traktClientId = BuildConfig.TRAKT_CLIENT_ID, downloadsDir = (getExternalFilesDir("Downloads") ?: filesDir.resolve("downloads"))).also { it.syncLibraryPolicy(); it.deviceDecoders = DeviceCapabilities.decoders(); it.deviceHdr = DeviceCapabilities.hdrFormats(this); it.trakt.bootstrap(); it.log.enabled = it.settings.value.value.privacy.diagnosticLog; it.log.mirror = { level, category, message -> if (level >= app.aether.core.diagnostics.LogLevel.WARNING) android.util.Log.w("Aether/$category", message) }; it.log.info("app", "avvio, versione ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}), Android ${android.os.Build.VERSION.SDK_INT}, ${android.os.Build.MODEL}") }
 
     /**
      * Posters and backdrops: decoded at the size of their card, RGB_565 where there is no transparency (half the memory), a modest

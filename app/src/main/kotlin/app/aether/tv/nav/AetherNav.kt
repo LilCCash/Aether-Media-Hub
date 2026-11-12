@@ -117,9 +117,9 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
                 app.aether.tv.ui.screens.livetv.LiveTvScreen(onOpenDetail = ::openDetail, onPlay = { nav.navigate(Routes.PLAYER) })
             }
             composable(Routes.TRAKT) { app.aether.tv.ui.screens.trakt.TraktScreen(onOpenDetail = ::openDetail) }
-            composable(Routes.LIBRARY) { LibraryScreen(onOpenDetail = ::openDetail, onOpenDiscover = { goTop(Routes.DISCOVER) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }, onPlay = { nav.navigate(Routes.PLAYER) }, onOpenUniverse = { nav.navigate(Routes.universe(it)) }) }
+            composable(Routes.LIBRARY) { LibraryScreen(onOpenDetail = ::openDetail, onOpenDiscover = { goTop(Routes.DISCOVER) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }, onPlay = { nav.navigate(Routes.PLAYER) }, onOpenUniverse = { nav.navigate(Routes.universe(it)) }, onOpenCloud = { nav.navigate(Routes.CLOUD) }) }
             composable(Routes.ADDONS) { AddonsScreen(initialInput = initialAddonInput) }
-            composable(Routes.SETTINGS) { SettingsScreen(onOpenAbout = { nav.navigate(ABOUT) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }, onOpenLive = { goTop(Routes.LIVE) }) }
+            composable(Routes.SETTINGS) { SettingsScreen(onOpenDiagnostics = { nav.navigate(Routes.DIAGNOSTICS) }, onOpenAbout = { nav.navigate(ABOUT) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }, onOpenLive = { goTop(Routes.LIVE) }) }
             composable(ABOUT) { AboutScreen() }
             composable(
                 Routes.DETAIL,
@@ -143,6 +143,8 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
             composable(Routes.PROFILE) {
                 app.aether.tv.ui.screens.profile.ProfileScreen(onOpenDetail = ::openDetail, onOpenTaste = { nav.navigate(Routes.TASTE) }, onOpenTitle = { t, i -> nav.navigate(Routes.detail(t, i)) })
             }
+            composable(Routes.CLOUD) { app.aether.tv.ui.screens.cloud.CloudScreen(onPlay = { nav.navigate(Routes.PLAYER) }) }
+            composable(Routes.DIAGNOSTICS) { app.aether.tv.ui.screens.settings.DiagnosticsScreen() }
             composable(Routes.TASTE) { app.aether.tv.ui.screens.profile.TasteGameScreen(onOpenDetail = ::openDetail) }
             composable(Routes.STREAMS) {
                 StreamsScreen(onPlayerReady = { nav.navigate(Routes.PLAYER) }, onBack = { nav.popBackStack() })

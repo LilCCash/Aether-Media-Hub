@@ -126,7 +126,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
     val player: ExoPlayer = ExoPlayer.Builder(context, renderers)
         .setTrackSelector(trackSelector)
-        .setMediaSourceFactory(DefaultMediaSourceFactory(http))
+        .setMediaSourceFactory(DefaultMediaSourceFactory(ArchiveDataSource.Factory(http)))
         .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(30_000, 90_000, 2_500, 5_000).build())
         .setHandleAudioBecomingNoisy(true)
         .setAudioAttributes(androidx.media3.common.AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
@@ -191,6 +191,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
 
         override fun onPlayerError(error: PlaybackException) {
             _state.update { it.copy(error = describe(error), buffering = false) }
+            engine.log.error("player", "errore di riproduzione ${error.errorCodeName} con ${current.stream.addonName ?: "sorgente"} (${current.stream.name.orEmpty().take(40)})", error.cause)
             saveProgress(force = true)
         }
     }

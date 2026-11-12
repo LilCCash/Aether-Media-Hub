@@ -132,6 +132,12 @@ class TorBoxClient(
         return data?.flexInt("torrent_id") ?: data?.flexInt("queued_id") ?: throw DebridError.Failed("TorBox non ha restituito il torrent.")
     }
 
+    /** Every torrent in the account, newest first (the «Cloud» page). */
+    suspend fun myTorrents(): List<TorBoxTorrent> {
+        val data = call("GET", "/torrents/mylist", query = listOf("bypass_cache" to "true", "limit" to "200"), maxBytes = 16 * 1024 * 1024).data
+        return (data as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::parseTorrent) }
+    }
+
     suspend fun myList(id: Int): TorBoxTorrent? {
         val data = call("GET", "/torrents/mylist", query = listOf("bypass_cache" to "true", "id" to id.toString()), maxBytes = 16 * 1024 * 1024).data
         val item = when (data) {
@@ -152,6 +158,15 @@ class TorBoxClient(
         if (!(link.startsWith("https://") || link.startsWith("http://"))) throw DebridError.Failed("TorBox non ha restituito un link di download.")
         if (link.startsWith("http://") && link.contains(key())) throw DebridError.Failed("Il link di download non è cifrato (http).")
         return link
+    }
+
+    /** A run of bytes of a TorBox link (for the videos inside archives); the server must honour the range. */
+    suspend fun fetchRange(url: String, range: LongRange): ByteArray {
+        val length = range.last - range.first + 1
+        if (length <= 0 || length > 80L * 1024 * 1024) throw DebridError.Failed("Richiesta di un pezzo d'archivio non valida.")
+        val response = http.send(HttpRequest(url, headers = mapOf("Range" to "bytes=${range.first}-${range.last}"), timeoutSeconds = 30, maxBytes = length.toInt() + 1024))
+        if (response.status != 206 && !(response.status == 200 && range.first == 0L && response.body.size.toLong() <= length + 1024)) throw DebridError.Failed("Il server non permette di leggere l'archivio a pezzi (HTTP ${response.status}).")
+        return if (response.body.size > length) response.body.copyOf(length.toInt()) else response.body
     }
 
     private class Envelope(val data: JsonElement?)
@@ -381,10 +396,54 @@ class DebridResolver(private val client: TorBoxClient) {
             is TorBoxFileMatcher.Outcome.Selected -> outcome.file
             is TorBoxFileMatcher.Outcome.NoConfidentMatch -> chooseFile(outcome.candidates) ?: throw DebridError.Cancelled
             TorBoxFileMatcher.Outcome.NoVideo -> throw DebridError.NoVideo
-            TorBoxFileMatcher.Outcome.ArchivesOnly -> throw DebridError.ArchivesOnly
+            TorBoxFileMatcher.Outcome.ArchivesOnly -> return resolveArchive(torrent, request, episode, onProgress, chooseFile)
         }
         onProgress(DebridProgress("Preparo il link…", null, null))
         return client.requestDownloadLink(torrent.id, file.id)
+    }
+
+    /** The videos are in a ZIP or in RAR volumes: their links are asked for and the video is read from inside them. */
+    private suspend fun resolveArchive(torrent: TorBoxTorrent, request: DebridRequest, episode: DebridEpisode?, onProgress: (DebridProgress) -> Unit, chooseFile: suspend (List<DebridFile>) -> DebridFile?): String {
+        val usable = torrent.files.filter { !it.infected }
+        val zip = usable.filter { it.name.lowercase().endsWith(".zip") }.maxByOrNull { it.size ?: 0 }
+        val parts: List<ArchiveLocator.Part> = if (zip != null) {
+            onProgress(DebridProgress("Apro lo ZIP…", null, null))
+            listOf(ArchiveLocator.Part(client.requestDownloadLink(torrent.id, zip.id), zip.name, zip.size ?: throw DebridError.ArchivesOnly))
+        } else {
+            val byName = usable.associateBy { it.name }
+            val sets = RarArchive.volumeSets(usable.map { it.name }).filter { it.isNotEmpty() }
+            if (sets.isEmpty()) throw DebridError.ArchivesOnly
+            var chosen = sets[0]
+            if (sets.size > 1) {
+                val candidates = sets.mapIndexed { i, set ->
+                    val base = set[0].replace(Regex("""(\.part\d+)?\.(rar|r\d{2,3})$""", RegexOption.IGNORE_CASE), "")
+                    DebridFile(i, "$base.mkv", "$base.mkv".substringAfterLast('/'), set.sumOf { byName[it]?.size ?: 0 }, null, false, false)
+                }
+                val picked = when (val o = TorBoxFileMatcher.select(candidates, request.filename, episode, DebridEpisode.expectsEpisode(request.stremioId))) {
+                    is TorBoxFileMatcher.Outcome.Selected -> o.file
+                    is TorBoxFileMatcher.Outcome.NoConfidentMatch -> chooseFile(o.candidates) ?: throw DebridError.Cancelled
+                    else -> throw DebridError.ArchivesOnly
+                }
+                chosen = sets[picked.id]
+            }
+            if (chosen.size > 400) throw DebridError.ArchivesOnly
+            chosen.mapIndexed { i, name ->
+                onProgress(DebridProgress("Apro il RAR…", (i + 1).toDouble() / chosen.size, "volume ${i + 1} di ${chosen.size}"))
+                val f = byName[name] ?: throw DebridError.ArchivesOnly
+                ArchiveLocator.Part(client.requestDownloadLink(torrent.id, f.id), f.name, f.size ?: throw DebridError.ArchivesOnly)
+            }
+        }
+        val video = try {
+            ArchiveLocator.locate(parts, wanted = { files ->
+                when (val o = TorBoxFileMatcher.select(files, request.filename, episode, DebridEpisode.expectsEpisode(request.stremioId))) {
+                    is TorBoxFileMatcher.Outcome.Selected -> o.file
+                    else -> null
+                }
+            }, fetchFor = { url -> { range -> client.fetchRange(url, range) } })
+        } catch (e: ArchiveError) {
+            throw DebridError.Failed("Il torrent contiene un archivio che non si può leggere a pezzi: ${e.message}.")
+        }
+        return ArchiveRegistry.register(video)
     }
 }
 

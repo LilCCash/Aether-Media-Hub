@@ -91,7 +91,7 @@ import kotlinx.coroutines.withContext
 private val languageChoices = listOf("it" to "Italiano", "en" to "Inglese", "fr" to "Francese", "es" to "Spagnolo", "de" to "Tedesco", "pt" to "Portoghese", "ru" to "Russo", "ja" to "Giapponese")
 
 @Composable
-fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpenLive: () -> Unit = {}, modifier: Modifier = Modifier) {
+fun SettingsScreen(onOpenDiagnostics: () -> Unit = {}, onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpenLive: () -> Unit = {}, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val engine = context.aether
     val scope = rememberCoroutineScope()
@@ -315,6 +315,8 @@ fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpen
 
             if (tab == 7) {
             actionRow("Informazioni su Aether", "Versione ${BuildConfig.VERSION_NAME}, licenze e avvertenze.", "about.open") { onOpenAbout() }
+            actionRow("Registro diagnostico", "Cosa ha fatto l'app (sorgenti, sottotitoli, debrid, errori del player), senza chiavi né indirizzi completi.", "about.diagnostics") { onOpenDiagnostics() }
+            toggleRow("Tieni il registro diagnostico", "Spento, l'app non scrive niente e cancella quello che c'è.", settings.privacy.diagnosticLog, "about.diagnosticsOn") { v -> update { it.copy(privacy = it.privacy.copy(diagnosticLog = v)) }; engine.log.enabled = v }
             actionRow("Cerca aggiornamenti", when (val u = updateState) {
                 is app.aether.tv.updates.AppUpdater.State.Available -> "Disponibile la build ${u.info.versionCode} · installata ${app.aether.tv.updates.AppUpdater.currentVersion}"
                 is app.aether.tv.updates.AppUpdater.State.UpToDate -> "Sei aggiornato · ${app.aether.tv.updates.AppUpdater.currentVersion}"

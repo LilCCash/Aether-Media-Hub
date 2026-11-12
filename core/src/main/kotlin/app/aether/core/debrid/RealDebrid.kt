@@ -50,6 +50,16 @@ class RealDebridClient(
     /** The token, for the addon addresses the routing switches to Real-Debrid. Never log it. */
     fun token(): String? = secrets.get(KEY_SECRET)?.trim()?.takeIf { it.isNotEmpty() }
 
+    /** The torrents in the account: (hash, name, bytes, progress 0–1, ready). */
+    suspend fun torrents(): List<DebridCloudItem> {
+        val list = call("GET", "/torrents", query = listOf("limit" to "200")) as? JsonArray ?: return emptyList()
+        return list.mapNotNull { e ->
+            val o = e as? JsonObject ?: return@mapNotNull null
+            val hash = o.flexString("hash")?.lowercase() ?: return@mapNotNull null
+            DebridCloudItem(hash, o.flexString("filename") ?: hash, o.flexLong("bytes"), (o.flexDouble("progress") ?: 0.0) / 100.0, o.flexString("status") == "downloaded", "Real-Debrid")
+        }
+    }
+
     suspend fun fetchUser(): RealDebridUser {
         val root = call("GET", "/user") as? JsonObject ?: throw DebridError.RealDebridApi("RESPONSE")
         return RealDebridUser(root.flexString("type"), root.flexString("expiration"))
@@ -183,6 +193,15 @@ class DebridRouter(val torBox: TorBoxClient, val realDebrid: RealDebridClient, p
         DebridService.REAL_DEBRID -> StreamDebridContext(DebridService.REAL_DEBRID, realDebrid.token())
     }
 
+    /** What is in the account of the active service (TorBox or Real-Debrid). */
+    suspend fun cloud(): List<DebridCloudItem> = when (active()) {
+        DebridService.TORBOX -> torBox.myTorrents().mapNotNull { t ->
+            val hash = t.hash?.lowercase() ?: return@mapNotNull null
+            DebridCloudItem(hash, t.name ?: hash, t.size, (t.progress?.let { if (it > 1.0) it / 100.0 else it } ?: 0.0).coerceIn(0.0, 1.0), t.downloadFinished || t.downloadPresent, "TorBox")
+        }
+        DebridService.REAL_DEBRID -> realDebrid.torrents()
+    }
+
     suspend fun resolve(
         request: DebridRequest,
         mode: DebridResolver.Mode,
@@ -193,5 +212,8 @@ class DebridRouter(val torBox: TorBoxClient, val realDebrid: RealDebridClient, p
         DebridService.REAL_DEBRID -> realDebrid.resolve(request, mode, onProgress, chooseFile)
     }
 }
+
+/** A torrent already in the viewer's debrid account. */
+data class DebridCloudItem(val hash: String, val name: String, val bytes: Long?, val progress: Double, val ready: Boolean, val service: String)
 
 data class StreamDebridContext(val service: DebridService, val realDebridKey: String?)

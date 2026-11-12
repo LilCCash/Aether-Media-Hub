@@ -51,7 +51,7 @@ private enum class Tab(val title: String) { CONTINUE("Continua"), WATCHLIST("Wat
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, onOpenTrakt: () -> Unit = {}, onPlay: () -> Unit = {}, modifier: Modifier = Modifier, onOpenUniverse: (String) -> Unit = {}) {
+fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, onOpenTrakt: () -> Unit = {}, onPlay: () -> Unit = {}, modifier: Modifier = Modifier, onOpenUniverse: (String) -> Unit = {}, onOpenCloud: () -> Unit = {}) {
     val engine = LocalContext.current.aether
     val library = engine.library
     val revision by library.revision.collectAsStateWithLifecycle()
@@ -84,6 +84,7 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
                 val count = when (Tab.entries[i]) { Tab.CONTINUE -> continueItems.size; Tab.WATCHLIST -> watchlist.size; Tab.FAVORITES -> favorites.size; Tab.HISTORY -> history.size; Tab.DOWNLOADS -> downloads.size; Tab.ABANDONED -> abandoned.size; Tab.COLLECTIONS -> collections.size; Tab.UNIVERSES -> app.aether.core.universe.UniverseCatalog.all.size }
                 TvChip("${Tab.entries[i].title} ($count)", i == tabIndex, { tabIndex = i; openCollection = null }, focusRequester = if (i == tabIndex) firstTab else null, testTag = "library.tab.$i")
             }
+            item(key = "cloud") { TvChip("Cloud", false, onOpenCloud, testTag = "library.cloud") }
             item(key = "trakt") { TvChip("Trakt", false, onOpenTrakt, testTag = "library.trakt") }
         }
         val items: List<Pair<MetaItem, PlaybackProgress?>> = when (tab) {
