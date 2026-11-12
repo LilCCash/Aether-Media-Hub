@@ -207,8 +207,10 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
             let raw = String(output[valueRange]).replacingOccurrences(of: "&amp;", with: "&")
             let resolved = URL(string: raw, relativeTo: baseURL)?.absoluteURL ?? baseURL
             output.replaceSubrange(Range(match.range, in: output)!, with: "")
+            if output.lowercased().contains("baseurl") { throw RelayError.upstreamNotMedia }
             return try rewriteDASHAttributes(output, baseURL: resolved)
         }
+        if output.lowercased().contains("baseurl") { throw RelayError.upstreamNotMedia }
         return try rewriteDASHAttributes(output, baseURL: baseURL)
     }
 
