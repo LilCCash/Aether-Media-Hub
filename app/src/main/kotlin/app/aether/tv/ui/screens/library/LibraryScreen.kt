@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -42,10 +44,10 @@ import app.aether.tv.ui.components.rememberFocusMemory
 import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.AetherDimens
 
-private enum class Tab(val title: String) { CONTINUE("Continua"), WATCHLIST("Watchlist"), FAVORITES("Preferiti"), HISTORY("Cronologia") }
+private enum class Tab(val title: String) { CONTINUE("Continua"), WATCHLIST("Watchlist"), FAVORITES("Preferiti"), HISTORY("Cronologia"), DOWNLOADS("Download") }
 
 @Composable
-fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, onOpenTrakt: () -> Unit = {}, modifier: Modifier = Modifier) {
+fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, onOpenTrakt: () -> Unit = {}, onPlay: () -> Unit = {}, modifier: Modifier = Modifier) {
     val engine = LocalContext.current.aether
     val library = engine.library
     val revision by library.revision.collectAsStateWithLifecycle()
@@ -62,6 +64,7 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
     val watchlist = remember(revision) { library.watchlist() }
     val favorites = remember(revision) { library.favorites() }
     val history = remember(revision) { library.history(300) }
+    val downloads by engine.downloads.items.collectAsStateWithLifecycle()
 
     if (memory.key.isEmpty()) RequestFocusOnce(firstTab, tabIndex)
 
@@ -69,7 +72,7 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
         Text("Libreria", style = MaterialTheme.typography.headlineLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
         LazyRow(contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(Tab.entries.size) { i ->
-                val count = when (Tab.entries[i]) { Tab.CONTINUE -> continueItems.size; Tab.WATCHLIST -> watchlist.size; Tab.FAVORITES -> favorites.size; Tab.HISTORY -> history.size }
+                val count = when (Tab.entries[i]) { Tab.CONTINUE -> continueItems.size; Tab.WATCHLIST -> watchlist.size; Tab.FAVORITES -> favorites.size; Tab.HISTORY -> history.size; Tab.DOWNLOADS -> downloads.size }
                 TvChip("${Tab.entries[i].title} ($count)", i == tabIndex, { tabIndex = i }, focusRequester = if (i == tabIndex) firstTab else null, testTag = "library.tab.$i")
             }
             item(key = "trakt") { TvChip("Trakt", false, onOpenTrakt, testTag = "library.trakt") }
@@ -79,18 +82,22 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
             Tab.WATCHLIST -> watchlist.map { it.asMeta to null }
             Tab.FAVORITES -> favorites.map { it.asMeta to null }
             Tab.HISTORY -> history.map { it.asMeta to it }
+            Tab.DOWNLOADS -> emptyList()
         }.distinctBy { it.first.id + (it.second?.videoId ?: "") }
-        if (items.isEmpty()) {
+        if (tab == Tab.DOWNLOADS) {
+            DownloadList(downloads, onPlay)
+        } else if (items.isEmpty()) {
             EmptyState(
-                when (tab) { Tab.CONTINUE -> "Niente da riprendere"; Tab.WATCHLIST -> "La watchlist è vuota"; Tab.FAVORITES -> "Nessun preferito"; Tab.HISTORY -> "La cronologia è vuota" },
+                when (tab) { Tab.CONTINUE -> "Niente da riprendere"; Tab.WATCHLIST -> "La watchlist è vuota"; Tab.FAVORITES -> "Nessun preferito"; Tab.HISTORY -> "La cronologia è vuota"; Tab.DOWNLOADS -> "" },
                 when (tab) {
                     Tab.CONTINUE -> "Quello che inizi a guardare e non finisci compare qui, con il punto in cui ti sei fermato."
                     Tab.WATCHLIST -> "Dalla pagina di un titolo premi «+» per ricordarti di guardarlo."
                     Tab.FAVORITES -> "Dalla pagina di un titolo premi il cuore per tenerlo qui."
                     Tab.HISTORY -> "Quello che guardi compare qui (se la cronologia è attiva nelle impostazioni di privacy)."
+                    Tab.DOWNLOADS -> ""
                 },
                 Modifier.fillMaxWidth().padding(top = 32.dp),
-                icon = when (tab) { Tab.CONTINUE -> Icons.Filled.PlayCircle; Tab.WATCHLIST -> Icons.Filled.Bookmark; Tab.FAVORITES -> Icons.Filled.Favorite; Tab.HISTORY -> Icons.Filled.History },
+                icon = when (tab) { Tab.CONTINUE -> Icons.Filled.PlayCircle; Tab.WATCHLIST -> Icons.Filled.Bookmark; Tab.FAVORITES -> Icons.Filled.Favorite; Tab.HISTORY -> Icons.Filled.History; Tab.DOWNLOADS -> Icons.Filled.History },
             ) { TvButton("Scopri qualcosa", onOpenDiscover, primary = true) }
         } else {
             LazyVerticalGrid(
@@ -129,6 +136,7 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
                         TvButton("Togli da «Continua a guardare»", { library.dismissFromContinueWatching(meta.id); actions = null }, modifier = Modifier.fillMaxWidth())
                     }
                     Tab.HISTORY -> progress?.let { p -> TvButton("Rimuovi dalla cronologia", { library.removeHistory(p.id); actions = null }, modifier = Modifier.fillMaxWidth()) }
+                    Tab.DOWNLOADS -> {}
                 }
             }
             RequestFocusOnce(first)
@@ -143,6 +151,72 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
                 TvButton("Annulla", { confirmClear = false }, focusRequester = no)
             }
             RequestFocusOnce(no)
+        }
+    }
+}
+
+
+/** Libreria ▸ Download: what is saved on the TV, with its progress; OK plays it, long press for pause, resume and delete. */
+@Composable
+private fun DownloadList(downloads: List<app.aether.core.downloads.DownloadItem>, onPlay: () -> Unit) {
+    val context = LocalContext.current
+    val engine = context.aether
+    var selected by remember { mutableStateOf<app.aether.core.downloads.DownloadItem?>(null) }
+    if (downloads.isEmpty()) {
+        EmptyState("Nessun download", "Nella scelta della sorgente tieni premuto OK e scegli «Scarica sulla TV»: il video resta qui anche senza rete.", Modifier.fillMaxWidth().padding(top = 32.dp), icon = Icons.Filled.History)
+        return
+    }
+    fun play(item: app.aether.core.downloads.DownloadItem) {
+        val file = engine.downloads.fileOf(item)
+        val uri = android.net.Uri.fromFile(file).toString()
+        app.aether.tv.Session.playback = app.aether.tv.PlaybackRequest(
+            item.asMeta(), item.asVideo(), app.aether.core.model.AddonStream(app.aether.core.model.StreamSource.Url(uri), name = "Download"), uri, emptyMap(), emptyList(),
+            item.videoId?.let { engine.library.resumePosition(item.metaId, it) } ?: engine.library.resumePosition(item.metaId, item.metaId),
+        )
+        onPlay()
+    }
+    val used = remember(downloads) { engine.downloads.usedBytes }
+    androidx.compose.foundation.lazy.LazyColumn(
+        contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 12.dp, bottom = 48.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item { Text("Spazio usato: ${"%.1f".format(used / 1_073_741_824.0)} GB · tieni premuto OK per mettere in pausa, riprendere o eliminare.", style = MaterialTheme.typography.labelLarge, color = AetherColors.OnSurfaceFaint) }
+        items(downloads.size, key = { downloads[it].id }) { index ->
+            val item = downloads[index]
+            app.aether.tv.ui.components.FocusSurface(
+                onClick = { if (item.state == app.aether.core.downloads.DownloadState.DONE) play(item) else selected = item },
+                onLongClick = { selected = item },
+                modifier = Modifier.fillMaxWidth().height(96.dp), focusScale = 1.02f, testTag = "download.row",
+            ) {
+                Row(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    app.aether.tv.ui.components.RemoteImage(item.poster, item.title, Modifier.height(76.dp).width(52.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(item.label, style = MaterialTheme.typography.titleMedium, color = AetherColors.OnBackground, maxLines = 1)
+                        val size = item.totalBytes?.let { " · ${"%.2f".format(it / 1_073_741_824.0)} GB" }.orEmpty()
+                        Text(item.state.title + (item.fraction?.takeIf { item.state != app.aether.core.downloads.DownloadState.DONE }?.let { " · ${(it * 100).toInt()}%" }.orEmpty()) + size,
+                            style = MaterialTheme.typography.bodyMedium, color = if (item.state == app.aether.core.downloads.DownloadState.FAILED) AetherColors.Danger else AetherColors.OnSurfaceMuted)
+                        item.error?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, maxLines = 1) }
+                        if (item.state != app.aether.core.downloads.DownloadState.DONE) item.fraction?.let { app.aether.tv.ui.components.ProgressLine(it, Modifier.width(360.dp)) }
+                    }
+                }
+            }
+        }
+    }
+    selected?.let { item ->
+        val first = remember { FocusRequester() }
+        AetherDialog(item.label, { selected = null }, width = 520.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                when (item.state) {
+                    app.aether.core.downloads.DownloadState.DONE -> TvButton("Guarda", { selected = null; play(item) }, primary = true, focusRequester = first, modifier = Modifier.fillMaxWidth())
+                    app.aether.core.downloads.DownloadState.RUNNING, app.aether.core.downloads.DownloadState.QUEUED ->
+                        TvButton("Metti in pausa", { app.aether.tv.downloads.DownloadWorker.pause(context, item.id); selected = null }, primary = true, focusRequester = first, modifier = Modifier.fillMaxWidth())
+                    else -> TvButton(if (engine.downloads.source(item.id) != null) "Riprendi" else "Non si può riprendere", {
+                        if (engine.downloads.source(item.id) != null) app.aether.tv.downloads.DownloadWorker.start(context, item.id); selected = null
+                    }, primary = true, focusRequester = first, modifier = Modifier.fillMaxWidth())
+                }
+                TvButton("Elimina", { app.aether.tv.downloads.DownloadWorker.remove(context, item.id); selected = null }, modifier = Modifier.fillMaxWidth(), testTag = "download.delete")
+            }
+            RequestFocusOnce(first)
         }
     }
 }

@@ -22,6 +22,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +71,8 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
     val firstRow = remember { FocusRequester() }
 
     LaunchedEffect(Unit) { vm.play.collect { onPlayerReady() } }
+    LaunchedEffect(Unit) { vm.downloadStarted.collect { id -> app.aether.tv.downloads.DownloadWorker.start(context, id) } }
+    var options by remember { mutableStateOf<RankedStream?>(null) }
     LifecycleResumeEffect(Unit) { vm.rearm(); onPauseOrDispose { } }
     if (state.visible.isNotEmpty()) RequestFocusOnce(firstRow, state.visible.first().id.takeIf { state.resolvingId == null })
 
@@ -103,7 +107,7 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
                     val item = playable[index]
                     StreamRow(
                         item, best = index == 0, cached = vm.isCached(item), torBox = state.torBoxConfigured, debridName = state.debridName, rating = state.ratings[item.id],
-                        requester = if (index == 0) firstRow else null, onClick = { vm.select(item) },
+                        requester = if (index == 0) firstRow else null, onClick = { vm.select(item) }, onLongClick = { options = item },
                     )
                     if (state.resolvingId == item.id) {
                         ResolveProgress(state.progress?.message ?: "…", state.progress?.fraction, state.progress?.detail, onCancel = vm::cancelResolution)
@@ -125,7 +129,7 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
                 }
                 items(unplayable.size, key = { "u-" + unplayable[it].id }) { index ->
                     val item = unplayable[index]
-                    StreamRow(item, best = false, cached = null, torBox = state.torBoxConfigured, debridName = state.debridName, rating = state.ratings[item.id], requester = null, onClick = { vm.select(item) })
+                    StreamRow(item, best = false, cached = null, torBox = state.torBoxConfigured, debridName = state.debridName, rating = state.ratings[item.id], requester = null, onClick = { vm.select(item) }, onLongClick = { options = item })
                 }
                 if (state.errors.isNotEmpty() && state.ranked.isNotEmpty()) item(key = "errors") {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 8.dp)) {
@@ -142,6 +146,26 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
         AetherDialog("Non si può riprodurre", vm::dismissBlocked) {
             Text(message, style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnSurfaceMuted)
             TvButton("OK", vm::dismissBlocked, primary = true, focusRequester = ok)
+            RequestFocusOnce(ok)
+        }
+    }
+    options?.let { item ->
+        val watch = remember { FocusRequester() }
+        AetherDialog(item.stream.name ?: "Sorgente", { options = null }) {
+            Text("Scegli cosa fare con questa sorgente.", style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnSurfaceMuted)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvButton("Guarda", { options = null; vm.select(item) }, primary = true, focusRequester = watch)
+                TvButton("Scarica sulla TV", { options = null; vm.download(item) }, testTag = "streams.download")
+                TvButton("Annulla", { options = null })
+            }
+            RequestFocusOnce(watch)
+        }
+    }
+    state.notice?.let { text ->
+        val ok = remember { FocusRequester() }
+        AetherDialog("Download", vm::dismissNotice) {
+            Text(text, style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnSurfaceMuted)
+            TvButton("OK", vm::dismissNotice, primary = true, focusRequester = ok)
             RequestFocusOnce(ok)
         }
     }
@@ -201,12 +225,13 @@ private fun RatingBadge(rating: SourceRating) {
 }
 
 @Composable
-private fun StreamRow(item: RankedStream, best: Boolean, cached: Boolean?, torBox: Boolean, debridName: String, rating: SourceRating?, requester: FocusRequester?, onClick: () -> Unit) {
+private fun StreamRow(item: RankedStream, best: Boolean, cached: Boolean?, torBox: Boolean, debridName: String, rating: SourceRating?, requester: FocusRequester?, onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
     val info = item.info
     val stream = item.stream
     val playable = info.support.isPlayable
     FocusSurface(
         onClick = onClick,
+        onLongClick = onLongClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         focusScale = 1.02f,

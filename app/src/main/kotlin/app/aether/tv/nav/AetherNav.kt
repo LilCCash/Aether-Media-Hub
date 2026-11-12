@@ -90,7 +90,7 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
                 app.aether.tv.ui.screens.livetv.LiveTvScreen(onOpenDetail = ::openDetail, onPlay = { nav.navigate(Routes.PLAYER) })
             }
             composable(Routes.TRAKT) { app.aether.tv.ui.screens.trakt.TraktScreen(onOpenDetail = ::openDetail) }
-            composable(Routes.LIBRARY) { LibraryScreen(onOpenDetail = ::openDetail, onOpenDiscover = { goTop(Routes.DISCOVER) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }) }
+            composable(Routes.LIBRARY) { LibraryScreen(onOpenDetail = ::openDetail, onOpenDiscover = { goTop(Routes.DISCOVER) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }, onPlay = { nav.navigate(Routes.PLAYER) }) }
             composable(Routes.ADDONS) { AddonsScreen(initialInput = initialAddonInput) }
             composable(Routes.SETTINGS) { SettingsScreen(onOpenAbout = { nav.navigate(ABOUT) }, onOpenTrakt = { nav.navigate(Routes.TRAKT) }, onOpenLive = { goTop(Routes.LIVE) }) }
             composable(ABOUT) { AboutScreen() }

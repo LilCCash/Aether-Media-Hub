@@ -55,6 +55,7 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
         val fileChoice: FileChoice? = null,
         val blocked: String? = null,
         val autoSelecting: Boolean = false,
+        val notice: String? = null,
     ) {
         val addonNames: List<String> get() = ranked.mapNotNull { it.stream.addonName }.distinct()
         val visible: List<RankedStream> get() = ranked.filter { addonFilter == null || it.stream.addonName == addonFilter }
@@ -175,14 +176,49 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
         }
     }
 
-    private fun resolveTorrent(item: RankedStream, source: StreamSource.Torrent, allowDownload: Boolean) {
+    /** Saves the source on the TV instead of playing it (torrents are first turned into a link by the debrid service). */
+    fun download(item: RankedStream) {
+        if (_state.value.resolvingId != null) return
+        when (val source = item.stream.source) {
+            is StreamSource.Torrent -> {
+                if (!engine.debrid.isConfigured) { _state.update { it.copy(blocked = "Per scaricare un torrent serve un servizio debrid (Impostazioni ▸ Servizi).") }; return }
+                resolveTorrent(item, source, allowDownload = false, forDownload = true)
+            }
+            is StreamSource.Url -> {
+                val url = StreamResolver.playbackUrl(item.stream, null) ?: run { _state.update { it.copy(blocked = "Indirizzo della sorgente non valido.") }; return }
+                enqueue(item, url)
+            }
+            else -> _state.update { it.copy(blocked = "Questa sorgente non si può scaricare.") }
+        }
+    }
+
+    private fun enqueue(item: RankedStream, url: String) {
+        if (url.startsWith("http://127.0.0.1") || url.startsWith("http://localhost") || !(url.startsWith("http://") || url.startsWith("https://"))) {
+            _state.update { it.copy(blocked = "Questa sorgente non si può scaricare.") }
+            return
+        }
+        val extension = app.aether.core.downloads.DownloadStore.extension(url, item.stream.behaviorHints.filename)
+        val download = engine.downloads.add(request.meta, request.video, url, item.stream.behaviorHints.proxyRequestHeaders, extension)
+        _downloadStarted.tryEmit(download.id)
+        _state.update { it.copy(notice = "Download avviato: lo trovi in Libreria ▸ Download.") }
+    }
+
+    private var askedForDownload = false
+
+    private val _downloadStarted = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    /** Emits the id of a download to hand to WorkManager (the screen has the Android context). */
+    val downloadStarted: SharedFlow<String> get() = _downloadStarted
+
+    fun dismissNotice() = _state.update { it.copy(notice = null) }
+
+    private fun resolveTorrent(item: RankedStream, source: StreamSource.Torrent, allowDownload: Boolean, forDownload: Boolean = false) {
         if (!engine.debrid.isConfigured) {
             val server = engine.settings.value.value.network.streamingServerUrl.trim().ifEmpty { null }
             val url = StreamResolver.playbackUrl(item.stream, server)
             if (url != null) handOver(item, url) else _state.update { it.copy(blocked = if (engine.debrid.service == DebridService.TORBOX) DebridError.NotConfigured.message else DebridError.RealDebridNotConfigured.message) }
             return
         }
-        if (!allowDownload) {
+        if (!allowDownload && !forDownload) {
             // The player opens at once and talks to TorBox itself (with the film's logo on screen).
             handOver(item, "", PendingResolve(source.infoHash, source.trackers, source.fileIndex, item.stream.behaviorHints.filename, request.video?.id ?: request.meta.id))
             return
@@ -203,12 +239,12 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
                     },
                 )
                 _state.update { it.copy(resolvingId = null, progress = null) }
-                handOver(item, link)
+                if (forDownload) enqueue(item, link) else handOver(item, link)
             } catch (error: Throwable) {
                 if (error is CancellationException) { _state.update { it.copy(resolvingId = null, progress = null) }; throw error }
                 val debrid = error as? DebridError
                 _state.update { it.copy(resolvingId = null, progress = null) }
-                if (debrid is DebridError.NotCached || debrid is DebridError.RealDebridNotInAccount) _state.update { it.copy(askDownload = item) }
+                if (debrid is DebridError.NotCached || debrid is DebridError.RealDebridNotInAccount) { askedForDownload = forDownload; _state.update { it.copy(askDownload = item) } }
                 else _state.update { it.copy(rowFailure = item.id to (debrid?.message ?: AddonError.from(error).message)) }
             }
         }
@@ -216,7 +252,7 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
 
     fun confirmDownload(item: RankedStream) {
         _state.update { it.copy(askDownload = null) }
-        (item.stream.source as? StreamSource.Torrent)?.let { resolveTorrent(item, it, allowDownload = true) }
+        (item.stream.source as? StreamSource.Torrent)?.let { resolveTorrent(item, it, allowDownload = true, forDownload = askedForDownload) }
     }
 
     fun cancelDownloadPrompt() = _state.update { it.copy(askDownload = null) }

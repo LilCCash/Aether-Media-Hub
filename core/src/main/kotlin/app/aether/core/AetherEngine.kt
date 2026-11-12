@@ -36,7 +36,10 @@ class AetherEngine(
     http: HttpClient? = null,
     /** The public Client ID of the Aether app registered on Trakt (empty: Trakt is not offered). */
     traktClientId: String = "",
+    /** Where downloaded videos go (external app storage on the TV when there is some). */
+    downloadsDir: File = File(dataDir, "downloads"),
 ) {
+    val downloads = app.aether.core.downloads.DownloadStore(downloadsDir, secrets)
     /** Background work of the services (sync, scrobble): lives as long as the engine. */
     val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
