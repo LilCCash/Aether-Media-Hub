@@ -200,6 +200,7 @@ class StreamsViewModel(private val engine: AetherEngine, val request: StreamRequ
         val extension = app.aether.core.downloads.DownloadStore.extension(url, item.stream.behaviorHints.filename)
         val download = engine.downloads.add(request.meta, request.video, url, item.stream.behaviorHints.proxyRequestHeaders, extension)
         _downloadStarted.tryEmit(download.id)
+        engine.scope.launch { app.aether.core.downloads.DownloadSubtitles.save(engine, download.id, request.meta, request.video, item.stream, systemLanguage) }
         _state.update { it.copy(notice = "Download avviato: lo trovi in Libreria ▸ Download.") }
     }
 

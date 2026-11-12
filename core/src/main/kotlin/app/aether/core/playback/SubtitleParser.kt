@@ -143,6 +143,12 @@ object SubtitleParser {
         return (h.ifEmpty { "0" }.toLong() * 3600 + min.toLong() * 60 + s.toLong()) * 1000 + ms
     }
 
+    /** Writes cues as SubRip (what the saved subtitles of a download are). */
+    fun toSrt(cues: List<TimedCue>): String = buildString {
+        fun t(ms: Long) = "%02d:%02d:%02d,%03d".format(ms / 3_600_000, ms / 60_000 % 60, ms / 1000 % 60, ms % 1000)
+        cues.forEachIndexed { i, c -> append(i + 1).append('\n').append(t(c.startMs)).append(" --> ").append(t(c.endMs)).append('\n').append(c.text).append("\n\n") }
+    }
+
     /** The cues on screen at [positionMs] once the subtitles are shifted by [offsetMs] (positive = later, negative = earlier). */
     fun active(cues: List<TimedCue>, positionMs: Long, offsetMs: Long): List<TimedCue> {
         val t = positionMs - offsetMs

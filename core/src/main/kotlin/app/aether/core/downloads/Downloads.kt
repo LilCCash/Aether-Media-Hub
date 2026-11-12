@@ -17,6 +17,10 @@ enum class DownloadState(val title: String) {
     QUEUED("In coda"), RUNNING("In download"), PAUSED("In pausa"), DONE("Scaricato"), FAILED("Non riuscito")
 }
 
+/** A subtitle file saved next to a downloaded video (always SubRip, UTF-8). */
+@Serializable
+data class SavedSubtitle(val lang: String, val label: String, val fileName: String)
+
 /** One downloaded (or downloading) video. The address it comes from is a secret (it may carry a token): it is never stored here. */
 @Serializable
 data class DownloadItem(
@@ -39,6 +43,8 @@ data class DownloadItem(
     val error: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val finishedAt: Long? = null,
+    /** Subtitles saved next to the video, so they work without the network too. */
+    val subtitles: List<SavedSubtitle> = emptyList(),
 ) {
     val fraction: Double? get() = totalBytes?.takeIf { it > 0 }?.let { (bytes.toDouble() / it).coerceIn(0.0, 1.0) }
     val label: String get() = if (season != null && episode != null) "$title · S${season}E$episode" else title
@@ -91,11 +97,28 @@ class DownloadStore(private val folder: File, private val secrets: SecretStore) 
         val item = _items.value.firstOrNull { it.id == id } ?: return
         fileOf(item).delete()
         File(folder, item.fileName + ".part").delete()
+        item.subtitles.forEach { File(folder, it.fileName).delete() }
         secrets.remove(SOURCE_PREFIX + id)
         save(_items.value.filter { it.id != id })
     }
 
     fun item(id: String) = _items.value.firstOrNull { it.id == id }
+
+    fun subtitleFile(sub: SavedSubtitle) = File(folder, sub.fileName)
+
+    /** Saves a subtitle next to the video (replacing one of the same language). */
+    @Synchronized
+    fun saveSubtitle(id: String, lang: String, label: String, srt: String) {
+        val item = item(id) ?: return
+        val safeLang = lang.lowercase().filter { it.isLetterOrDigit() || it == '-' }.take(8).ifEmpty { "und" }
+        val name = "${item.id}.$safeLang.srt"
+        folder.mkdirs()
+        File(folder, name).writeText(srt, Charsets.UTF_8)
+        update(id) { it.copy(subtitles = it.subtitles.filter { s -> s.lang != safeLang } + SavedSubtitle(safeLang, label, name)) }
+    }
+
+    /** Every download of a series, to download a whole season and skip what is already there. */
+    fun forMeta(metaId: String): List<DownloadItem> = _items.value.filter { it.metaId == metaId }
 
     /** The downloaded file of a title/episode, if there is a complete one. */
     fun completed(metaId: String, videoId: String?): DownloadItem? =

@@ -243,8 +243,12 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         try {
             val imdbVideoId = imdbVideoId(r)
             // Each subtitle gets its own id in the list: addons often number theirs from 1, and two addons would clash.
-            addonSubtitles = engine.subtitlesFor(r.meta.type, videoId, imdbVideoId, r.stream, java.util.Locale.getDefault().language)
-                .mapIndexed { i, sub -> sub.copy(id = "$i") }
+            // A downloaded video brings its own subtitles, saved next to it: they come first and work without the network.
+            val saved = engine.downloads.completed(r.meta.id, r.video?.id)?.subtitles.orEmpty().map { s ->
+                AddonSubtitle(id = s.fileName, url = engine.downloads.subtitleFile(s).toURI().toString(), lang = s.lang, label = s.label, addonName = "Salvati con il video")
+            }
+            val online = if (r.url.startsWith("file:") && saved.isNotEmpty()) emptyList() else runCatching { engine.subtitlesFor(r.meta.type, videoId, imdbVideoId, r.stream, java.util.Locale.getDefault().language) }.getOrElse { if (it is CancellationException) throw it; emptyList() }
+            addonSubtitles = (saved + online).mapIndexed { i, sub -> sub.copy(id = "$i") }
             engine.log.info("player", "sottotitoli trovati: ${addonSubtitles.size} (${addonSubtitles.groupBy { it.addonName }.map { "${it.key}: ${it.value.size}" }.joinToString()})")
             publishTracks(player.currentTracks)
             // The viewer's language is applied by itself when the file has no subtitle track in it.
@@ -362,8 +366,13 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         publishTracks(player.currentTracks)
         addonCueJob = viewModelScope.launch {
             val cues = try {
-                val response = engine.http.send(app.aether.core.net.HttpRequest(sub.url, timeoutSeconds = 15, maxBytes = 3 * 1024 * 1024))
-                if (!response.isSuccess) null else app.aether.core.playback.SubtitleParser.parse(app.aether.core.playback.SubtitleParser.decode(response.body))
+                if (sub.url.startsWith("file:")) {
+                    val file = java.io.File(java.net.URI(sub.url))
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.aether.core.playback.SubtitleParser.parse(app.aether.core.playback.SubtitleParser.decode(file.readBytes())) }
+                } else {
+                    val response = engine.http.send(app.aether.core.net.HttpRequest(sub.url, timeoutSeconds = 15, maxBytes = 3 * 1024 * 1024))
+                    if (!response.isSuccess) null else app.aether.core.playback.SubtitleParser.parse(app.aether.core.playback.SubtitleParser.decode(response.body))
+                }
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
                 null

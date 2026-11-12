@@ -339,10 +339,15 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                                     }
                                 }
                             }
+                            val seasonStatus by app.aether.tv.downloads.SeasonDownloader.status.collectAsStateWithLifecycle()
+                            seasonStatus?.takeIf { it.title.startsWith(meta.name) }?.let { st ->
+                                Text(st.message + if (st.running) " (${st.done + st.skipped}/${st.total})" else "", style = MaterialTheme.typography.labelMedium, color = if (st.running) app.aether.tv.ui.theme.LocalAccent.current else AetherColors.OnSurfaceMuted, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), maxLines = 2)
+                            }
                             state.season?.let { season ->
                                 Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                     TvChip("Segna la stagione come vista", false, { vm.markSeason(season, true) }, testTag = "detail.markSeason")
                                     TvChip("Segna come non vista", false, { vm.markSeason(season, false) })
+                                    TvChip("Scarica la stagione", false, { app.aether.tv.downloads.SeasonDownloader.start(context, engine, meta, season, meta.videos(season)) }, testTag = "detail.downloadSeason")
                                     Text("Tieni premuto OK su un episodio per segnarlo come visto.", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
