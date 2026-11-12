@@ -59,7 +59,9 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
             data = cached
         } else {
             guard let route = resolve(leaf) else { throw RelayError.notFound }
-            data = try await load(route.url, manifestType: route.contentType)
+            let isManifest = route.contentType == "application/vnd.apple.mpegurl" || route.contentType == "application/x-mpegURL"
+                || route.contentType == "application/dash+xml"
+            data = try await load(route.url, manifestType: isManifest ? route.contentType : nil)
             store(data, for: leaf)
         }
         let type = leaf == rootLeaf ? rootType : (resolve(leaf)?.contentType ?? mimeType(for: leaf))
