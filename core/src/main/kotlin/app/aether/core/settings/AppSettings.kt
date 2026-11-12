@@ -23,6 +23,24 @@ enum class BackgroundStyle(val title: String) { NIGHT("Notte"), AURORA("Aurora (
 @Serializable
 enum class CornerStyle(val title: String, val dp: Int) { SHARP("Squadrati", 4), SOFT("Morbidi", 12), ROUND("Molto tondi", 22) }
 
+/** How much the interface draws: «Automatica» picks by the TV's memory and processor. */
+@Serializable
+enum class GraphicsQuality(val title: String, val detail: String) {
+    AUTO("Automatica", "Scelta in base alla potenza della TV"),
+    FULL("Completa", "Sfocature, ombre, immagini di sfondo e animazioni"),
+    BALANCED("Bilanciata", "Ombre e animazioni brevi, senza sfocature"),
+    LIGHT("Leggera", "Niente effetti né animazioni: per le TV più lente"),
+}
+
+/** The single effects; null means «as the chosen level says». */
+@Serializable
+data class GraphicsOverrides(
+    val blur: Boolean? = null,
+    val shadows: Boolean? = null,
+    val backdropArt: Boolean? = null,
+    val imageFades: Boolean? = null,
+)
+
 @Serializable
 data class AppearanceSettings(
     val accent: AccentChoice = AccentChoice.AURORA,
@@ -42,6 +60,8 @@ data class AppearanceSettings(
     /** «Ciao, Nome!» at the top of the Home. */
     val showGreeting: Boolean = false,
     val greetingName: String = "",
+    val graphics: GraphicsQuality = GraphicsQuality.AUTO,
+    val graphicsOverrides: GraphicsOverrides = GraphicsOverrides(),
 )
 
 @Serializable

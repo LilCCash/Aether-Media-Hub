@@ -32,7 +32,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by aether.settings.value.collectAsStateWithLifecycle()
             val accent = Color(settings.appearance.accent.argb)
-            AetherTheme(accent = accent, animations = settings.appearance.animationsEnabled, corner = settings.appearance.corners.dp.dp) {
+            val autoLevel = androidx.compose.runtime.remember { app.aether.tv.ui.theme.Graphics.autoLevel(this) }
+            val graphics = androidx.compose.runtime.remember(settings.appearance) { app.aether.tv.ui.theme.Graphics.resolve(settings.appearance, autoLevel) }
+            AetherTheme(accent = accent, animations = settings.appearance.animationsEnabled, corner = settings.appearance.corners.dp.dp, graphics = graphics) {
                 androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(app.aether.tv.ui.theme.AetherColors.Background)) {
                     app.aether.tv.ui.theme.AppBackdrop(settings.appearance.background, accent, settings.appearance.animationsEnabled)
                     AetherNav(initialAddonInput = addonInput)

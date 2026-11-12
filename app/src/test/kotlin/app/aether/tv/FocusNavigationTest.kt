@@ -18,7 +18,7 @@ import app.aether.tv.nav.Routes
 import app.aether.tv.ui.components.ContentRow
 import app.aether.tv.ui.components.FocusMemory
 import app.aether.tv.ui.components.PosterCard
-import app.aether.tv.ui.components.SideNav
+import app.aether.tv.ui.components.TopBar
 import app.aether.tv.ui.components.TvButton
 import app.aether.tv.ui.theme.AetherTheme
 import org.junit.Rule
@@ -77,16 +77,15 @@ class FocusNavigationTest {
         rule.onNodeWithTag("b").assertIsFocused()
     }
 
-    @Test fun theSideMenuOpensWhenTheRemoteIsOnItAndOkChoosesASection() {
+    @Test fun theTabBarWalksLeftAndRightAndOkChoosesASection() {
         var chosen: String? = null
-        rule.setContent { AetherTheme(accent) { SideNav(current = Routes.HOME, onSelect = { chosen = it }, modifier = Modifier) } }
-        rule.onNodeWithText("Scopri").assertDoesNotExist()
-        rule.onNodeWithTag("nav.${Routes.DISCOVER}").requestFocus()
+        rule.setContent { AetherTheme(accent) { TopBar(current = Routes.HOME, onSelect = { chosen = it }, modifier = Modifier) } }
         rule.onNodeWithText("Scopri").assertExists()
+        rule.onNodeWithTag("nav.${Routes.DISCOVER}").requestFocus()
         rule.onNodeWithTag("nav.${Routes.DISCOVER}").performKeyInput { pressKey(Key.DirectionCenter) }
         assertEquals(Routes.DISCOVER, chosen)
-        rule.onNodeWithTag("nav.${Routes.DISCOVER}").performKeyInput { pressKey(Key.DirectionDown) }
-        rule.onNodeWithTag("nav.${Routes.SEARCH}").assertIsFocused()
+        rule.onNodeWithTag("nav.${Routes.DISCOVER}").performKeyInput { pressKey(Key.DirectionRight) }
+        rule.onNodeWithTag("nav.${Routes.RECOMMEND}").assertIsFocused()
     }
 
     @Test fun backOnARowReturnsTheFocusToThePosterWhereTheViewerWas() {

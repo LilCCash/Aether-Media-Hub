@@ -46,6 +46,7 @@ import app.aether.tv.ui.theme.AetherDimens
 
 @Composable
 fun HomeScreen(
+    onTopReached: (Boolean) -> Unit = {},
     onOpenDetail: (MetaItem) -> Unit,
     onPlay: (MetaItem, Video?, Double?) -> Unit,
     onOpenAddons: (String?) -> Unit,
@@ -59,11 +60,16 @@ fun HomeScreen(
     val heroRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
     val noRows = state.rows.isEmpty()
+    // The tab bar fades away once the viewer goes down past the featured titles, and returns at the top.
+    androidx.compose.runtime.LaunchedEffect(listState) {
+        androidx.compose.runtime.snapshotFlow { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 120 }
+            .collect { onTopReached(it) }
+    }
 
     Box(modifier.fillMaxSize()) {
         when {
-            state.loadingAddons -> Box(Modifier.fillMaxSize())
-            state.addonCount == 0 -> Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            state.loadingAddons -> Box(Modifier.fillMaxSize().padding(top = AetherDimens.TopBar))
+            state.addonCount == 0 -> Box(Modifier.fillMaxSize().padding(top = AetherDimens.TopBar), contentAlignment = androidx.compose.ui.Alignment.Center) {
                 EmptyState(
                     "Nessun addon installato",
                     "Aether non include contenuti: i cataloghi e le sorgenti arrivano dagli addon che scegli tu. Per cominciare puoi aggiungere Cinemeta, il catalogo di base di Stremio.",
@@ -74,7 +80,7 @@ fun HomeScreen(
                     RequestFocusOnce(first)
                 }
             }
-            noRows -> Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            noRows -> Box(Modifier.fillMaxSize().padding(top = AetherDimens.TopBar), contentAlignment = androidx.compose.ui.Alignment.Center) {
                 EmptyState(
                     "Nessun catalogo da mostrare",
                     "Gli addon installati non offrono cataloghi (o li hai nascosti). Aggiungi Cinemeta o un altro addon di cataloghi, oppure mostra i cataloghi dalla pagina Addon.",
@@ -94,7 +100,7 @@ fun HomeScreen(
                 ) {
                     if (settings.appearance.showGreeting) item(key = "greeting") {
                         val name = settings.appearance.greetingName.trim()
-                        Column(Modifier.padding(start = AetherDimens.ScreenHorizontal, top = AetherDimens.ScreenVertical, bottom = 4.dp)) {
+                        Column(Modifier.padding(start = AetherDimens.ScreenHorizontal, top = AetherDimens.TopBar + 8.dp, bottom = 4.dp)) {
                             Text(if (name.isEmpty()) "Ciao!" else "Ciao, $name!", style = MaterialTheme.typography.displaySmall, color = AetherColors.OnBackground)
                             Text("Cosa vuoi guardare oggi?", style = MaterialTheme.typography.titleMedium, color = AetherColors.OnSurfaceMuted)
                         }
@@ -109,7 +115,7 @@ fun HomeScreen(
                             onDetails = onOpenDetail,
                             playRequester = heroRequester,
                         )
-                    } else if (!settings.appearance.showGreeting) item(key = "top-space") { Box(Modifier.height(AetherDimens.ScreenVertical)) }
+                    } else if (!settings.appearance.showGreeting) item(key = "top-space") { Box(Modifier.height(AetherDimens.TopBar + 8.dp)) }
 
                     val order = settings.appearance.homeSectionOrder
                     val sectionIds = (listOf("continue", "nextup") + state.rows.map { it.ref.id })

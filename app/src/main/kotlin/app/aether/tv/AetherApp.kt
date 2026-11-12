@@ -26,7 +26,11 @@ class AetherApp : Application(), SingletonImageLoader.Factory {
     override fun newImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)
         .crossfade(120)
         .allowRgb565(true)
-        .memoryCache { MemoryCache.Builder().maxSizePercent(context, 0.15).build() }
+        .memoryCache {
+            // Lighter TVs keep fewer decoded pictures in memory.
+            val light = app.aether.tv.ui.theme.Graphics.autoLevel(this) == app.aether.core.settings.GraphicsQuality.LIGHT
+            MemoryCache.Builder().maxSizePercent(context, if (light) 0.08 else 0.15).build()
+        }
         .diskCache { DiskCache.Builder().directory(cacheDir.resolve("images")).maxSizeBytes(200L * 1024 * 1024).build() }
         .build()
 }

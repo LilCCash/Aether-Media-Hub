@@ -72,14 +72,15 @@ fun <T> ContentRow(
             }
         }
     }
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(end = 12.dp))
             trailing?.invoke()
         }
         LazyRow(
             state = state,
-            contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 12.dp),
+            // Room above and below for a lifted card and its shadow.
+            contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 18.dp),
             horizontalArrangement = Arrangement.spacedBy(AetherDimens.RowSpacing),
         ) {
             items(unique.size, key = { key(unique[it]) }) { index ->
@@ -98,10 +99,10 @@ fun RowPlaceholder(title: String, modifier: Modifier = Modifier, count: Int = 8)
         Text(title, style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
         LazyRow(
             userScrollEnabled = false,
-            contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 12.dp),
+            contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 18.dp),
             horizontalArrangement = Arrangement.spacedBy(AetherDimens.RowSpacing),
         ) {
-            items(count) { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Placeholder(Modifier.width(150.dp).height(222.dp)); Placeholder(Modifier.width(110.dp).height(12.dp)) } }
+            items(count) { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Placeholder(Modifier.width(150.dp).height(225.dp), androidx.compose.foundation.shape.RoundedCornerShape(14.dp)); Placeholder(Modifier.width(110.dp).height(12.dp)) } }
         }
     }
 }

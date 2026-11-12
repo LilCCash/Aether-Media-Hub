@@ -24,6 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -45,12 +48,13 @@ import coil3.request.crossfade
 @Composable
 fun RemoteImage(url: String?, seed: String, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop, alignment: Alignment = Alignment.Center) {
     val hue = ((seed.hashCode() and 0x7fffffff) % 360).toFloat()
-    val base = Color.hsv(hue, 0.35f, 0.32f)
-    val top = Color.hsv((hue + 30f) % 360f, 0.4f, 0.2f)
+    val base = Color.hsv(hue, 0.22f, 0.22f)
+    val top = Color.hsv((hue + 30f) % 360f, 0.25f, 0.13f)
+    val fades = app.aether.tv.ui.theme.LocalGraphics.current.imageFades
     Box(modifier.background(Brush.linearGradient(listOf(base, top)))) {
         if (!url.isNullOrBlank()) {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(120).allowRgb565(true).build(),
+                model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(if (fades) 180 else 0).allowRgb565(true).build(),
                 contentDescription = null,
                 contentScale = contentScale,
                 alignment = alignment,
@@ -83,12 +87,17 @@ fun PosterCard(
     testTag: String? = null,
 ) {
     val cardWidth = shapeWidth(meta.posterShape, width)
-    Column(modifier.width(cardWidth), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    var focused by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Column(modifier.width(cardWidth), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         FocusSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = Modifier.fillMaxWidth().aspectRatio(meta.posterShape.aspectRatio.toFloat()),
+            modifier = Modifier.fillMaxWidth().aspectRatio(meta.posterShape.aspectRatio.toFloat())
+                .onFocusChanged { focused = it.isFocused },
             shape = RoundedCornerShape(app.aether.tv.ui.theme.LocalCorner.current),
+            focusScale = 1.1f,
+            containerColor = AetherColors.Glass,
+            focusedContainerColor = AetherColors.Glass,
             focusRequester = focusRequester,
             onFocused = onFocused,
             testTag = testTag,
@@ -96,15 +105,15 @@ fun PosterCard(
             RemoteImage(meta.poster ?: meta.background, meta.name, Modifier.fillMaxSize())
             meta.imdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
                 Row(
-                    Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xCC0B0A12)).padding(horizontal = 6.dp, vertical = 2.dp),
+                    Modifier.align(Alignment.TopEnd).padding(7.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xB3000000)).padding(horizontal = 6.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Filled.Star, null, Modifier.size(12.dp), tint = LocalAccent.current)
+                    Icon(Icons.Filled.Star, null, Modifier.size(12.dp), tint = Color(0xFFFFD60A))
                     Text(" $rating", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnBackground)
                 }
             }
             if (watched) {
-                Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(50)).background(Color(0xCC0B0A12)).padding(4.dp)) {
+                Box(Modifier.align(Alignment.TopStart).padding(7.dp).clip(RoundedCornerShape(50)).background(Color(0xB3000000)).padding(4.dp)) {
                     Icon(Icons.Filled.Check, "Visto", Modifier.size(14.dp), tint = AetherColors.Success)
                 }
             }
@@ -114,14 +123,13 @@ fun PosterCard(
         }
         Text(
             meta.name,
-            style = MaterialTheme.typography.labelMedium,
-            color = AetherColors.OnBackground,
-            maxLines = 2,
-            minLines = 2,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (focused) AetherColors.OnBackground else AetherColors.OnSurfaceMuted,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 0.dp),
         )
-        // Always two title lines and one detail line, so every card has the same height and rows never jump.
+        // One title line and one detail line, so every card has the same height and rows never jump.
         val sub = listOfNotNull(meta.year?.toString(), meta.genres.firstOrNull()).joinToString(" · ")
         Text(sub.ifEmpty { " " }, style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 2.dp))
     }
@@ -138,17 +146,20 @@ fun ContinueCard(
     focusRequester: FocusRequester? = null,
     onFocused: (() -> Unit)? = null,
 ) {
-    Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         FocusSurface(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
             shape = RoundedCornerShape(app.aether.tv.ui.theme.LocalCorner.current),
+            focusScale = 1.08f,
+            containerColor = AetherColors.Glass,
+            focusedContainerColor = AetherColors.Glass,
             focusRequester = focusRequester,
             onFocused = onFocused,
         ) {
             RemoteImage(progress.background ?: progress.poster, progress.title, Modifier.fillMaxSize())
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color(0xCC0B0A12))))
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
             Column(Modifier.align(Alignment.BottomStart).padding(10.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     progress.episodeLabel?.let { "$it · ${progress.episodeTitle.orEmpty()}" } ?: "Riprendi",

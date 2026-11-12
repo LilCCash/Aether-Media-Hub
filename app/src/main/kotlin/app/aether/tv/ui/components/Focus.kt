@@ -1,6 +1,8 @@
 package app.aether.tv.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -18,11 +20,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
@@ -32,13 +37,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import app.aether.tv.ui.theme.AetherColors
-import app.aether.tv.ui.theme.LocalAccent
-import app.aether.tv.ui.theme.LocalAnimations
 import app.aether.tv.ui.theme.LocalCorner
+import app.aether.tv.ui.theme.LocalGraphics
 
 /**
- * The basic focusable surface of the app. Whatever the remote highlights is unmistakable: it grows a little, takes the accent colour as
- * a border and gets brighter. OK / Enter on the remote activates it; a long press runs [onLongClick] when there is one.
+ * The focusable surface of the whole app, in the manner of tvOS: the element under the remote lifts (grows, brightens, a thin light
+ * edge and a soft shadow below it). The shadow is a few translucent rounded rectangles drawn behind (no platform shadow: cheap and
+ * exact on every TV) and is left out on the light graphics level. OK activates; a long press runs [onLongClick].
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -50,17 +55,23 @@ fun FocusSurface(
     focusScale: Float = 1.06f,
     containerColor: Color = AetherColors.SurfaceRaised,
     focusedContainerColor: Color = AetherColors.SurfaceFocused,
-    borderWidth: Dp = 3.dp,
+    borderWidth: Dp = 2.dp,
     enabled: Boolean = true,
     focusRequester: FocusRequester? = null,
     testTag: String? = null,
     onFocused: (() -> Unit)? = null,
+    /** The light edge when focused; buttons that turn white do without it. */
+    edge: Boolean = true,
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val animated = LocalAnimations.current
-    val scale by animateFloatAsState(if (focused) focusScale else 1f, tween(if (animated) 130 else 0), label = "focusScale")
-    val accent = LocalAccent.current
+    val graphics = LocalGraphics.current
+    val scale by animateFloatAsState(
+        if (focused) focusScale else 1f,
+        if (graphics.animations) spring(dampingRatio = 0.72f, stiffness = 520f) else tween(0),
+        label = "focusScale",
+    )
+    val background by animateColorAsState(if (focused) focusedContainerColor else containerColor, tween(graphics.ms(140)), label = "focusColor")
     val interaction = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
@@ -72,24 +83,28 @@ fun FocusSurface(
                 focused = state.isFocused
                 if (state.isFocused) onFocused?.invoke()
             }
-            // A cheap, exact glow: a few outline strokes that follow the shape (the platform shadow was costly and drifted below the button).
-            .then(if (focused) Modifier.drawBehind {
-                val outline = shape.createOutline(size, layoutDirection, this)
-                for (i in 4 downTo 1) {
-                    val color = accent.copy(alpha = 0.07f * (5 - i))
-                    val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = i * 3.dp.toPx())
-                    when (outline) {
-                        is androidx.compose.ui.graphics.Outline.Rounded -> outline.roundRect.let { r -> drawRoundRect(color, androidx.compose.ui.geometry.Offset(r.left, r.top), androidx.compose.ui.geometry.Size(r.width, r.height), r.topLeftCornerRadius, stroke) }
-                        is androidx.compose.ui.graphics.Outline.Rectangle -> drawRect(color, androidx.compose.ui.geometry.Offset(outline.rect.left, outline.rect.top), androidx.compose.ui.geometry.Size(outline.rect.width, outline.rect.height), style = stroke)
-                        is androidx.compose.ui.graphics.Outline.Generic -> drawPath(outline.path, color, style = stroke)
-                    }
-                }
-            } else Modifier)
+            .then(if (focused && graphics.shadows) Modifier.drawBehind { softShadow(shape) } else Modifier)
             .clip(shape)
-            .background(if (focused) focusedContainerColor else containerColor, shape)
-            .then(if (focused) Modifier.border(borderWidth, accent, shape) else Modifier)
+            .background(background, shape)
+            .then(if (focused && edge) Modifier.border(borderWidth, Color(0x8CFFFFFF), shape) else Modifier)
             .combinedClickable(enabled = enabled, interactionSource = interaction, indication = null, onClick = onClick, onLongClick = onLongClick),
     ) { content(focused) }
+}
+
+/** A soft dark shadow under a lifted element: four widening, fading layers shifted down a little. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.softShadow(shape: Shape) {
+    val outline = shape.createOutline(size, layoutDirection, this)
+    val radius = (outline as? Outline.Rounded)?.roundRect?.topLeftCornerRadius?.x ?: 0f
+    for (i in 1..4) {
+        val spread = i * 4.dp.toPx()
+        val color = Color.Black.copy(alpha = 0.16f - i * 0.03f)
+        drawRoundRect(
+            color,
+            topLeft = Offset(-spread / 2, spread * 0.9f - spread / 2),
+            size = Size(size.width + spread, size.height + spread),
+            cornerRadius = CornerRadius(radius + spread / 2),
+        )
+    }
 }
 
 /** What a screen reader says for an element that shows only an icon. */

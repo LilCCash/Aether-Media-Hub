@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.aether.core.model.MetaItem
@@ -44,12 +45,13 @@ fun MetaItem.factsLine(): String = listOfNotNull(
     year?.toString(),
     runtime?.takeIf { it.isNotBlank() },
     imdbRating?.takeIf { it.isNotBlank() }?.let { "★ $it" },
-    genres.take(3).takeIf { it.isNotEmpty() }?.joinToString(" · "),
-).joinToString("   ·   ")
+    genres.take(3).takeIf { it.isNotEmpty() }?.joinToString(", "),
+).joinToString("  ·  ")
 
 /**
- * The big picture at the top of the Home: the backdrop of a featured title with its name, facts and description, and the two actions.
- * With several titles it turns to the next every few seconds, but never while the remote is on its buttons.
+ * The featured titles at the top of the Home, in the manner of the Apple TV app: the backdrop fills the screen behind the tab bar,
+ * the title (its logo when there is one) with facts and plot on the left, the actions as white pills, small page dots on the right.
+ * With several titles it moves to the next every few seconds, never while the remote is on its buttons, never on the light level.
  */
 @Composable
 fun HeroBanner(
@@ -59,13 +61,13 @@ fun HeroBanner(
     onDetails: (MetaItem) -> Unit,
     modifier: Modifier = Modifier,
     playRequester: FocusRequester? = null,
-    height: androidx.compose.ui.unit.Dp = 330.dp,
+    height: androidx.compose.ui.unit.Dp = 440.dp,
 ) {
     if (items.isEmpty()) return
     var index by remember(items.size) { mutableIntStateOf(0) }
     var buttonsFocused by remember { mutableStateOf(false) }
-    val animated = LocalAnimations.current
-    if (autoScroll && animated && items.size > 1) {
+    val graphics = app.aether.tv.ui.theme.LocalGraphics.current
+    if (autoScroll && graphics.animations && items.size > 1) {
         LaunchedEffect(items.size, buttonsFocused) {
             if (buttonsFocused) return@LaunchedEffect
             while (true) {
@@ -76,18 +78,27 @@ fun HeroBanner(
     }
     val item = items[index.coerceIn(0, items.size - 1)]
     Box(modifier.fillMaxWidth().height(height)) {
-        Crossfade(targetState = item, animationSpec = tween(if (animated) 600 else 0), label = "hero") { current ->
+        Crossfade(targetState = item, animationSpec = tween(graphics.ms(700)), label = "hero") { current ->
             Box(Modifier.fillMaxSize()) {
-                RemoteImage(current.background ?: current.poster, current.name, Modifier.fillMaxSize(), alignment = androidx.compose.ui.BiasAlignment(0f, -0.6f))
+                RemoteImage(current.background ?: current.poster, current.name, Modifier.fillMaxSize(), alignment = androidx.compose.ui.BiasAlignment(0.3f, -0.5f))
                 Box(Modifier.fillMaxSize().background(backdropScrimHorizontal()))
                 Box(Modifier.fillMaxSize().background(backdropScrimVertical()))
                 Column(
-                    Modifier.align(Alignment.BottomStart).padding(start = AetherDimens.ScreenHorizontal, bottom = 74.dp).width(560.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    Modifier.align(Alignment.BottomStart).padding(start = AetherDimens.ScreenHorizontal, bottom = 92.dp).width(600.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text(current.name, style = MaterialTheme.typography.displayMedium, color = AetherColors.OnBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    val logo = current.logo
+                    if (!logo.isNullOrBlank()) {
+                        coil3.compose.AsyncImage(
+                            model = logo, contentDescription = current.name,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit, alignment = Alignment.CenterStart,
+                            modifier = Modifier.height(110.dp).width(420.dp),
+                        )
+                    } else {
+                        Text(current.name, style = MaterialTheme.typography.displayMedium, color = AetherColors.OnBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
                     current.factsLine().takeIf { it.isNotEmpty() }?.let {
-                        Text(it, style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted, maxLines = 1)
+                        Text(it, style = MaterialTheme.typography.labelLarge, color = AetherColors.OnBackground.copy(alpha = 0.75f), maxLines = 1)
                     }
                     current.description?.takeIf { it.isNotBlank() }?.let {
                         Text(it, style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground.copy(alpha = 0.85f), maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -98,18 +109,18 @@ fun HeroBanner(
         Row(
             Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = AetherDimens.ScreenHorizontal, bottom = 16.dp)
+                .padding(start = AetherDimens.ScreenHorizontal, bottom = 24.dp)
                 .onFocusChanged { buttonsFocused = it.hasFocus }
                 .focusGroup(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             TvButton("Guarda", { onPlay(item) }, icon = Icons.Filled.PlayArrow, primary = true, focusRequester = playRequester, testTag = "hero.play")
             TvButton("Dettagli", { onDetails(item) }, icon = Icons.Filled.Info, testTag = "hero.details")
         }
         if (items.size > 1) {
-            Row(Modifier.align(Alignment.BottomEnd).padding(end = AetherDimens.ScreenHorizontal, bottom = 28.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.align(Alignment.BottomEnd).padding(end = AetherDimens.ScreenHorizontal, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 for (i in items.indices) {
-                    Box(Modifier.width(if (i == index) 22.dp else 8.dp).height(6.dp).background(if (i == index) AetherColors.OnBackground else AetherColors.OnSurfaceFaint, androidx.compose.foundation.shape.RoundedCornerShape(3.dp)))
+                    Box(Modifier.width(if (i == index) 20.dp else 7.dp).height(7.dp).background(if (i == index) AetherColors.OnBackground else Color(0x66FFFFFF), androidx.compose.foundation.shape.RoundedCornerShape(4.dp)))
                 }
             }
         }

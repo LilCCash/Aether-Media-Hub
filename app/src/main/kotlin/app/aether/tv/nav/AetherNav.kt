@@ -25,7 +25,7 @@ import app.aether.tv.Session
 import app.aether.tv.aether
 import androidx.compose.runtime.collectAsState
 import app.aether.tv.StreamRequest
-import app.aether.tv.ui.components.SideNav
+import app.aether.tv.ui.components.TopBar
 import app.aether.tv.ui.screens.addons.AddonsScreen
 import app.aether.tv.ui.screens.detail.DetailScreen
 import app.aether.tv.ui.screens.detail.StreamsScreen
@@ -48,6 +48,8 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val showRail = route in Routes.topLevel
+    val topBarVisible = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
+    androidx.compose.runtime.LaunchedEffect(route) { topBarVisible.value = true }
 
     fun openDetail(meta: MetaItem) { Session.putPreview(meta); nav.navigate(Routes.detail(meta.type, meta.id)) }
     fun openStreams(meta: MetaItem, video: Video?, resumeAt: Double?) {
@@ -74,14 +76,15 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
         NavHost(
             navController = nav,
             startDestination = if (initialAddonInput != null) Routes.ADDONS else Routes.HOME,
-            modifier = Modifier.fillMaxSize().padding(start = if (showRail) AetherDimens.RailCollapsed else 0.dp),
+            // The tab bar floats over the sections; the Home lets its featured titles run under it, the others start below it.
+            modifier = Modifier.fillMaxSize().padding(top = if (showRail && route != Routes.HOME) AetherDimens.TopBar else 0.dp),
             enterTransition = { fadeIn(tween(220)) },
             exitTransition = { fadeOut(tween(160)) },
             popEnterTransition = { fadeIn(tween(220)) },
             popExitTransition = { fadeOut(tween(160)) },
         ) {
             composable(Routes.HOME) {
-                HomeScreen(onOpenDetail = ::openDetail, onPlay = ::openStreams, onOpenAddons = { input -> Session.pendingAddonInput = input; goTop(Routes.ADDONS) })
+                HomeScreen(onTopReached = { topBarVisible.value = it }, onOpenDetail = ::openDetail, onPlay = ::openStreams, onOpenAddons = { input -> Session.pendingAddonInput = input; goTop(Routes.ADDONS) })
             }
             composable(Routes.DISCOVER) { DiscoverScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }) }
             composable(Routes.SEARCH) { SearchScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }) }
@@ -127,8 +130,9 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
             }
         }
         val settings by androidx.compose.ui.platform.LocalContext.current.aether.settings.value.collectAsState()
-        if (showRail) SideNav(
-            current = route.orEmpty(), onSelect = ::goTop, modifier = Modifier.align(androidx.compose.ui.Alignment.CenterStart),
+        if (showRail) TopBar(
+            current = route.orEmpty(), onSelect = ::goTop, modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter),
+            visible = topBarVisible.value || route != Routes.HOME,
             hidden = buildSet { if (!settings.liveTv.showTab) add(Routes.LIVE) },
         )
     }

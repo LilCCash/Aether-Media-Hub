@@ -35,6 +35,14 @@ import app.aether.core.AetherEngine
 import fi.iki.elonen.NanoHTTPD
 import app.aether.tv.ui.components.AetherLogo
 import app.aether.core.debrid.DebridError
+import app.aether.core.settings.GraphicsQuality
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import app.aether.tv.ui.components.FocusSurface
 import app.aether.core.debrid.DebridService
 import app.aether.core.metadata.MdbListClient
 import app.aether.core.metadata.MetadataEnrichment
@@ -92,23 +100,47 @@ fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpen
     val c = settings.content
     val n = settings.network
 
-    Column(modifier.fillMaxSize().padding(top = AetherDimens.ScreenVertical)) {
-        Text("Impostazioni", style = MaterialTheme.typography.headlineLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
-        notice?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = LocalAccent.current, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 4.dp)) }
-        androidx.compose.foundation.layout.Row(
-            Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            settingsTabs.forEachIndexed { i, name -> app.aether.tv.ui.components.TvChip(name, tab == i, { tab = i }, focusRequester = if (i == tab) first else null, testTag = "settings.tab.$i") }
+    // tvOS layout: the categories on the left (moving onto one shows it), the rows of the chosen one on the right.
+    androidx.compose.foundation.layout.Row(modifier.fillMaxSize().padding(start = AetherDimens.ScreenHorizontal, top = 12.dp)) {
+        Column(Modifier.width(300.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Impostazioni", style = MaterialTheme.typography.displaySmall, color = AetherColors.OnBackground, modifier = Modifier.padding(start = 6.dp, bottom = 14.dp))
+            settingsTabs.forEachIndexed { i, name ->
+                FocusSurface(
+                    onClick = { tab = i },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    focusScale = 1.04f,
+                    containerColor = if (tab == i) Color(0x33FFFFFF) else Color.Transparent,
+                    focusedContainerColor = Color.White,
+                    edge = false,
+                    focusRequester = if (i == tab) first else null,
+                    testTag = "settings.tab.$i",
+                    onFocused = { tab = i },
+                ) { focused ->
+                    Text(name, style = MaterialTheme.typography.titleMedium, color = if (focused) AetherColors.OnFocused else if (tab == i) AetherColors.OnBackground else AetherColors.OnSurfaceMuted,
+                        modifier = Modifier.align(Alignment.CenterStart).padding(horizontal = 18.dp))
+                }
+            }
         }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 12.dp, bottom = 56.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (tab == 0) item { AetherLogo(Modifier.padding(bottom = 8.dp)) }
+        LazyColumn(Modifier.weight(1f).fillMaxHeight(), contentPadding = PaddingValues(start = 36.dp, end = AetherDimens.ScreenHorizontal, top = 70.dp, bottom = 56.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            notice?.let { text -> item(key = "notice") { Text(text, style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0x1AFFFFFF)).padding(horizontal = 16.dp, vertical = 10.dp)) } }
             if (tab == 0) {
+            val autoLevel = app.aether.tv.ui.theme.Graphics.autoLevel(context)
+            val g = app.aether.tv.ui.theme.Graphics.resolve(a, autoLevel)
+            section("Grafica e prestazioni")
+            choiceRow("Grafica", if (a.graphics == GraphicsQuality.AUTO) "Automatica (${autoLevel.title})" else a.graphics.title, "appearance.graphics") {
+                choose("Grafica", GraphicsQuality.entries.map { it to "${it.title} — ${it.detail}" }, a.graphics) { v -> update { it.copy(appearance = it.appearance.copy(graphics = v, graphicsOverrides = app.aether.core.settings.GraphicsOverrides())) } }
+            }
+            toggleRow("Animazioni", "Ingrandimenti, dissolvenze e movimenti dell'interfaccia.", a.animationsEnabled && g.animations, "appearance.animations") { v -> update { it.copy(appearance = it.appearance.copy(animationsEnabled = v)) } }
+            toggleRow("Ombre sotto l'elemento scelto", "Il «sollevamento» di locandine e pulsanti sotto il telecomando.", g.shadows, "appearance.shadows") { v -> update { it.copy(appearance = it.appearance.copy(graphicsOverrides = it.appearance.graphicsOverrides.copy(shadows = v))) } }
+            toggleRow("Immagini dietro le pagine", "La locandina sfumata dietro le schede e la luce colorata di sfondo.", g.backdropArt, "appearance.backdropArt") { v -> update { it.copy(appearance = it.appearance.copy(graphicsOverrides = it.appearance.graphicsOverrides.copy(backdropArt = v))) } }
+            toggleRow("Sfocature", if (android.os.Build.VERSION.SDK_INT >= 31) "Vetro sfocato dietro pannelli e scheda (il più pesante)." else "Serve Android 12: su questa TV non è disponibile.", g.blur, "appearance.blur") { v -> update { it.copy(appearance = it.appearance.copy(graphicsOverrides = it.appearance.graphicsOverrides.copy(blur = v))) } }
+            toggleRow("Dissolvenza delle immagini", "Le locandine compaiono sfumando invece che di colpo.", g.imageFades, "appearance.fades") { v -> update { it.copy(appearance = it.appearance.copy(graphicsOverrides = it.appearance.graphicsOverrides.copy(imageFades = v))) } }
+            section("Aspetto")
             choiceRow("Colore d'accento", a.accent.title, "appearance.accent") { choose("Colore d'accento", AccentChoice.entries.map { it to it.title }, a.accent) { v -> update { it.copy(appearance = it.appearance.copy(accent = v)) } } }
             choiceRow("Dimensione delle locandine", a.posterSize.title, "appearance.posterSize") { choose("Dimensione delle locandine", PosterSize.entries.map { it to it.title }, a.posterSize) { v -> update { it.copy(appearance = it.appearance.copy(posterSize = v)) } } }
             choiceRow("Sfondo", a.background.title, "appearance.background") { choose("Sfondo", app.aether.core.settings.BackgroundStyle.entries.map { it to it.title }, a.background) { v -> update { it.copy(appearance = it.appearance.copy(background = v)) } } }
             choiceRow("Angoli di locandine e pulsanti", a.corners.title, "appearance.corners") { choose("Angoli di locandine e pulsanti", app.aether.core.settings.CornerStyle.entries.map { it to it.title }, a.corners) { v -> update { it.copy(appearance = it.appearance.copy(corners = v)) } } }
-            toggleRow("Animazioni", "Ingrandimenti, dissolvenze e movimenti dell'interfaccia.", a.animationsEnabled, "appearance.animations") { v -> update { it.copy(appearance = it.appearance.copy(animationsEnabled = v)) } }
             actionRow("Personalizza la Home", "Ordine delle sezioni e quali mostrare.", "appearance.homeLayout") { dialog = { HomeLayoutDialog(::close) } }
             toggleRow("Saluto in cima alla Home", "«Ciao, ${a.greetingName.ifBlank { "…" }}!» sopra i titoli.", a.showGreeting, "appearance.greeting") { v -> update { it.copy(appearance = it.appearance.copy(showGreeting = v)) } }
             actionRow("Il tuo nome", a.greetingName.ifBlank { "Non impostato" }, "appearance.name") {
@@ -287,7 +319,7 @@ private suspend fun verifyRealDebrid(engine: AetherEngine): String = try {
 // MARK: Rows
 
 private fun androidx.compose.foundation.lazy.LazyListScope.section(title: String) {
-    item(key = "section-$title") { Text(title, style = MaterialTheme.typography.titleLarge, color = AetherColors.OnSurfaceMuted, modifier = Modifier.padding(top = 18.dp, bottom = 2.dp)) }
+    item(key = "section-$title") { Text(title.uppercase(), style = MaterialTheme.typography.labelMedium, color = AetherColors.OnSurfaceFaint, modifier = Modifier.padding(start = 6.dp, top = 18.dp, bottom = 2.dp)) }
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.toggleRow(title: String, description: String, checked: Boolean, tag: String, onChange: (Boolean) -> Unit) {
@@ -304,13 +336,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.actionRow(title: Stri
 
 @Composable
 private fun SettingRow(title: String, description: String?, value: String?, highlight: Boolean = false, tag: String, requester: FocusRequester? = null, onClick: () -> Unit) {
-    FocusSurface(onClick, Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), focusScale = 1.015f, focusRequester = requester, testTag = tag) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    FocusSurface(
+        onClick, Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), focusScale = 1.02f,
+        containerColor = AetherColors.Glass, focusedContainerColor = Color.White, edge = false, focusRequester = requester, testTag = tag,
+    ) { focused ->
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = AetherColors.OnBackground)
-                description?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = AetherColors.OnSurfaceMuted, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                Text(title, style = MaterialTheme.typography.titleMedium, color = if (focused) AetherColors.OnFocused else AetherColors.OnBackground)
+                description?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (focused) AetherColors.OnFocused.copy(alpha = 0.65f) else AetherColors.OnSurfaceMuted, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
-            value?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = if (highlight) LocalAccent.current else AetherColors.OnSurfaceMuted, modifier = Modifier.padding(start = 16.dp), maxLines = 1) }
+            value?.let {
+                Text(it, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.padding(start = 16.dp),
+                    color = if (focused) AetherColors.OnFocused.copy(alpha = 0.75f) else if (highlight) LocalAccent.current else AetherColors.OnSurfaceMuted)
+            }
         }
     }
 }

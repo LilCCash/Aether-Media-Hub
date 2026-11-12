@@ -63,7 +63,10 @@ import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.LocalAccent
 import app.aether.tv.ui.theme.LocalAnimations
 
-/** A button: [primary] ones are filled with the accent colour, the others are quiet until the remote lands on them. */
+/**
+ * A button in the manner of tvOS: a glass pill that turns white with dark text under the remote. [primary] ones are light already
+ * (the main action of a screen stands out without a colour block).
+ */
 @Composable
 fun TvButton(
     text: String,
@@ -75,31 +78,26 @@ fun TvButton(
     focusRequester: FocusRequester? = null,
     testTag: String? = null,
 ) {
-    val accent = LocalAccent.current
     FocusSurface(
         onClick = onClick,
-        modifier = modifier.height(46.dp),
-        shape = RoundedCornerShape(23.dp),
+        modifier = modifier.height(50.dp),
+        shape = RoundedCornerShape(25.dp),
         enabled = enabled,
-        focusScale = 1.05f,
-        containerColor = if (primary) accent else AetherColors.SurfaceRaised,
-        focusedContainerColor = if (primary) accent else AetherColors.SurfaceFocused,
+        focusScale = 1.07f,
+        containerColor = if (primary) Color(0xE6F5F5F7) else AetherColors.SurfaceRaised,
+        focusedContainerColor = Color.White,
+        edge = false,
         focusRequester = focusRequester,
         testTag = testTag,
     ) { focused ->
+        val content = if (focused || primary) AetherColors.OnFocused else AetherColors.OnBackground
         Row(
-            Modifier.padding(horizontal = 20.dp).fillMaxHeight().alpha(if (enabled) 1f else 0.4f),
+            Modifier.padding(horizontal = 24.dp).fillMaxHeight().alpha(if (enabled) 1f else 0.4f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
         ) {
-            if (icon != null) Icon(icon, null, Modifier.size(22.dp), tint = if (primary) AetherColors.Background else AetherColors.OnBackground)
-            Text(
-                text,
-                style = MaterialTheme.typography.labelLarge,
-                color = if (primary) AetherColors.Background else if (focused) Color.White else AetherColors.OnBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (icon != null) Icon(icon, null, Modifier.size(22.dp), tint = content)
+            Text(text, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -112,7 +110,7 @@ fun TvIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     active: Boolean = false,
-    size: androidx.compose.ui.unit.Dp = 46.dp,
+    size: androidx.compose.ui.unit.Dp = 50.dp,
     focusRequester: FocusRequester? = null,
     testTag: String? = null,
 ) {
@@ -121,17 +119,20 @@ fun TvIconButton(
         onClick = onClick,
         modifier = modifier.size(size).semanticsLabel(label),
         shape = CircleShape,
-        focusScale = 1.1f,
+        focusScale = 1.12f,
         containerColor = AetherColors.SurfaceRaised,
+        focusedContainerColor = Color.White,
+        edge = false,
         focusRequester = focusRequester,
         testTag = testTag,
-    ) {
+    ) { focused ->
         Box(Modifier.fillMaxWidth().fillMaxHeight(), contentAlignment = Alignment.Center) {
-            Icon(icon, label, Modifier.size(size * 0.5f), tint = if (active) accent else AetherColors.OnBackground)
+            Icon(icon, label, Modifier.size(size * 0.48f), tint = if (focused) AetherColors.OnFocused else if (active) accent else AetherColors.OnBackground)
         }
     }
 }
 
+/** A choice pill (tabs, filters): glass, light when selected, white under the remote. */
 @Composable
 fun TvChip(
     text: String,
@@ -141,23 +142,22 @@ fun TvChip(
     focusRequester: FocusRequester? = null,
     testTag: String? = null,
 ) {
-    val accent = LocalAccent.current
     FocusSurface(
         onClick = onClick,
-        modifier = modifier.height(38.dp),
-        shape = RoundedCornerShape(19.dp),
-        focusScale = 1.06f,
-        borderWidth = 2.dp,
-        containerColor = if (selected) accent.copy(alpha = 0.9f) else AetherColors.SurfaceRaised,
-        focusedContainerColor = if (selected) accent else AetherColors.SurfaceFocused,
+        modifier = modifier.height(40.dp),
+        shape = RoundedCornerShape(20.dp),
+        focusScale = 1.08f,
+        containerColor = if (selected) Color(0x4DFFFFFF) else AetherColors.Glass,
+        focusedContainerColor = Color.White,
+        edge = false,
         focusRequester = focusRequester,
         testTag = testTag,
-    ) {
-        Box(Modifier.padding(horizontal = 16.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+    ) { focused ->
+        Box(Modifier.padding(horizontal = 18.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
             Text(
                 text,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (selected) AetherColors.Background else AetherColors.OnBackground,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (focused) AetherColors.OnFocused else if (selected) AetherColors.OnBackground else AetherColors.OnSurfaceMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -165,19 +165,18 @@ fun TvChip(
     }
 }
 
-/** A small label such as "1080p", "HEVC" or "In cache". */
+/** A small label such as "1080p", "HEVC" or "In cache": a quiet glass capsule. */
 @Composable
-fun Badge(text: String, modifier: Modifier = Modifier, color: Color = AetherColors.SurfaceFocused, contentColor: Color = AetherColors.OnBackground) {
-    Box(modifier.clip(RoundedCornerShape(6.dp)).background(color).padding(horizontal = 8.dp, vertical = 3.dp)) {
+fun Badge(text: String, modifier: Modifier = Modifier, color: Color = AetherColors.SurfaceRaised, contentColor: Color = AetherColors.OnBackground) {
+    Box(modifier.clip(RoundedCornerShape(7.dp)).background(color).padding(horizontal = 8.dp, vertical = 3.dp)) {
         Text(text, style = MaterialTheme.typography.labelSmall, color = contentColor, maxLines = 1)
     }
 }
 
 @Composable
 fun ProgressLine(fraction: Double, modifier: Modifier = Modifier, height: androidx.compose.ui.unit.Dp = 4.dp) {
-    val accent = LocalAccent.current
-    Box(modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(height)).background(Color(0x66FFFFFF))) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction.coerceIn(0.0, 1.0).toFloat()).background(accent))
+    Box(modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(height)).background(Color(0x40FFFFFF))) {
+        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction.coerceIn(0.0, 1.0).toFloat()).clip(RoundedCornerShape(height)).background(Color.White))
     }
 }
 
@@ -185,7 +184,7 @@ fun ProgressLine(fraction: Double, modifier: Modifier = Modifier, height: androi
 fun LoadingState(message: String = "Caricamento…", modifier: Modifier = Modifier) {
     val accent = LocalAccent.current
     Column(modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        CircularProgressIndicator(color = accent, strokeWidth = 4.dp, modifier = Modifier.size(44.dp))
+        CircularProgressIndicator(color = AetherColors.OnBackground, trackColor = Color(0x26FFFFFF), strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
         Text(message, style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
     }
 }
@@ -225,10 +224,10 @@ fun Placeholder(modifier: Modifier = Modifier, shape: androidx.compose.ui.graphi
     val animated = LocalAnimations.current
     val alpha = if (animated) {
         val transition = rememberInfiniteTransition(label = "placeholder")
-        val value by transition.animateFloat(0.35f, 0.7f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "alpha")
+        val value by transition.animateFloat(0.05f, 0.11f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "alpha")
         value
-    } else 0.5f
-    Box(modifier.clip(shape).background(AetherColors.SurfaceRaised.copy(alpha = alpha)))
+    } else 0.08f
+    Box(modifier.clip(shape).background(Color.White.copy(alpha = alpha)))
 }
 
 /** A text field that looks right on a television (large, with a clear focus ring) and opens the system keyboard on OK. */
@@ -265,10 +264,10 @@ fun TvTextField(
                 .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
                 .onFocusChanged { focused = it.isFocused }
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (focused) AetherColors.SurfaceFocused else AetherColors.SurfaceRaised)
-                .then(if (focused) Modifier.border(3.dp, accent, RoundedCornerShape(12.dp)) else Modifier.border(1.dp, AetherColors.OnSurfaceFaint.copy(alpha = 0.4f), RoundedCornerShape(12.dp)))
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (focused) Color(0x33FFFFFF) else AetherColors.Glass)
+                .border(if (focused) 2.dp else 1.dp, if (focused) Color(0xCCFFFFFF) else AetherColors.GlassStroke, RoundedCornerShape(14.dp))
+                .padding(horizontal = 18.dp, vertical = 13.dp),
             decorationBox = { inner ->
                 Box {
                     if (value.isEmpty() && placeholder.isNotEmpty()) {
@@ -296,11 +295,11 @@ fun AetherDialog(
         Column(
             modifier
                 .width(width)
-                .clip(RoundedCornerShape(20.dp))
-                .background(AetherColors.Surface)
-                .border(1.dp, AetherColors.OnSurfaceFaint.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                .padding(28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .clip(RoundedCornerShape(28.dp))
+                .background(AetherColors.Surface.copy(alpha = 0.97f))
+                .border(1.dp, AetherColors.GlassStroke, RoundedCornerShape(28.dp))
+                .padding(horizontal = 34.dp, vertical = 30.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             Text(title, style = MaterialTheme.typography.headlineMedium, color = AetherColors.OnBackground)
             content()
@@ -341,14 +340,17 @@ fun <T> ChoiceDialog(
                 val (value, label) = options[index]
                 FocusSurface(
                     onClick = { onSelect(value); onDismiss() },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    focusScale = 1.02f,
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    focusScale = 1.03f,
+                    containerColor = Color.Transparent,
+                    focusedContainerColor = Color.White,
+                    edge = false,
                     focusRequester = requesters.getOrNull(index),
-                ) {
-                    Row(Modifier.padding(horizontal = 16.dp).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (value == selected) Icon(Icons.Filled.Check, null, tint = LocalAccent.current)
+                ) { focused ->
+                    Row(Modifier.padding(horizontal = 18.dp).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = if (focused) AetherColors.OnFocused else AetherColors.OnBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (value == selected) Icon(Icons.Filled.Check, null, tint = if (focused) AetherColors.OnFocused else LocalAccent.current)
                     }
                 }
             }
@@ -371,12 +373,13 @@ fun FilterPill(
     var open by remember { mutableStateOf(false) }
     val shown = options.firstOrNull { it.first == selected }?.second ?: selected
     FocusSurface(
-        { open = true }, modifier.height(40.dp), shape = RoundedCornerShape(20.dp), focusScale = 1.04f, focusRequester = focusRequester, testTag = testTag,
-    ) {
+        { open = true }, modifier.height(40.dp), shape = RoundedCornerShape(20.dp), focusScale = 1.07f,
+        containerColor = AetherColors.Glass, focusedContainerColor = Color.White, edge = false, focusRequester = focusRequester, testTag = testTag,
+    ) { focused ->
         Row(Modifier.padding(horizontal = 16.dp).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("$label:", style = MaterialTheme.typography.labelMedium, color = AetherColors.OnSurfaceMuted, maxLines = 1)
-            Text(shown, style = MaterialTheme.typography.labelLarge, color = AetherColors.OnBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
-            Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(20.dp), tint = AetherColors.OnSurfaceMuted)
+            Text("$label:", style = MaterialTheme.typography.labelMedium, color = if (focused) AetherColors.OnFocused.copy(alpha = 0.7f) else AetherColors.OnSurfaceMuted, maxLines = 1)
+            Text(shown, style = MaterialTheme.typography.labelLarge, color = if (focused) AetherColors.OnFocused else AetherColors.OnBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
+            Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(20.dp), tint = if (focused) AetherColors.OnFocused else AetherColors.OnSurfaceMuted)
         }
     }
     if (open) ChoiceDialog(label, options, selected, onSelect, { open = false })
