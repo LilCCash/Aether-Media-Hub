@@ -104,7 +104,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
     // MARK: Fetching
 
     private func load(_ url: URL, manifestType: String?) async throws -> Data {
-        let maximum = manifestType == nil ? 48 * 1024 * 1024 : 4 * 1024 * 1024
+        let maximum = manifestType == nil ? 32 * 1024 * 1024 : 4 * 1024 * 1024
         let data = try await fetch(url)
         guard data.count <= maximum else { throw RelayError.upstreamNotMedia }
         guard let manifestType = manifestType else { return data }
@@ -261,7 +261,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         for token in tokens { validationURL = validationURL.replacingOccurrences(of: token.placeholder, with: "1") }
         guard URL(string: validationURL, relativeTo: baseURL) != nil else { return nil }
         let prefix = "r" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(12))
-        let ext = URL(fileURLWithPath: raw).pathExtension.lowercased()
+        let ext = URL(string: validationURL, relativeTo: baseURL)?.pathExtension.lowercased() ?? ""
         let safeExt = ext.range(of: #"^[a-z0-9]{1,8}$"#, options: .regularExpression) != nil ? ext : "bin"
         let local = prefix + "_" + tokens.map { $0.placeholder }.joined(separator: "_") + "." + safeExt
         var regexPattern = NSRegularExpression.escapedPattern(for: local)
@@ -294,9 +294,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
                 let replacement: String
                 if let format = token.format, let number = Int(capture) { replacement = String(format: "%0\(format)d", number) }
                 else { replacement = capture }
-                if let swiftRange = raw.range(of: token.placeholder) {
-                    raw = raw.replacingOccurrences(of: token.placeholder, with: replacement)
-                }
+                raw = raw.replacingOccurrences(of: token.placeholder, with: replacement)
             }
             guard let url = URL(string: raw, relativeTo: candidate.baseURL)?.absoluteURL else { continue }
             return Route(url: url, contentType: candidate.contentType)
