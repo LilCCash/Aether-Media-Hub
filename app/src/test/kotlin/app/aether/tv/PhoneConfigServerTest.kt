@@ -78,7 +78,7 @@ class PhoneConfigServerTest {
     }
 
     /** A file sent by the phone page, as Safari sends it (multipart), on a raw socket; returns the status line. */
-    private fun upload(token: String, fileBody: ByteArray): String {
+    private fun upload(token: String, fileBody: ByteArray, origin: String? = null): String {
         val boundary = "----AetherTest"
         val head = "--$boundary\r\nContent-Disposition: form-data; name=\"backup\"; filename=\"Aether-Backup.json\"\r\nContent-Type: application/json\r\n\r\n"
         val tail = "\r\n--$boundary\r\nContent-Disposition: form-data; name=\"mode\"\r\n\r\nmerge\r\n--$boundary--\r\n"
@@ -86,7 +86,7 @@ class PhoneConfigServerTest {
         java.net.Socket("127.0.0.1", server.listeningPort).use { socket ->
             socket.soTimeout = 60_000
             val out = socket.getOutputStream()
-            out.write(("POST /s/$token/restore HTTP/1.1\r\nHost: 127.0.0.1:${server.listeningPort}\r\nOrigin: http://127.0.0.1:${server.listeningPort}\r\n" +
+            out.write(("POST /s/$token/restore HTTP/1.1\r\nHost: 127.0.0.1:${server.listeningPort}\r\nOrigin: ${origin ?: "http://127.0.0.1:${server.listeningPort}"}\r\n" +
                 "Content-Type: multipart/form-data; boundary=$boundary\r\nContent-Length: ${body.size}\r\nConnection: keep-alive\r\n\r\n").toByteArray())
             out.write(body)
             out.flush()
@@ -122,5 +122,21 @@ class PhoneConfigServerTest {
         val text = app.aether.core.library.BackupCodec.encode(app.aether.core.library.LibraryState(), emptyList(), false, "test")
         Thread.sleep(1500)
         assertTrue(upload(token, text.toByteArray()).contains(" 303 "))
+    }
+
+    /** Safari sends «Origin: null» for a form when the page asks for no referrer: it was refused and the upload cut («connessione persa»). */
+    @Test fun safarisNullOriginIsAcceptedForTheBackupForm() {
+        val token = server.session.token
+        request("/s/$token/"); server.answer(true)
+        val text = app.aether.core.library.BackupCodec.encode(app.aether.core.library.LibraryState(), emptyList(), false, "test")
+        val status = upload(token, text.toByteArray() + ByteArray(200_000) { ' '.code.toByte() }, origin = "null")
+        assertTrue(status, status.contains(" 303 "))
+    }
+
+    @Test fun aRefusedUploadIsStillReadSoTheBrowserGetsThePage() {
+        val token = server.session.token
+        request("/s/$token/"); server.answer(true)
+        val status = upload(token, ByteArray(300_000) { 'x'.code.toByte() }, origin = "http://evil.example")
+        assertTrue(status, status.contains(" 403 "))
     }
 }

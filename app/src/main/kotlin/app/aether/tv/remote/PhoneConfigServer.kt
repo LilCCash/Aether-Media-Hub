@@ -59,27 +59,30 @@ class PhoneConfigServer(private val engine: AetherEngine, val session: PhoneLink
         val parts = http.uri.trim('/').split('/')
         if (parts.size < 2 || parts[0] != "s") return page(Response.Status.NOT_FOUND, "Pagina non trovata", "Inquadra di nuovo il codice QR sulla TV.")
         val client = http.remoteIpAddress ?: "?"
+        // Whatever the answer, a POST body is read to the end first: a browser whose upload is cut short shows «connessione persa»
+        // instead of the page that explains why.
+        fun refuse(response: Response): Response { if (http.method == Method.POST) drain(http); return response }
         when (session.check(parts[1], client)) {
-            Access.EXPIRED -> return page(Response.Status.GONE, "Collegamento scaduto", "Sulla TV apri di nuovo «Configura dal telefono» e inquadra il nuovo codice.")
-            Access.BAD_TOKEN, Access.DENIED -> return page(Response.Status.FORBIDDEN, "Accesso negato", "Questo telefono non è autorizzato. Sulla TV apri di nuovo «Configura dal telefono».")
+            Access.EXPIRED -> return refuse(page(Response.Status.GONE, "Collegamento scaduto", "Sulla TV apri di nuovo «Configura dal telefono» e inquadra il nuovo codice."))
+            Access.BAD_TOKEN, Access.DENIED -> return refuse(page(Response.Status.FORBIDDEN, "Accesso negato", "Questo telefono non è autorizzato. Sulla TV apri di nuovo «Configura dal telefono»."))
             Access.NEEDS_APPROVAL, Access.WAITING -> {
                 _pending.value = client
-                return waitingPage()
+                return refuse(waitingPage())
             }
             Access.ALLOWED -> Unit
         }
         val action = parts.drop(2).joinToString("/")
         if (http.method == Method.GET) return if (action.isEmpty()) home(http.parameters["msg"]?.firstOrNull()) else redirect(null)
         if (http.method != Method.POST) return page(Response.Status.METHOD_NOT_ALLOWED, "Richiesta non valida", "")
+        // Another site's form is refused. «null» (a privacy setting of the browser) and no Origin at all are accepted: the secret
+        // token in the address and the approved phone already protect the page.
         val origin = http.headers["origin"]
         val host = http.headers["host"]
-        if (origin != null && host != null && origin != "http://$host") return page(Response.Status.FORBIDDEN, "Richiesta rifiutata", "La richiesta non arriva da questa pagina.")
-        val length = http.headers["content-length"]?.toLongOrNull() ?: 0
-        if (length > MAX_BODY) {
-            // The body is read to the end before answering: closing on an unread upload makes Safari say «connection lost».
-            runCatching { val buffer = ByteArray(64 * 1024); var left = length; while (left > 0) { val n = http.inputStream.read(buffer, 0, minOf(buffer.size.toLong(), left).toInt()); if (n < 0) break; left -= n } }
-            return page(Response.Status.PAYLOAD_TOO_LARGE, "File troppo grande", "Il limite è ${MAX_BODY / 1_048_576} MB.")
+        if (origin != null && origin != "null" && host != null && origin != "http://$host") {
+            return refuse(page(Response.Status.FORBIDDEN, "Richiesta rifiutata", "La richiesta non arriva da questa pagina."))
         }
+        val length = http.headers["content-length"]?.toLongOrNull() ?: 0
+        if (length > MAX_BODY) return refuse(page(Response.Status.PAYLOAD_TOO_LARGE, "File troppo grande", "Il limite è ${MAX_BODY / 1_048_576} MB."))
         val files = HashMap<String, String>()
         return try {
             http.parseBody(files)
@@ -221,6 +224,16 @@ class PhoneConfigServer(private val engine: AetherEngine, val session: PhoneLink
         """)
     }
 
+    /** Reads and discards what is left of a request body (bounded by the size limit). */
+    private fun drain(http: IHTTPSession) {
+        val length = http.headers["content-length"]?.toLongOrNull() ?: return
+        runCatching {
+            val buffer = ByteArray(64 * 1024)
+            var left = minOf(length, MAX_BODY + 1)
+            while (left > 0) { val n = http.inputStream.read(buffer, 0, minOf(buffer.size.toLong(), left).toInt()); if (n < 0) break; left -= n }
+        }
+    }
+
     private fun isSet(secret: String) = !engine.secrets.get(secret).isNullOrBlank()
 
     private fun page(status: Response.IStatus, title: String, message: String) = html(status, "<h1>${esc(title)}</h1><p>${esc(message)}</p>")
@@ -241,7 +254,7 @@ class PhoneConfigServer(private val engine: AetherEngine, val session: PhoneLink
         // never retried. A fresh connection for each request costs nothing on the home network.
         closeConnection(true)
         addHeader("Cache-Control", "no-store")
-        addHeader("Referrer-Policy", "no-referrer")
+        addHeader("Referrer-Policy", "same-origin")
         addHeader("X-Frame-Options", "DENY")
         addHeader("X-Content-Type-Options", "nosniff")
         addHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; script-src 'unsafe-inline'")

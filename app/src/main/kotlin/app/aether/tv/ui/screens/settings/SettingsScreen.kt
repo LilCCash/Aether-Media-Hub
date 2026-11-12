@@ -103,12 +103,14 @@ fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpen
 
     // tvOS layout: the categories on the left (moving onto one shows it), the rows of the chosen one on the right.
     androidx.compose.foundation.layout.Row(modifier.fillMaxSize().padding(start = AetherDimens.ScreenHorizontal, top = 12.dp)) {
-        Column(Modifier.width(300.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Impostazioni", style = MaterialTheme.typography.displaySmall, color = AetherColors.OnBackground, modifier = Modifier.padding(start = 6.dp, bottom = 14.dp))
-            settingsTabs.forEachIndexed { i, name ->
+        // The categories scroll: on a 540 dp tall screen eight of them do not all fit under the title (Informazioni was cut off).
+        LazyColumn(Modifier.width(300.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(bottom = 40.dp)) {
+            item { Text("Impostazioni", style = MaterialTheme.typography.displaySmall, color = AetherColors.OnBackground, modifier = Modifier.padding(start = 6.dp, bottom = 10.dp)) }
+            items(settingsTabs.size) { i ->
+                val name = settingsTabs[i]
                 FocusSurface(
                     onClick = { tab = i },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
                     shape = RoundedCornerShape(14.dp),
                     focusScale = 1.04f,
                     containerColor = if (tab == i) Color(0x33FFFFFF) else Color.Transparent,
