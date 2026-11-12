@@ -223,7 +223,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
     }
 
     private func rewriteDASHAttributes(_ input: String, baseURL: URL) throws -> String {
-        let pattern = #"(\b(?:media|initialization|sourceURL)\s*=\s*")([^"]+)(")"#
+        let pattern = #"(\b(?:media|initialization|sourceURL|index)\s*=\s*")([^"]+)(")"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return input }
         let mutable = NSMutableString(string: input)
         let matches = regex.matches(in: input, range: NSRange(location: 0, length: (input as NSString).length)).reversed()
