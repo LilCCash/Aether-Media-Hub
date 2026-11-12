@@ -359,6 +359,7 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
             onSelect = { option -> vm.selectText(option) },
             onDelay = { value -> engine.settings.update { it.copy(playback = it.playback.copy(subtitleDelayMillis = value)) }; touch() },
             onDismiss = { panel = Panel.NONE; touch() },
+            onSearchCatalogue = { lang, done -> vm.searchCatalogue(lang, done); touch() },
         )
         Panel.SPEED -> ChoiceDialog(
             "Velocità", listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).map { it to if (it == 1f) "Normale" else "${it}×" }, state.speed, vm::setSpeed, { panel = Panel.NONE; touch() },

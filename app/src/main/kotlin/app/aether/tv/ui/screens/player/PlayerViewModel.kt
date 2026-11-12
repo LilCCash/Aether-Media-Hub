@@ -237,7 +237,11 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
     private suspend fun fetchExtras(r: PlaybackRequest) {
         val videoId = r.video?.id ?: r.meta.id
         try {
-            addonSubtitles = engine.addons.subtitles(r.meta.type, videoId, r.stream)
+            val imdbVideoId = imdbVideoId(r)
+            // Each subtitle gets its own id in the list: addons often number theirs from 1, and two addons would clash.
+            addonSubtitles = engine.subtitlesFor(r.meta.type, videoId, imdbVideoId, r.stream, java.util.Locale.getDefault().language)
+                .mapIndexed { i, sub -> sub.copy(id = "$i") }
+            engine.log.info("player", "sottotitoli trovati: ${addonSubtitles.size} (${addonSubtitles.groupBy { it.addonName }.map { "${it.key}: ${it.value.size}" }.joinToString()})")
             publishTracks(player.currentTracks)
             // The viewer's language is applied by itself when the file has no subtitle track in it.
             val wanted = languageSetting(settings.preferredSubtitleLanguage)
@@ -246,6 +250,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
             }
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
+            engine.log.error("player", "ricerca dei sottotitoli non riuscita", error)
         }
         if (settings.skipSegmentsEnabled && r.video?.isEpisode == true) {
             val imdb = r.meta.imdbId ?: r.meta.externalIds.imdb
@@ -360,6 +365,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
                 null
             }
             if (cues.isNullOrEmpty()) {
+                engine.log.warn("player", "sottotitoli illeggibili da ${sub.addonName}: ${sub.url}")
                 _state.update { it.copy(subtitleNote = "Impossibile leggere questi sottotitoli (formato non supportato o addon non raggiungibile): provane altri.") }
                 return@launch
             }
@@ -376,6 +382,31 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
                 }
                 delay(100)
             }
+        }
+    }
+
+    private fun imdbVideoId(r: PlaybackRequest): String? {
+        val imdb = r.meta.imdbId ?: r.meta.externalIds.imdb ?: r.meta.id.substringBefore(':').takeIf { it.startsWith("tt") }
+        val v = r.video
+        return imdb?.let { if (v?.season != null && v.episode != null) "$it:${v.season}:${v.episode}" else it }
+    }
+
+    /** The OpenSubtitles.org catalogue asked on purpose, in a language the viewer picks: what it finds joins the list. */
+    fun searchCatalogue(language: String, onDone: () -> Unit) {
+        val r = current
+        val id = r?.let { imdbVideoId(it) }
+        if (id == null) { _state.update { it.copy(subtitleNote = "Per questo titolo manca l'identificativo IMDb: OpenSubtitles.org non si può interrogare.") }; return }
+        _state.update { it.copy(subtitleNote = "Cerco su OpenSubtitles.org…") }
+        viewModelScope.launch {
+            val found = app.aether.core.playback.OpenSubtitlesCatalog.search(engine.http, id, listOf(language), limitPerLanguage = 30)
+            val known = addonSubtitles.map { it.url }.toSet()
+            val fresh = found.filter { it.url !in known }
+            val base = addonSubtitles.size
+            addonSubtitles = addonSubtitles + fresh.mapIndexed { i, sub -> sub.copy(id = "${base + i}") }
+            engine.log.info("player", "OpenSubtitles.org ($language): ${found.size} trovati")
+            _state.update { it.copy(subtitleNote = if (found.isEmpty()) "Nessun sottotitolo in ${Languages.displayName(language)} su OpenSubtitles.org." else null) }
+            publishTracks(player.currentTracks)
+            if (found.isNotEmpty()) onDone()
         }
     }
 

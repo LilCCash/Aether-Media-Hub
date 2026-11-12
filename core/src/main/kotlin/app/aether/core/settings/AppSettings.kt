@@ -105,6 +105,10 @@ data class PlaybackSettings(
     val showTitleLogos: Boolean = true,
     /** Pressing Home during a video keeps it in a small window (Picture-in-Picture), where the TV allows it. */
     val pictureInPicture: Boolean = true,
+    /** The full OpenSubtitles.org catalogue is asked too (in the viewer's languages), next to the subtitles of the addons. */
+    val openSubtitlesCatalog: Boolean = true,
+    /** A second language asked of the catalogue besides the preferred one ("off" = none). */
+    val secondarySubtitleLanguage: String = "en",
 )
 
 @Serializable

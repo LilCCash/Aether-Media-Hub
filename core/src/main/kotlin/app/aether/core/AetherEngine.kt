@@ -1,5 +1,6 @@
 package app.aether.core
 
+import kotlinx.coroutines.async
 import app.aether.core.addons.AddonClient
 import app.aether.core.addons.AddonRegistry
 import app.aether.core.addons.AddonRegistryState
@@ -49,6 +50,8 @@ class AetherEngine(
 
     val http: HttpClient = http ?: OkHttpTransport(::currentPolicy)
     val cache = ResponseCache()
+    /** The diagnostic log (redacted, local only). */
+    val log = app.aether.core.diagnostics.DiagnosticLog(File(dataDir, "diagnostics.log"))
     val metadata = MetadataEnrichment(this.http, secrets) { settings.value.value.content.metadataLanguage }
     val client = AddonClient(
         this.http, cache,
@@ -82,6 +85,30 @@ class AetherEngine(
     }
 
     /** The preferences the ranking of the sources uses, from the settings and the order of the installed addons. */
+    /**
+     * Every subtitle for a video, de-duplicated by address: those the source carries itself, those of the addons (asked again by the
+     * IMDb id when the video has another kind of id and nothing came back), then the OpenSubtitles.org catalogue in the viewer's
+     * languages. One part failing never empties the others.
+     */
+    suspend fun subtitlesFor(type: String, videoId: String, imdbVideoId: String?, stream: app.aether.core.model.AddonStream?, languageFromSystem: String?): List<app.aether.core.model.AddonSubtitle> = kotlinx.coroutines.coroutineScope {
+        val playback = settings.value.value.playback
+        val own = stream?.subtitles.orEmpty().map { if (it.addonName == null) it.copy(addonName = "Sorgente") else it }
+        val catalogId = imdbVideoId ?: videoId.takeIf { it.startsWith("tt") }
+        val catalog = async {
+            if (!playback.openSubtitlesCatalog || catalogId == null) emptyList()
+            else {
+                val wanted = listOf(playback.preferredSubtitleLanguage, playback.secondarySubtitleLanguage).map { if (it == "system") languageFromSystem.orEmpty() else it }
+                    .filter { it.isNotBlank() && it != "off" }
+                    .ifEmpty { listOfNotNull(languageFromSystem, "en") }
+                app.aether.core.playback.OpenSubtitlesCatalog.search(this@AetherEngine.http, catalogId, wanted)
+            }
+        }
+        var fromAddons = addons.subtitles(type, videoId, stream)
+        if (fromAddons.isEmpty() && imdbVideoId != null && imdbVideoId != videoId) fromAddons = addons.subtitles(type, imdbVideoId, stream)
+        val seen = HashSet<String>()
+        (own + fromAddons + catalog.await()).filter { it.url.isNotBlank() && seen.add(it.url.trim()) }
+    }
+
     suspend fun streamPreferences(languageFromSystem: String?): StreamPreferences {
         val s = settings.value.value
         val language = when (s.playback.preferredAudioLanguage) {

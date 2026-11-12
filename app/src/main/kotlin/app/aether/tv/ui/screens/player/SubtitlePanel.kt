@@ -42,6 +42,8 @@ import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.LocalAccent
 
 private const val FILE = "\u0000file"
+private const val SEARCH = "\u0000search"
+private val catalogueLanguages = listOf("it", "en", "es", "fr", "de", "pt", "pt-BR", "nl", "ru", "ja", "ko", "zh", "ar", "pl", "tr", "sv", "el", "ro", "hu", "cs")
 
 /**
  * Subtitles in two steps, like on the iPhone: first where they come from ("In the file", then one entry per addon), then the
@@ -58,6 +60,7 @@ fun SubtitlePanel(
     onSelect: (TrackOption?) -> Unit,
     onDelay: (Long) -> Unit,
     onDismiss: () -> Unit,
+    onSearchCatalogue: ((language: String, onDone: () -> Unit) -> Unit)? = null,
 ) {
     var category by remember { mutableStateOf<String?>(null) }
     val sources = remember(options) {
@@ -79,8 +82,19 @@ fun SubtitlePanel(
                     val list = sources.getValue(key)
                     Row0(sourceTitle(key), detail = "${list.size}", check = list.any { it.selected }, chevron = true) { category = key }
                 }
+                if (onSearchCatalogue != null) item { Row0("Cerca su OpenSubtitles.org", detail = "altre lingue", chevron = true) { category = SEARCH } }
                 item { DelaySlider(delayMs, anticipationAvailable, onDelay) }
                 note?.let { item { Text(it, style = MaterialTheme.typography.bodySmall, color = AetherColors.Warning, modifier = Modifier.padding(horizontal = 8.dp)) } }
+            }
+            RequestFocusOnce(first, current)
+        } else if (current == SEARCH) {
+            LazyColumn(Modifier.height(380.dp), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
+                note?.let { item { Text(it, style = MaterialTheme.typography.bodySmall, color = AetherColors.OnSurfaceMuted, modifier = Modifier.padding(horizontal = 8.dp)) } }
+                items(catalogueLanguages, key = { it }) { lang ->
+                    Row0(if (lang == "pt-BR") "Portoghese (Brasile)" else Languages.displayName(lang), focusRequester = if (lang == catalogueLanguages.first()) first else null, chevron = true) {
+                        onSearchCatalogue?.invoke(lang) { category = app.aether.core.playback.OpenSubtitlesCatalog.NAME }
+                    }
+                }
             }
             RequestFocusOnce(first, current)
         } else {
@@ -108,7 +122,7 @@ fun SubtitlePanel(
     }
 }
 
-private fun sourceTitle(key: String) = if (key == FILE) "Nel file" else key
+private fun sourceTitle(key: String) = when (key) { FILE -> "Nel file"; SEARCH -> "Cerca su OpenSubtitles.org"; else -> key }
 
 @Composable
 private fun Row0(title: String, detail: String? = null, check: Boolean = false, chevron: Boolean = false, focusRequester: FocusRequester? = null, onClick: () -> Unit) {
