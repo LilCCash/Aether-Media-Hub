@@ -173,7 +173,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
     }
 
     private func replacingURIAttributes(in line: String, baseURL: URL) throws -> String {
-        let pattern = #"URI="([^"]+)""#
+        let pattern = #"(?:URI|SERVER-URI)="([^"]+)""#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return line }
         let mutable = NSMutableString(string: line)
         let matches = regex.matches(in: line, range: NSRange(location: 0, length: (line as NSString).length)).reversed()
@@ -188,6 +188,17 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
     // MARK: DASH
 
     private func rewriteDASH(_ input: String, baseURL: URL) throws -> String {
+        let lower = input.lowercased()
+        // DRM license URLs and dynamic MPD patch/location endpoints are not proxied by this version.
+        // Refuse them rather than ever exposing an upstream URL or silently producing a broken manifest.
+        if lower.contains("<contentprotection") || lower.contains("<laurl") || lower.contains("widevine")
+            || lower.contains("playready") || lower.contains("<location") || lower.contains("<patchlocation")
+            || lower.contains("<utctiming") || lower.contains("xlink:href") {
+            throw RelayError.upstreamNotMedia
+        }
+        let baseMatches = (try? NSRegularExpression(pattern: #"<BaseURL[^>]*>\\s*([^<]+?)\\s*</BaseURL>"#))
+            .map { $0.numberOfMatches(in: input, range: NSRange(input.startIndex..., in: input)) } ?? 0
+        guard baseMatches <= 1 else { throw RelayError.upstreamNotMedia }
         var output = input
         // Root-level BaseURL is folded into the base used for every SegmentURL/SegmentTemplate below.
         if let regex = try? NSRegularExpression(pattern: #"<BaseURL[^>]*>\s*([^<]+?)\s*</BaseURL>"#),
