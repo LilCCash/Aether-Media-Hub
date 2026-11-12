@@ -247,17 +247,19 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         localPattern += ns.substring(from: cursor)
         guard !localPattern.contains("$"),
               let url = URL(string: raw.replacingOccurrences(of: #"$Number$"#, with: "1").replacingOccurrences(of: #"$Time$"#, with: "1"), relativeTo: baseURL)?.absoluteURL else { return nil }
-        let prefix = "r" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(16)
+        let prefix = "r" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(16))
         var local = localPattern
-        for index in tokens.indices { local = local.replacingOccurrences(of: "__DYN\(index)__", with: "D\(index)") }
-        let regexPattern = "^" + NSRegularExpression.escapedPattern(for: local).replacingOccurrences(of: #"D([0-9]+)"#, with: "([0-9]+)", options: .regularExpression) + "$"
+        for index in tokens.indices {
+            local = local.replacingOccurrences(of: "__DYN\(index)__", with: prefix + "D\(index)")
+        }
+        let regexPattern = "^" + NSRegularExpression.escapedPattern(for: local)
+            .replacingOccurrences(of: #"D([0-9]+)"#, with: "([0-9]+)", options: .regularExpression) + "$"
         guard let routeRegex = try? NSRegularExpression(pattern: regexPattern) else { return nil }
         lock.lock()
-        dynamicRoutes.append(DynamicRoute(localPrefix: String(prefix), rawTemplate: raw, baseURL: baseURL, tokens: tokens,
+        dynamicRoutes.append(DynamicRoute(localPrefix: prefix, rawTemplate: raw, baseURL: baseURL, tokens: tokens,
                                           regex: routeRegex, contentType: mimeType(for: raw)))
         lock.unlock()
-        // The opaque prefix is stable for this template; clients substitute the numeric placeholders.
-        return local.replacingOccurrences(of: "D", with: String(prefix))
+        return local
     }
 
     private func resolve(_ leaf: String) -> Route? {
@@ -273,7 +275,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
             for (index, token) in candidate.tokens.enumerated().reversed() {
                 let capture = ns.substring(with: match.range(at: index + 1))
                 let replacement: String
-                if let format = token.format, let number = Int(capture) { replacement = String(format: "%\(format)", number) }
+                if let format = token.format, let number = Int(capture) { replacement = String(format: "%0\(format)d", number) }
                 else { replacement = capture }
                 let expression = token.name == "Number" ? #"(\$Number(?:%0[1-9][0-9]?d)?\$)"# : #"(\$Time(?:%0[1-9][0-9]?d)?\$)"#
                 if let regex = try? NSRegularExpression(pattern: expression),
@@ -304,7 +306,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
     }
 
     private func randomLeaf(extension ext: String) -> String {
-        "r" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(20) + "." + ext
+        "r" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(20)) + "." + ext
     }
 
     private var isClosed: Bool {
