@@ -39,3 +39,17 @@ class DownloadsTest {
         assertEquals("avi", DownloadStore.extension("https://x/y/stream", "Film.avi"))
     }
 }
+
+class IphoneBackupKeysTest {
+    @Test fun theKeysOfAnIphoneBackupAreRead() {
+        val text = """{"marker":"app.aether.backup","formatVersion":1,"createdAt":"2026-11-12T10:00:00Z","appVersion":"2.1",
+            "library":{"entries":{},"progress":{},"searchHistory":[]},"addons":[{"addon":{"id":"x"},"url":"https://a.example/manifest.json"}],
+            "includesAddonURLs":true,"serviceKeys":{"tmdb":"T1","torbox":"TB","realdebrid":"RD","mdblist":"M","fanart":"F","tvdb":"V","tvdbPin":"P"}}"""
+        val contents = app.aether.core.library.BackupCodec.decode(text)
+        org.junit.Assert.assertEquals(mapOf("tmdb" to "T1", "torbox" to "TB", "realdebrid" to "RD", "mdblist" to "M", "fanart" to "F", "tvdb" to "V", "tvdbPin" to "P"), contents.keys)
+        org.junit.Assert.assertEquals(listOf("https://a.example/manifest.json"), contents.addonUrls)
+        val again = app.aether.core.library.BackupCodec.encode(contents.library, contents.addonUrls, true, "tv", keys = contents.keys)
+        org.junit.Assert.assertTrue(again.contains("\"serviceKeys\""))
+        org.junit.Assert.assertEquals(contents.keys, app.aether.core.library.BackupCodec.decode(again).keys)
+    }
+}

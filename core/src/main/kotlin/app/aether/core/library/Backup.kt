@@ -82,7 +82,8 @@ object BackupCodec {
                     for (item in library.searchHistory) add(buildJsonObject { put("query", item.query); put("date", iso(item.date)) })
                 }
             }
-            if (keys.isNotEmpty()) putJsonObject("aetherTvKeys") { for ((k, v) in keys) put(k, v) }
+            // Same field as the iPhone backup, so the keys travel both ways.
+            if (keys.isNotEmpty()) putJsonObject("serviceKeys") { for ((k, v) in keys) put(k, v) }
             putJsonArray("addons") {
                 if (includeAddonUrls) for (url in addonUrls) add(buildJsonObject { put("url", url) })
             }
@@ -135,7 +136,10 @@ object BackupCodec {
             return BackupContents(
                 createdAt = millis(root.flexString("createdAt")), library = LibraryState(entries = entries, progress = progress, searchHistory = history),
                 addonUrls = urls, includesAddonUrls = root.flexBool("includesAddonURLs") ?: false, platform = root.flexString("platform"),
-                keys = (root["aetherTvKeys"] as? JsonObject)?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content?.takeIf { it.isNotBlank() }?.let { k to it } }?.toMap().orEmpty(),
+                // «serviceKeys» is the iPhone's name (and the TV's now); «aetherTvKeys» is what earlier TV builds wrote.
+                keys = listOf("aetherTvKeys", "serviceKeys").flatMap { field ->
+                    (root[field] as? JsonObject)?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content?.takeIf { it.isNotBlank() }?.let { k to it } }.orEmpty()
+                }.toMap(),
             )
         } catch (error: Exception) {
             throw BackupError.Unreadable
