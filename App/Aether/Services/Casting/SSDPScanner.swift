@@ -40,7 +40,7 @@ enum SSDPScanner {
 
         let packet = [UInt8](SSDP.searchRequest())
         var multicastFailure: String?
-        var sentAny = false
+        var multicastSent = false
 
         if includeMulticast {
             var ttl: UInt8 = 2
@@ -61,7 +61,7 @@ enum SSDPScanner {
                 if result < 0 {
                     multicastFailure = String(cString: strerror(errno))
                 } else {
-                    sentAny = true
+                    multicastSent = true
                 }
                 usleep(150_000)
             }
@@ -82,12 +82,6 @@ enum SSDPScanner {
                     sendto(descriptor, packet, packet.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
                 }
             }
-            if result >= 0 { sentAny = true }
-        }
-
-        if includeMulticast && !sentAny && unicastHosts.isEmpty {
-            let reason = multicastFailure ?? "errore sconosciuto"
-            return Outcome(responses: [], failure: "Invio multicast rifiutato dal sistema (\(reason)). Serve l'entitlement multicast di Apple.")
         }
 
         var found: [String: SSDP.Response] = [:]
@@ -100,7 +94,10 @@ enum SSDPScanner {
                 found[response.location.absoluteString] = response
             }
         }
-        return Outcome(responses: Array(found.values), failure: nil)
+        let failure: String? = includeMulticast && !multicastSent
+            ? "Invio multicast rifiutato dal sistema (\(multicastFailure ?? "errore sconosciuto")). Serve l'entitlement multicast di Apple."
+            : nil
+        return Outcome(responses: Array(found.values), failure: failure)
     }
 
     /// Accept only private/link-local IPv4 addresses from manual entries; never send discovery
