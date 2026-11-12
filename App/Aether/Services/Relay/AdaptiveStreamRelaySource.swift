@@ -236,7 +236,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         guard !matches.isEmpty else { return nil }
         var cursor = 0
         var localPattern = ""
-        var tokens: [(name: String, format: String?)] = []
+        var tokens: [(name: String, format: String?, placeholder: String)] = []
         for (index, match) in matches.enumerated() {
             localPattern += ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
             let token = ns.substring(with: match.range(at: 1))
@@ -247,8 +247,10 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
             cursor = match.range.location + match.range.length
         }
         localPattern += ns.substring(from: cursor)
-        guard !localPattern.contains("$"),
-              let url = URL(string: raw.replacingOccurrences(of: #"$Number$"#, with: "1").replacingOccurrences(of: #"$Time$"#, with: "1"), relativeTo: baseURL)?.absoluteURL else { return nil }
+        guard !localPattern.contains("$") else { return nil }
+        var validationURL = raw
+        for token in tokens { validationURL = validationURL.replacingOccurrences(of: token.placeholder, with: "1") }
+        guard URL(string: validationURL, relativeTo: baseURL) != nil else { return nil }
         let prefix = "r" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(16))
         var local = localPattern
         for index in tokens.indices {
