@@ -108,3 +108,15 @@ class RealDebridTest {
         assertEquals("Rotten Tomatoes", ratings[1].title)
     }
 }
+
+class SourceRatingCapabilityTest {
+    @Test fun aCodecTheTvCannotDecodeLowersTheMark() {
+        val stream = AddonStream(StreamSource.Url("https://x.example/Film.2160p.AV1.HDR.mkv"), name = "4K AV1 HDR")
+        val info = app.aether.core.playback.StreamAnalyzer.analyze(stream)
+        val base = app.aether.core.playback.StreamPreferences()
+        val unknown = app.aether.core.playback.SourceRating.rate(info, base)
+        val lacking = app.aether.core.playback.SourceRating.rate(info, base.copy(capabilities = app.aether.core.playback.PlaybackCapabilities(decoders = setOf(app.aether.core.playback.VideoCodec.H264), hdrFormats = emptySet())))
+        assertTrue(lacking.score < unknown.score)
+        assertTrue(lacking.reasons.any { "decoder" in it.text })
+    }
+}

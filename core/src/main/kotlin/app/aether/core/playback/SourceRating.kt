@@ -66,9 +66,17 @@ data class SourceRating(val score: Int, val reasons: List<Reason>) {
                 codec = minOf(codec, 6); bad("Formato da verificare all'apertura")
             }
 
+            val decoders = preferences.capabilities.decoders
+            if (decoders != null && info.codec != null && info.codec != VideoCodec.H264 && info.codec !in decoders) {
+                codec = 0; bad("Questa TV non ha il decoder ${info.codec.label}: potrebbe non partire")
+            }
+
             var range = 5
-            if (HdrFormat.DOLBY_VISION in info.hdr) { range = 10; good("Dolby Vision (nel nome)") }
-            else if (info.hdr.isNotEmpty()) { range = 9; good("${info.hdr.first().label} (nel nome)") }
+            val screen = preferences.capabilities.hdrFormats
+            val shown = if (screen == null) info.hdr else info.hdr.filter { it in screen || (it == HdrFormat.HDR10_PLUS && HdrFormat.HDR10 in screen) || (it == HdrFormat.DOLBY_VISION && HdrFormat.HDR10 in screen) }
+            if (screen != null && info.hdr.isNotEmpty() && shown.isEmpty()) { range = 3; bad("Lo schermo non mostra l'HDR: colori convertiti") }
+            else if (HdrFormat.DOLBY_VISION in shown && (screen == null || HdrFormat.DOLBY_VISION in screen)) { range = 10; good("Dolby Vision (nel nome)") }
+            else if (shown.isNotEmpty()) { range = 9; good("${shown.first().label} (nel nome)") }
 
             var sound = 5
             if (AudioCodec.ATMOS in info.audio || AudioCodec.TRUEHD in info.audio) {

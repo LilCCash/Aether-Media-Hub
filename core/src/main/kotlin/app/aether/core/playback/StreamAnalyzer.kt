@@ -23,6 +23,10 @@ data class PlaybackCapabilities(
     val debridAvailable: Boolean = false,
     /** A Stremio-compatible streaming server the user configured for torrents. */
     val streamingServer: String? = null,
+    /** Hardware/software decoders the TV has (null: not known, nothing is assumed). */
+    val decoders: Set<VideoCodec>? = null,
+    /** HDR formats the screen shows (null: not known). */
+    val hdrFormats: Set<HdrFormat>? = null,
 )
 
 sealed class UnsupportedReason(val message: String) {

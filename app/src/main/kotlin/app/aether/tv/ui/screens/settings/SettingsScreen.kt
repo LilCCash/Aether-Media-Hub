@@ -251,6 +251,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpen
 
             if (tab == 7) {
             actionRow("Informazioni su Aether", "Versione ${BuildConfig.VERSION_NAME}, licenze e avvertenze.", "about.open") { onOpenAbout() }
+            actionRow("Capacità di questa TV", app.aether.tv.DeviceCapabilities.summary(context), "about.capabilities") { notice = app.aether.tv.DeviceCapabilities.summary(context) }
             }
         }
     }

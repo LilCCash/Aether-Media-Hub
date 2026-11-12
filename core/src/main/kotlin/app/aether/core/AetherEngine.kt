@@ -72,6 +72,10 @@ class AetherEngine(
     val trakt = app.aether.core.trakt.TraktService(app.aether.core.trakt.TraktClient(this.http, secrets, traktClientId), library, metadata, settings, scope)
     val introDb = IntroDbClient(this.http)
 
+    /** Set by the app from the system (decoders and HDR of the screen); null in tests and when unknown. */
+    @Volatile var deviceDecoders: Set<app.aether.core.playback.VideoCodec>? = null
+    @Volatile var deviceHdr: Set<app.aether.core.playback.HdrFormat>? = null
+
     fun syncLibraryPolicy() {
         val s = settings.value.value
         library.policy = library.policy.copy(watchedThreshold = s.playback.watchedThreshold, recordHistory = s.privacy.recordHistory)
@@ -94,6 +98,8 @@ class AetherEngine(
             capabilities = PlaybackCapabilities(
                 debridAvailable = debrid.isConfigured,
                 streamingServer = s.network.streamingServerUrl.trim().ifEmpty { null },
+                decoders = deviceDecoders,
+                hdrFormats = deviceHdr,
             ),
         )
     }
