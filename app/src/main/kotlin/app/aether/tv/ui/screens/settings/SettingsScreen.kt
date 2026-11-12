@@ -1,5 +1,16 @@
 package app.aether.tv.ui.screens.settings
 
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.filled.ChevronRight
+
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,6 +48,9 @@ import app.aether.tv.ui.components.AetherLogo
 import app.aether.core.debrid.DebridError
 import app.aether.core.settings.GraphicsQuality
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
@@ -120,8 +134,11 @@ fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpen
                     testTag = "settings.tab.$i",
                     onFocused = { tab = i },
                 ) { focused ->
-                    Text(name, style = MaterialTheme.typography.titleMedium, color = if (focused) AetherColors.OnFocused else if (tab == i) AetherColors.OnBackground else AetherColors.OnSurfaceMuted,
-                        modifier = Modifier.align(Alignment.CenterStart).padding(horizontal = 18.dp))
+                    val tint = if (focused) AetherColors.OnFocused else if (tab == i) AetherColors.OnBackground else AetherColors.OnSurfaceMuted
+                    androidx.compose.foundation.layout.Row(Modifier.align(Alignment.CenterStart).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.Icon(settingsIcons[i], null, Modifier.size(22.dp), tint = if (tab == i && !focused) LocalAccent.current else tint)
+                        Text(name, style = MaterialTheme.typography.titleMedium, color = tint, modifier = Modifier.padding(start = 14.dp))
+                    }
                 }
             }
         }
@@ -308,6 +325,12 @@ fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpen
 
 private val metaLanguages = listOf("it-IT" to "Italiano", "en-US" to "English", "fr-FR" to "Français", "es-ES" to "Español", "de-DE" to "Deutsch", "pt-PT" to "Português")
 
+private val settingsIcons = listOf(
+    androidx.compose.material.icons.Icons.Filled.Palette, androidx.compose.material.icons.Icons.Filled.PlayCircle, androidx.compose.material.icons.Icons.Filled.Movie,
+    androidx.compose.material.icons.Icons.Filled.Info, androidx.compose.material.icons.Icons.Filled.Wifi, androidx.compose.material.icons.Icons.Filled.Key,
+    androidx.compose.material.icons.Icons.Filled.Storage, androidx.compose.material.icons.Icons.Filled.Star,
+)
+
 private val settingsTabs = listOf("Aspetto", "Riproduzione", "Contenuti", "Metadati", "Rete", "Servizi", "Dati", "Informazioni")
 
 private fun languageLabel(code: String, systemLabel: String): String = when (code) { "system" -> systemLabel; "off" -> "Disattivati"; else -> languageChoices.firstOrNull { it.first == code }?.second ?: code }
@@ -338,7 +361,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.section(title: String
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.toggleRow(title: String, description: String, checked: Boolean, tag: String, onChange: (Boolean) -> Unit) {
-    item(key = tag) { SettingRow(title, description.ifBlank { null }, if (checked) "Sì" else "No", highlight = checked, tag = tag, onClick = { onChange(!checked) }) }
+    item(key = tag) { SettingRow(title, description.ifBlank { null }, null, highlight = checked, tag = tag, toggle = checked, onClick = { onChange(!checked) }) }
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.choiceRow(title: String, value: String, tag: String, requester: FocusRequester? = null, onClick: () -> Unit) {
@@ -346,11 +369,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.choiceRow(title: Stri
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.actionRow(title: String, description: String, tag: String, onClick: () -> Unit) {
-    item(key = tag) { SettingRow(title, description.ifBlank { null }, null, tag = tag, onClick = onClick) }
+    item(key = tag) { SettingRow(title, description.ifBlank { null }, null, tag = tag, chevron = true, onClick = onClick) }
 }
 
 @Composable
-private fun SettingRow(title: String, description: String?, value: String?, highlight: Boolean = false, tag: String, requester: FocusRequester? = null, onClick: () -> Unit) {
+private fun SettingRow(title: String, description: String?, value: String?, highlight: Boolean = false, tag: String, requester: FocusRequester? = null, toggle: Boolean? = null, chevron: Boolean = false, onClick: () -> Unit) {
     FocusSurface(
         onClick, Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), focusScale = 1.02f,
         containerColor = AetherColors.Glass, focusedContainerColor = Color.White, edge = false, focusRequester = requester, testTag = tag,
@@ -361,10 +384,25 @@ private fun SettingRow(title: String, description: String?, value: String?, high
                 description?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (focused) AetherColors.OnFocused.copy(alpha = 0.65f) else AetherColors.OnSurfaceMuted, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
             value?.let {
-                Text(it, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.padding(start = 16.dp),
+                Text(it, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 16.dp).widthIn(max = 280.dp),
                     color = if (focused) AetherColors.OnFocused.copy(alpha = 0.75f) else if (highlight) LocalAccent.current else AetherColors.OnSurfaceMuted)
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.UnfoldMore, null, Modifier.padding(start = 6.dp).size(20.dp), tint = if (focused) AetherColors.OnFocused.copy(alpha = 0.6f) else AetherColors.OnSurfaceFaint)
             }
+            toggle?.let { on -> Switch(on, focused, Modifier.padding(start = 16.dp)) }
+            if (chevron) androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.ChevronRight, null, Modifier.padding(start = 12.dp).size(24.dp), tint = if (focused) AetherColors.OnFocused.copy(alpha = 0.6f) else AetherColors.OnSurfaceFaint)
         }
+    }
+}
+
+/** An on/off switch in the manner of tvOS: a capsule with a round knob; the accent colour when on. */
+@Composable
+private fun Switch(on: Boolean, focused: Boolean, modifier: Modifier = Modifier) {
+    val graphics = app.aether.tv.ui.theme.LocalGraphics.current
+    val accent = LocalAccent.current
+    val knob by androidx.compose.animation.core.animateDpAsState(if (on) 22.dp else 2.dp, androidx.compose.animation.core.tween(graphics.ms(160)), label = "switch")
+    val track = if (on) accent else if (focused) Color(0x33000000) else Color(0x33FFFFFF)
+    Box(modifier.width(50.dp).height(30.dp).clip(RoundedCornerShape(15.dp)).background(track)) {
+        Box(Modifier.padding(start = knob, top = 2.dp).size(26.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.White))
     }
 }
 

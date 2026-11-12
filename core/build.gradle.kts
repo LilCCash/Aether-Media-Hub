@@ -29,3 +29,7 @@ dependencies {
 tasks.test {
     useJUnit()
 }
+
+tasks.withType<Test>().configureEach {
+    systemProperty("aether.live", project.findProperty("aetherLive") ?: "false")
+}
