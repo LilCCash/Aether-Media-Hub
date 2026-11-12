@@ -186,7 +186,19 @@ final class RelayService: ObservableObject, RelayPublishing {
     /// A file served as it is: the real source is read in windows and handed on.
     private func prepareFile(_ request: RelayPublishRequest, guardian: UpstreamGuard,
                              identity: SessionIdentity) async throws -> (source: RelaySource, sessionLeaf: String?, urlLeaf: String, plan: RemuxPlan?) {
-        let leaf = "video." + (RelayMime.allowedExtensions.contains(request.fileExtension.lowercased()) ? request.fileExtension.lowercased() : "mp4")
+        let requestedExtension = request.fileExtension.lowercased()
+        if requestedExtension == "m3u8" || requestedExtension == "mpd" {
+            let source = AdaptiveStreamRelaySource(upstream: request.upstream, guardian: guardian, extension: requestedExtension)
+            do {
+                _ = try await source.prepare()
+            } catch {
+                source.close()
+                scheduleIdleStopIfNeeded()
+                throw CastError.relayUnavailable(RelayService.probeMessage(for: error))
+            }
+            return (source, nil, requestedExtension == "mpd" ? "video.mpd" : "video.m3u8", nil)
+        }
+        let leaf = "video." + (RelayMime.allowedExtensions.contains(requestedExtension) ? requestedExtension : "mp4")
         let source = HTTPRangeSource(leaf: leaf, contentType: request.contentType, fetcher: fetcherFactory(request.upstream, guardian),
                                      onUpstreamRejected: { [weak self] _ in
                                          Task { @MainActor in self?.upstreamRejected(identity.id) }
