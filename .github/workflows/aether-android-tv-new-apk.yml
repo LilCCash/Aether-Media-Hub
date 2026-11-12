@@ -37,8 +37,9 @@ jobs:
       # throw-away debug key: it installs, but every build must replace the previous one.
       - name: Signing key
         env:
-          KEYSTORE_BASE64: ${{ secrets.AETHER_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.AETHER_KEYSTORE_BASE64 || secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
+          echo "AETHER secrets present: ${{ secrets.AETHER_KEYSTORE_BASE64 != '' }} · ANDROID secrets present: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}"
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
             echo "AETHER_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
@@ -48,9 +49,9 @@ jobs:
           fi
       - name: Build
         env:
-          AETHER_KEYSTORE_PASSWORD: ${{ secrets.AETHER_KEYSTORE_PASSWORD }}
-          AETHER_KEY_ALIAS: ${{ secrets.AETHER_KEY_ALIAS }}
-          AETHER_KEY_PASSWORD: ${{ secrets.AETHER_KEY_PASSWORD }}
+          AETHER_KEYSTORE_PASSWORD: ${{ secrets.AETHER_KEYSTORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          AETHER_KEY_ALIAS: ${{ secrets.AETHER_KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
+          AETHER_KEY_PASSWORD: ${{ secrets.AETHER_KEY_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew --console=plain :app:assembleRelease -PaetherVersionCode=${{ github.run_number }}
       - name: Check the APK
         run: |
