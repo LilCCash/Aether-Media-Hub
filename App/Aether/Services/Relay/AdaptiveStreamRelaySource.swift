@@ -229,7 +229,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
            let match = regex.firstMatch(in: output, range: NSRange(output.startIndex..., in: output)),
            let valueRange = Range(match.range(at: 1), in: output) {
             let raw = String(output[valueRange]).replacingOccurrences(of: "&amp;", with: "&")
-            let resolved = URL(string: raw, relativeTo: baseURL)?.absoluteURL ?? baseURL
+            let resolved = resolveURL(raw, relativeTo: baseURL) ?? baseURL
             output.replaceSubrange(Range(match.range, in: output)!, with: "")
             if output.lowercased().contains("baseurl") { throw RelayError.upstreamNotMedia }
             return try rewriteDASHAttributes(output, baseURL: resolved)
@@ -261,7 +261,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
 
     private func localReference(_ reference: String, baseURL: URL, contentTypeOverride: String? = nil) throws -> String {
         guard !reference.lowercased().hasPrefix("data:"),
-              let url = URL(string: reference.replacingOccurrences(of: "&amp;", with: "&"), relativeTo: baseURL)?.absoluteURL,
+              let url = resolveURL(reference.replacingOccurrences(of: "&amp;", with: "&"), relativeTo: baseURL),
               ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { throw RelayError.upstreamNotMedia }
         let key = url.absoluteString
         lock.lock()
@@ -299,7 +299,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         guard !localPattern.contains("$") else { return nil }
         var validationURL = raw
         for token in tokens { validationURL = validationURL.replacingOccurrences(of: token.placeholder, with: "1") }
-        guard URL(string: validationURL, relativeTo: baseURL) != nil else { return nil }
+        guard resolveURL(validationURL, relativeTo: baseURL) != nil else { return nil }
         let prefix = "r" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(12))
         let ext = URL(string: validationURL, relativeTo: baseURL)?.pathExtension.lowercased() ?? ""
         let safeExt = ext.range(of: #"^[a-z0-9]{1,8}$"#, options: .regularExpression) != nil ? ext : "bin"
@@ -336,10 +336,22 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
                 else { replacement = capture }
                 raw = raw.replacingOccurrences(of: token.placeholder, with: replacement)
             }
-            guard let url = URL(string: raw, relativeTo: candidate.baseURL)?.absoluteURL else { continue }
+            guard let url = resolveURL(raw, relativeTo: candidate.baseURL) else { continue }
             return Route(url: url, contentType: candidate.contentType)
         }
         return nil
+    }
+
+    /// Relative HLS/DASH resources commonly inherit a signed query from the manifest URL.
+    private func resolveURL(_ reference: String, relativeTo baseURL: URL) -> URL? {
+        guard let resolved = URL(string: reference, relativeTo: baseURL)?.absoluteURL else { return nil }
+        let parsedReference = URL(string: reference)
+        let isRelative = parsedReference?.scheme == nil && parsedReference?.host == nil
+        guard isRelative, !reference.contains("?"), resolved.query == nil,
+              let query = baseURL.query, resolved.host == baseURL.host,
+              var components = URLComponents(url: resolved, resolvingAgainstBaseURL: false) else { return resolved }
+        components.query = query
+        return components.url
     }
 
     private func mimeType(for leaf: String) -> String {
