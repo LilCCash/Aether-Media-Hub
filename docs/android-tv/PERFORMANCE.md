@@ -12,7 +12,7 @@ segnato come tale, senza cifre inventate.
 | Test del nucleo (105 test, 19 classi) | 14 s compilazione compresa, `--rerun-tasks` |
 | Build release locale a freddo | ~3 min 20 s (R8 incluso) |
 
-## Livelli di grafica (Impostazioni ▸ Impostazioni generali ▸ Aspetto ▸ Grafica e prestazioni)
+## Livelli di grafica (Impostazioni ▸ Aspetto ▸ Grafica e prestazioni)
 | Livello | Animazioni | Ombre del focus | Immagini dietro le pagine | Sfocature (Android 12+) | Dissolvenza immagini | Cache immagini in RAM |
 |---|---|---|---|---|---|---|
 | Completa | sì | sì | sì | sì | sì | 15% |
