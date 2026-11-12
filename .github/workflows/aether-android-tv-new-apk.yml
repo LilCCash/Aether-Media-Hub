@@ -5,6 +5,11 @@ on:
     branches: [aether-android-tv-new]
     paths-ignore: ['**.md', 'docs/**']
   workflow_dispatch:
+    inputs:
+      upload_to_vibeview:
+        description: "Upload the APK to VibeView (needs the VIBEVIEW_API_TOKEN secret)"
+        type: boolean
+        default: false
 
 concurrency:
   group: atv-apk-${{ github.ref }}
@@ -64,3 +69,19 @@ jobs:
           path: ${{ env.APK_NAME }}
           compression-level: 0
           retention-days: 30
+      # Optional: the same VibeView upload as android-tv-vibeview.yml, straight from this build (Run workflow > Upload to VibeView).
+      - uses: actions/setup-node@v4
+        if: ${{ inputs.upload_to_vibeview }}
+        with:
+          node-version: '22'
+      - name: Upload to VibeView
+        if: ${{ inputs.upload_to_vibeview }}
+        env:
+          VIBEVIEW_API_TOKEN: ${{ secrets.VIBEVIEW_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          [ -n "${VIBEVIEW_API_TOKEN:-}" ] || { echo "::error::Missing VIBEVIEW_API_TOKEN (Settings > Secrets and variables > Actions)."; exit 1; }
+          unzip -l "$APK_NAME" | grep -q "lib/x86_64/" || { echo "::error::The APK has no x86_64 libraries for the VibeView devices."; exit 1; }
+          RESULT=$(npx -y vibeview upload-app "$APK_NAME" --token "$VIBEVIEW_API_TOKEN" --name "Aether TV" --note "aether-android-tv-new ${GITHUB_SHA::7} (run ${{ github.run_number }})" --output json)
+          echo "$RESULT"
+          { echo "## VibeView upload"; echo "- APK: \`$APK_NAME\`"; echo "- Response: \`$RESULT\`"; } >> "$GITHUB_STEP_SUMMARY"
