@@ -251,7 +251,7 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
 
         // Seek in progress with the controls away: just the time and how far it jumps.
         state.pendingSeekMs?.let { target ->
-            if (!controlsVisible) Text(formatDuration(target / 1000.0), Modifier.align(Alignment.Center).clip(RoundedCornerShape(10.dp)).background(Color(0xB00B0A12)).padding(horizontal = 18.dp, vertical = 8.dp), style = MaterialTheme.typography.headlineMedium, color = Color.White)
+            if (!controlsVisible) Text(formatDuration(target / 1000.0), Modifier.align(Alignment.Center).clip(RoundedCornerShape(10.dp)).background(Color(0xB3000000)).padding(horizontal = 18.dp, vertical = 8.dp), style = MaterialTheme.typography.headlineMedium, color = Color.White)
         }
 
         AnimatedVisibility(visible = controlsVisible && state.error == null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
@@ -284,11 +284,11 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
         }
 
         state.audioWarning?.let {
-            Text(it, Modifier.align(Alignment.TopCenter).padding(top = 24.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xD00B0A12)).padding(horizontal = 18.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyMedium, color = AetherColors.Warning)
+            Text(it, Modifier.align(Alignment.TopCenter).padding(top = 24.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xCC1A1A1F)).padding(horizontal = 18.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyMedium, color = AetherColors.Warning)
         }
 
         state.nextCountdown?.let { seconds ->
-            Column(Modifier.align(Alignment.BottomEnd).padding(48.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xE60B0A12)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.align(Alignment.BottomEnd).padding(48.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xE61A1A1F)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val ok = remember { FocusRequester() }
                 Text("Prossimo episodio tra $seconds s", style = MaterialTheme.typography.titleLarge, color = Color.White)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -328,7 +328,7 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
         }
         state.error?.let { message ->
             val retry = remember { FocusRequester() }
-            Column(Modifier.align(Alignment.Center).width(620.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xF0100E1A)).padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.align(Alignment.Center).width(620.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xF21A1A1F)).padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("Non riesco a riprodurre il video", style = MaterialTheme.typography.headlineMedium, color = Color.White)
                 Text(message, style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnSurfaceMuted)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -403,19 +403,20 @@ private fun Controls(
     val position = state.pendingSeekMs ?: state.positionMs
     LaunchedEffect(Unit) { delay(60); runCatching { (if (startOnSeekBar) seekBarRequester else playPause).requestFocus() } }
     Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxWidth().height(150.dp).background(Brush.verticalGradient(listOf(Color(0xDD000000), Color.Transparent))))
-        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(260.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xF0000000)))))
-        Column(Modifier.align(Alignment.TopStart).padding(start = 48.dp, top = 28.dp, end = 48.dp)) {
-            Text(state.title, style = MaterialTheme.typography.headlineLarge, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            state.subtitle?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = AetherColors.OnSurfaceMuted, maxLines = 1) }
-        }
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 48.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(formatDuration(position / 1000.0), style = MaterialTheme.typography.labelLarge, color = Color.White, modifier = Modifier.width(72.dp))
-                SeekBar(position, state.durationMs, state.bufferedMs, onSeekBy, onToggle, skipSeconds, stepFor, seekBarRequester, Modifier.weight(1f))
-                Text(if (state.durationMs > 0) "-" + formatDuration((state.durationMs - position).coerceAtLeast(0) / 1000.0) else "--:--", style = MaterialTheme.typography.labelLarge, color = Color.White, modifier = Modifier.width(80.dp))
+        // tvOS: everything sits low on the screen over a soft dark fade; the picture stays clean above.
+        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(300.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xB3000000), Color(0xF2000000)))))
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 64.dp, vertical = 30.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                state.subtitle?.let { Text(it.uppercase(), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.7f), maxLines = 1) }
+                Text(state.title, style = MaterialTheme.typography.headlineMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            SeekBar(position, state.durationMs, state.bufferedMs, onSeekBy, onToggle, skipSeconds, stepFor, seekBarRequester, Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(formatDuration(position / 1000.0), style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.85f))
+                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                Text(if (state.durationMs > 0) "-" + formatDuration((state.durationMs - position).coerceAtLeast(0) / 1000.0) else "In diretta", style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.85f))
+            }
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (state.hasPrevious) RoundControl(Icons.Filled.SkipPrevious, "Episodio precedente", onPrevious)
                 RoundControl(Icons.Filled.FastRewind, "Indietro di $backSeconds secondi", { onSeekBy(-backSeconds * 1000L) })
                 RoundControl(if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (state.isPlaying) "Pausa" else "Riproduci", onPlayPause, requester = playPause, big = true, tag = "player.playPause")
@@ -437,11 +438,12 @@ private fun Controls(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun RoundControl(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, requester: FocusRequester? = null, big: Boolean = false, tag: String? = null) {
-    val size = if (big) 52.dp else 40.dp
+    val size = if (big) 56.dp else 44.dp
     val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    FocusSurface(onClick, Modifier.size(size).bringIntoViewRequester(bring), shape = androidx.compose.foundation.shape.CircleShape, focusScale = 1.12f, containerColor = Color(0x66FFFFFF).copy(alpha = 0.16f), focusRequester = requester, testTag = tag, onFocused = { scope.launch { bring.bringIntoView() } }) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(icon, label, Modifier.size(size * 0.55f), tint = Color.White) }
+    FocusSurface(onClick, Modifier.size(size).bringIntoViewRequester(bring), shape = androidx.compose.foundation.shape.CircleShape, focusScale = 1.14f,
+        containerColor = Color(0x29FFFFFF), focusedContainerColor = Color.White, edge = false, focusRequester = requester, testTag = tag, onFocused = { scope.launch { bring.bringIntoView() } }) { focused ->
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(icon, label, Modifier.size(size * 0.52f), tint = if (focused) AetherColors.OnFocused else Color.White) }
     }
 }
 
@@ -451,10 +453,12 @@ private fun RoundControl(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 private fun PanelButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, tag: String) {
     val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    FocusSurface(onClick, Modifier.height(38.dp).bringIntoViewRequester(bring), shape = RoundedCornerShape(19.dp), focusScale = 1.05f, containerColor = Color(0x66FFFFFF).copy(alpha = 0.16f), testTag = tag, onFocused = { scope.launch { bring.bringIntoView() } }) {
-        Row(Modifier.padding(horizontal = 12.dp).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(icon, null, Modifier.size(18.dp), tint = Color.White)
-            Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White, maxLines = 1)
+    FocusSurface(onClick, Modifier.height(40.dp).bringIntoViewRequester(bring), shape = RoundedCornerShape(20.dp), focusScale = 1.08f,
+        containerColor = Color(0x29FFFFFF), focusedContainerColor = Color.White, edge = false, testTag = tag, onFocused = { scope.launch { bring.bringIntoView() } }) { focused ->
+        val tint = if (focused) AetherColors.OnFocused else Color.White
+        Row(Modifier.padding(horizontal = 14.dp).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Icon(icon, null, Modifier.size(18.dp), tint = tint)
+            Text(label, style = MaterialTheme.typography.labelLarge, color = tint, maxLines = 1)
         }
     }
 }
@@ -495,11 +499,11 @@ private fun SeekBar(
         contentAlignment = Alignment.CenterStart,
     ) {
         val barHeight = if (focused) 10.dp else 6.dp
-        Box(Modifier.fillMaxWidth().height(barHeight).clip(RoundedCornerShape(5.dp)).background(Color(0x55FFFFFF)))
-        Box(Modifier.fillMaxWidth(buffered).height(barHeight).clip(RoundedCornerShape(5.dp)).background(Color(0x77FFFFFF)))
-        Box(Modifier.fillMaxWidth(fraction).height(barHeight).clip(RoundedCornerShape(5.dp)).background(accent))
+        Box(Modifier.fillMaxWidth().height(barHeight).clip(RoundedCornerShape(5.dp)).background(Color(0x33FFFFFF)))
+        Box(Modifier.fillMaxWidth(buffered).height(barHeight).clip(RoundedCornerShape(5.dp)).background(Color(0x4DFFFFFF)))
+        Box(Modifier.fillMaxWidth(fraction).height(barHeight).clip(RoundedCornerShape(5.dp)).background(Color.White))
         if (focused) Box(Modifier.fillMaxWidth(fraction), contentAlignment = Alignment.CenterEnd) {
-            Box(Modifier.size(18.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.White))
+            Box(Modifier.size(width = 4.dp, height = 24.dp).clip(RoundedCornerShape(2.dp)).background(Color.White))
         }
     }
 }
@@ -507,14 +511,14 @@ private fun SeekBar(
 /** The screen shown while the source is prepared: the film's own logo (or its title) with what is happening. */
 @Composable
 private fun PreparingOverlay(title: String, logoUrl: String?, preparing: PlayerViewModel.Preparing?, modifier: Modifier = Modifier) {
-    Box(modifier.background(Color(0xFF0B0A12)), contentAlignment = Alignment.Center) {
+    Box(modifier.background(Color(0xFF000000)), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
             if (logoUrl != null) coil3.compose.AsyncImage(
                 model = logoUrl, contentDescription = title, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 modifier = Modifier.widthIn(max = 560.dp).heightIn(max = 220.dp),
             ) else Text(title, style = MaterialTheme.typography.headlineLarge, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 800.dp))
             if (preparing?.fraction != null) ProgressLine(preparing.fraction!!, Modifier.width(420.dp))
-            else CircularProgressIndicator(Modifier.size(44.dp), color = LocalAccent.current, strokeWidth = 4.dp)
+            else CircularProgressIndicator(Modifier.size(40.dp), color = Color.White, trackColor = Color(0x26FFFFFF), strokeWidth = 3.dp)
             Text(preparing?.message ?: "Preparo il video…", style = MaterialTheme.typography.titleMedium, color = AetherColors.OnSurfaceMuted)
             preparing?.detail?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = AetherColors.OnSurfaceMuted) }
         }

@@ -32,6 +32,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
@@ -197,10 +199,16 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
             RequestFocusOnce(close)
         }
     }
+    val graphics = app.aether.tv.ui.theme.LocalGraphics.current
+    // The backdrop scrolls away with the header (tvOS: the picture belongs to the first page of the title).
+    val headerGone = listState.firstVisibleItemIndex > 0
+    val backdropAlpha by androidx.compose.animation.core.animateFloatAsState(if (headerGone) 0.35f else 1f, androidx.compose.animation.core.tween(graphics.ms(400)), label = "backdrop")
     Box(modifier.fillMaxSize()) {
-        RemoteImage(meta.background ?: meta.poster, meta.name, Modifier.fillMaxSize(), alignment = androidx.compose.ui.BiasAlignment(0f, -0.4f))
-        Box(Modifier.fillMaxSize().background(backdropScrimHorizontal()))
-        Box(Modifier.fillMaxSize().background(backdropScrimVertical()))
+        if (graphics.backdropArt) {
+            RemoteImage(meta.background ?: meta.poster, meta.name, Modifier.fillMaxSize().then(if (graphics.blur && headerGone) Modifier.blur(30.dp) else Modifier).graphicsLayer { alpha = backdropAlpha }, alignment = androidx.compose.ui.BiasAlignment(0.3f, -0.4f))
+            Box(Modifier.fillMaxSize().background(backdropScrimHorizontal()))
+            Box(Modifier.fillMaxSize().background(backdropScrimVertical()))
+        }
         if (state.loading && meta.name == meta.id) {
             LoadingState("Carico i dettagli…", Modifier.align(Alignment.Center))
         } else if (state.error != null && meta.name == meta.id) {
@@ -209,16 +217,22 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 36.dp, bottom = 60.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                contentPadding = PaddingValues(bottom = 60.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
             ) {
                 item(key = "header") {
-                    Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal).width(640.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(RequestPlanner.friendlyTypeName(meta.type).uppercase(), style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceMuted)
-                        Text(meta.name, style = MaterialTheme.typography.displayMedium, color = AetherColors.OnBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        meta.factsLine().takeIf { it.isNotEmpty() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted) }
+                    Box(Modifier.fillParentMaxHeight(0.9f).fillMaxWidth()) {
+                    Column(Modifier.align(Alignment.BottomStart).padding(horizontal = AetherDimens.ScreenHorizontal).width(680.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(RequestPlanner.friendlyTypeName(meta.type).uppercase(), style = MaterialTheme.typography.labelMedium, color = AetherColors.OnBackground.copy(alpha = 0.7f))
+                        val logo = meta.logo
+                        if (!logo.isNullOrBlank()) {
+                            coil3.compose.AsyncImage(logo, meta.name, Modifier.height(120.dp).width(460.dp), alignment = Alignment.CenterStart, contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+                        } else {
+                            Text(meta.name, style = MaterialTheme.typography.displayMedium, color = AetherColors.OnBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                        meta.factsLine().takeIf { it.isNotEmpty() }?.let { Text(it, style = MaterialTheme.typography.labelLarge, color = AetherColors.OnBackground.copy(alpha = 0.75f)) }
                         meta.description?.takeIf { it.isNotBlank() }?.let { plot ->
-                            FocusSurface({ opened = "Trama" to plot }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), focusScale = 1.01f, containerColor = Color.Transparent) {
+                            FocusSurface({ opened = "Trama" to plot }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), focusScale = 1.02f, containerColor = Color.Transparent, focusedContainerColor = Color(0x26FFFFFF)) {
                                 Text(plot, Modifier.padding(horizontal = 6.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground.copy(alpha = 0.88f), maxLines = 4, overflow = TextOverflow.Ellipsis)
                             }
                         }
@@ -249,6 +263,7 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                                 }, testTag = "detail.trailer")
                             }
                         }
+                    }
                     }
                 }
                 if (meta.hasEpisodes) {
@@ -382,4 +397,4 @@ private fun EpisodeCard(video: Video, progress: PlaybackProgress?, watched: Bool
     }
 }
 
-private val Color0 = androidx.compose.ui.graphics.Color(0xCC0B0A12)
+private val Color0 = androidx.compose.ui.graphics.Color(0xCC0A0A0C)

@@ -1,5 +1,9 @@
 package app.aether.tv.ui.screens.detail
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.blur
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,10 +80,17 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
     LifecycleResumeEffect(Unit) { vm.rearm(); onPauseOrDispose { } }
     if (state.visible.isNotEmpty()) RequestFocusOnce(firstRow, state.visible.first().id.takeIf { state.resolvingId == null })
 
-    Row(modifier.fillMaxSize().padding(top = AetherDimens.ScreenVertical)) {
+    val graphics = app.aether.tv.ui.theme.LocalGraphics.current
+    Box(modifier.fillMaxSize()) {
+    // The title's picture, dimmed, behind the list (left out on the light graphics level).
+    if (graphics.backdropArt) {
+        RemoteImage(request.meta.background ?: request.meta.poster, request.meta.name, Modifier.fillMaxSize().then(if (graphics.blur) Modifier.blur(36.dp) else Modifier).graphicsLayer { alpha = if (graphics.blur) 0.45f else 0.28f })
+        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.horizontalGradient(0f to Color(0xF20A0A0C), 0.5f to Color(0xE60A0A0C), 1f to Color(0x990A0A0C))))
+    }
+    Row(Modifier.fillMaxSize().padding(top = AetherDimens.ScreenVertical + 12.dp)) {
         // Left: what is being played.
         Column(Modifier.width(280.dp).fillMaxHeight().padding(start = AetherDimens.ScreenHorizontal, end = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            RemoteImage(request.meta.poster ?: request.meta.background, request.meta.name, Modifier.width(180.dp).height(266.dp).clip(RoundedCornerShape(12.dp)))
+            RemoteImage(request.meta.poster ?: request.meta.background, request.meta.name, Modifier.width(190.dp).height(285.dp).clip(RoundedCornerShape(16.dp)))
             Text(request.meta.name, style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground, maxLines = 3, overflow = TextOverflow.Ellipsis)
             request.video?.let { video ->
                 Text(listOfNotNull(video.episodeLabel, video.title.takeIf { it.isNotBlank() }).joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted, maxLines = 3)
@@ -139,6 +150,7 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
                 }
             }
         }
+    }
     }
 
     state.blocked?.let { message ->
