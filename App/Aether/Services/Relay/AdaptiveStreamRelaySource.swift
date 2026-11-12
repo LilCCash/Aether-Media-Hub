@@ -124,7 +124,8 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
             var request = URLRequest(url: current, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
             request.httpMethod = "GET"
             if guardian.mayCarrySessionHeaders(to: current, origin: upstream.url) {
-                request.allHTTPHeaderFields = upstream.headers
+                request.allHTTPHeaderFields = RelayHeaderPolicy.upstreamRequestHeaders(session: upstream.headers, range: nil,
+                                                                                  includeSession: guardian.mayCarrySessionHeaders(to: current, origin: upstream.url))
             }
             let (data, response): (Data, URLResponse)
             do { (data, response) = try await session.data(for: request) }
@@ -262,7 +263,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         var regexPattern = NSRegularExpression.escapedPattern(for: local)
         for token in tokens {
             let escaped = NSRegularExpression.escapedPattern(for: token.placeholder)
-            let capture = token.name == "RepresentationID" ? "([A-Za-z0-9_-]+)" : "([0-9]+)"
+            let capture = token.name == "RepresentationID" ? "([A-Za-z0-9_.-]+)" : "([0-9]+)"
             regexPattern = regexPattern.replacingOccurrences(of: escaped, with: capture)
         }
         regexPattern = "^" + regexPattern + "$"
