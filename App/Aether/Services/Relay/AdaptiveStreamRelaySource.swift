@@ -173,13 +173,17 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
             }
         }
         var output: [String] = []
+        var expectsVariantPlaylist = false
         for rawLine in input.components(separatedBy: .newlines) {
             var line = rawLine
             if line.hasPrefix("#") {
+                if line.uppercased().hasPrefix("#EXT-X-STREAM-INF:") { expectsVariantPlaylist = true }
                 line = try replacingURIAttributes(in: line, baseURL: baseURL)
             } else if !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                line = try localReference(trimmed, baseURL: baseURL)
+                line = try localReference(trimmed, baseURL: baseURL,
+                                          contentTypeOverride: expectsVariantPlaylist ? "application/vnd.apple.mpegurl" : nil)
+                expectsVariantPlaylist = false
             }
             output.append(line)
         }
