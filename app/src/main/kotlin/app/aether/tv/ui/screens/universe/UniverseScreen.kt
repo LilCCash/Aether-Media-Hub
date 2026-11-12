@@ -146,20 +146,20 @@ fun UniverseScreen(id: String, onOpenTitle: (String, String) -> Unit, onOpenUniv
 @Composable
 private fun MapStop(e: UniverseEntry, index: Int, last: Boolean, seen: Boolean, isNext: Boolean, onClick: () -> Unit) {
     val accent = LocalAccent.current
-    Column(Modifier.width(176.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.width(156.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("${e.year}", style = MaterialTheme.typography.labelLarge, color = if (isNext) accent else AetherColors.OnSurfaceMuted, modifier = Modifier.padding(start = 4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(14.dp).clip(CircleShape).background(if (seen) accent else if (isNext) Color.White else Color(0x66FFFFFF)))
-            Box(Modifier.width(162.dp).height(3.dp).background(if (last) Color.Transparent else if (seen) accent.copy(alpha = 0.7f) else Color(0x33FFFFFF)))
+            Box(Modifier.width(142.dp).height(3.dp).background(if (last) Color.Transparent else if (seen) accent.copy(alpha = 0.7f) else Color(0x33FFFFFF)))
         }
-        FocusSurface(onClick, Modifier.width(150.dp).aspectRatio(0.675f), glow = true, testTag = "universe.stop.$index", onFocused = { app.aether.tv.ui.Ambient.show(e.background) }) {
+        FocusSurface(onClick, Modifier.width(130.dp).aspectRatio(0.675f), glow = true, testTag = "universe.stop.$index", onFocused = { app.aether.tv.ui.Ambient.show(e.background) }) {
             RemoteImage(e.poster, e.name, Modifier.fillMaxSize())
             if (seen) Box(Modifier.align(Alignment.TopStart).padding(7.dp).clip(CircleShape).background(Color(0xB3000000)).padding(4.dp)) {
                 Icon(Icons.Filled.Check, "Visto", Modifier.size(14.dp), tint = AetherColors.Success)
             }
             if (isNext) Text("PROSSIMO", Modifier.align(Alignment.BottomStart).padding(8.dp).clip(RoundedCornerShape(8.dp)).background(accent).padding(horizontal = 8.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, color = Color.White)
         }
-        Text(e.name, Modifier.width(150.dp), style = MaterialTheme.typography.labelMedium, color = AetherColors.OnBackground, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(e.name, Modifier.width(130.dp), style = MaterialTheme.typography.labelMedium, color = AetherColors.OnBackground, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
         Text(if (e.series) "Serie" else "Film", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint)
     }
 }

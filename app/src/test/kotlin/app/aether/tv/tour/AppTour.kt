@@ -107,6 +107,25 @@ class AppTour {
         File(dir, "report.txt").writeText(report.toString().ifEmpty { "Nessun testo fuori dai bordi.\n" })
     }
 
+    private fun go(tag: String) {
+        runCatching { rule.onNodeWithTag(tag).requestFocus(); settle(400) }
+        key(Key.DirectionCenter); settle(2500)
+    }
+
+    @Test fun newScreens() {
+        assumeTrue(System.getProperty("aether.screenshots") == "true")
+        start()
+        go("nav.profile"); shot("30-profilo")
+        key(Key.DirectionDown, 2); shot("31-profilo-generi")
+        go("nav.library"); shot("32-libreria")
+        runCatching { rule.onNodeWithTag("library.tab.4").requestFocus(); settle(300) }; key(Key.DirectionCenter); settle(1500); shot("33-universi")
+        key(Key.DirectionDown); key(Key.DirectionCenter); settle(2500); shot("34-universo")
+        key(Key.DirectionDown, 2); shot("35-universo-mappa")
+        go("nav.library"); runCatching { rule.onNodeWithTag("library.tab.3").requestFocus(); settle(300) }; key(Key.DirectionCenter); settle(1200); shot("36-collezioni")
+        go("nav.settings"); shot("37-impostazioni")
+        File(dir, "report-new.txt").writeText(report.toString().ifEmpty { "Nessun testo fuori dai bordi.\n" })
+    }
+
     @Test fun titleAndSources() {
         assumeTrue(System.getProperty("aether.screenshots") == "true")
         start()
@@ -114,6 +133,7 @@ class AppTour {
         key(Key.DirectionDown); shot("21-scheda-sotto")
         key(Key.DirectionDown, 2); shot("22-scheda-fondo")
         key(Key.DirectionUp, 6); key(Key.DirectionCenter); settle(3000); shot("23-sorgenti")
+        key(Key.DirectionDown); key(Key.DirectionCenter); settle(3000); shot("24-player-inizio")
         File(dir, "report-title.txt").writeText(report.toString().ifEmpty { "Nessun testo fuori dai bordi.\n" })
     }
 }

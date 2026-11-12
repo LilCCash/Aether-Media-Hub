@@ -26,6 +26,7 @@ import app.aether.tv.Session
 import app.aether.tv.aether
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.foundation.focusGroup
@@ -59,12 +60,16 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
     // top of a page reaches the bar. On every new section the page takes the focus by itself, so nothing starts on the bar.
     val contentFocus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
     val barFocus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+    val contentHasFocus = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(route) {
         // The atmosphere belongs to the pages of titles; the others (settings, addons…) stay calm.
         if (route !in setOf(Routes.HOME, Routes.DISCOVER, Routes.SEARCH, Routes.RECOMMEND, Routes.LIBRARY, Routes.TRAKT)) app.aether.tv.ui.Ambient.clear()
         if (route == null || route == Routes.PLAYER) return@LaunchedEffect
-        kotlinx.coroutines.delay(120)
+        // After the old page has faded away (160 ms), so its focus does not count.
+        kotlinx.coroutines.delay(260)
         repeat(20) {
+            // A screen that already put the focus where it wants it (the «Guarda» button, a field) is left alone.
+            if (contentHasFocus.value) return@LaunchedEffect
             if (runCatching { contentFocus.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
             kotlinx.coroutines.delay(100)
         }
@@ -98,6 +103,7 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
             startDestination = if (initialAddonInput != null) Routes.ADDONS else Routes.HOME,
             // The tab bar floats over the sections; the Home lets its featured titles run under it, the others start below it.
             modifier = Modifier.fillMaxSize().padding(top = if (showRail && route != Routes.HOME) AetherDimens.TopBar else 0.dp)
+                .onFocusChanged { contentHasFocus.value = it.hasFocus }
                 .focusRequester(contentFocus)
                 .focusProperties { exit = { direction -> if (direction == androidx.compose.ui.focus.FocusDirection.Up && showRail) barFocus else androidx.compose.ui.focus.FocusRequester.Default } }
                 .focusRestorer()
@@ -185,6 +191,7 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
             entryRequester = barFocus,
             contentRequester = contentFocus,
             hidden = buildSet { if (!settings.liveTv.showTab) add(Routes.LIVE) },
+            avatar = settings.profile.avatar,
         )
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -203,7 +204,11 @@ fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Icon(icon, null, Modifier.size(56.dp), tint = AetherColors.OnSurfaceFaint)
+        val accent = app.aether.tv.ui.theme.LocalAccent.current
+        Box(
+            Modifier.size(104.dp).background(androidx.compose.ui.graphics.Brush.radialGradient(listOf(accent.copy(alpha = 0.32f), Color.Transparent)), CircleShapeAlias),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, Modifier.size(52.dp), tint = Color.White.copy(alpha = 0.85f)) }
         Text(title, style = MaterialTheme.typography.headlineMedium, color = AetherColors.OnBackground, textAlign = TextAlign.Center)
         Text(message, style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnSurfaceMuted, textAlign = TextAlign.Center, modifier = Modifier.width(560.dp))
         Spacer(Modifier.height(6.dp))
@@ -291,17 +296,25 @@ fun AetherDialog(
     width: androidx.compose.ui.unit.Dp = 640.dp,
     content: @Composable () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    val accent = app.aether.tv.ui.theme.LocalAccent.current
+    val screen = androidx.compose.ui.platform.LocalConfiguration.current
+    Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             modifier
-                .width(width)
+                .width(width.coerceAtMost((screen.screenWidthDp * 0.9f).dp))
+                .heightIn(max = (screen.screenHeightDp * 0.9f).dp)
                 .clip(RoundedCornerShape(28.dp))
-                .background(AetherColors.Surface.copy(alpha = 0.97f))
+                .background(AetherColors.Surface.copy(alpha = 0.98f))
+                // A breath of the accent colour at the top: the signature of Aether's panels.
+                .background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to accent.copy(alpha = 0.16f), 0.35f to Color.Transparent))
                 .border(1.dp, AetherColors.GlassStroke, RoundedCornerShape(28.dp))
-                .padding(horizontal = 34.dp, vertical = 30.dp),
+                .padding(horizontal = 34.dp, vertical = 28.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.headlineMedium, color = AetherColors.OnBackground)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SectionMark()
+                Text(title, style = MaterialTheme.typography.headlineMedium, color = AetherColors.OnBackground, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
             content()
         }
     }
@@ -384,3 +397,5 @@ fun FilterPill(
     }
     if (open) ChoiceDialog(label, options, selected, onSelect, { open = false })
 }
+
+private val CircleShapeAlias = androidx.compose.foundation.shape.CircleShape

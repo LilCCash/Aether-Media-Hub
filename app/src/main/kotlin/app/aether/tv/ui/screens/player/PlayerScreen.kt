@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -429,33 +430,51 @@ private fun Controls(
     val position = state.pendingSeekMs ?: state.positionMs
     LaunchedEffect(Unit) { delay(60); runCatching { (if (startOnSeekBar) seekBarRequester else playPause).requestFocus() } }
     Box(Modifier.fillMaxSize()) {
-        // tvOS: everything sits low on the screen over a soft dark fade; the picture stays clean above.
-        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(300.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xB3000000), Color(0xF2000000)))))
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 64.dp, vertical = 30.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                state.subtitle?.let { Text(it.uppercase(), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.7f), maxLines = 1) }
-                Text(state.title, style = MaterialTheme.typography.headlineMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // The picture stays clean in the middle: a soft fade at the top for the title, a deeper one at the bottom for the panel.
+        Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(180.dp).background(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent))))
+        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(340.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x99000000), Color(0xE6000000)))))
+        // Top: the film's logo (or its title) and what it is, the clock and when it ends on the right.
+        Row(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 64.dp, vertical = 36.dp), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (state.logoUrl != null) coil3.compose.AsyncImage(state.logoUrl, state.title, Modifier.heightIn(max = 72.dp).widthIn(max = 360.dp), alignment = Alignment.CenterStart, contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+                else Text(state.title, style = MaterialTheme.typography.headlineMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                state.subtitle?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = Color.White.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
-            SeekBar(position, state.durationMs, state.bufferedMs, onSeekBy, onToggle, skipSeconds, stepFor, seekBarRequester, Modifier.fillMaxWidth())
+            val now = remember(position / 30_000) { java.time.LocalTime.now() }
+            val format = remember { java.time.format.DateTimeFormatter.ofPattern("HH:mm") }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(now.format(format), style = MaterialTheme.typography.headlineSmall, color = Color.White)
+                if (state.durationMs > 0) Text("Finisce alle " + now.plusSeconds(((state.durationMs - position).coerceAtLeast(0) / 1000 / (state.speed.takeIf { it > 0f } ?: 1f)).toLong()).format(format), style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.75f))
+                if (state.sourceLabel.isNotBlank()) Text(state.sourceLabel.lineSequence().first().take(40), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+            }
+        }
+        // Bottom: one glass panel with the bar, the times and every control.
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 48.dp, vertical = 28.dp)
+                .clip(RoundedCornerShape(28.dp)).background(Color(0x8C101014)).border(1.dp, Color(0x1FFFFFFF), RoundedCornerShape(28.dp))
+                .padding(horizontal = 28.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SeekBar(position, state.durationMs, state.bufferedMs, onSeekBy, onToggle, skipSeconds, stepFor, seekBarRequester, Modifier.fillMaxWidth(), skip = state.skip?.let { it.start to it.end })
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(formatDuration(position / 1000.0), style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.85f))
+                Text(formatDuration(position / 1000.0), style = MaterialTheme.typography.labelLarge, color = Color.White)
                 androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-                Text(if (state.durationMs > 0) "-" + formatDuration((state.durationMs - position).coerceAtLeast(0) / 1000.0) else "In diretta", style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.85f))
+                Text(if (state.durationMs > 0) "-" + formatDuration((state.durationMs - position).coerceAtLeast(0) / 1000.0) else "In diretta", style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.8f))
             }
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (state.hasPrevious) RoundControl(Icons.Filled.SkipPrevious, "Episodio precedente", onPrevious)
                 RoundControl(Icons.Filled.FastRewind, "Indietro di $backSeconds secondi", { onSeekBy(-backSeconds * 1000L) })
                 RoundControl(if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (state.isPlaying) "Pausa" else "Riproduci", onPlayPause, requester = playPause, big = true, tag = "player.playPause")
                 RoundControl(Icons.Filled.FastForward, "Avanti di $skipSeconds secondi", { onSeekBy(skipSeconds * 1000L) })
                 if (state.hasNext) RoundControl(Icons.Filled.SkipNext, "Episodio successivo", onNext, tag = "player.next")
-                Box(Modifier.width(12.dp))
-                PanelButton(Icons.Filled.Audiotrack, "Audio", { openPanel(Panel.AUDIO) }, "player.audio")
-                PanelButton(Icons.Filled.VolumeUp, if (audioGainDb == 0) "Gain" else "Gain +${audioGainDb} dB", { openPanel(Panel.GAIN) }, "player.audioGain")
+                Box(Modifier.width(1.dp).height(28.dp).background(Color(0x33FFFFFF)))
                 PanelButton(Icons.Filled.Subtitles, "Sottotitoli", { openPanel(Panel.TEXT) }, "player.subtitles")
-                PanelButton(Icons.Filled.Speed, if (state.speed == 1f) "Velocità" else "${state.speed}×", { openPanel(Panel.SPEED) }, "player.speed")
-                PanelButton(Icons.Filled.Bedtime, if (state.sleepEndsAtMs == null) "Timer" else "Timer attivo", { openPanel(Panel.SLEEP) }, "player.sleep")
-                PanelButton(Icons.Filled.AspectRatio, when (state.resizeMode) { 4 -> "Riempi"; 3 -> "Allunga"; else -> "Adatta" }, onResize, "player.resize")
+                PanelButton(Icons.Filled.Audiotrack, "Audio", { openPanel(Panel.AUDIO) }, "player.audio")
                 if (state.alternatives.isNotEmpty()) PanelButton(Icons.Filled.SwapHoriz, "Sorgenti", { openPanel(Panel.SOURCES) }, "player.sources")
+                PanelButton(Icons.Filled.Speed, if (state.speed == 1f) "Velocità" else "${state.speed}×", { openPanel(Panel.SPEED) }, "player.speed")
+                PanelButton(Icons.Filled.VolumeUp, if (audioGainDb == 0) "Volume" else "+${audioGainDb} dB", { openPanel(Panel.GAIN) }, "player.audioGain")
+                PanelButton(Icons.Filled.AspectRatio, when (state.resizeMode) { 4 -> "Riempi"; 3 -> "Allunga"; else -> "Adatta" }, onResize, "player.resize")
+                PanelButton(Icons.Filled.Bedtime, if (state.sleepEndsAtMs == null) "Timer" else "Timer attivo", { openPanel(Panel.SLEEP) }, "player.sleep")
             }
         }
     }
@@ -501,6 +520,7 @@ private fun SeekBar(
     stepFor: (Int, Int) -> Int,
     requester: FocusRequester,
     modifier: Modifier = Modifier,
+    skip: Pair<Double, Double>? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val accent = LocalAccent.current
@@ -524,29 +544,23 @@ private fun SeekBar(
             .focusable(),
         contentAlignment = Alignment.CenterStart,
     ) {
-        val barHeight = if (focused) 10.dp else 6.dp
+        val barHeight by androidx.compose.animation.core.animateDpAsState(if (focused) 10.dp else 6.dp, label = "bar")
         Box(Modifier.fillMaxWidth().height(barHeight).clip(RoundedCornerShape(5.dp)).background(Color(0x33FFFFFF)))
-        Box(Modifier.fillMaxWidth(buffered).height(barHeight).clip(RoundedCornerShape(5.dp)).background(Color(0x4DFFFFFF)))
-        Box(Modifier.fillMaxWidth(fraction).height(barHeight).clip(RoundedCornerShape(5.dp)).background(Color.White))
-        if (focused) Box(Modifier.fillMaxWidth(fraction), contentAlignment = Alignment.CenterEnd) {
-            Box(Modifier.size(width = 4.dp, height = 24.dp).clip(RoundedCornerShape(2.dp)).background(Color.White))
+        Box(Modifier.fillMaxWidth(buffered).height(barHeight).clip(RoundedCornerShape(5.dp)).background(Color(0x40FFFFFF)))
+        // The intro or recap, when IntroDB knows it: a lighter run of the bar.
+        if (skip != null && durationMs > 0) {
+            val a = (skip.first * 1000 / durationMs).toFloat().coerceIn(0f, 1f)
+            val b = (skip.second * 1000 / durationMs).toFloat().coerceIn(0f, 1f)
+            if (b > a) Row(Modifier.fillMaxWidth().height(barHeight)) {
+                if (a > 0f) androidx.compose.foundation.layout.Spacer(Modifier.weight(a))
+                Box(Modifier.weight(b - a).fillMaxHeight().background(accent.copy(alpha = 0.35f)))
+                if (1f - b > 0f) androidx.compose.foundation.layout.Spacer(Modifier.weight(1f - b))
+            }
+        }
+        Box(Modifier.fillMaxWidth(fraction).height(barHeight).clip(RoundedCornerShape(5.dp)).background(Brush.horizontalGradient(listOf(accent, Color.White))))
+        if (focused && fraction > 0f) Box(Modifier.fillMaxWidth(fraction), contentAlignment = Alignment.CenterEnd) {
+            Box(Modifier.size(20.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.White).border(3.dp, accent, androidx.compose.foundation.shape.CircleShape))
         }
     }
 }
 
-/** The screen shown while the source is prepared: the film's own logo (or its title) with what is happening. */
-@Composable
-private fun PreparingOverlay(title: String, logoUrl: String?, preparing: PlayerViewModel.Preparing?, modifier: Modifier = Modifier) {
-    Box(modifier.background(Color(0xFF000000)), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            if (logoUrl != null) coil3.compose.AsyncImage(
-                model = logoUrl, contentDescription = title, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                modifier = Modifier.widthIn(max = 560.dp).heightIn(max = 220.dp),
-            ) else Text(title, style = MaterialTheme.typography.headlineLarge, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 800.dp))
-            if (preparing?.fraction != null) ProgressLine(preparing.fraction!!, Modifier.width(420.dp))
-            else CircularProgressIndicator(Modifier.size(40.dp), color = Color.White, trackColor = Color(0x26FFFFFF), strokeWidth = 3.dp)
-            Text(preparing?.message ?: "Preparo il video…", style = MaterialTheme.typography.titleMedium, color = AetherColors.OnSurfaceMuted)
-            preparing?.detail?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = AetherColors.OnSurfaceMuted) }
-        }
-    }
-}

@@ -76,6 +76,8 @@ fun TopBar(
     entryRequester: FocusRequester? = null,
     /** Where Down from the bar goes: the page under it (whatever it shows). */
     contentRequester: FocusRequester? = null,
+    /** The avatar of the profile, shown round at the right end. */
+    avatar: String = "popcorn",
 ) {
     var hasFocus by remember { mutableStateOf(false) }
     val graphics = LocalGraphics.current
@@ -91,7 +93,7 @@ fun TopBar(
             .focusGroup(),
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = AetherDimens.ScreenVertical - 4.dp).height(48.dp),
+            Modifier.fillMaxWidth().padding(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = AetherDimens.ScreenVertical + 2.dp).height(48.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -109,7 +111,6 @@ fun TopBar(
             }
             Spacer(Modifier.weight(1f))
             // Who is watching: the avatar of the profile, round, at the right end.
-            val profile = (androidx.compose.ui.platform.LocalContext.current.applicationContext as app.aether.tv.AetherApp).engine.settings.value.collectAsStateWithLifecycle().value.profile
             val selected = current == Routes.PROFILE
             FocusSurface(
                 { onSelect(Routes.PROFILE) },
@@ -117,7 +118,7 @@ fun TopBar(
                 shape = androidx.compose.foundation.shape.CircleShape, focusScale = 1.12f, edge = true, glow = true,
                 focusRequester = if (selected) entryRequester else null, testTag = "nav.profile",
                 containerColor = Color.Transparent, focusedContainerColor = Color.Transparent,
-            ) { ProfileAvatarView(profile.avatar, Modifier.fillMaxSize(), ring = selected) }
+            ) { ProfileAvatarView(avatar, Modifier.fillMaxSize(), ring = selected) }
         }
     }
 }
