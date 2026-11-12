@@ -105,19 +105,20 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
 
     private func load(_ url: URL, manifestType: String?) async throws -> Data {
         let maximum = manifestType == nil ? 32 * 1024 * 1024 : 4 * 1024 * 1024
-        let data = try await fetch(url)
+        let response = try await fetch(url)
+        let data = response.data
         guard data.count <= maximum else { throw RelayError.upstreamNotMedia }
         guard let manifestType = manifestType else { return data }
         guard let text = String(data: data, encoding: .utf8) else { throw RelayError.upstreamNotMedia }
         if manifestType == "application/vnd.apple.mpegurl" || manifestType == "application/x-mpegURL" {
             guard text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("#EXTM3U") else { throw RelayError.upstreamNotMedia }
-            return Data(try rewriteHLS(text, baseURL: url).utf8)
+            return Data(try rewriteHLS(text, baseURL: response.finalURL).utf8)
         }
         guard text.lowercased().contains("<mpd") || text.lowercased().contains(":mpd") else { throw RelayError.upstreamNotMedia }
-        return Data(try rewriteDASH(text, baseURL: url).utf8)
+        return Data(try rewriteDASH(text, baseURL: response.finalURL).utf8)
     }
 
-    private func fetch(_ originalURL: URL) async throws -> Data {
+    private func fetch(_ originalURL: URL) async throws -> (data: Data, finalURL: URL) {
         var current = originalURL
         var previous = originalURL
         for hop in 0...5 {
@@ -153,7 +154,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
             if ["text/html", "application/json", "application/problem+json", "application/xhtml+xml"].contains(responseType) {
                 throw RelayError.upstreamNotMedia
             }
-            return data
+            return (data, current)
         }
         throw RelayError.upstreamUnreachable(code: -1)
     }
