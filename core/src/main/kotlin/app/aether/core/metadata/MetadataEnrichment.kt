@@ -1,5 +1,6 @@
 package app.aether.core.metadata
 
+import kotlinx.coroutines.async
 import app.aether.core.model.ExternalIds
 import app.aether.core.model.MetaItem
 import app.aether.core.model.TrailerRef
@@ -37,10 +38,25 @@ data class RichDetails(
     val originalLanguage: String? = null,
     val seasonCount: Int? = null,
     val episodeCount: Int? = null,
+    val tagline: String? = null,
+    /** The saga the film belongs to (TMDB collection). */
+    val collectionId: Int? = null,
+    val collectionName: String? = null,
+    /** Who made it behind the camera: direction, writing, music, photography. */
+    val crew: List<Person> = emptyList(),
+    val releaseDate: String? = null,
+    val runtimeMinutes: Int? = null,
+    val voteAverage: Double? = null,
+    val keywords: List<String> = emptyList(),
 ) {
     data class Person(val name: String, val role: String?, val photo: String?, val id: Int? = null)
     data class Credit(val tmdbId: Int, val isMovie: Boolean, val title: String, val character: String?, val poster: String?, val year: String?)
     data class Similar(val tmdbId: Int, val title: String, val poster: String?, val year: String?, val isMovie: Boolean)
+    /** A saga: its films in order of release. */
+    data class Collection(val id: Int, val name: String, val overview: String?, val poster: String?, val backdrop: String?, val parts: List<Part>)
+    data class Part(val tmdbId: Int, val title: String, val poster: String?, val backdrop: String?, val releaseDate: String?, val overview: String?) {
+        val year: String? get() = releaseDate?.take(4)?.takeIf { it.length == 4 }
+    }
 
     val isEmpty: Boolean
         get() = cast.isEmpty() && directors.isEmpty() && creators.isEmpty() && companies.isEmpty() && budget == null &&
@@ -105,6 +121,137 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
                     (r.str("release_date") ?: r.str("first_air_date"))?.take(4))
             }
     }.getOrDefault(emptyList())
+
+    private val wikidata = WikidataAwards(http)
+    private val profileCache = ConcurrentHashMap<Int, PersonProfile>()
+
+    /** A person's page: biography, life, the whole filmography (as actor and behind the camera) and the awards from Wikidata. */
+    suspend fun personProfile(personId: Int, fallbackName: String): PersonProfile? {
+        profileCache[personId]?.let { return it }
+        val detail = runCatching { tmdbGet("/person/$personId", "append_to_response" to "combined_credits,external_ids") }.getOrNull() ?: return null
+        if (detail.isEmpty()) return null
+        var profile = PersonProfile.fromTmdb(personId, detail, fallbackName, IMAGE_BASE)
+        // An empty Italian biography falls back to the English one.
+        if (profile.biography.isEmpty() && !language().startsWith("en")) {
+            runCatching { tmdbGet("/person/$personId", "language" to "en-US").str("biography") }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }?.let { profile = profile.copy(biography = it) }
+        }
+        profile.wikidataId?.let { profile = profile.copy(awards = wikidata.awards(it, language())) }
+        profileCache[personId] = profile
+        return profile
+    }
+
+    /** People whose name matches, the best known first (only those with a photo, as on the iPhone). */
+    suspend fun searchPeople(query: String, limit: Int = 12): List<PersonSearchResult> {
+        if (!hasTmdb || query.isBlank()) return emptyList()
+        return runCatching {
+            tmdbGet("/search/person", "query" to query.trim(), "include_adult" to "false").arr("results")
+                .filter { it.int("id") != null && !it.str("name").isNullOrBlank() && it.str("profile_path") != null }
+                .sortedByDescending { it.dbl("popularity") ?: 0.0 }
+                .take(limit)
+                .map { r ->
+                    PersonSearchResult(
+                        r.int("id")!!, r.str("name")!!, r.str("profile_path")?.takeIf { it.startsWith("/") && ".." !in it }?.let { "$IMAGE_BASE/w185$it" },
+                        PersonProfile.professionName(r.str("known_for_department")),
+                        r.arr("known_for").mapNotNull { it.str("title") ?: it.str("name") }.take(3),
+                    )
+                }
+        }.getOrDefault(emptyList())
+    }
+
+    /** What an advanced search found: openable titles (IMDb ids) and short notes on how the request was read. */
+    data class DiscoverOutcome(val items: List<MetaItem>, val notes: List<String>)
+
+    /**
+     * Runs a [app.aether.core.search.SearchIntent] on TMDB: «similar to» through its recommendations, otherwise discover with genres,
+     * keywords, years, rating, countries and length. Every result gets its IMDb id so the addons can play it.
+     */
+    suspend fun discover(intent: app.aether.core.search.SearchIntent, limit: Int = 40): DiscoverOutcome = kotlinx.coroutines.coroutineScope {
+        if (!hasTmdb) return@coroutineScope DiscoverOutcome(emptyList(), listOf("La ricerca avanzata usa TMDB: aggiungi la chiave nelle impostazioni."))
+        val notes = ArrayList<String>()
+        val kinds = when (intent.kind) { app.aether.core.search.IntentKind.MOVIE -> listOf("movie"); app.aether.core.search.IntentKind.SERIES -> listOf("tv"); null -> listOf("movie", "tv") }
+        val found = ArrayList<Pair<String, JsonElement>>()
+        val reference = intent.similarTo
+        if (reference != null) {
+            for (kind in kinds) {
+                val match = runCatching { tmdbGet("/search/$kind", "query" to reference).arr("results").firstOrNull() }.getOrNull() ?: continue
+                val id = match.int("id") ?: continue
+                val list = runCatching { tmdbGet("/$kind/$id/recommendations").arr("results") }.getOrDefault(emptyList())
+                found += list.filter { it.int("id") != id }.map { kind to it }
+                notes += "Titolo di partenza: «${match.str("title") ?: match.str("name") ?: reference}»" + ((match.str("release_date") ?: match.str("first_air_date"))?.take(4)?.let { " ($it)" } ?: "") + "."
+                break
+            }
+            if (notes.isEmpty()) notes += "Non ho trovato «$reference» su TMDB."
+        } else {
+            val keywordIds = intent.keywords.take(4).mapNotNull { word -> runCatching { tmdbGet("/search/keyword", "query" to word).arr("results").firstOrNull()?.int("id") }.getOrNull() }
+            suspend fun fetch(withKeywords: List<Int>): List<Pair<String, JsonElement>> = kinds.map { kind ->
+                async {
+                    val q = ArrayList<Pair<String, String>>()
+                    q += "include_adult" to "false"; q += "page" to "1"
+                    val genreIds = intent.genres.mapNotNull { if (kind == "movie") it.movieId else it.tvId }.distinct()
+                    if (genreIds.size < intent.genres.size && kind == "tv") synchronized(notes) { notes += "Per le serie TMDB non ha alcuni generi richiesti: li ho ignorati." }
+                    if (genreIds.isNotEmpty()) q += "with_genres" to genreIds.sorted().joinToString(",")
+                    if (withKeywords.isNotEmpty()) q += "with_keywords" to withKeywords.joinToString("|")
+                    val dateKey = if (kind == "movie") "primary_release_date" else "first_air_date"
+                    intent.yearFrom?.let { q += "$dateKey.gte" to "$it-01-01" }
+                    intent.yearTo?.let { q += "$dateKey.lte" to "$it-12-31" }
+                    intent.minRating?.let { q += "vote_average.gte" to "%.1f".format(java.util.Locale.ROOT, it) }
+                    if (intent.countries.isNotEmpty()) q += "with_origin_country" to intent.countries.joinToString("|")
+                    if (kind == "movie") intent.maxRuntime?.let { q += "with_runtime.lte" to "$it" }
+                    when (intent.sort) {
+                        app.aether.core.search.IntentSort.POPULARITY -> { q += "sort_by" to "popularity.desc"; q += "vote_count.gte" to "20" }
+                        app.aether.core.search.IntentSort.RATING -> { q += "sort_by" to "vote_average.desc"; q += "vote_count.gte" to "200" }
+                        app.aether.core.search.IntentSort.NEWEST -> { q += "sort_by" to "$dateKey.desc"; q += "vote_count.gte" to "30" }
+                        app.aether.core.search.IntentSort.OLDEST -> { q += "sort_by" to "$dateKey.asc"; q += "vote_count.gte" to "200" }
+                    }
+                    runCatching { tmdbGet("/discover/$kind", *q.toTypedArray()).arr("results") }.getOrDefault(emptyList()).map { kind to it }
+                }
+            }.flatMap { it.await() }
+            found += fetch(keywordIds)
+            if (intent.keywords.isNotEmpty() && keywordIds.isEmpty()) notes += "Nessuna parola chiave TMDB corrisponde a «${intent.keywords.joinToString()}»: ho usato solo gli altri filtri."
+            if (keywordIds.isNotEmpty() && found.size < limit) {
+                val seen = found.map { "${it.first}-${it.second.int("id")}" }.toHashSet()
+                val more = fetch(emptyList()).filter { seen.add("${it.first}-${it.second.int("id")}") }
+                if (more.isNotEmpty()) notes += "Prima i titoli con la parola chiave, poi altri dello stesso genere."
+                found += more
+            }
+            // Movies and series alternate, so neither kind hides the other.
+            if (kinds.size == 2) {
+                val movies = found.filter { it.first == "movie" }; val shows = found.filter { it.first == "tv" }
+                found.clear(); for (i in 0 until maxOf(movies.size, shows.size)) { movies.getOrNull(i)?.let { found += it }; shows.getOrNull(i)?.let { found += it } }
+            }
+        }
+        val items = found.take(limit + 8).map { (kind, item) ->
+            async {
+                val id = item.int("id") ?: return@async null
+                val imdb = imdbIdFor(id, kind == "movie") ?: return@async null
+                val title = item.str("title") ?: item.str("name") ?: return@async null
+                fun image(path: String?, size: String) = path?.takeIf { it.startsWith("/") && ".." !in it }?.let { "$IMAGE_BASE/$size$it" }
+                MetaItem(
+                    imdb, if (kind == "movie") "movie" else "series", title, poster = image(item.str("poster_path"), "w342"), background = image(item.str("backdrop_path"), "w780"),
+                    description = item.str("overview"), releaseInfo = (item.str("release_date") ?: item.str("first_air_date"))?.take(4)?.takeIf { it.length == 4 },
+                    imdbRating = item.dbl("vote_average")?.takeIf { it > 0 }?.let { "%.1f".format(java.util.Locale.ROOT, it) },
+                    externalIds = app.aether.core.model.ExternalIds(imdb = imdb, tmdb = id),
+                )
+            }
+        }.mapNotNull { it.await() }
+        val seen = HashSet<String>()
+        DiscoverOutcome(items.filter { seen.add(it.id) }.take(limit), notes)
+    }
+
+    private val collectionCache = ConcurrentHashMap<Int, RichDetails.Collection>()
+
+    /** The films of a saga, in order of release (unreleased ones last). */
+    suspend fun collection(id: Int): RichDetails.Collection? {
+        collectionCache[id]?.let { return it }
+        val d = runCatching { tmdbGet("/collection/$id") }.getOrNull()?.takeIf { it.isNotEmpty() } ?: return null
+        fun image(path: String?, size: String) = path?.takeIf { it.startsWith("/") && ".." !in it }?.let { "$IMAGE_BASE/$size$it" }
+        val parts = d.arr("parts").mapNotNull { p ->
+            RichDetails.Part(p.int("id") ?: return@mapNotNull null, p.str("title") ?: p.str("name") ?: return@mapNotNull null, image(p.str("poster_path"), "w342"), image(p.str("backdrop_path"), "w780"), p.str("release_date")?.takeIf { it.isNotBlank() }, p.str("overview"))
+        }.sortedWith(compareBy<RichDetails.Part> { it.releaseDate == null }.thenBy { it.releaseDate })
+        val c = RichDetails.Collection(id, d.str("name") ?: "Saga", d.str("overview"), image(d.str("poster_path"), "w342"), image(d.str("backdrop_path"), "w1280"), parts)
+        collectionCache[id] = c
+        return c
+    }
 
     private val logoCache = ConcurrentHashMap<String, String>()
 
@@ -186,7 +333,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
 
     private suspend fun tmdbDetails(kind: String, id: Int): JsonObject = tmdbGet(
         "/$kind/$id",
-        "append_to_response" to "credits,videos,similar,external_ids",
+        "append_to_response" to "credits,videos,similar,external_ids,keywords,recommendations",
         "include_video_language" to "${language().take(2)},en,null",
     )
 
@@ -245,6 +392,18 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
             originalLanguage = detail.str("original_language"),
             seasonCount = detail.int("number_of_seasons"),
             episodeCount = detail.int("number_of_episodes"),
+            tagline = detail.str("tagline")?.trim()?.takeIf { it.isNotEmpty() },
+            collectionId = detail.obj("belongs_to_collection")?.int("id"),
+            collectionName = detail.obj("belongs_to_collection")?.str("name"),
+            crew = credits?.arr("crew").orEmpty().mapNotNull { p ->
+                val job = p.str("job") ?: return@mapNotNull null
+                val label = when (job) { "Director" -> "Regia"; "Screenplay", "Writer" -> "Sceneggiatura"; "Original Music Composer" -> "Musiche"; "Director of Photography" -> "Fotografia"; "Novel" -> "Romanzo"; else -> null } ?: return@mapNotNull null
+                RichDetails.Person(p.str("name") ?: return@mapNotNull null, label, p.str("profile_path")?.let { "$IMAGE_BASE/w185$it" }, p.int("id"))
+            }.distinctBy { it.name + it.role }.take(10),
+            releaseDate = detail.str("release_date") ?: detail.str("first_air_date"),
+            runtimeMinutes = detail.int("runtime") ?: detail.arr("episode_run_time").firstOrNull()?.int(),
+            voteAverage = detail.dbl("vote_average")?.takeIf { it > 0 },
+            keywords = (detail.obj("keywords")?.arr("keywords").orEmpty() + detail.obj("keywords")?.arr("results").orEmpty()).mapNotNull { it.str("name") }.take(12),
         )
         richCache["$kind:$id"] = rich
         return rich
@@ -261,7 +420,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
         if (key.isEmpty()) throw ProviderError("Chiave TMDB non impostata.")
         val bearer = key.startsWith("eyJ") && key.count { it == '.' } == 2
         val params = buildList {
-            add("language" to language())
+            if (query.none { it.first == "language" }) add("language" to language())
             addAll(query)
             if (!bearer) add("api_key" to key)
         }

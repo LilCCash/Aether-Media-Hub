@@ -89,6 +89,8 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         val started: Boolean = false,
         val askDownload: Boolean = false,
         val fileChoice: List<DebridFile>? = null,
+        /** The start screen is up: the video waits (ready but paused) for «Guarda». */
+        val intro: Boolean = false,
     )
 
     data class Preparing(val message: String, val fraction: Double?, val detail: String?)
@@ -196,7 +198,9 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
     init {
         player.addListener(listener)
         viewModelScope.launch { engine.settings.value.collect { current -> applyAudioGain(current.playback.audioGainDb) } }
-        player.playWhenReady = true
+        val wantsIntro = if (request.meta.type == "movie") settings.introMovies else settings.introSeries
+        _state.update { it.copy(intro = wantsIntro) }
+        player.playWhenReady = !wantsIntro
         if (request.pending == null) load(request, startAt = startPosition(request)) else resolvePending(allowDownload = false)
         if (settings.showTitleLogos) viewModelScope.launch { _state.update { it.copy(logoUrl = engine.metadata.titleLogo(request.meta)) } }
         if (settings.defaultSleepTimerMinutes > 0) setSleepTimer(settings.defaultSleepTimerMinutes)
@@ -229,7 +233,7 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
         val builder = MediaItem.Builder().setUri(Uri.parse(r.url)).setMediaId(r.stream.id)
         player.setMediaItem(builder.build(), ((startAt ?: 0.0) * 1000).toLong())
         player.prepare()
-        player.playWhenReady = true
+        player.playWhenReady = !_state.value.intro
         _state.update { it.copy(error = null, ended = false, buffering = true, sourceLabel = r.stream.name.orEmpty()) }
     }
 
@@ -408,6 +412,26 @@ class PlayerViewModel(private val engine: AetherEngine, context: Context, privat
             publishTracks(player.currentTracks)
             if (found.isNotEmpty()) onDone()
         }
+    }
+
+    /** «Guarda» on the start screen. */
+    fun watchFromIntro() {
+        _state.update { it.copy(intro = false) }
+        player.play()
+    }
+
+    /** What is playing now (the next episode changes it). */
+    val meta: MetaItem get() = current?.meta ?: request.meta
+    val video: app.aether.core.model.Video? get() = current?.video ?: request.video
+
+    /** Cast and crew for the pause screen and the credits, loaded once in the background. */
+    private val _rich = kotlinx.coroutines.flow.MutableStateFlow<app.aether.core.metadata.RichDetails?>(null)
+    val rich: kotlinx.coroutines.flow.StateFlow<app.aether.core.metadata.RichDetails?> get() = _rich
+    private var richAsked = false
+    fun loadRich() {
+        if (richAsked) return
+        richAsked = true
+        viewModelScope.launch { _rich.value = engine.metadata.rich(meta) }
     }
 
     /** Embedded tracks cannot be anticipated, only delayed; addon subtitles can do both. */

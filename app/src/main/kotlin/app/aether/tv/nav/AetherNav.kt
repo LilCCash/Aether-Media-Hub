@@ -111,7 +111,7 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
                 HomeScreen(onTopReached = { topBarVisible.value = it }, onOpenDetail = ::openDetail, onPlay = ::openStreams, onOpenAddons = { input -> Session.pendingAddonInput = input; goTop(Routes.ADDONS) })
             }
             composable(Routes.DISCOVER) { DiscoverScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }) }
-            composable(Routes.SEARCH) { SearchScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }) }
+            composable(Routes.SEARCH) { SearchScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }, onOpenPerson = { pid, name -> nav.navigate(Routes.person(pid, name)) }) }
             composable(Routes.RECOMMEND) { app.aether.tv.ui.screens.recommend.RecommendScreen(onOpenDetail = ::openDetail, onOpenAddons = { goTop(Routes.ADDONS) }) }
             composable(Routes.LIVE) {
                 app.aether.tv.ui.screens.livetv.LiveTvScreen(onOpenDetail = ::openDetail, onPlay = { nav.navigate(Routes.PLAYER) })

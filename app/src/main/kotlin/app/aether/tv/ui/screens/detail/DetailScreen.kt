@@ -94,6 +94,7 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
         val rich: app.aether.core.metadata.RichDetails? = null,
         /** IMDb, Rotten Tomatoes, Metacritic… from MDBList, when the viewer set a key. */
         val ratings: List<app.aether.core.metadata.MdbRating> = emptyList(),
+        val collection: app.aether.core.metadata.RichDetails.Collection? = null,
     )
 
     private val _state = MutableStateFlow(UiState(Session.preview(type, id) ?: MetaItem(id, type, id)))
@@ -122,6 +123,7 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
                 refreshLibrary()
                 val rich = engine.metadata.rich(meta)
                 _state.update { it.copy(rich = rich) }
+                rich?.collectionId?.let { cid -> launch { val c = engine.metadata.collection(cid); _state.update { it.copy(collection = c?.takeIf { x -> x.parts.size > 1 }) } } }
                 val tmdb = rich?.tmdbId ?: meta.externalIds.tmdb
                 if (tmdb != null && engine.mdbList.isConfigured) {
                     val ratings = engine.mdbList.ratings(tmdb, isMovie = meta.type == "movie")
@@ -155,6 +157,18 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
         }
     }
 
+    /** A name of the addon's cast (no TMDB id): the person is looked up by name, the best known match is opened. */
+    fun openPersonByName(name: String, open: (Int, String) -> Unit) {
+        viewModelScope.launch {
+            val found = engine.metadata.searchPeople(name, limit = 1).firstOrNull() ?: return@launch
+            open(found.id, found.name)
+        }
+    }
+
+    fun openPart(part: app.aether.core.metadata.RichDetails.Part, open: (String, String) -> Unit) {
+        viewModelScope.launch { engine.metadata.imdbIdFor(part.tmdbId, true)?.let { open("movie", it) } }
+    }
+
     fun selectSeason(season: Int) = _state.update { it.copy(season = season) }
     fun toggleWatchlist() { val s = _state.value; engine.library.setWatchlist(!s.inWatchlist, s.meta); engine.trakt.watchlistChanged(s.meta, !s.inWatchlist) }
     fun toggleFavorite() { val s = _state.value; engine.library.setFavorite(!s.favorite, s.meta) }
@@ -171,6 +185,7 @@ class DetailViewModel(private val engine: AetherEngine, private val type: String
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -> Unit, onOpenTitle: (String, String) -> Unit = { _, _ -> }, onOpenPerson: (Int, String) -> Unit = { _, _ -> }, modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -181,6 +196,8 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
     val primaryRequester = remember { FocusRequester() }
     var opened by remember { mutableStateOf<Pair<String, String>?>(null) }
     val listState = rememberLazyListState()
+    val appearance = engine.settings.value.collectAsStateWithLifecycle().value.appearance
+    val sections = remember(appearance.detailSectionOrder, appearance.hiddenDetailSections) { app.aether.core.settings.DetailSections.ordered(appearance.detailSectionOrder, appearance.hiddenDetailSections) }
     if (!state.loading) RequestFocusOnce(primaryRequester, meta.id)
 
     val primaryVideo = if (meta.hasEpisodes) state.primary else null
@@ -230,7 +247,15 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                         } else {
                             Text(meta.name, style = MaterialTheme.typography.displayMedium, color = AetherColors.OnBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
-                        meta.factsLine().takeIf { it.isNotEmpty() }?.let { Text(it, style = MaterialTheme.typography.labelLarge, color = AetherColors.OnBackground.copy(alpha = 0.75f)) }
+                        state.rich?.tagline?.let { Text("«$it»", style = MaterialTheme.typography.titleSmall.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), color = app.aether.tv.ui.theme.LocalAccent.current, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                        val pills = buildList {
+                            meta.releaseInfo?.takeIf { it.isNotBlank() }?.let { add(it) }
+                            (state.rich?.runtimeMinutes?.let { m -> if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min" } ?: meta.runtime)?.let { add(it) }
+                            (meta.imdbRating?.takeIf { it.isNotBlank() } ?: state.rich?.voteAverage?.let { "%.1f".format(java.util.Locale.ITALY, it) })?.let { add("★ $it") }
+                            if (meta.hasEpisodes) state.rich?.seasonCount?.let { add(if (it == 1) "1 stagione" else "$it stagioni") }
+                        }
+                        if (pills.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { pills.forEach { app.aether.tv.ui.components.Badge(it) } }
+                        if (meta.genres.isNotEmpty()) Text(meta.genres.take(4).joinToString("  ·  "), style = MaterialTheme.typography.labelLarge, color = AetherColors.OnBackground.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         meta.description?.takeIf { it.isNotBlank() }?.let { plot ->
                             FocusSurface({ opened = "Trama" to plot }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), focusScale = 1.02f, containerColor = Color.Transparent, focusedContainerColor = Color(0x26FFFFFF)) {
                                 Text(plot, Modifier.padding(horizontal = 6.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground.copy(alpha = 0.88f), maxLines = 4, overflow = TextOverflow.Ellipsis)
@@ -266,10 +291,13 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                     }
                     }
                 }
-                if (meta.hasEpisodes) {
-                    item(key = "episodes") {
+                val r = state.rich
+                val open: (String, String) -> Unit = { l, t -> opened = l to t }
+                for (section in sections) when (section) {
+                    "episodes" -> if (meta.hasEpisodes) item(key = "episodes") {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            LazyRow(contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            app.aether.tv.ui.components.SectionTitle("Episodi", Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
+                            LazyRow(contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 items(meta.seasons.size, key = { meta.seasons[it] }) { i ->
                                     val season = meta.seasons[i]
                                     TvChip(if (season == 0) "Speciali" else "Stagione $season", state.season == season, { vm.selectSeason(season) }, testTag = "detail.season.$season")
@@ -277,62 +305,89 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                             }
                             val episodes = state.season?.let { meta.videos(it) }.orEmpty()
                             val seasonKey = state.season
-                            LazyRow(contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                items(episodes.size, key = { "${seasonKey}-${episodes[it].id}" }) { i ->
-                                    val video = episodes[i]
-                                    EpisodeCard(
-                                        video, progress = state.progress[video.id], watched = video.id in state.watched,
-                                        onClick = { onPlay(meta, video, state.progress[video.id]?.takeIf { p -> !p.isCompleted && p.position >= 10 }?.position) },
-                                        onLongClick = { vm.toggleWatched(video) },
-                                    )
+                            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides app.aether.tv.ui.theme.EdgeScroll) {
+                                LazyRow(contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                                    items(episodes.size, key = { "${seasonKey}-${episodes[it].id}" }) { i ->
+                                        val video = episodes[i]
+                                        EpisodeCard(
+                                            video, progress = state.progress[video.id], watched = video.id in state.watched,
+                                            onClick = { onPlay(meta, video, state.progress[video.id]?.takeIf { p -> !p.isCompleted && p.position >= 10 }?.position) },
+                                            onLongClick = { vm.toggleWatched(video) },
+                                        )
+                                    }
                                 }
                             }
                             state.season?.let { season ->
-                                Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                     TvChip("Segna la stagione come vista", false, { vm.markSeason(season, true) }, testTag = "detail.markSeason")
                                     TvChip("Segna come non vista", false, { vm.markSeason(season, false) })
+                                    Text("Tieni premuto OK su un episodio per segnarlo come visto.", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
-                                Text("Tieni premuto OK su un episodio per segnarlo come visto o non visto.", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
                             }
                         }
                     }
-                }
-                if (state.ratings.isNotEmpty()) item(key = "ratings") {
-                    androidx.compose.foundation.layout.Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        for (rating in state.ratings.take(8)) {
-                            app.aether.tv.ui.components.Badge("${rating.title} ${rating.display}")
+                    "cast" -> {
+                        if (r != null && r.cast.isNotEmpty()) item(key = "cast") {
+                            ContentRow("Cast", r.cast, { it.name + it.role.orEmpty() }, rowId = "cast") { person, requester, onFocused ->
+                                app.aether.tv.ui.components.PersonBubble(person.name, person.photo, person.role, requester, onFocused, testTag = "detail.cast.${person.name}") { person.id?.let { onOpenPerson(it, person.name) } ?: vm.openPersonByName(person.name, onOpenPerson) }
+                            }
+                        } else if (meta.cast.isNotEmpty()) item(key = "cast") {
+                            ContentRow("Cast", meta.cast.take(20), { it }, rowId = "cast") { name, requester, onFocused ->
+                                app.aether.tv.ui.components.PersonBubble(name, null, null, requester, onFocused, testTag = "detail.cast.$name") { vm.openPersonByName(name, onOpenPerson) }
+                            }
                         }
                     }
-                }
-                item(key = "credits") {
-                    Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal - 6.dp).fillMaxWidth(0.8f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        val r = state.rich
-                        if (r == null) InfoLine("Cast", meta.cast.take(10)) { l, t -> opened = l to t }
-                        InfoLine("Regia", meta.directors.ifEmpty { r?.directors.orEmpty() }) { l, t -> opened = l to t }
-                        InfoLine("Creato da", r?.creators.orEmpty()) { l, t -> opened = l to t }
-                        InfoLine("Sceneggiatura", meta.writers) { l, t -> opened = l to t }
-                        InfoLine("Generi", meta.genres) { l, t -> opened = l to t }
-                        InfoLine("Lingua", listOfNotNull(meta.language)) { l, t -> opened = l to t }
-                        InfoLine("Paese", if (meta.country != null) listOf(meta.country!!) else r?.countries.orEmpty()) { l, t -> opened = l to t }
-                        InfoLine("Premi", listOfNotNull(meta.awards)) { l, t -> opened = l to t }
-                        if (r != null) {
-                            InfoLine("Produzione", r.companies) { l, t -> opened = l to t }
-                            InfoLine("Stato", listOfNotNull(r.status)) { l, t -> opened = l to t }
-                            InfoLine("Lingua originale", listOfNotNull(r.originalLanguage?.uppercase())) { l, t -> opened = l to t }
-                            if (r.seasonCount != null) InfoLine("Stagioni", listOfNotNull("${r.seasonCount}" + (r.episodeCount?.let { " · $it episodi" } ?: ""))) { l, t -> opened = l to t }
-                            InfoLine("Budget", listOfNotNull(r.budget?.let(::money))) { l, t -> opened = l to t }
-                            InfoLine("Incassi", listOfNotNull(r.revenue?.let(::money))) { l, t -> opened = l to t }
+                    "collection" -> state.collection?.let { c ->
+                        item(key = "collection") {
+                            ContentRow(c.name, c.parts, { "${it.tmdbId}" }, rowId = "collection") { part, requester, onFocused ->
+                                PosterCard(
+                                    MetaItem("tmdb:${part.tmdbId}", "movie", part.title, poster = part.poster, background = part.backdrop, releaseInfo = part.year),
+                                    { vm.openPart(part, onOpenTitle) }, focusRequester = requester, onFocused = onFocused, testTag = "detail.saga.${part.tmdbId}",
+                                    badge = if (part.tmdbId == r?.tmdbId) "Questo" else null,
+                                )
+                            }
                         }
-                        state.provider?.let { Text("Dettagli forniti da $it · premi OK su una voce per leggerla intera", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, modifier = Modifier.padding(start = 6.dp, top = 8.dp)) }
                     }
-                }
-                state.rich?.let { r ->
-                    if (r.cast.isNotEmpty()) item(key = "cast") {
-                        ContentRow("Cast", r.cast, { it.name + it.role }, rowId = "cast") { person, requester, onFocused -> PersonCard(person, requester, onFocused) { person.id?.let { onOpenPerson(it, person.name) } } }
+                    "ratings" -> if (state.ratings.isNotEmpty()) item(key = "ratings") {
+                        Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            app.aether.tv.ui.components.SectionTitle("Voti")
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                for (rating in state.ratings.take(8)) RatingTile(rating.title.orEmpty(), rating.display.orEmpty())
+                            }
+                        }
                     }
-                    if (r.trailers.isNotEmpty()) item(key = "trailers") {
-                        Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Trailer", style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground)
+                    "info" -> item(key = "credits") {
+                        Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal - 6.dp).fillMaxWidth(0.8f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            app.aether.tv.ui.components.SectionTitle("Dettagli", Modifier.padding(start = 6.dp, bottom = 6.dp))
+                            InfoLine("Regia", meta.directors.ifEmpty { r?.directors.orEmpty() }, open)
+                            InfoLine("Creato da", r?.creators.orEmpty(), open)
+                            InfoLine("Sceneggiatura", meta.writers, open)
+                            InfoLine("Generi", meta.genres, open)
+                            InfoLine("Uscita", listOfNotNull(r?.releaseDate?.let(::italianDate) ?: meta.releaseInfo), open)
+                            InfoLine("Durata", listOfNotNull(r?.runtimeMinutes?.let { "${it / 60} h ${it % 60} min".removePrefix("0 h ") } ?: meta.runtime), open)
+                            InfoLine("Lingua", listOfNotNull(meta.language), open)
+                            InfoLine("Paese", if (meta.country != null) listOf(meta.country!!) else r?.countries.orEmpty(), open)
+                            InfoLine("Premi", listOfNotNull(meta.awards), open)
+                            if (r != null) {
+                                InfoLine("Produzione", r.companies, open)
+                                InfoLine("Stato", listOfNotNull(r.status), open)
+                                InfoLine("Lingua originale", listOfNotNull(r.originalLanguage?.let { app.aether.core.playback.Languages.displayName(it) }), open)
+                                if (r.seasonCount != null) InfoLine("Stagioni", listOfNotNull("${r.seasonCount}" + (r.episodeCount?.let { " · $it episodi" } ?: "")), open)
+                                InfoLine("Budget", listOfNotNull(r.budget?.let(::money)), open)
+                                InfoLine("Incassi", listOfNotNull(r.revenue?.let(::money)), open)
+                                InfoLine("Parole chiave", r.keywords, open)
+                            }
+                            state.provider?.let { Text("Dettagli forniti da $it · premi OK su una voce per leggerla intera", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, modifier = Modifier.padding(start = 6.dp, top = 8.dp)) }
+                        }
+                    }
+                    "crew" -> if (r != null && r.crew.isNotEmpty()) item(key = "crew") {
+                        ContentRow("Dietro la macchina da presa", r.crew, { it.name + it.role.orEmpty() }, rowId = "crew") { person, requester, onFocused ->
+                            app.aether.tv.ui.components.PersonBubble(person.name, person.photo, person.role, requester, onFocused) { person.id?.let { onOpenPerson(it, person.name) } }
+                        }
+                    }
+                    "trailers" -> if (r != null && r.trailers.isNotEmpty()) item(key = "trailers") {
+                        Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            app.aether.tv.ui.components.SectionTitle("Trailer")
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 r.trailers.forEachIndexed { i, t ->
                                     TvChip("${if (t.type == "Teaser") "Teaser" else "Trailer"} ${i + 1}", false, {
@@ -342,7 +397,7 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                             }
                         }
                     }
-                    if (r.similar.isNotEmpty()) item(key = "similar") {
+                    "similar" -> if (r != null && r.similar.isNotEmpty()) item(key = "similar") {
                         ContentRow("Titoli simili", r.similar, { "${it.tmdbId}" }, rowId = "similar") { sim, requester, onFocused ->
                             PosterCard(
                                 MetaItem("tmdb:${sim.tmdbId}", if (sim.isMovie) "movie" else "series", sim.title, poster = sim.poster, releaseInfo = sim.year),
@@ -353,6 +408,19 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                 }
             }
         }
+    }
+}
+
+private fun italianDate(iso: String): String = runCatching { java.time.LocalDate.parse(iso).format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale.ITALIAN)) }.getOrDefault(iso)
+
+@Composable
+private fun RatingTile(source: String, value: String) {
+    Column(
+        Modifier.width(132.dp).background(Color(0x1AFFFFFF), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(value, style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground, maxLines = 1)
+        Text(source, style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

@@ -133,8 +133,10 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
 
     LaunchedEffect(Unit) { vm.goNext.collect { onNextEpisode(it) } }
     // A film (or the last episode) that has ended closes the player after a moment, back to where it was chosen.
+    var showCredits by remember { mutableStateOf(false) }
+    val creditsAtEnd = settings.playback.creditsExperience && vm.meta.type == "movie"
     LaunchedEffect(state.ended, state.hasNext) {
-        if (state.ended && !state.hasNext) { delay(1800); exit() }
+        if (state.ended && !state.hasNext) { if (creditsAtEnd) { vm.loadRich(); showCredits = true } else { delay(1800); exit() } }
     }
     LaunchedEffect(Unit) { runCatching { root.requestFocus() } }
 
@@ -157,6 +159,8 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
 
     BackHandler {
         when {
+            showCredits -> exit()
+            state.intro && state.error == null -> exit()
             panel != Panel.NONE -> { panel = Panel.NONE; touch(); runCatching { playPause.requestFocus() } }
             controlsVisible && state.error == null && state.started && state.preparing == null -> { controlsVisible = false; runCatching { root.requestFocus() } }
             else -> exit()
@@ -171,7 +175,7 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown) lastInteraction = System.currentTimeMillis()
-                if (panel != Panel.NONE || state.error != null) return@onPreviewKeyEvent false
+                if (panel != Panel.NONE || state.error != null || state.intro || showCredits || !state.started) return@onPreviewKeyEvent false
                 // With the controls hidden the remote is a remote: every key does something useful without asking for the controls first.
                 if (!controlsVisible) {
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent event.key in handledWhenHidden
@@ -299,8 +303,29 @@ fun PlayerScreen(onExit: () -> Unit, onNextEpisode: (StreamRequest) -> Unit, mod
             }
         }
 
-        val covering = state.error == null && !state.askDownload && state.fileChoice == null && (state.preparing != null || !state.started)
-        if (covering) PreparingOverlay(state.title, state.logoUrl, state.preparing, Modifier.fillMaxSize())
+        // The pause page: a few seconds into a pause with the controls away.
+        var pausedLong by remember { mutableStateOf(false) }
+        LaunchedEffect(state.isPlaying, controlsVisible, panel, state.started) {
+            pausedLong = false
+            if (settings.playback.pauseScreen && state.started && !state.isPlaying && !state.ended && !controlsVisible && panel == Panel.NONE) {
+                vm.loadRich()
+                delay(5000)
+                pausedLong = true
+            }
+        }
+        val rich by vm.rich.collectAsStateWithLifecycle()
+        androidx.compose.animation.AnimatedVisibility(pausedLong && !state.isPlaying && !controlsVisible && state.error == null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
+            PauseOverlay(vm.meta, vm.video, state.title, state.logoUrl, rich, Modifier.fillMaxSize())
+        }
+
+        val covering = state.error == null && !state.askDownload && state.fileChoice == null && (state.preparing != null || !state.started || state.intro)
+        if (covering) IntroOverlay(
+            vm.meta, vm.video, state.title, state.logoUrl, state.preparing,
+            ready = state.started && state.preparing == null, intro = state.intro, scene = settings.playback.cinematicOpening,
+            resuming = (Session.playback?.startPositionSeconds ?: 0.0) > 10,
+            onWatch = { vm.watchFromIntro(); controlsVisible = false; runCatching { root.requestFocus() } }, onCancel = ::exit, modifier = Modifier.fillMaxSize(),
+        )
+        if (showCredits) CreditsOverlay(vm.meta, rich, ::exit, Modifier.fillMaxSize())
         if (state.askDownload) {
             val yes = remember { FocusRequester() }
             AetherDialog("Torrent non in cache", vm::declineDownload) {

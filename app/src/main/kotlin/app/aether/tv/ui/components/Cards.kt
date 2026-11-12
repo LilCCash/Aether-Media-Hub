@@ -85,6 +85,8 @@ fun PosterCard(
     focusRequester: FocusRequester? = null,
     onFocused: (() -> Unit)? = null,
     testTag: String? = null,
+    /** A short accent label at the bottom of the poster («Questo», «Visto a metà»…). */
+    badge: String? = null,
 ) {
     val cardWidth = shapeWidth(meta.posterShape, width)
     var focused by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -121,6 +123,9 @@ fun PosterCard(
             }
             if (progress != null && progress > 0.0) {
                 ProgressLine(progress, Modifier.align(Alignment.BottomCenter).padding(8.dp), height = 4.dp)
+            }
+            badge?.let {
+                Text(it, Modifier.align(Alignment.BottomStart).padding(8.dp).clip(RoundedCornerShape(8.dp)).background(app.aether.tv.ui.theme.LocalAccent.current).padding(horizontal = 8.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, color = Color.White, maxLines = 1)
             }
         }
         Text(
@@ -184,4 +189,28 @@ fun formatDuration(seconds: Double): String {
     val m = (total % 3600) / 60
     val s = total % 60
     return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+}
+
+
+/** A person as a round photo with the name below (cast rows, people found by a search). */
+@androidx.compose.runtime.Composable
+fun PersonBubble(name: String, photo: String?, role: String?, focusRequester: androidx.compose.ui.focus.FocusRequester?, onFocused: (() -> Unit)?, testTag: String? = null, onClick: () -> Unit) {
+    androidx.compose.foundation.layout.Column(
+        androidx.compose.ui.Modifier.width(128.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+    ) {
+        FocusSurface(
+            onClick, androidx.compose.ui.Modifier.size(112.dp), shape = androidx.compose.foundation.shape.CircleShape, focusScale = 1.1f, glow = true,
+            focusRequester = focusRequester, onFocused = onFocused, testTag = testTag,
+        ) {
+            if (photo != null) RemoteImage(photo, name, androidx.compose.ui.Modifier.fillMaxSize())
+            else androidx.compose.material3.Text(
+                name.split(' ').mapNotNull { it.firstOrNull()?.uppercaseChar() }.take(2).joinToString(""),
+                androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.Center),
+                style = androidx.compose.material3.MaterialTheme.typography.headlineSmall, color = app.aether.tv.ui.theme.AetherColors.OnSurfaceMuted,
+            )
+        }
+        androidx.compose.material3.Text(name, style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = app.aether.tv.ui.theme.AetherColors.OnBackground, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        androidx.compose.material3.Text(role ?: " ", style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = app.aether.tv.ui.theme.AetherColors.OnSurfaceMuted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    }
 }

@@ -125,3 +125,13 @@ fun SectionMark() {
             .background(app.aether.tv.ui.theme.LocalAccent.current, androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
     )
 }
+
+
+/** The title of a section of a page, with the accent mark of the rows. */
+@Composable
+fun SectionTitle(text: String, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.layout.Row(modifier, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(0.dp)) {
+        SectionMark()
+        androidx.compose.material3.Text(text, style = androidx.compose.material3.MaterialTheme.typography.titleLarge, color = app.aether.tv.ui.theme.AetherColors.OnBackground, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+    }
+}

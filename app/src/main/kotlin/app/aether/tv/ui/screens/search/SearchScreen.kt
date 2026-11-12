@@ -67,6 +67,12 @@ class SearchViewModel(private val engine: AetherEngine) : ViewModel() {
         val history: List<SearchHistoryItem> = emptyList(),
         val decade: Int? = null,
         val genre: String? = null,
+        /** People whose name matches (TMDB). */
+        val people: List<app.aether.core.metadata.PersonSearchResult> = emptyList(),
+        /** A sentence such as «thriller coreani degli anni 2000», read on the device and run on TMDB. */
+        val natural: app.aether.core.metadata.MetadataEnrichment.DiscoverOutcome? = null,
+        val naturalSummary: String? = null,
+        val naturalLoading: Boolean = false,
     ) {
         /** Applies the year and genre filters to a list of results. */
         fun keep(items: List<MetaItem>): List<MetaItem> = items.filter { m ->
@@ -78,6 +84,7 @@ class SearchViewModel(private val engine: AetherEngine) : ViewModel() {
     private val _state = MutableStateFlow(UiState(history = engine.library.searchHistory()))
     val state: StateFlow<UiState> get() = _state
     private var job: Job? = null
+    private var extrasJob: Job? = null
 
     init {
         viewModelScope.launch { _state.update { it.copy(searchableCatalogs = engine.search.searchableCatalogs().size) } }
@@ -128,7 +135,18 @@ class SearchViewModel(private val engine: AetherEngine) : ViewModel() {
         val settings = engine.settings.value.value
         if (remember && settings.content.saveSearchHistory && settings.privacy.recordHistory) engine.library.addSearch(query)
         val local = if (settings.content.searchLocal) engine.library.searchLocal(query) else emptyList()
-        _state.update { it.copy(searched = query, searching = true, rows = emptyList(), local = local, completed = 0, total = 0, history = engine.library.searchHistory()) }
+        _state.update { it.copy(searched = query, searching = true, rows = emptyList(), local = local, completed = 0, total = 0, history = engine.library.searchHistory(), people = emptyList(), natural = null, naturalSummary = null) }
+        extrasJob?.cancel()
+        extrasJob = viewModelScope.launch {
+            launch { val people = engine.metadata.searchPeople(text); _state.update { it.copy(people = people) } }
+            if (engine.metadata.hasTmdb && app.aether.core.search.NaturalQueryParser.looksNatural(text)) launch {
+                val intent = app.aether.core.search.NaturalQueryParser().parse(text).intent
+                _state.update { it.copy(naturalSummary = intent.summary, naturalLoading = true) }
+                val outcome = engine.metadata.discover(intent)
+                engine.log.info("ricerca", "ricerca avanzata «${intent.summary}»: ${outcome.items.size} titoli")
+                _state.update { it.copy(natural = outcome, naturalLoading = false) }
+            }
+        }
         try {
             engine.search.search(query, _state.value.type).collect { update ->
                 _state.update { s -> s.copy(rows = (s.rows + update.row), completed = update.completed, total = update.total) }
@@ -140,7 +158,7 @@ class SearchViewModel(private val engine: AetherEngine) : ViewModel() {
 }
 
 @Composable
-fun SearchScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, modifier: Modifier = Modifier) {
+fun SearchScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, modifier: Modifier = Modifier, onOpenPerson: (Int, String) -> Unit = { _, _ -> }) {
     val engine = LocalContext.current.aether
     val vm: SearchViewModel = viewModel { SearchViewModel(engine) }
     val state by vm.state.collectAsStateWithLifecycle()
@@ -179,7 +197,7 @@ fun SearchScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, mod
                 Modifier.fillMaxWidth().padding(top = 16.dp),
             ) { app.aether.tv.ui.components.TvButton("Vai agli addon", onOpenAddons, primary = true) }
             state.searched.isEmpty() -> HistoryBlock(state, vm)
-            else -> Results(state, onOpenDetail, memory, settings.content.searchSort, vm, settings.appearance.posterSize.scale)
+            else -> Results(state, onOpenDetail, memory, settings.content.searchSort, vm, settings.appearance.posterSize.scale, onOpenPerson)
         }
     }
 }
@@ -205,12 +223,30 @@ private fun HistoryBlock(state: SearchViewModel.UiState, vm: SearchViewModel) {
 }
 
 @Composable
-private fun Results(state: SearchViewModel.UiState, onOpenDetail: (MetaItem) -> Unit, memory: app.aether.tv.ui.components.FocusMemory, sort: SearchSort, vm: SearchViewModel, scale: Float) {
+private fun Results(state: SearchViewModel.UiState, onOpenDetail: (MetaItem) -> Unit, memory: app.aether.tv.ui.components.FocusMemory, sort: SearchSort, vm: SearchViewModel, scale: Float, onOpenPerson: (Int, String) -> Unit) {
     val rowsWithItems = state.rows.map { it.copy(items = state.keep(it.items)) }.filter { it.items.isNotEmpty() }
     val failed = state.rows.filter { it.error != null }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (state.searching) item(key = "progress") {
             Text("Cerco in ${state.total.takeIf { it > 0 } ?: "…"} cataloghi (${state.completed} risposte)…", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
+        }
+        state.naturalSummary?.let { summary ->
+            val found = state.natural?.items.orEmpty()
+            item(key = "natural") {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Ho capito: $summary", style = MaterialTheme.typography.titleSmall, color = app.aether.tv.ui.theme.LocalAccent.current, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    state.natural?.notes?.firstOrNull()?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceMuted, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), maxLines = 1) }
+                    if (state.naturalLoading) Text("Cerco su TMDB…", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceMuted, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
+                    if (found.isNotEmpty()) ContentRow("Ricerca avanzata", state.keep(found), { it.id }, rowId = "natural", memory = memory) { meta, requester, onFocused ->
+                        PosterCard(meta, { onOpenDetail(meta) }, width = (150 * scale).dp, focusRequester = requester, onFocused = onFocused)
+                    }
+                }
+            }
+        }
+        if (state.people.isNotEmpty()) item(key = "people") {
+            ContentRow("Persone", state.people, { "${it.id}" }, rowId = "people", memory = memory) { person, requester, onFocused ->
+                app.aether.tv.ui.components.PersonBubble(person.name, person.photo, person.profession ?: person.knownFor.firstOrNull(), requester, onFocused, testTag = "search.person.${person.id}") { onOpenPerson(person.id, person.name) }
+            }
         }
         if (state.keep(state.local).isNotEmpty()) item(key = "local") {
             ContentRow("Nella tua libreria", state.keep(state.local), { it.id }, rowId = "local", memory = memory) { meta, requester, onFocused ->
@@ -229,7 +265,7 @@ private fun Results(state: SearchViewModel.UiState, onOpenDetail: (MetaItem) -> 
                 PosterCard(meta, { onOpenDetail(meta) }, width = (150 * scale).dp, focusRequester = requester, onFocused = onFocused)
             }
         }
-        if (!state.searching && rowsWithItems.isEmpty() && state.local.isEmpty()) item(key = "empty") {
+        if (!state.searching && rowsWithItems.isEmpty() && state.local.isEmpty() && state.people.isEmpty() && state.natural?.items.isNullOrEmpty()) item(key = "empty") {
             EmptyState("Nessun risultato", "Nessun catalogo ha trovato «${state.searched}». Controlla il titolo o prova con meno parole.", Modifier.fillMaxWidth().padding(top = 16.dp))
         }
         if (failed.isNotEmpty() && !state.searching) item(key = "errors") {

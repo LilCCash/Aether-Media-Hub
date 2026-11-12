@@ -55,6 +55,9 @@ data class AppearanceSettings(
     val hiddenHomeSections: List<String> = emptyList(),
     /** The order of the Home sections chosen by the viewer (same ids); sections not listed keep their natural place after these. */
     val homeSectionOrder: List<String> = emptyList(),
+    /** The order of the sections of a title page (ids of [DetailSections]); empty = the standard order. */
+    val detailSectionOrder: List<String> = emptyList(),
+    val hiddenDetailSections: List<String> = emptyList(),
     /** The big featured titles at the top of the Home. */
     val showHero: Boolean = true,
     /** «Ciao, Nome!» at the top of the Home. */
@@ -109,7 +112,27 @@ data class PlaybackSettings(
     val openSubtitlesCatalog: Boolean = true,
     /** A second language asked of the catalogue besides the preferred one ("off" = none). */
     val secondarySubtitleLanguage: String = "en",
+    /** The start screen before a film (logo, then «Guarda» when the source is ready), as on the iPhone. */
+    val introMovies: Boolean = true,
+    val introSeries: Boolean = false,
+    /** The start screen as a scene: the film's backdrop, year, length, genres and plot around the logo. */
+    val cinematicOpening: Boolean = true,
+    /** After some seconds of pause: the logo, the plot and the cast over the picture. */
+    val pauseScreen: Boolean = true,
+    /** At the end of a film, a «Titoli di coda» page with cast and crew. */
+    val creditsExperience: Boolean = true,
 )
+
+/** The sections of a title page, in the standard order. */
+object DetailSections {
+    val all: List<Pair<String, String>> = listOf(
+        "episodes" to "Episodi", "cast" to "Cast", "collection" to "La saga", "ratings" to "Voti", "info" to "Dettagli",
+        "crew" to "Dietro la macchina da presa", "trailers" to "Trailer", "similar" to "Titoli simili",
+    )
+
+    fun ordered(order: List<String>, hidden: List<String>): List<String> =
+        all.map { it.first }.sortedBy { id -> order.indexOf(id).let { if (it < 0) 1000 + all.indexOfFirst { a -> a.first == id } else it } }.filter { it !in hidden }
+}
 
 @Serializable
 data class ContentSettings(

@@ -81,3 +81,46 @@ fun HomeLayoutDialog(onDismiss: () -> Unit) {
         RequestFocusOnce(done)
     }
 }
+
+/** Impostazioni ▸ Aspetto ▸ Sezioni della scheda: the order of the sections of a title page and which of them show. */
+@Composable
+fun DetailLayoutDialog(onDismiss: () -> Unit) {
+    val engine = LocalContext.current.aether
+    val settings by engine.settings.value.collectAsState()
+    val all = app.aether.core.settings.DetailSections.all
+    val order = settings.appearance.detailSectionOrder
+    val hidden = settings.appearance.hiddenDetailSections
+    val ordered = all.sortedBy { (id, _) -> order.indexOf(id).let { if (it < 0) 1000 + all.indexOfFirst { a -> a.first == id } else it } }
+
+    fun move(index: Int, delta: Int) {
+        val ids = ordered.map { it.first }.toMutableList()
+        val target = index + delta
+        if (target !in ids.indices) return
+        ids.add(target, ids.removeAt(index))
+        engine.settings.update { it.copy(appearance = it.appearance.copy(detailSectionOrder = ids)) }
+    }
+
+    fun toggle(id: String) = engine.settings.update {
+        val list = it.appearance.hiddenDetailSections
+        it.copy(appearance = it.appearance.copy(hiddenDetailSections = if (id in list) list - id else list + id))
+    }
+
+    val done = remember { FocusRequester() }
+    AetherDialog("Sezioni della scheda", onDismiss, width = 760.dp) {
+        Text("L'ordine delle sezioni sotto il titolo; premi sul nome per mostrarla o nasconderla.", style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnSurfaceMuted)
+        LazyColumn(Modifier.height(420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            itemsIndexed(ordered, key = { _, it -> it.first }) { index, (id, title) ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TvIconButton(Icons.Filled.KeyboardArrowUp, "Sposta su", { if (index > 0) move(index, -1) }, size = 40.dp)
+                    TvIconButton(Icons.Filled.KeyboardArrowDown, "Sposta giù", { if (index < ordered.lastIndex) move(index, 1) }, size = 40.dp)
+                    TvChip((if (id in hidden) "Nascosta · " else "Visibile · ") + title, id !in hidden, { toggle(id) }, testTag = "detail.section.$index")
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton("Fatto", onDismiss, primary = true, focusRequester = done)
+            TvButton("Ordine iniziale", { engine.settings.update { it.copy(appearance = it.appearance.copy(detailSectionOrder = emptyList(), hiddenDetailSections = emptyList())) } })
+        }
+        RequestFocusOnce(done)
+    }
+}
