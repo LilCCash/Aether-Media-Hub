@@ -148,6 +148,11 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
                 if [401, 403, 404, 410].contains(http.statusCode) { onUpstreamRejected?(http.statusCode) }
                 throw RelayError.upstreamRejected(status: http.statusCode)
             }
+            let responseType = (http.value(forHTTPHeaderField: "Content-Type") ?? "")
+                .split(separator: ";", maxSplits: 1).first.map { $0.trimmingCharacters(in: .whitespaces).lowercased() } ?? ""
+            if ["text/html", "application/json", "application/problem+json", "application/xhtml+xml"].contains(responseType) {
+                throw RelayError.upstreamNotMedia
+            }
             return data
         }
         throw RelayError.upstreamUnreachable(code: -1)
