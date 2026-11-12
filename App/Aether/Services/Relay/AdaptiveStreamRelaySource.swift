@@ -57,6 +57,9 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         let data: Data
         if let cached = takePending(leaf, remove: false) {
             data = cached
+        } else if leaf == rootLeaf {
+            data = try await load(upstream.url, manifestType: rootType)
+            store(data, for: leaf)
         } else {
             guard let route = resolve(leaf) else { throw RelayError.notFound }
             let isManifest = route.contentType == "application/vnd.apple.mpegurl" || route.contentType == "application/x-mpegURL"
@@ -287,7 +290,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
                 if let format = token.format, let number = Int(capture) { replacement = String(format: "%0\(format)d", number) }
                 else { replacement = capture }
                 if let swiftRange = raw.range(of: token.placeholder) {
-                    raw.replaceSubrange(swiftRange, with: replacement)
+                    raw = raw.replacingOccurrences(of: token.placeholder, with: replacement)
                 }
             }
             guard let url = URL(string: raw, relativeTo: candidate.baseURL)?.absoluteURL else { continue }
