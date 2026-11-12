@@ -128,6 +128,10 @@ data class NetworkSettings(
     val streamingServerUrl: String = "",
     /** The debrid service torrents are played through (Impostazioni ▸ Servizi). */
     val debridService: app.aether.core.debrid.DebridService = app.aether.core.debrid.DebridService.TORBOX,
+    /** Look for a newer version of the app at start-up. */
+    val checkUpdatesAtStart: Boolean = true,
+    /** The build the viewer said «Più tardi» to (not proposed again at start-up). */
+    val skippedUpdate: Int = 0,
 )
 
 @Serializable

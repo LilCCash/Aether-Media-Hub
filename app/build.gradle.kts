@@ -21,6 +21,10 @@ android {
         val traktClientId = (project.findProperty("aetherTraktClientId") as String?) ?: System.getenv("AETHER_TRAKT_CLIENT_ID")
             ?: "anVbgfu810H1J949IJQlyAlzT7klUdxZbGVb0kEpGfc"
         buildConfigField("String", "TRAKT_CLIENT_ID", "\"$traktClientId\"")
+        // Where «Cerca aggiornamenti» looks: the update.json of the rolling release the APK workflow publishes.
+        val repository = System.getenv("GITHUB_REPOSITORY") ?: "LilCCash/Aether-Media-Hub"
+        val updateUrl = (project.findProperty("aetherUpdateUrl") as String?) ?: "https://github.com/$repository/releases/download/aether-androidtv-latest/update.json"
+        buildConfigField("String", "UPDATE_URL", "\"$updateUrl\"")
     }
 
     signingConfigs {
@@ -30,8 +34,9 @@ android {
             if (!store.isNullOrBlank()) {
                 storeFile = file(store)
                 storePassword = System.getenv("AETHER_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("AETHER_KEY_ALIAS")
-                keyPassword = System.getenv("AETHER_KEY_PASSWORD")
+                // Only two secrets are needed: the key is «aether» and shares the store password unless told otherwise.
+                keyAlias = System.getenv("AETHER_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "aether"
+                keyPassword = System.getenv("AETHER_KEY_PASSWORD")?.takeIf { it.isNotBlank() } ?: storePassword
             }
         }
     }

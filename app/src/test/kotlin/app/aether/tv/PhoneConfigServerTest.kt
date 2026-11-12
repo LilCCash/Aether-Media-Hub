@@ -76,4 +76,33 @@ class PhoneConfigServerTest {
         assertEquals(null, secrets.get(TorBoxClient.KEY_SECRET))
         assertEquals(404, request("/").first)
     }
+
+    /** A file sent by the phone page, as Safari sends it (multipart), on a raw socket; returns the status line. */
+    private fun upload(token: String, fileBody: ByteArray): String {
+        val boundary = "----AetherTest"
+        val head = "--$boundary\r\nContent-Disposition: form-data; name=\"backup\"; filename=\"Aether-Backup.json\"\r\nContent-Type: application/json\r\n\r\n"
+        val tail = "\r\n--$boundary\r\nContent-Disposition: form-data; name=\"mode\"\r\n\r\nmerge\r\n--$boundary--\r\n"
+        val body = head.toByteArray() + fileBody + tail.toByteArray()
+        java.net.Socket("127.0.0.1", server.listeningPort).use { socket ->
+            socket.soTimeout = 60_000
+            val out = socket.getOutputStream()
+            out.write(("POST /s/$token/restore HTTP/1.1\r\nHost: 127.0.0.1:${server.listeningPort}\r\nOrigin: http://127.0.0.1:${server.listeningPort}\r\n" +
+                "Content-Type: multipart/form-data; boundary=$boundary\r\nContent-Length: ${body.size}\r\nConnection: keep-alive\r\n\r\n").toByteArray())
+            out.write(body)
+            out.flush()
+            return socket.getInputStream().bufferedReader().readLine() ?: "connection closed"
+        }
+    }
+
+    @Test fun aBackupFromThePhoneIsRestoredEvenWhenItIsLarge() {
+        val token = server.session.token
+        request("/s/$token/"); server.answer(true)
+        val history = (0 until 40_000).associate { i ->
+            "tt$i|tt$i" to app.aether.core.library.PlaybackProgress("tt$i", "tt$i", "movie", "Titolo di prova numero $i con un nome lungo", position = 100.0, duration = 6000.0)
+        }
+        val text = app.aether.core.library.BackupCodec.encode(app.aether.core.library.LibraryState(progress = history), emptyList(), false, "test")
+        assertTrue("backup of ${text.length} bytes", text.length > 6_000_000)
+        val status = upload(token, text.toByteArray())
+        assertTrue(status, status.contains(" 303 "))
+    }
 }

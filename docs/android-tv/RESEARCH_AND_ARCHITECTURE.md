@@ -68,3 +68,12 @@ tutta pagina, impostazioni a due colonne, barra del player bassa e pulita. L'ele
 con un bordo chiaro e un'ombra morbida; pulsanti, pillole e righe delle impostazioni diventano bianchi con testo scuro.
 Schermate di prova (generate da `ScreenshotGallery`, Robolectric con grafica nativa: `./gradlew :app:testDebugUnitTest
 --tests '*ScreenshotGallery' -PaetherScreenshots=true`): `docs/android-tv/screenshots/`.
+
+## Aggiornamenti dall'app e firma
+- Ogni build firmata con la chiave del repository (segreti `AETHER_KEYSTORE_BASE64` e `AETHER_KEYSTORE_PASSWORD`) viene pubblicata
+  dal workflow APK nella release continua `aether-androidtv-latest` insieme a `update.json` (build, versione, SHA-256, note).
+- Impostazioni ▸ Informazioni ▸ «Cerca aggiornamenti» (e il controllo all'avvio, disattivabile) legge `update.json`, scarica l'APK,
+  ne verifica lo SHA-256 e lo passa all'installatore di sistema (`PackageInstaller`), che chiede conferma. Serve il permesso
+  «Installa app sconosciute» per Aether: l'app apre la pagina giusta.
+- Un aggiornamento si installa sopra l'app solo se è firmato con la stessa chiave: senza i segreti ogni build ha una chiave diversa
+  e va disinstallata la versione precedente (era la causa dell'installazione fallita).

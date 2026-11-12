@@ -75,7 +75,11 @@ class PhoneConfigServer(private val engine: AetherEngine, val session: PhoneLink
         val host = http.headers["host"]
         if (origin != null && host != null && origin != "http://$host") return page(Response.Status.FORBIDDEN, "Richiesta rifiutata", "La richiesta non arriva da questa pagina.")
         val length = http.headers["content-length"]?.toLongOrNull() ?: 0
-        if (length > MAX_BODY) return page(Response.Status.PAYLOAD_TOO_LARGE, "File troppo grande", "Il limite è 6 MB.")
+        if (length > MAX_BODY) {
+            // The body is read to the end before answering: closing on an unread upload makes Safari say «connection lost».
+            runCatching { val buffer = ByteArray(64 * 1024); var left = length; while (left > 0) { val n = http.inputStream.read(buffer, 0, minOf(buffer.size.toLong(), left).toInt()); if (n < 0) break; left -= n } }
+            return page(Response.Status.PAYLOAD_TOO_LARGE, "File troppo grande", "Il limite è ${MAX_BODY / 1_048_576} MB.")
+        }
         val files = HashMap<String, String>()
         return try {
             http.parseBody(files)
@@ -251,7 +255,8 @@ class PhoneConfigServer(private val engine: AetherEngine, val session: PhoneLink
     } catch (_: Exception) { null }
 
     companion object {
-        private const val MAX_BODY = 6L * 1024 * 1024
+        /** Backups with a long history reach tens of MB (the iPhone one included). */
+        private const val MAX_BODY = 96L * 1024 * 1024
         private val KEYS = mapOf(
             "torbox" to (TorBoxClient.KEY_SECRET to "Chiave TorBox"),
             "realdebrid" to (RealDebridClient.KEY_SECRET to "Token Real-Debrid"),

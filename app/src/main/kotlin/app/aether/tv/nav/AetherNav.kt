@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -129,7 +130,21 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
                 )
             }
         }
-        val settings by androidx.compose.ui.platform.LocalContext.current.aether.settings.value.collectAsState()
+        val engine = androidx.compose.ui.platform.LocalContext.current.aether
+        val settings by engine.settings.value.collectAsState()
+        // At start-up: a newer build found on GitHub is proposed once (until the viewer says «Più tardi» to that build).
+        var offerUpdate by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            if (!settings.network.checkUpdatesAtStart) return@LaunchedEffect
+            val info = app.aether.tv.updates.AppUpdater.check(quiet = true)
+            if (info != null && info.versionCode != settings.network.skippedUpdate) offerUpdate = true
+        }
+        if (offerUpdate) app.aether.tv.updates.UpdateDialog {
+            (app.aether.tv.updates.AppUpdater.state.value as? app.aether.tv.updates.AppUpdater.State.Available)?.let { s ->
+                engine.settings.update { it.copy(network = it.network.copy(skippedUpdate = s.info.versionCode)) }
+            }
+            offerUpdate = false
+        }
         if (showRail) TopBar(
             current = route.orEmpty(), onSelect = ::goTop, modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter),
             visible = topBarVisible.value || route != Routes.HOME,

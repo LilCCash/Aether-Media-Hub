@@ -16,7 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  # Write: the build is published to the rolling release «aether-androidtv-latest», where the app looks for updates.
+  contents: write
 
 jobs:
   apk:
@@ -32,16 +33,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Android SDK packages
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" > /dev/null
-      # Signing: with the repository secrets AETHER_KEYSTORE_BASE64, AETHER_KEYSTORE_PASSWORD, AETHER_KEY_ALIAS and
-      # AETHER_KEY_PASSWORD the APK is signed with that key (updates install over each other). Without them it is signed with a
-      # throw-away debug key: it installs, but every build must replace the previous one.
+      # Signing: with the repository secrets AETHER_KEYSTORE_BASE64 and AETHER_KEYSTORE_PASSWORD (AETHER_KEY_ALIAS and
+      # AETHER_KEY_PASSWORD are optional: «aether» and the same password) every APK is signed with the same key, so each build
+      # installs over the previous one and the app can update itself. Without them it is signed with a throw-away debug key:
+      # it installs, but every build must replace the previous one and is not offered as an update.
       - name: Signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.AETHER_KEYSTORE_BASE64 || secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           echo "AETHER secrets present: ${{ secrets.AETHER_KEYSTORE_BASE64 != '' }} · ANDROID secrets present: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}"
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/release.jks"
             echo "AETHER_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
             echo "Signing with the release key"
           else
@@ -70,6 +72,42 @@ jobs:
           path: ${{ env.APK_NAME }}
           compression-level: 0
           retention-days: 30
+      # The app's «Cerca aggiornamenti» reads update.json from this release. Only builds signed with the repository key are
+      # published: a build with a throw-away key could not install over the app.
+      - name: Publish the update
+        if: ${{ env.AETHER_KEYSTORE_FILE != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=aether-androidtv-latest
+          cp "$APK_NAME" Aether-AndroidTV.apk
+          VC=$(grep -o "versionCode='[0-9]*'" badging.txt | grep -o "[0-9]*")
+          VN=$(grep -o "versionName='[^']*'" badging.txt | cut -d"'" -f2)
+          NOTES=$(git log -1 --pretty=%s | head -c 300)
+          python3 - "$VC" "$VN" "$NOTES" <<'PY'
+          import hashlib, json, os, sys, datetime
+          apk = "Aether-AndroidTV.apk"
+          data = open(apk, "rb").read()
+          info = {
+              "versionCode": int(sys.argv[1]), "versionName": sys.argv[2], "notes": sys.argv[3],
+              "apkUrl": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/aether-androidtv-latest/{apk}",
+              "sha256": hashlib.sha256(data).hexdigest(), "size": len(data),
+              "publishedAt": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+          }
+          json.dump(info, open("update.json", "w"))
+          print(info)
+          PY
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --prerelease \
+            --title "Aether Android TV · ultima build" --notes "Usata da Impostazioni ▸ Informazioni ▸ Cerca aggiornamenti."
+          # The APK first, then update.json: the app never sees a description of a file that is not there yet.
+          gh release upload "$TAG" Aether-AndroidTV.apk --clobber
+          gh release upload "$TAG" update.json --clobber
+          gh release edit "$TAG" --notes "Build $VC ($VN): $NOTES"
+          echo "### Pubblicata come aggiornamento: build $VC" >> "$GITHUB_STEP_SUMMARY"
+      - name: Not published as an update
+        if: ${{ env.AETHER_KEYSTORE_FILE == '' }}
+        run: echo "::warning::No signing key in the secrets, this build is not offered to the app as an update."
       # Optional: the same VibeView upload as android-tv-vibeview.yml, straight from this build (Run workflow > Upload to VibeView).
       - uses: actions/setup-node@v4
         if: ${{ inputs.upload_to_vibeview }}

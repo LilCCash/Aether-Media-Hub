@@ -99,6 +99,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpen
     val p = settings.playback
     val c = settings.content
     val n = settings.network
+    val updateState by app.aether.tv.updates.AppUpdater.state.collectAsStateWithLifecycle()
 
     // tvOS layout: the categories on the left (moving onto one shows it), the rows of the chosen one on the right.
     androidx.compose.foundation.layout.Row(modifier.fillMaxSize().padding(start = AetherDimens.ScreenHorizontal, top = 12.dp)) {
@@ -284,6 +285,15 @@ fun SettingsScreen(onOpenAbout: () -> Unit, onOpenTrakt: () -> Unit = {}, onOpen
 
             if (tab == 7) {
             actionRow("Informazioni su Aether", "Versione ${BuildConfig.VERSION_NAME}, licenze e avvertenze.", "about.open") { onOpenAbout() }
+            actionRow("Cerca aggiornamenti", when (val u = updateState) {
+                is app.aether.tv.updates.AppUpdater.State.Available -> "Disponibile la build ${u.info.versionCode} · installata ${app.aether.tv.updates.AppUpdater.currentVersion}"
+                is app.aether.tv.updates.AppUpdater.State.UpToDate -> "Sei aggiornato · ${app.aether.tv.updates.AppUpdater.currentVersion}"
+                else -> "Installata ${app.aether.tv.updates.AppUpdater.currentVersion}"
+            }, "about.updates") {
+                scope.launch { app.aether.tv.updates.AppUpdater.check() }
+                dialog = { app.aether.tv.updates.UpdateDialog(::close) }
+            }
+            toggleRow("Controlla gli aggiornamenti all'avvio", "Se c'è una versione nuova, te la propone appena apri l'app.", n.checkUpdatesAtStart, "about.autoUpdate") { v -> update { it.copy(network = it.network.copy(checkUpdatesAtStart = v)) } }
             actionRow("Capacità di questa TV", app.aether.tv.DeviceCapabilities.summary(context), "about.capabilities") { notice = app.aether.tv.DeviceCapabilities.summary(context) }
             }
         }

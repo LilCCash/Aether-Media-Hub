@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- «Cerca aggiornamenti»: the new APK is handed to the system installer, which asks the viewer to confirm. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- A television: no touchscreen needed, a remote is enough; the launcher of Android TV / Google TV lists it. -->
     <uses-feature android:name="android.software.leanback" android:required="true" />
@@ -49,6 +51,8 @@
                 <data android:scheme="aether" />
             </intent-filter>
         </activity>
+        <receiver android:name=".updates.InstallResultReceiver" android:exported="false" />
+
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
