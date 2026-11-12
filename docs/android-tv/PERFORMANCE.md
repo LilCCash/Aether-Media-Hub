@@ -6,11 +6,23 @@ segnato come tale, senza cifre inventate.
 ## Misurato (build dell'11–12/11/2026, macchina di build Linux, JDK 21)
 | Voce | Valore |
 |---|---|
-| APK release (R8 minify + shrink risorse, firmato) | **3,4 MB** (3 579 132 byte); `classes.dex` 5,2 MB non compresso |
+| APK release (R8 minify + shrink risorse, firmato) | **3,4 MB** (3 595 516 byte dopo il nuovo design) |
 | APK debug | 26,5 MB (senza R8, solo per sviluppo) |
 | Profilo di avvio nell'APK | `assets/dexopt/baseline.prof` presente (profili delle librerie AndroidX via ProfileInstaller) |
 | Test del nucleo (105 test, 19 classi) | 14 s compilazione compresa, `--rerun-tasks` |
 | Build release locale a freddo | ~3 min 20 s (R8 incluso) |
+
+## Livelli di grafica (Impostazioni ▸ Impostazioni generali ▸ Aspetto ▸ Grafica e prestazioni)
+| Livello | Animazioni | Ombre del focus | Immagini dietro le pagine | Sfocature (Android 12+) | Dissolvenza immagini | Cache immagini in RAM |
+|---|---|---|---|---|---|---|
+| Completa | sì | sì | sì | sì | sì | 15% |
+| Bilanciata | sì, più brevi | sì | sì | no | sì | 15% |
+| Leggera | no | no | no (niente luce di sfondo) | no | no | 8% se la TV è lenta |
+
+«Automatica» (predefinita) sceglie da sola: Leggera su TV con poca RAM (`isLowRamDevice`, memoria per app < 160 MB), ≤ 2 core o
+Android < 8; Bilanciata con < 256 MB o ≤ 4 core; altrimenti Completa. Ogni effetto si può anche accendere o spegnere da solo.
+Le ombre del focus sono disegnate con pochi rettangoli trasparenti (nessuna ombra di piattaforma); la sfocatura usa `RenderEffect`
+solo dove esiste (Android 12+).
 
 ## Scelte che pesano sulle prestazioni
 - **Avvio**: nessuna libreria di DI, motore (`AetherEngine`) costruito pigramente al primo uso; i file JSON letti solo quando servono.

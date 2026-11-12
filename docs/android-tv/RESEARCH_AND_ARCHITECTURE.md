@@ -60,3 +60,11 @@ che a sua volta richiede AGP ≥ 9.1, e AGP 9.5 richiede Gradle ≥ 9.6. Il prog
 - Gli indirizzi di download (che possono contenere token) sono nel deposito cifrato e cancellati a download finito.
 - Configurazione da telefono: vedi `PhoneConfigServer` e il punto 43 della tabella di parità. Limite: HTTP in chiaro dentro la rete
   di casa (un browser non può usare WebCrypto su HTTP locale e un certificato autofirmato darebbe un avviso); la pagina lo dice.
+
+## Design (rifatto da zero)
+Stile tvOS / app TV di Apple: nero neutro, superfici di «vetro» bianco trasparente, testo bianco, barra delle sezioni in alto
+(Cerca e Impostazioni come icone tonde), titoli in evidenza a tutto schermo con il logo del titolo, scheda titolo con lo sfondo a
+tutta pagina, impostazioni a due colonne, barra del player bassa e pulita. L'elemento sotto il telecomando si «solleva»: più grande,
+con un bordo chiaro e un'ombra morbida; pulsanti, pillole e righe delle impostazioni diventano bianchi con testo scuro.
+Schermate di prova (generate da `ScreenshotGallery`, Robolectric con grafica nativa: `./gradlew :app:testDebugUnitTest
+--tests '*ScreenshotGallery' -PaetherScreenshots=true`): `docs/android-tv/screenshots/`.

@@ -88,14 +88,15 @@ fun PosterCard(
 ) {
     val cardWidth = shapeWidth(meta.posterShape, width)
     var focused by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    Column(modifier.width(cardWidth), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    // The gap leaves room for the lifted poster, so it never covers its own title.
+    Column(modifier.width(cardWidth), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         FocusSurface(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = Modifier.fillMaxWidth().aspectRatio(meta.posterShape.aspectRatio.toFloat())
                 .onFocusChanged { focused = it.isFocused },
             shape = RoundedCornerShape(app.aether.tv.ui.theme.LocalCorner.current),
-            focusScale = 1.1f,
+            focusScale = 1.08f,
             containerColor = AetherColors.Glass,
             focusedContainerColor = AetherColors.Glass,
             focusRequester = focusRequester,
@@ -146,7 +147,7 @@ fun ContinueCard(
     focusRequester: FocusRequester? = null,
     onFocused: (() -> Unit)? = null,
 ) {
-    Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         FocusSurface(
             onClick = onClick,
             onLongClick = onLongClick,

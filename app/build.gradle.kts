@@ -67,6 +67,11 @@ android {
         unitTests {
             isIncludeAndroidResources = true
             isReturnDefaultValues = true
+            all { test ->
+                // Robolectric downloads its Android jars itself; a mirror can be given with -ProbolectricRepo=… (local builds).
+                (project.findProperty("robolectricRepo") as String?)?.let { repo -> test.systemProperty("robolectric.dependency.repo.url", repo) }
+                test.systemProperty("aether.screenshots", project.findProperty("aetherScreenshots") ?: "false")
+            }
         }
     }
 

@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -86,9 +87,19 @@ fun FocusSurface(
             .then(if (focused && graphics.shadows) Modifier.drawBehind { softShadow(shape) } else Modifier)
             .clip(shape)
             .background(background, shape)
-            .then(if (focused && edge) Modifier.border(borderWidth, Color(0x8CFFFFFF), shape) else Modifier)
+            // The light edge goes over the content (a poster image would cover a plain border).
+            .then(if (focused && edge) Modifier.drawWithContent { drawContent(); drawEdge(shape, borderWidth.toPx()) } else Modifier)
             .combinedClickable(enabled = enabled, interactionSource = interaction, indication = null, onClick = onClick, onLongClick = onLongClick),
     ) { content(focused) }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.drawEdge(shape: Shape, width: Float) {
+    val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width)
+    when (val outline = shape.createOutline(size, layoutDirection, this)) {
+        is Outline.Rounded -> drawRoundRect(Color(0xB3FFFFFF), Offset(width / 2, width / 2), Size(size.width - width, size.height - width), outline.roundRect.topLeftCornerRadius, stroke)
+        is Outline.Rectangle -> drawRect(Color(0xB3FFFFFF), style = stroke)
+        is Outline.Generic -> drawPath(outline.path, Color(0xB3FFFFFF), style = stroke)
+    }
 }
 
 /** A soft dark shadow under a lifted element: four widening, fading layers shifted down a little. */
