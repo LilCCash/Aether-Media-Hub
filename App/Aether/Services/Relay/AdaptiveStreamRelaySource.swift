@@ -12,7 +12,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         let localPrefix: String
         let rawTemplate: String
         let baseURL: URL
-        let tokens: [(name: String, format: String?)]
+        let tokens: [(name: String, format: String?, placeholder: String)]
         let regex: NSRegularExpression
         let contentType: String
     }
@@ -230,7 +230,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
     }
 
     private func registerDynamicTemplate(_ raw: String, baseURL: URL) -> String? {
-        guard let tokenRegex = try? NSRegularExpression(pattern: #"(\$(?:Number|Time)(?:%0([1-9][0-9]?)d)?\$)"#) else { return nil }
+        guard let tokenRegex = try? NSRegularExpression(pattern: #"(\$(Number|Time|RepresentationID|Bandwidth)(?:%0([1-9][0-9]?)d)?\$)"#) else { return nil }
         let ns = raw as NSString
         let matches = tokenRegex.matches(in: raw, range: NSRange(location: 0, length: ns.length))
         guard !matches.isEmpty else { return nil }
@@ -240,10 +240,10 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         for (index, match) in matches.enumerated() {
             localPattern += ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
             let token = ns.substring(with: match.range(at: 1))
-            let name = token.contains("Number") ? "Number" : "Time"
-            let format = match.range(at: 2).location == NSNotFound ? nil : ns.substring(with: match.range(at: 2))
+            let name = ns.substring(with: match.range(at: 2))
+            let format = match.range(at: 3).location == NSNotFound ? nil : ns.substring(with: match.range(at: 3))
             localPattern += "__DYN\(index)__"
-            tokens.append((name, format))
+            tokens.append((name, format, token))
             cursor = match.range.location + match.range.length
         }
         localPattern += ns.substring(from: cursor)
@@ -252,10 +252,15 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         let prefix = "r" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(16))
         var local = localPattern
         for index in tokens.indices {
-            local = local.replacingOccurrences(of: "__DYN\(index)__", with: prefix + "D\(index)")
+            local = local.replacingOccurrences(of: "__DYN\(index)__", with: prefix + tokens[index].placeholder)
         }
-        let regexPattern = "^" + NSRegularExpression.escapedPattern(for: local)
-            .replacingOccurrences(of: #"D([0-9]+)"#, with: "([0-9]+)", options: .regularExpression) + "$"
+        var regexPattern = NSRegularExpression.escapedPattern(for: local)
+        for token in tokens {
+            let escaped = NSRegularExpression.escapedPattern(for: token.placeholder)
+            let capture = token.name == "RepresentationID" ? "([A-Za-z0-9_-]+)" : "([0-9]+)"
+            regexPattern = regexPattern.replacingOccurrences(of: escaped, with: capture)
+        }
+        regexPattern = "^" + regexPattern + "$"
         guard let routeRegex = try? NSRegularExpression(pattern: regexPattern) else { return nil }
         lock.lock()
         dynamicRoutes.append(DynamicRoute(localPrefix: prefix, rawTemplate: raw, baseURL: baseURL, tokens: tokens,
@@ -279,10 +284,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
                 let replacement: String
                 if let format = token.format, let number = Int(capture) { replacement = String(format: "%0\(format)d", number) }
                 else { replacement = capture }
-                let expression = token.name == "Number" ? #"(\$Number(?:%0[1-9][0-9]?d)?\$)"# : #"(\$Time(?:%0[1-9][0-9]?d)?\$)"#
-                if let regex = try? NSRegularExpression(pattern: expression),
-                   let occurrence = regex.firstMatch(in: raw, range: NSRange(raw.startIndex..., in: raw)),
-                   let swiftRange = Range(occurrence.range, in: raw) {
+                if let swiftRange = raw.range(of: token.placeholder) {
                     raw.replaceSubrange(swiftRange, with: replacement)
                 }
             }
