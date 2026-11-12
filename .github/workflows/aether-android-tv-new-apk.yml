@@ -52,7 +52,7 @@ jobs:
           APK=app/build/outputs/apk/release/app-release.apk
           BT="$ANDROID_HOME/build-tools/37.0.0"
           "$BT/aapt2" dump badging "$APK" | grep -E "^package:|leanback|LEANBACK_LAUNCHER|sdkVersion|native-code" | tee badging.txt
-          grep -q "LEANBACK_LAUNCHER" badging.txt || { echo "::error::not a TV launcher app"; exit 1; }
+          grep -qE "LEANBACK_LAUNCHER|leanback-launchable-activity" badging.txt || { echo "::error::not a TV launcher app"; exit 1; }
           "$BT/apksigner" verify --print-certs "$APK" | head -3
           NAME="Aether-AndroidTV-$(grep -o "versionName='[^']*'" badging.txt | cut -d"'" -f2)-${{ github.run_number }}.apk"
           cp "$APK" "$NAME"
