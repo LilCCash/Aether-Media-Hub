@@ -22,10 +22,10 @@ object Routes {
     const val DIAGNOSTICS = "diagnostics"
     const val CLOUD = "cloud"
 
-    fun universe(id: String) = "universe/${Uri.encode(id)}"
+    fun universe(id: String) = "universe/${Uri.encode(id.ifBlank { "-" })}"
 
-    fun person(id: Int, name: String) = "person/$id/${Uri.encode(name)}"
-    fun detail(type: String, id: String) = "detail/${Uri.encode(type)}/${Uri.encode(id)}"
+    fun person(id: Int, name: String) = "person/$id/${Uri.encode(name.ifBlank { "Persona" })}"
+    fun detail(type: String, id: String) = "detail/${Uri.encode(type.ifBlank { "movie" })}/${Uri.encode(id.ifBlank { "-" })}"
 
     /** The screens the side menu leads to; every other screen is reached from one of them. */
     val topLevel = listOf(HOME, DISCOVER, SEARCH, RECOMMEND, LIVE, LIBRARY, ADDONS, SETTINGS, PROFILE)

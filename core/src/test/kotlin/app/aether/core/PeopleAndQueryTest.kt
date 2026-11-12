@@ -55,7 +55,8 @@ class PeopleAndQueryTest {
     @Test fun personProfileFromTmdb() {
         val json = Json.parseToJsonElement("""{"name":"Denis Villeneuve","biography":" Regista ","birthday":"1967-10-03","known_for_department":"Directing",
           "profile_path":"/p.jpg","external_ids":{"wikidata_id":"Q105"},
-          "combined_credits":{"cast":[{"id":1,"title":"Cameo","character":"","poster_path":"/a.jpg"},{"id":9,"name":"Talk","character":"Self","poster_path":"/t.jpg","genre_ids":[10767],"media_type":"tv"}],
+          "combined_credits":{"cast":[{"id":1,"title":"Cameo","character":"","poster_path":"/a.jpg"},{"id":9,"name":"Talk","character":"Self","poster_path":"/t.jpg","genre_ids":[10767],"media_type":"tv"},
+            {"id":5,"name":"Serie","character":"A","poster_path":"/s.jpg","media_type":"tv"},{"id":5,"name":"Serie","character":"B","poster_path":"/s.jpg","media_type":"tv"}],
           "crew":[{"id":2,"title":"Dune","job":"Director","poster_path":"/d.jpg","release_date":"2021-09-15","genre_ids":[878],"popularity":90,"vote_average":8.0},
                   {"id":2,"title":"Dune","job":"Screenplay","poster_path":"/d.jpg","release_date":"2021-09-15","genre_ids":[878],"popularity":90},
                   {"id":3,"title":"Prisoners","job":"Director","poster_path":"/x.jpg","release_date":"2013-01-01","genre_ids":[53],"popularity":20},
@@ -64,7 +65,9 @@ class PeopleAndQueryTest {
         assertEquals("Regista", p.biography)
         assertEquals("Regista", p.profession)
         assertEquals("Q105", p.wikidataId)
-        assertEquals(listOf("Dune", "Prisoners"), p.filmography.map { it.title })
+        assertEquals(listOf("Dune", "Prisoners", "Serie"), p.filmography.map { it.title })
+        // The same title twice in TMDB's credits (two roles) stays one entry: the list of the page needs unique keys.
+        assertEquals(p.filmography.size, p.filmography.map { it.key }.toSet().size)
         assertEquals(listOf(PersonRole.DIRECTOR, PersonRole.WRITER), p.filmography[0].roles)
         assertEquals(listOf("Fantascienza"), p.filmography[0].genres)
         assertTrue(p.lifeLine(java.time.LocalDate.of(2026, 1, 1))!!.startsWith("3 ottobre 1967 (58 anni)"))

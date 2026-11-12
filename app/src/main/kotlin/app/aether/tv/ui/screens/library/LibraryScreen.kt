@@ -227,7 +227,7 @@ private fun DownloadList(downloads: List<app.aether.core.downloads.DownloadItem>
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item { Text("Spazio usato: ${"%.1f".format(used / 1_073_741_824.0)} GB · tieni premuto OK per mettere in pausa, riprendere o eliminare.", style = MaterialTheme.typography.labelLarge, color = AetherColors.OnSurfaceFaint) }
-        items(downloads.size, key = { downloads[it].id }) { index ->
+        items(downloads.size, key = { "$it|" + downloads[it].id }) { index ->
             val item = downloads[index]
             app.aether.tv.ui.components.FocusSurface(
                 onClick = { if (item.state == app.aether.core.downloads.DownloadState.DONE) play(item) else selected = item },

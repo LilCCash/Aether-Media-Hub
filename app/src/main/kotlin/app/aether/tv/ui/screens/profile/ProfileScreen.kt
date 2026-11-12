@@ -115,7 +115,7 @@ fun ProfileScreen(onOpenDetail: (MetaItem) -> Unit, onOpenTaste: () -> Unit, onO
                 else {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         item { TvChip("Sempre", year == null, { year = null }) }
-                        items(years) { y -> TvChip("$y", year == y, { year = y }, testTag = "profile.year.$y") }
+                        items(years.distinct()) { y -> TvChip("$y", year == y, { year = y }, testTag = "profile.year.$y") }
                     }
                     StatsCard(stats, year)
                 }

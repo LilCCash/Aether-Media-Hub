@@ -216,7 +216,7 @@ private fun HistoryBlock(state: SearchViewModel.UiState, vm: SearchViewModel) {
     Column(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Ricerche recenti", style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
-            items(state.history.size, key = { state.history[it].id }) { i -> TvChip(state.history[i].query, false, { vm.pick(state.history[i]) }) }
+            items(state.history.size, key = { "$it|" + state.history[it].id }) { i -> TvChip(state.history[i].query, false, { vm.pick(state.history[i]) }) }
         }
         TvChip("Cancella la cronologia", false, onClick = vm::clearHistory)
     }

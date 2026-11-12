@@ -102,7 +102,7 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
             Text("Scegli la sorgente", style = MaterialTheme.typography.headlineLarge, color = AetherColors.OnBackground)
             if (state.addonNames.size > 1) LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 2.dp)) {
                 item { TvChip("Tutti", state.addonFilter == null, { vm.setFilter(null) }, testTag = "streams.filter.all") }
-                items(state.addonNames.size, key = { state.addonNames[it] }) { i -> TvChip(state.addonNames[i], state.addonFilter == state.addonNames[i], { vm.setFilter(state.addonNames[i]) }) }
+                items(state.addonNames.size, key = { "$it|" + state.addonNames[it] }) { i -> TvChip(state.addonNames[i], state.addonFilter == state.addonNames[i], { vm.setFilter(state.addonNames[i]) }) }
             }
             if (state.loading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 androidx.compose.material3.CircularProgressIndicator(Modifier.width(22.dp).height(22.dp), color = LocalAccent.current, strokeWidth = 3.dp)
@@ -114,7 +114,7 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
             val playable = state.visible.filter { it.info.support.isPlayable }
             val unplayable = state.visible.filter { !it.info.support.isPlayable }
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 6.dp, bottom = 48.dp, end = AetherDimens.ScreenHorizontal, start = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(playable.size, key = { playable[it].id }) { index ->
+                items(playable.size, key = { "$it|" + playable[it].id }) { index ->
                     val item = playable[index]
                     StreamRow(
                         item, best = index == 0, cached = vm.isCached(item), torBox = state.torBoxConfigured, debridName = state.debridName, rating = state.ratings[item.id],
@@ -138,7 +138,7 @@ fun StreamsScreen(onPlayerReady: () -> Unit, onBack: () -> Unit, modifier: Modif
                 if (unplayable.isNotEmpty()) item(key = "unplayable-title") {
                     Text("Non riproducibili qui (${unplayable.size})", style = MaterialTheme.typography.titleMedium, color = AetherColors.OnSurfaceMuted, modifier = Modifier.padding(top = 10.dp))
                 }
-                items(unplayable.size, key = { "u-" + unplayable[it].id }) { index ->
+                items(unplayable.size, key = { "u-$it-" + unplayable[it].id }) { index ->
                     val item = unplayable[index]
                     StreamRow(item, best = false, cached = null, torBox = state.torBoxConfigured, debridName = state.debridName, rating = state.ratings[item.id], requester = null, onClick = { vm.select(item) }, onLongClick = { options = item })
                 }

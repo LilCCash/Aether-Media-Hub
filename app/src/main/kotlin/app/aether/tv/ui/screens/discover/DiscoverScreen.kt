@@ -109,7 +109,7 @@ fun DiscoverScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, m
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            items(shown, key = { it.id }) { meta ->
+                            items(shown.distinctBy { it.id }, key = { it.id }) { meta ->
                                 PosterCard(
                                     meta,
                                     onClick = { onOpenDetail(meta) },
@@ -141,7 +141,7 @@ private fun ChipRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        items(options.size, key = { options[it] }) { index ->
+        items(options.size, key = { "$it|" + options[it] }) { index ->
             val option = options[index]
             TvChip(
                 label(option), selected = option == selected, onClick = { onSelect(option) },

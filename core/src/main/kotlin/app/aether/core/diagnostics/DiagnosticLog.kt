@@ -74,6 +74,15 @@ class DiagnosticLog(private val file: java.io.File? = null, private val capacity
         return lines.joinToString("\n")
     }
 
+    /** Writes the log at once (before the app closes after a crash). */
+    fun flushNow() {
+        val target = file ?: return
+        runCatching {
+            target.parentFile?.mkdirs()
+            target.writeText(entries().joinToString("\n") { "${it.timeMillis}\t${it.level.name}\t${it.category.replace('\t', ' ')}\t${it.message.replace('\n', ' ').replace('\t', ' ')}" })
+        }
+    }
+
     // A save at most every couple of seconds, on a background thread: logging never waits for the disk.
     @Volatile private var savePending = false
     private fun scheduleSave() {

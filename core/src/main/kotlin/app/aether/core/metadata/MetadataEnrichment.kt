@@ -112,6 +112,7 @@ class MetadataEnrichment(private val http: HttpClient, private val secrets: Secr
     suspend fun personCredits(personId: Int): List<RichDetails.Credit> = runCatching {
         val rows = tmdbGet("/person/$personId/combined_credits").arr("cast")
         rows.filter { r -> r.str("poster_path") != null && !r.str("character").isNullOrBlank() && r.arr("genre_ids").none { it.int() in setOf(10767, 10763, 10764) } }
+            .distinctBy { "${it.str("media_type")}:${it.int("id")}" }
             .sortedByDescending { it.dbl("popularity") ?: 0.0 }
             .take(80)
             .mapNotNull { r ->

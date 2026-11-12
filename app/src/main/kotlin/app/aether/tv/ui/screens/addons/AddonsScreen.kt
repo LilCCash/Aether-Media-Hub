@@ -110,7 +110,7 @@ fun AddonsScreen(initialInput: String?, modifier: Modifier = Modifier) {
             ) { TvButton("Aggiungi Cinemeta", { prefill = KnownAddons.CINEMETA_MANIFEST_URL; addDialog = true }, testTag = "addons.addCinemeta") }
         } else {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 14.dp, bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                items(addons.size, key = { addons[it].id }) { index ->
+                items(addons.size, key = { "$it|" + addons[it].id }) { index ->
                     val addon = addons[index]
                     AddonCard(
                         addon, canUp = index > 0, canDown = index < addons.lastIndex,

@@ -230,7 +230,7 @@ private fun Pick(state: RecommendViewModel.UiState, vm: RecommendViewModel) {
             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 8.dp, bottom = 48.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            items(state.candidates.size, key = { state.candidates[it].id }) { i ->
+            items(state.candidates.size, key = { "$it|" + state.candidates[it].id }) { i ->
                 val meta = state.candidates[i]
                 val selected = meta.id in state.picked
                 Box {

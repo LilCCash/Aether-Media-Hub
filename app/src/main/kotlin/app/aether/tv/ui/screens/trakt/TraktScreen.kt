@@ -142,7 +142,7 @@ private fun TraktRow(title: String, key: String, onOpenDetail: (MetaItem) -> Uni
         else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
-                items(loaded, key = { it.meta.id }) { item ->
+                items(loaded.distinctBy { it.meta.id }, key = { it.meta.id }) { item ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         PosterCard(item.meta, { onOpenDetail(item.meta) })
                         item.note?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, maxLines = 1, modifier = Modifier.padding(start = 2.dp)) }

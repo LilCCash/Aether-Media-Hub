@@ -17,6 +17,20 @@ open class AetherApp : Application(), SingletonImageLoader.Factory {
     /** Built on first use, off the critical path of the first frame where possible. */
     val engine: AetherEngine by lazy { createEngine() }
 
+    override fun onCreate() {
+        super.onCreate()
+        // A crash is written to the diagnostic log (redacted) before the app closes, so it can be read after the restart.
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching {
+                val where = error.stackTrace.take(6).joinToString(" ← ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
+                engine.log.error("crash", "${error::class.java.simpleName}: ${error.message.orEmpty().take(200)} @ $where")
+                engine.log.flushNow()
+            }
+            previous?.uncaughtException(thread, error)
+        }
+    }
+
     /** The remote is the only input: focus is always drawn and every element can take it (the tests force it too). */
     open val keyboardInputOnly: Boolean get() = !packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN)
 

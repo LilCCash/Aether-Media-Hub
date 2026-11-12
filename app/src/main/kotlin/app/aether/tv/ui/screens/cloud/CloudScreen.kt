@@ -110,7 +110,7 @@ fun CloudScreen(onPlay: () -> Unit, modifier: Modifier = Modifier) {
             }
             else -> {
                 LazyColumn(contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 8.dp, bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(list, key = { it.hash }) { item ->
+                    items(list.distinctBy { it.hash }, key = { it.hash }) { item ->
                         FocusSurface({ if (item.ready) open(item) }, Modifier.fillMaxWidth().height(84.dp), focusScale = 1.02f, focusRequester = if (item == list.first()) first else null, testTag = "cloud.${item.hash.take(8)}") {
                             Row(Modifier.fillMaxSize().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -132,7 +132,7 @@ fun CloudScreen(onPlay: () -> Unit, modifier: Modifier = Modifier) {
         val firstFile = remember { FocusRequester() }
         AetherDialog("Quale file?", { reply.complete(null); choice = null }, width = 760.dp) {
             LazyColumn(Modifier.height(420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(files, key = { it.id }) { f ->
+                items(files.distinctBy { it.id }, key = { it.id }) { f ->
                     FocusSurface({ reply.complete(f); choice = null }, Modifier.fillMaxWidth().height(56.dp), focusScale = 1.02f, focusRequester = if (f == files.first()) firstFile else null) {
                         Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(f.shortName, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = AetherColors.OnBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)

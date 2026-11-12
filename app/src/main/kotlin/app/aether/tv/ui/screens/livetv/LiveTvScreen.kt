@@ -144,13 +144,13 @@ fun LiveTvScreen(onOpenDetail: (MetaItem) -> Unit, onPlay: () -> Unit) {
                         TvTextField(query, { query = it }, "Cerca un canale", modifier = Modifier.width(360.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
                             item(key = "all") { TvChip("Tutti (${channels.size})", group == null, { group = null }) }
-                            items(groups, key = { it.first }) { (name, count) -> TvChip("$name ($count)", group == name, { group = name }) }
+                            items(groups.distinctBy { it.first }, key = { it.first }) { (name, count) -> TvChip("$name ($count)", group == name, { group = name }) }
                         }
                     }
                     Spacer(Modifier.height(10.dp))
                     val visible = remember(channels, query, group) { LiveChannelList.filter(channels, query, group) }
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 48.dp)) {
-                        items(visible, key = { it.id }) { channel ->
+                        items(visible.distinctBy { it.id }, key = { it.id }) { channel ->
                             ChannelRow(channel, engine.liveTv.now(channel, now), engine.liveTv.upcoming(channel, 2).drop(1).firstOrNull(), now,
                                 favorite = liveSettings.isFavorite(channel.id), onPlay = { play(channel) }, onLong = { info = channel })
                         }
@@ -172,7 +172,7 @@ fun LiveTvScreen(onOpenDetail: (MetaItem) -> Unit, onPlay: () -> Unit) {
                     EmptyState("Nessun preferito", "Tieni premuto OK su un canale per aggiungerlo ai preferiti.", icon = Icons.Filled.LiveTv)
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 48.dp)) {
-                        items(favorites, key = { it.id }) { fav ->
+                        items(favorites.distinctBy { it.id }, key = { it.id }) { fav ->
                             val channel = channels.firstOrNull { it.id == fav.id } ?: fav.url?.let { M3uChannel(fav.id, fav.name, fav.logo, null, it, fav.userAgent, fav.referrer) }
                             if (channel != null) {
                                 ChannelRow(channel, engine.liveTv.now(channel, now), null, now, favorite = true, onPlay = { play(channel) }, onLong = { info = channel })
@@ -260,7 +260,7 @@ private fun GuideGrid(channels: List<M3uChannel>, now: Long, programmes: (M3uCha
         }
         Spacer(Modifier.height(6.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(bottom = 48.dp)) {
-            items(channels, key = { it.id }) { channel ->
+            items(channels.distinctBy { it.id }, key = { it.id }) { channel ->
                 Row(Modifier.height(64.dp), verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.width(180.dp).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         RemoteImage(channel.logo, channel.name, Modifier.size(width = 56.dp, height = 36.dp), contentScale = ContentScale.Fit)
@@ -308,11 +308,11 @@ private fun AddonChannels(onOpenDetail: (MetaItem) -> Unit) {
         loaded == null -> LoadingState("Carico i canali degli addon…")
         loaded.isEmpty() -> EmptyState("Nessun canale dagli addon", "Nessun addon installato offre cataloghi di canali TV.", icon = Icons.Filled.LiveTv)
         else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(18.dp), contentPadding = PaddingValues(bottom = 48.dp)) {
-            items(loaded, key = { it.first.id }) { (ref, items) ->
+            items(loaded.distinctBy { it.first.id }, key = { it.first.id }) { (ref, items) ->
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("${ref.title} · ${ref.addonName}", style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
-                        items(items, key = { it.id }) { meta -> PosterCard(meta, { onOpenDetail(meta) }) }
+                        items(items.distinctBy { it.id }, key = { it.id }) { meta -> PosterCard(meta, { onOpenDetail(meta) }) }
                     }
                 }
             }
@@ -345,7 +345,7 @@ fun LiveTvSettingsDialog(onDismiss: () -> Unit, onPhone: () -> Unit) {
                 }
             }
             item { Text("Playlist", style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground) }
-            items(settings.liveTv.playlists, key = { it.id }) { playlist ->
+            items(settings.liveTv.playlists.distinctBy { it.id }, key = { it.id }) { playlist ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(Modifier.weight(1f)) {
                         Text(playlist.name, style = MaterialTheme.typography.titleMedium, color = AetherColors.OnBackground)

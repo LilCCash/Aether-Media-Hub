@@ -320,7 +320,7 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             app.aether.tv.ui.components.SectionTitle("Episodi", Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
                             LazyRow(contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                items(meta.seasons.size, key = { meta.seasons[it] }) { i ->
+                                items(meta.seasons.size, key = { "$it|" + meta.seasons[it] }) { i ->
                                     val season = meta.seasons[i]
                                     TvChip(if (season == 0) "Speciali" else "Stagione $season", state.season == season, { vm.selectSeason(season) }, testTag = "detail.season.$season")
                                 }
@@ -329,7 +329,7 @@ fun DetailScreen(type: String, id: String, onPlay: (MetaItem, Video?, Double?) -
                             val seasonKey = state.season
                             androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides app.aether.tv.ui.theme.EdgeScroll) {
                                 LazyRow(contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                                    items(episodes.size, key = { "${seasonKey}-${episodes[it].id}" }) { i ->
+                                    items(episodes.size, key = { "${seasonKey}-$it-${episodes[it].id}" }) { i ->
                                         val video = episodes[i]
                                         EpisodeCard(
                                             video, progress = state.progress[video.id], watched = video.id in state.watched,
