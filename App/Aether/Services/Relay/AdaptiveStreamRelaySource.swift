@@ -110,8 +110,10 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         guard let manifestType = manifestType else { return data }
         guard let text = String(data: data, encoding: .utf8) else { throw RelayError.upstreamNotMedia }
         if manifestType == "application/vnd.apple.mpegurl" || manifestType == "application/x-mpegURL" {
+            guard text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("#EXTM3U") else { throw RelayError.upstreamNotMedia }
             return Data(try rewriteHLS(text, baseURL: url).utf8)
         }
+        guard text.lowercased().contains("<mpd") || text.lowercased().contains(":mpd") else { throw RelayError.upstreamNotMedia }
         return Data(try rewriteDASH(text, baseURL: url).utf8)
     }
 
@@ -155,6 +157,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
 
     private func rewriteHLS(_ input: String, baseURL: URL) throws -> String {
         let upper = input.uppercased()
+        if upper.contains("EXT-X-DEFINE") || upper.contains("{$") { throw RelayError.upstreamNotMedia }
         if upper.contains("METHOD=SAMPLE-AES") || upper.contains("KEYFORMAT=") && !upper.contains("KEYFORMAT=\"IDENTITY\"") {
             throw RelayError.upstreamNotMedia
         }
@@ -287,7 +290,7 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         guard let routeRegex = try? NSRegularExpression(pattern: regexPattern) else { return nil }
         lock.lock()
         dynamicRoutes.append(DynamicRoute(localPrefix: prefix, rawTemplate: raw, baseURL: baseURL, tokens: tokens,
-                                          regex: routeRegex, contentType: mimeType(for: raw)))
+                                          regex: routeRegex, contentType: mimeType(for: "segment." + safeExt)))
         lock.unlock()
         return local
     }
