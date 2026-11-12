@@ -42,7 +42,7 @@ fun PhoneConfigDialog(onDismiss: () -> Unit) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     DisposableEffect(server) {
         try {
-            server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, true)
+            server.start(PhoneConfigServer.SOCKET_TIMEOUT_MS, true)
             address = server.address
             if (address == null) problem = "La TV non è collegata a una rete locale (Wi-Fi o cavo)."
         } catch (e: Exception) {

@@ -236,6 +236,10 @@ class PhoneConfigServer(private val engine: AetherEngine, val session: PhoneLink
     """.trimIndent()))
 
     private fun secure(response: Response): Response = response.apply {
+        // Every answer closes its connection. With keep-alive Safari reuses an idle connection the TV has meanwhile closed (choosing
+        // a file in Files takes longer than the socket timeout) and a form sent on it fails with «connessione persa»: a POST is
+        // never retried. A fresh connection for each request costs nothing on the home network.
+        closeConnection(true)
         addHeader("Cache-Control", "no-store")
         addHeader("Referrer-Policy", "no-referrer")
         addHeader("X-Frame-Options", "DENY")
@@ -255,6 +259,8 @@ class PhoneConfigServer(private val engine: AetherEngine, val session: PhoneLink
     } catch (_: Exception) { null }
 
     companion object {
+        /** How long a phone may take to send a request it started (a slow Wi-Fi upload included). */
+        const val SOCKET_TIMEOUT_MS = 60_000
         /** Backups with a long history reach tens of MB (the iPhone one included). */
         private const val MAX_BODY = 96L * 1024 * 1024
         private val KEYS = mapOf(

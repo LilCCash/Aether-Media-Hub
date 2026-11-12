@@ -24,7 +24,7 @@ class PhoneConfigServerTest {
         secrets = InMemorySecretStore()
         val engine = AetherEngine(Files.createTempDirectory("aether").toFile(), secrets)
         server = PhoneConfigServer(engine)
-        server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, true)
+        server.start(PhoneConfigServer.SOCKET_TIMEOUT_MS, true)
     }
 
     @After fun stop() = server.stop()
@@ -104,5 +104,23 @@ class PhoneConfigServerTest {
         assertTrue("backup of ${text.length} bytes", text.length > 6_000_000)
         val status = upload(token, text.toByteArray())
         assertTrue(status, status.contains(" 303 "))
+    }
+
+    @Test fun everyAnswerClosesItsConnectionSoSafariNeverReusesAStaleOne() {
+        val token = server.session.token
+        request("/s/$token/"); server.answer(true)
+        java.net.Socket("127.0.0.1", server.listeningPort).use { socket ->
+            socket.getOutputStream().write("GET /s/$token/ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: keep-alive\r\n\r\n".toByteArray())
+            val head = socket.getInputStream().bufferedReader().lineSequence().takeWhile { it.isNotEmpty() }.toList()
+            assertTrue(head.toString(), head.any { it.equals("connection: close", ignoreCase = true) })
+        }
+    }
+
+    @Test fun aSmallBackupChosenSlowlyIsRestored() {
+        val token = server.session.token
+        request("/s/$token/"); server.answer(true)
+        val text = app.aether.core.library.BackupCodec.encode(app.aether.core.library.LibraryState(), emptyList(), false, "test")
+        Thread.sleep(1500)
+        assertTrue(upload(token, text.toByteArray()).contains(" 303 "))
     }
 }
