@@ -139,10 +139,6 @@ extension PlayerViewModel {
         }
         let info = StreamAnalyzer.analyze(playing, streamingServer: server)
         let container = info.container ?? ""
-        if delivery == .relay && (container == "m3u8" || container == "mpd") {
-            return .refused(title: "Serve il ponte sul telefono",
-                            message: "Le sorgenti HLS o DASH che richiedono la tua chiave o intestazioni speciali non possono passare dal ponte in questa versione.")
-        }
         let artwork = (currentVideo?.thumbnail ?? meta.poster ?? meta.background).flatMap { URL.lenient($0) }
         let source: CastSource
         switch delivery {
@@ -153,7 +149,8 @@ extension PlayerViewModel {
         let request = CastRequest(title: meta.name, subtitle: episodeSubtitle(), artworkURL: artwork,
                                   contentType: CastMedia.contentType(forContainer: info.container), isLive: snapshot.isLive,
                                   startPosition: max(snapshot.position, 0), source: source,
-                                  fileExtension: RelayMime.allowedExtensions.contains(container) ? container : "mp4")
+                                  fileExtension: (container == "m3u8" || container == "mpd") ? container
+                                    : (RelayMime.allowedExtensions.contains(container) ? container : "mp4"))
 
         // A Matroska file for Google Cast is converted by the phone into HLS (video and audio copied): every Cast receiver reads that,
         // many refuse the MKV. It needs the relay; the viewer's own wish to send the direct link is respected as it is.
