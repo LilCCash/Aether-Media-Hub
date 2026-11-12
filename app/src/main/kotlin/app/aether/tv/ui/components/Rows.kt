@@ -1,5 +1,6 @@
 package app.aether.tv.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -76,7 +77,8 @@ fun <T> ContentRow(
     }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(end = 12.dp))
+            SectionMark()
+            Text(title, style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(end = 12.dp))
             trailing?.invoke()
         }
         androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides app.aether.tv.ui.theme.EdgeScroll) {
@@ -100,7 +102,10 @@ fun <T> ContentRow(
 @Composable
 fun RowPlaceholder(title: String, modifier: Modifier = Modifier, count: Int = 8) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(title, style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))
+        Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            SectionMark()
+            Text(title, style = MaterialTheme.typography.titleLarge, color = AetherColors.OnBackground, maxLines = 1)
+        }
         LazyRow(
             userScrollEnabled = false,
             contentPadding = PaddingValues(horizontal = AetherDimens.ScreenHorizontal, vertical = 18.dp),
@@ -109,4 +114,14 @@ fun RowPlaceholder(title: String, modifier: Modifier = Modifier, count: Int = 8)
             items(count) { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Placeholder(Modifier.width(150.dp).height(225.dp), androidx.compose.foundation.shape.RoundedCornerShape(14.dp)); Placeholder(Modifier.width(110.dp).height(12.dp)) } }
         }
     }
+}
+
+
+/** The small accent bar before the title of a row: the same mark on every section of the app. */
+@Composable
+fun SectionMark() {
+    androidx.compose.foundation.layout.Box(
+        Modifier.padding(end = 10.dp).width(4.dp).height(20.dp)
+            .background(app.aether.tv.ui.theme.LocalAccent.current, androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
+    )
 }

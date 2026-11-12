@@ -35,6 +35,7 @@ import app.aether.tv.ui.theme.AetherDimens
 import kotlinx.coroutines.launch
 
 /** What a person from the cast appeared in: each film or series with the character they played under the title. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun PersonScreen(personId: Int, name: String, onOpenTitle: (String, String) -> Unit, modifier: Modifier = Modifier) {
     val engine = LocalContext.current.aether
@@ -51,7 +52,7 @@ fun PersonScreen(personId: Int, name: String, onOpenTitle: (String, String) -> U
             list == null -> LoadingState("Cerco la filmografia…", Modifier.fillMaxSize())
             list.isEmpty() -> EmptyState("Nessun titolo", "TMDB non ha restituito titoli per questa persona (serve la chiave TMDB valida).", Modifier.fillMaxSize())
             else -> {
-                LazyVerticalGrid(
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides app.aether.tv.ui.theme.GridScroll) { LazyVerticalGrid(
                     GridCells.Adaptive(150.dp), Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 20.dp, bottom = 72.dp),
                     horizontalArrangement = Arrangement.spacedBy(AetherDimens.RowSpacing), verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -74,7 +75,7 @@ fun PersonScreen(personId: Int, name: String, onOpenTitle: (String, String) -> U
                             Text(credit.character?.let { "nel ruolo di $it" } ?: " ", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceMuted, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     }
-                }
+                } }
                 RequestFocusOnce(first, list.size)
             }
         }

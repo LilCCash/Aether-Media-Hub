@@ -46,6 +46,7 @@ import app.aether.tv.ui.theme.AetherDimens
 
 private enum class Tab(val title: String) { CONTINUE("Continua"), WATCHLIST("Watchlist"), FAVORITES("Preferiti"), HISTORY("Cronologia"), DOWNLOADS("Download") }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, onOpenTrakt: () -> Unit = {}, onPlay: () -> Unit = {}, modifier: Modifier = Modifier) {
     val engine = LocalContext.current.aether
@@ -100,7 +101,7 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
                 icon = when (tab) { Tab.CONTINUE -> Icons.Filled.PlayCircle; Tab.WATCHLIST -> Icons.Filled.Bookmark; Tab.FAVORITES -> Icons.Filled.Favorite; Tab.HISTORY -> Icons.Filled.History; Tab.DOWNLOADS -> Icons.Filled.History },
             ) { TvButton("Scopri qualcosa", onOpenDiscover, primary = true) }
         } else {
-            LazyVerticalGrid(
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides app.aether.tv.ui.theme.GridScroll) { LazyVerticalGrid(
                 columns = GridCells.Adaptive(150.dp),
                 contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 12.dp, bottom = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(AetherDimens.RowSpacing),
@@ -118,7 +119,7 @@ fun LibraryScreen(onOpenDetail: (MetaItem) -> Unit, onOpenDiscover: () -> Unit, 
                         onFocused = { memory.remember(meta.id) },
                     )
                 }
-            }
+            } }
         }
         if (tab == Tab.HISTORY && history.isNotEmpty()) Row(Modifier.padding(horizontal = AetherDimens.ScreenHorizontal, vertical = 4.dp)) { TvChip("Cancella la cronologia", false, { confirmClear = true }, testTag = "library.clearHistory") }
         if (tab == Tab.HISTORY || tab == Tab.CONTINUE) Text("Tieni premuto OK su un titolo per le azioni.", style = MaterialTheme.typography.labelSmall, color = AetherColors.OnSurfaceFaint, modifier = Modifier.padding(horizontal = AetherDimens.ScreenHorizontal))

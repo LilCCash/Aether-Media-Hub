@@ -99,8 +99,9 @@ fun PosterCard(
             focusScale = 1.08f,
             containerColor = AetherColors.Glass,
             focusedContainerColor = AetherColors.Glass,
+            glow = true,
             focusRequester = focusRequester,
-            onFocused = onFocused,
+            onFocused = { app.aether.tv.ui.Ambient.show(meta.background ?: meta.poster); onFocused?.invoke() },
             testTag = testTag,
         ) {
             RemoteImage(meta.poster ?: meta.background, meta.name, Modifier.fillMaxSize())
@@ -157,7 +158,8 @@ fun ContinueCard(
             containerColor = AetherColors.Glass,
             focusedContainerColor = AetherColors.Glass,
             focusRequester = focusRequester,
-            onFocused = onFocused,
+            onFocused = { app.aether.tv.ui.Ambient.show(progress.background ?: progress.poster); onFocused?.invoke() },
+            glow = true,
         ) {
             RemoteImage(progress.background ?: progress.poster, progress.title, Modifier.fillMaxSize())
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))

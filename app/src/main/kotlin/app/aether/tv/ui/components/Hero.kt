@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
@@ -61,7 +62,7 @@ fun HeroBanner(
     onDetails: (MetaItem) -> Unit,
     modifier: Modifier = Modifier,
     playRequester: FocusRequester? = null,
-    height: androidx.compose.ui.unit.Dp = 440.dp,
+    height: androidx.compose.ui.unit.Dp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * 0.8f,
 ) {
     if (items.isEmpty()) return
     var index by remember(items.size) { mutableIntStateOf(0) }
@@ -83,25 +84,26 @@ fun HeroBanner(
                 RemoteImage(current.background ?: current.poster, current.name, Modifier.fillMaxSize(), alignment = androidx.compose.ui.BiasAlignment(0.3f, -0.5f))
                 Box(Modifier.fillMaxSize().background(backdropScrimHorizontal()))
                 Box(Modifier.fillMaxSize().background(backdropScrimVertical()))
+                // Bottom-anchored text that never climbs under the tab bar: the column starts below it and gives up lines first.
                 Column(
-                    Modifier.align(Alignment.BottomStart).padding(start = AetherDimens.ScreenHorizontal, bottom = 92.dp).width(600.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    Modifier.align(Alignment.BottomStart).padding(start = AetherDimens.ScreenHorizontal, bottom = 96.dp, top = AetherDimens.TopBar + 12.dp).width(620.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom),
                 ) {
                     val logo = current.logo
                     if (!logo.isNullOrBlank()) {
                         coil3.compose.AsyncImage(
                             model = logo, contentDescription = current.name,
                             contentScale = androidx.compose.ui.layout.ContentScale.Fit, alignment = Alignment.CenterStart,
-                            modifier = Modifier.height(110.dp).width(420.dp),
+                            modifier = Modifier.heightIn(max = 96.dp).width(400.dp),
                         )
                     } else {
-                        Text(current.name, style = MaterialTheme.typography.displayMedium, color = AetherColors.OnBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(current.name, style = MaterialTheme.typography.displayMedium, color = AetherColors.OnBackground, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 40.dp))
                     }
                     current.factsLine().takeIf { it.isNotEmpty() }?.let {
                         Text(it, style = MaterialTheme.typography.labelLarge, color = AetherColors.OnBackground.copy(alpha = 0.75f), maxLines = 1)
                     }
                     current.description?.takeIf { it.isNotBlank() }?.let {
-                        Text(it, style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground.copy(alpha = 0.85f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        Text(it, style = MaterialTheme.typography.bodyMedium, color = AetherColors.OnBackground.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }

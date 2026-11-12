@@ -166,6 +166,7 @@ private val genreNames = mapOf(
 
 private fun genreLabel(g: String) = genreNames[g] ?: g
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun RecommendScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, modifier: Modifier = Modifier) {
     val engine = LocalContext.current.aether
@@ -210,6 +211,7 @@ private fun Choose(state: RecommendViewModel.UiState, vm: RecommendViewModel, on
     RequestFocusOnce(first, state.types.size)
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun Pick(state: RecommendViewModel.UiState, vm: RecommendViewModel) {
     val first = androidx.compose.runtime.remember { FocusRequester() }
@@ -219,7 +221,7 @@ private fun Pick(state: RecommendViewModel.UiState, vm: RecommendViewModel) {
             TvButton("Altri titoli", { vm.showCandidates(reshuffle = true) }, icon = Icons.Filled.Refresh, testTag = "recommend.shuffle")
             TvButton(if (state.picked.isEmpty()) "Consigliami" else "Consigliami (${state.picked.size})", { vm.recommend() }, icon = Icons.Filled.AutoAwesome, primary = true, enabled = state.picked.isNotEmpty(), testTag = "recommend.confirm")
         }
-        LazyVerticalGrid(
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides app.aether.tv.ui.theme.GridScroll) { LazyVerticalGrid(
             GridCells.Adaptive(150.dp), Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 8.dp, bottom = 48.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -234,7 +236,7 @@ private fun Pick(state: RecommendViewModel.UiState, vm: RecommendViewModel) {
                     }
                 }
             }
-        }
+        } }
     }
     RequestFocusOnce(first, state.candidates.size)
 }

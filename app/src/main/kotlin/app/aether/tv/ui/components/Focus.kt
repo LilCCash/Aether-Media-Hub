@@ -63,6 +63,8 @@ fun FocusSurface(
     onFocused: (() -> Unit)? = null,
     /** The light edge when focused; buttons that turn white do without it. */
     edge: Boolean = true,
+    /** A soft halo of the accent colour around the lifted element (posters and cards): the signature of Aether. */
+    glow: Boolean = false,
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -75,6 +77,7 @@ fun FocusSurface(
     )
     val background by animateColorAsState(if (focused) focusedContainerColor else containerColor, tween(graphics.ms(140)), label = "focusColor")
     val interaction = remember { MutableInteractionSource() }
+    val accent = app.aether.tv.ui.theme.LocalAccent.current
     Box(
         modifier = modifier
             .zIndex(if (focused) 1f else 0f)
@@ -85,7 +88,7 @@ fun FocusSurface(
                 focused = state.isFocused
                 if (state.isFocused) onFocused?.invoke()
             }
-            .then(if (focused && graphics.shadows) Modifier.drawBehind { softShadow(shape) } else Modifier)
+            .then(if (focused && graphics.shadows) Modifier.drawBehind { if (glow) accentGlow(shape, accent) ; softShadow(shape) } else Modifier)
             .clip(shape)
             .background(background, shape)
             // The light edge goes over the content (a poster image would cover a plain border).
@@ -100,6 +103,21 @@ private fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.drawEdge(sha
         is Outline.Rounded -> drawRoundRect(Color(0xB3FFFFFF), Offset(width / 2, width / 2), Size(size.width - width, size.height - width), outline.roundRect.topLeftCornerRadius, stroke)
         is Outline.Rectangle -> drawRect(Color(0xB3FFFFFF), style = stroke)
         is Outline.Generic -> drawPath(outline.path, Color(0xB3FFFFFF), style = stroke)
+    }
+}
+
+/** A coloured halo: a few widening, fading rounded outlines in the accent colour. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.accentGlow(shape: Shape, accent: Color) {
+    val outline = shape.createOutline(size, layoutDirection, this)
+    val radius = (outline as? Outline.Rounded)?.roundRect?.topLeftCornerRadius?.x ?: 0f
+    for (i in 1..5) {
+        val spread = i * 5.dp.toPx()
+        drawRoundRect(
+            accent.copy(alpha = 0.13f - i * 0.022f),
+            topLeft = Offset(-spread / 2, -spread / 2),
+            size = Size(size.width + spread, size.height + spread),
+            cornerRadius = CornerRadius(radius + spread / 2),
+        )
     }
 }
 

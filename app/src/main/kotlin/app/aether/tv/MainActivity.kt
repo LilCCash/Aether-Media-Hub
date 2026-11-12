@@ -72,6 +72,7 @@ fun AetherRoot(addonInput: String?, keyboardInputOnly: Boolean) {
     AetherTheme(accent = accent, animations = settings.appearance.animationsEnabled, corner = settings.appearance.corners.dp.dp, graphics = graphics, overscan = overscan) {
         androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(app.aether.tv.ui.theme.AetherColors.Background)) {
             app.aether.tv.ui.theme.AppBackdrop(settings.appearance.background, accent, settings.appearance.animationsEnabled)
+            app.aether.tv.ui.Ambient.Backdrop(androidx.compose.ui.Modifier.fillMaxSize())
             AetherNav(initialAddonInput = addonInput)
         }
     }

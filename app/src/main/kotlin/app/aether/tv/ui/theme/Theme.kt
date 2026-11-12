@@ -127,15 +127,27 @@ val LocalGraphics = staticCompositionLocalOf { Graphics.Default }
 /** Corner radius of cards and buttons, chosen in the settings. */
 val LocalCorner = compositionLocalOf { 14.dp }
 
-private val Sans = FontFamily.SansSerif
+/** Manrope for the interface (clear at a distance), Nunito Black for the big titles (rounded, warm: the voice of Aether). */
+private val Sans = FontFamily(
+    androidx.compose.ui.text.font.Font(app.aether.tv.R.font.manrope_400regular, FontWeight.Normal),
+    androidx.compose.ui.text.font.Font(app.aether.tv.R.font.manrope_500medium, FontWeight.Medium),
+    androidx.compose.ui.text.font.Font(app.aether.tv.R.font.manrope_600semibold, FontWeight.SemiBold),
+    androidx.compose.ui.text.font.Font(app.aether.tv.R.font.manrope_700bold, FontWeight.Bold),
+    androidx.compose.ui.text.font.Font(app.aether.tv.R.font.manrope_800extrabold, FontWeight.ExtraBold),
+)
+val Display = FontFamily(
+    androidx.compose.ui.text.font.Font(app.aether.tv.R.font.nunito_800extrabold, FontWeight.ExtraBold),
+    androidx.compose.ui.text.font.Font(app.aether.tv.R.font.nunito_900black, FontWeight.Black),
+    androidx.compose.ui.text.font.Font(app.aether.tv.R.font.nunito_900black, FontWeight.Bold),
+)
 
 private val AetherTypography = Typography(
-    displayLarge = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Bold, fontSize = 54.sp, lineHeight = 60.sp, letterSpacing = (-0.8).sp),
-    displayMedium = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Bold, fontSize = 42.sp, lineHeight = 48.sp, letterSpacing = (-0.6).sp),
-    displaySmall = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Bold, fontSize = 34.sp, lineHeight = 40.sp, letterSpacing = (-0.4).sp),
-    headlineLarge = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 38.sp, letterSpacing = (-0.3).sp),
-    headlineMedium = TextStyle(fontFamily = Sans, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, lineHeight = 32.sp, letterSpacing = (-0.2).sp),
-    titleLarge = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Bold, fontSize = 21.sp, lineHeight = 27.sp, letterSpacing = (-0.1).sp),
+    displayLarge = TextStyle(fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 54.sp, lineHeight = 60.sp, letterSpacing = (-0.5).sp),
+    displayMedium = TextStyle(fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 42.sp, lineHeight = 48.sp, letterSpacing = (-0.4).sp),
+    displaySmall = TextStyle(fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 34.sp, lineHeight = 40.sp, letterSpacing = (-0.3).sp),
+    headlineLarge = TextStyle(fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 30.sp, lineHeight = 36.sp, letterSpacing = (-0.2).sp),
+    headlineMedium = TextStyle(fontFamily = Display, fontWeight = FontWeight.ExtraBold, fontSize = 25.sp, lineHeight = 31.sp),
+    titleLarge = TextStyle(fontFamily = Display, fontWeight = FontWeight.ExtraBold, fontSize = 21.sp, lineHeight = 27.sp),
     titleMedium = TextStyle(fontFamily = Sans, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 24.sp),
     titleSmall = TextStyle(fontFamily = Sans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 21.sp),
     bodyLarge = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Normal, fontSize = 18.sp, lineHeight = 26.sp),

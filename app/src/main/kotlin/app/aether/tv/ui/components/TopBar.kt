@@ -83,7 +83,7 @@ fun TopBar(
             .height(AetherDimens.TopBar + 24.dp)
             .graphicsLayer { this.alpha = alpha; translationY = (1f - alpha) * -24.dp.toPx() }
             .background(Brush.verticalGradient(0f to Color(0xCC0A0A0C), 0.7f to Color(0x660A0A0C), 1f to Color.Transparent))
-            .onFocusChanged { hasFocus = it.hasFocus }
+            .onFocusChanged { hasFocus = it.hasFocus; app.aether.tv.ui.theme.Chrome.barFocused = it.hasFocus }
             .focusGroup(),
     ) {
         Row(
@@ -91,7 +91,13 @@ fun TopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Aether", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black), color = AetherColors.OnBackground, modifier = Modifier.padding(end = 18.dp))
+            // The wordmark: Nunito Black lit from the accent colour to white.
+            val accent = app.aether.tv.ui.theme.LocalAccent.current
+            Text(
+                "Aether",
+                style = MaterialTheme.typography.headlineLarge.copy(brush = Brush.linearGradient(listOf(accent, Color.White)), fontSize = androidx.compose.ui.unit.TextUnit(28f, androidx.compose.ui.unit.TextUnitType.Sp)),
+                modifier = Modifier.padding(end = 18.dp),
+            )
             Spacer(Modifier.weight(1f))
             for (entry in navEntries) {
                 if (entry.route in hidden) continue

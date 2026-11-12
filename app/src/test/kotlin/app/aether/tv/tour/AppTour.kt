@@ -65,14 +65,14 @@ class AppTour {
 
     private fun shot(name: String) {
         settle(800)
-        val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
+        val bitmap = rule.onAllNodes(androidx.compose.ui.test.isRoot())[0].captureToImage().asAndroidBitmap()
         File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 90, it) }
         audit(name)
     }
 
     /** Every text whose bounds go past the screen (or are clipped by a too narrow box) goes into the report. */
     private fun audit(name: String) {
-        val root = rule.onRoot().fetchSemanticsNode()
+        val root = rule.onAllNodes(androidx.compose.ui.test.isRoot())[0].fetchSemanticsNode()
         val screen = root.boundsInRoot
         val nodes = rule.onAllNodes(SemanticsMatcher("text") { it.config.contains(SemanticsProperties.Text) }, useUnmergedTree = true).fetchSemanticsNodes()
         for (node in nodes) {

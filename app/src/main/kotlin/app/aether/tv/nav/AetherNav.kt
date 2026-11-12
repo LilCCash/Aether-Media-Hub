@@ -60,6 +60,8 @@ fun AetherNav(initialAddonInput: String?, modifier: Modifier = Modifier) {
     val contentFocus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
     val barFocus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
     androidx.compose.runtime.LaunchedEffect(route) {
+        // The atmosphere belongs to the pages of titles; the others (settings, addons…) stay calm.
+        if (route !in setOf(Routes.HOME, Routes.DISCOVER, Routes.SEARCH, Routes.RECOMMEND, Routes.LIBRARY, Routes.TRAKT)) app.aether.tv.ui.Ambient.clear()
         if (route == null || route == Routes.PLAYER) return@LaunchedEffect
         kotlinx.coroutines.delay(120)
         repeat(20) {

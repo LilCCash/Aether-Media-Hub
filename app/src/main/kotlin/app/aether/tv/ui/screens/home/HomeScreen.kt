@@ -60,6 +60,10 @@ fun HomeScreen(
     val heroRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
     val noRows = state.rows.isEmpty()
+    // Up to the tab bar: the Home goes back to its top, so the bar never sits on the featured titles.
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        androidx.compose.runtime.snapshotFlow<Boolean> { app.aether.tv.ui.theme.Chrome.barFocused }.collect { focused -> if (focused && (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0)) listState.animateScrollToItem(0) }
+    }
     // The tab bar fades away once the viewer goes down past the featured titles, and returns at the top.
     androidx.compose.runtime.LaunchedEffect(listState) {
         androidx.compose.runtime.snapshotFlow { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 120 }

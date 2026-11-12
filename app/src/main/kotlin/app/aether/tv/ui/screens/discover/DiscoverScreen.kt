@@ -46,6 +46,7 @@ import app.aether.tv.ui.components.rememberFocusMemory
 import app.aether.tv.ui.theme.AetherColors
 import app.aether.tv.ui.theme.AetherDimens
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun DiscoverScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, modifier: Modifier = Modifier) {
     val engine = LocalContext.current.aether
@@ -100,7 +101,7 @@ fun DiscoverScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, m
                         state.loading -> LoadingState("Carico il catalogo…", Modifier.align(Alignment.Center))
                         state.error != null && state.items.isEmpty() -> ErrorState(state.error ?: "", { vm.load(AddonClient.LoadMode.RELOAD) }, Modifier.align(Alignment.Center))
                         shown.isEmpty() -> EmptyState("Nessun titolo", "Questo catalogo non ha restituito titoli per i filtri scelti.", Modifier.align(Alignment.Center))
-                        else -> LazyVerticalGrid(
+                        else -> androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides app.aether.tv.ui.theme.GridScroll) { LazyVerticalGrid(
                             state = gridState,
                             columns = GridCells.Adaptive((140 * settings.appearance.posterSize.scale).dp),
                             contentPadding = PaddingValues(start = AetherDimens.ScreenHorizontal, end = AetherDimens.ScreenHorizontal, top = 20.dp, bottom = 72.dp),
@@ -118,7 +119,7 @@ fun DiscoverScreen(onOpenDetail: (MetaItem) -> Unit, onOpenAddons: () -> Unit, m
                                 )
                             }
                             if (state.loadingMore) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { LoadingState("Altri titoli…") }
-                        }
+                        } }
                     }
                 }
             }
