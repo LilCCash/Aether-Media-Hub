@@ -149,7 +149,7 @@ extension PlayerViewModel {
         let request = CastRequest(title: meta.name, subtitle: episodeSubtitle(), artworkURL: artwork,
                                   contentType: CastMedia.contentType(forContainer: info.container), isLive: snapshot.isLive,
                                   startPosition: max(snapshot.position, 0), source: source,
-                                  subtitleLanguage: selectedOption?.isEmbedded == true ? selectedOption?.language : nil,
+                                  subtitleLanguage: selectedOption?.isEmbedded == true ? (selectedOption?.languageCode ?? selectedOption?.language) : nil,
                                   subtitleTitle: selectedOption?.isEmbedded == true ? selectedOption?.title : nil,
                                   fileExtension: (container == "m3u8" || container == "mpd") ? container
                                     : (RelayMime.allowedExtensions.contains(container) ? container : "mp4"))
