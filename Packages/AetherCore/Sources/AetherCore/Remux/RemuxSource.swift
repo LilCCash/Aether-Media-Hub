@@ -73,6 +73,7 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
 
     private let engine: RemuxEngine
     private let defaultSubtitleLanguage: String?
+    private let defaultSubtitleTitle: String?
     private let maxCacheBytes: Int
     private let lock = NSLock()
     private var preparedInfo: RemuxPrepared?
@@ -85,10 +86,11 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
     private var inflight: [String: Task<Data, Error>] = [:]
     private var closed = false
 
-    public init(engine: RemuxEngine, maxCacheBytes: Int = 160 << 20, defaultSubtitleLanguage: String? = nil) {
+    public init(engine: RemuxEngine, maxCacheBytes: Int = 160 << 20, defaultSubtitleLanguage: String? = nil, defaultSubtitleTitle: String? = nil) {
         self.engine = engine
         self.maxCacheBytes = maxCacheBytes
         self.defaultSubtitleLanguage = defaultSubtitleLanguage?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.defaultSubtitleTitle = defaultSubtitleTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     public var prepared: RemuxPrepared? { return locked { preparedInfo } }
@@ -104,9 +106,12 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
             return HLSSubtitleRendition(name: name.isEmpty ? "Sottotitoli \(track.index)" : name,
                                         language: track.language.flatMap { RemuxSource.bcp47($0) },
                                         uri: Leaf.subtitlePlaylist(track.index).key,
-                                        isDefault: defaultSubtitleLanguage.map { language in
-                                            track.language?.caseInsensitiveCompare(language) == .orderedSame
-                                        } ?? false,
+                                        isDefault: (defaultSubtitleLanguage.map { language in
+                                            track.language?.caseInsensitiveCompare(language) == .orderedSame ||
+                                            RemuxSource.bcp47(track.language ?? "") == RemuxSource.bcp47(language)
+                                        } ?? false) || (defaultSubtitleTitle.map { title in
+                                            track.title?.caseInsensitiveCompare(title) == .orderedSame
+                                        } ?? false),
                                         isForced: (track.title ?? "").lowercased().contains("forced"))
         }
         let master = HLSPlaylistBuilder.master(info.master, subtitles: renditions)
