@@ -350,9 +350,13 @@ struct PlayerCastSheet: View {
             List {
                 if casting.session != nil {
                     Section(header: Text("Sessione attiva")) { CastSessionControls() }
-                    if model.audioTracks.count > 1 || model.subtitleOptions.contains(where: { $0.isEmbedded }) {
+                    if let session = casting.session,
+                       model.currentStreamInfo?.container?.lowercased() == "mkv",
+                       RemuxEngineFactory.isAvailable,
+                       (session.device.target == .dlna || settings.value.casting.convertMatroskaForGoogleCast),
+                       model.audioTracks.count > 1 || model.subtitleOptions.contains(where: { $0.isEmbedded }) {
                         Section(header: Text("Tracce sul televisore"),
-                                footer: Text("La modifica riavvia il flusso dal punto corrente. I sottotitoli esterni di Aether non sono ancora trasferibili via DLNA; qui sono elencate le tracce incorporate.")) {
+                                footer: Text("Disponibile per MKV convertiti da Aether. I sottotitoli testuali incorporati possono essere preselezionati; PGS/VobSub e sottotitoli esterni non vengono ancora trasferiti. La modifica riavvia il flusso dal punto corrente.")) {
                             if model.audioTracks.count > 1 {
                                 Picker("Audio", selection: Binding(
                                     get: { model.audioTracks.first(where: { $0.isSelected })?.id ?? "" },
@@ -370,7 +374,7 @@ struct PlayerCastSheet: View {
                             let embedded = model.subtitleOptions.filter { $0.isEmbedded }
                             if !embedded.isEmpty {
                                 Picker("Sottotitoli", selection: Binding(
-                                    get: { model.selectedSubtitleID },
+                                    get: { embedded.contains(where: { $0.id == model.selectedSubtitleID }) ? model.selectedSubtitleID : nil },
                                     set: { id in
                                         if let id = id, let option = embedded.first(where: { $0.id == id }) {
                                             model.selectSubtitle(option)
