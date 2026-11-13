@@ -337,8 +337,10 @@ struct PlayerInfoSheet: View {
 /// Casting from the player: AirPlay (system picker) plus Google Cast / DLNA devices.
 struct PlayerCastSheet: View {
     /// Replaces the usual AirPlay footnote when the playing file cannot have its picture sent (MPV).
+    @ObservedObject var model: PlayerViewModel
     var airPlayNote: String?
     let onSelect: (CastDevice) -> Void
+    let onTrackChange: () -> Void
     @EnvironmentObject private var casting: CastCoordinator
     @EnvironmentObject private var settings: SettingsStore
     @Environment(\.dismiss) private var dismiss
@@ -348,6 +350,43 @@ struct PlayerCastSheet: View {
             List {
                 if casting.session != nil {
                     Section(header: Text("Sessione attiva")) { CastSessionControls() }
+                    if model.audioTracks.count > 1 || model.subtitleOptions.contains(where: { $0.isEmbedded }) {
+                        Section(header: Text("Tracce sul televisore"),
+                                footer: Text("La modifica riavvia il flusso dal punto corrente. I sottotitoli esterni di Aether non sono ancora trasferibili via DLNA; qui sono elencate le tracce incorporate.")) {
+                            if model.audioTracks.count > 1 {
+                                Picker("Audio", selection: Binding(
+                                    get: { model.audioTracks.first(where: { $0.isSelected })?.id ?? "" },
+                                    set: { id in
+                                        if let track = model.audioTracks.first(where: { $0.id == id }) {
+                                            model.selectAudio(track)
+                                            onTrackChange()
+                                        }
+                                    })) {
+                                    ForEach(model.audioTracks) { track in
+                                        Text(track.title).tag(track.id)
+                                    }
+                                }
+                            }
+                            let embedded = model.subtitleOptions.filter { $0.isEmbedded }
+                            if !embedded.isEmpty {
+                                Picker("Sottotitoli", selection: Binding(
+                                    get: { model.selectedSubtitleID },
+                                    set: { id in
+                                        if let id = id, let option = embedded.first(where: { $0.id == id }) {
+                                            model.selectSubtitle(option)
+                                        } else {
+                                            model.disableSubtitles()
+                                        }
+                                        onTrackChange()
+                                    })) {
+                                    Text("Disattivati").tag(String?.none)
+                                    ForEach(embedded) { option in
+                                        Text(option.title).tag(String?.some(option.id))
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 Section(header: Text("AirPlay"), footer: Text(airPlayNote ?? "Per AirPlay il video passa dal sistema: scegli il dispositivo dal pulsante.")) {
                     HStack {
