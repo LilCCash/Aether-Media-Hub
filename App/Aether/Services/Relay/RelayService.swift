@@ -23,6 +23,8 @@ struct RelayPublishRequest {
     var receiverAddress: String?
     /// Convert the Matroska file into HLS on the fly, copying this audio track (nil: serve the file as it is).
     var remux: RemuxAudioChoice? = nil
+    /// Embedded text subtitle to mark as the preferred HLS rendition.
+    var remuxSubtitleLanguage: String? = nil
 }
 
 /// A published session. Holds the keyless address handed to the receiver; it never prints.
@@ -143,7 +145,7 @@ final class RelayService: ObservableObject, RelayPublishing {
         let identity = SessionIdentity()
         let prepared: (source: RelaySource, sessionLeaf: String?, urlLeaf: String, plan: RemuxPlan?)
         if let audio = request.remux {
-            prepared = try await prepareConverted(request, audio: audio, guardian: guardian)
+            prepared = try await prepareConverted(request, audio: audio, subtitleLanguage: request.remuxSubtitleLanguage, guardian: guardian)
         } else {
             prepared = try await prepareFile(request, guardian: guardian, identity: identity)
         }
@@ -217,7 +219,7 @@ final class RelayService: ObservableObject, RelayPublishing {
     }
 
     /// A Matroska file converted into HLS on the fly. The session accepts every piece name the converted file has.
-    private func prepareConverted(_ request: RelayPublishRequest, audio: RemuxAudioChoice,
+    private func prepareConverted(_ request: RelayPublishRequest, audio: RemuxAudioChoice, subtitleLanguage: String?,
                                   guardian: UpstreamGuard) async throws -> (source: RelaySource, sessionLeaf: String?, urlLeaf: String, plan: RemuxPlan?) {
         let fetcher: RelayRangeFetcher = request.upstream.url.isFileURL
             ? FileRangeFetcher(url: request.upstream.url) : fetcherFactory(request.upstream, guardian)
@@ -226,7 +228,7 @@ final class RelayService: ObservableObject, RelayPublishing {
             let resource = try await fetcher.probe()
             guard let total = resource.length, total > 0 else { throw RelayError.upstreamNoRanges }
             guard let engine = remuxMaker(fetcher, total, audio) else { throw LocalRemuxError.unavailable }
-            let made = RemuxSource(engine: engine)
+            let made = RemuxSource(engine: engine, defaultSubtitleLanguage: subtitleLanguage)
             source = made
             let prepared = try await made.prepare()
             return (made, nil, RemuxSource.Leaf.masterName, prepared.plan)
