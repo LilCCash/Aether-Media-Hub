@@ -3,9 +3,69 @@ import AetherCore
 
 struct SettingsRootView: View {
     @EnvironmentObject private var env: AppEnvironment
+    @State private var query = ""
 
     var body: some View {
         List {
+            if !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                searchResults
+            } else {
+                sections
+            }
+        }
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Cerca nelle impostazioni")
+        .aetherPage()
+        .navigationTitle("Impostazioni")
+        .accessibilityIdentifier("settings.root")
+    }
+
+    @ViewBuilder
+    private var searchResults: some View {
+        let hits = SettingsIndex.search(query)
+        if hits.isEmpty {
+            Text("Nessuna impostazione corrisponde a «\(query)».")
+                .foregroundStyle(Color.aetherSecondary)
+                .accessibilityIdentifier("settings.search.empty")
+        } else {
+            ForEach(hits) { hit in
+                NavigationLink {
+                    destination(for: hit.page).labelStyle(SettingsIconLabelStyle())
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(hit.title)
+                        Text(hit.page.title).font(.caption).foregroundStyle(Color.aetherSecondary)
+                    }
+                }
+                .accessibilityIdentifier("settings.search.\(hit.id)")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func destination(for page: SettingsIndex.Page) -> some View {
+        switch page {
+        case .appearance: AppearanceSettingsView()
+        case .playback: PlaybackSettingsView()
+        case .sourceScoring: SourceScoringSettingsView()
+        case .addons: AddonsView()
+        case .content: ContentSettingsView()
+        case .liveTV: LiveTVSettingsView()
+        case .advancedSearch: AdvancedSearchSettingsView()
+        case .indexing: IndexingSettingsView()
+        case .services: ServicesSettingsView()
+        case .trakt: TraktSettingsView(trakt: env.trakt)
+        case .sync: SyncSettingsView()
+        case .account: AccountDataSettingsView()
+        case .casting: CastingSettingsView()
+        case .storage: StorageSettingsView()
+        case .extras: ExtrasSettingsView()
+        case .advanced: AdvancedSettingsView()
+        case .about: AboutView()
+        }
+    }
+
+    @ViewBuilder
+    private var sections: some View {
             Section(header: Text("Aspetto e riproduzione")) {
                 link("Aspetto", "paintpalette.fill", .pink) { AppearanceSettingsView() }
                 link("Riproduzione", "play.rectangle.fill", .orange) { PlaybackSettingsView() }
@@ -33,10 +93,6 @@ struct SettingsRootView: View {
             Section {
                 link("Informazioni e licenze", "info.circle.fill", .blue) { AboutView() }
             }
-        }
-        .aetherPage()
-        .navigationTitle("Impostazioni")
-        .accessibilityIdentifier("settings.root")
     }
 
     private func link<Destination: View>(_ title: String, _ icon: String, _ color: Color, @ViewBuilder destination: () -> Destination) -> some View {

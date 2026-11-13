@@ -62,7 +62,7 @@ struct CastTrackControls: View {
                 }), options: sendable.map { ($0.id, $0.title + ($0.detail.map { " · \($0)" } ?? "")) }, offLabel: "Disattivati",
                    identifier: "cast.tracks.subtitles")
         }
-        Text(footnote(live: live))
+        Text(footnote(live: live, remuxAudio: remuxAudio))
             .font(.caption)
             .foregroundStyle(style == .menus ? Color.white.opacity(0.7) : Color.aetherSecondary)
     }
@@ -85,9 +85,16 @@ struct CastTrackControls: View {
         }
     }
 
-    private func footnote(live: CastTrackList?) -> String {
-        if live != nil { return "Il cambio è immediato sul televisore." }
-        return "Il televisore riceve di nuovo il video dal punto in cui è: ci vuole qualche secondo."
+    private func footnote(live: CastTrackList?, remuxAudio: [EngineTrack]) -> String {
+        var lines: [String] = []
+        if live != nil { lines.append("Il cambio è immediato sul televisore.") }
+        else { lines.append("Il televisore riceve di nuovo il video dal punto in cui è: ci vuole qualche secondo.") }
+        // The file has more audio tracks than the receiver exposes: say why they are not here, instead of hiding them silently.
+        if remuxAudio.isEmpty, model.audioTracks.count > 1, (live?.audio.count ?? 0) <= 1 {
+            lines.append("Il file ha \(model.audioTracks.count) tracce audio, ma il televisore ne riceve una sola: "
+                         + "con questo formato non si può cambiare dal telefono.")
+        }
+        return lines.joined(separator: " ")
     }
 
     /// The audio tracks of an MKV the phone converts for the receiver (one audio track is copied: changing it restarts the stream).

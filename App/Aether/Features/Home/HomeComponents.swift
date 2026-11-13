@@ -3,6 +3,20 @@ import AetherCore
 
 // MARK: - Hero
 
+/// Hero sizes. Unchanged on 6.1" and larger iPhones (430 / 560 pt); on shorter screens (SE, mini, landscape iPad split)
+/// they shrink with the screen so "Continua a guardare" stays near the first screenful instead of below the fold.
+enum HeroLayout {
+    static func scaled(_ full: CGFloat, fraction: CGFloat, minimum: CGFloat, screenHeight: CGFloat) -> CGFloat {
+        return min(full, max(minimum, (screenHeight * fraction).rounded()))
+    }
+    private static var screenHeight: CGFloat {
+        let size = UIScreen.main.bounds.size
+        return max(size.width, size.height) > 0 ? size.height : 852
+    }
+    static var cardPage: CGFloat { scaled(430, fraction: 0.51, minimum: 330, screenHeight: screenHeight) }
+    static var fullBleed: CGFloat { scaled(560, fraction: 0.664, minimum: 420, screenHeight: screenHeight) }
+}
+
 /// Paged carousel. Built on a paging `ScrollView` with `containerRelativeFrame` instead of `TabView(.page)`: every page is
 /// given exactly the width of the carousel, so a wide child can never make a page wider than the screen (and the
 /// page-style TabView, inside a lazy scrolling stack, could start offset from its container).
@@ -15,11 +29,15 @@ struct HeroCarousel: View {
     var onPage: ((MetaItem) -> Void)? = nil
     @EnvironmentObject private var settings: SettingsStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
     @State private var position: Int? = 0
 
     private var index: Int { min(max(position ?? 0, 0), max(items.count - 1, 0)) }
-    private var pageHeight: CGFloat { style == .fullBleed ? HeroFullBleedCard.height(reachesTop: reachesTop) : 430 }
-    private var turnsPages: Bool { settings.animationsEnabled && settings.value.appearance.heroAutoScroll && !reduceMotion }
+    private var pageHeight: CGFloat { style == .fullBleed ? HeroFullBleedCard.height(reachesTop: reachesTop) : HeroLayout.cardPage }
+    /// Never turns by itself under Reduce Motion or while VoiceOver reads the page.
+    private var turnsPages: Bool {
+        settings.animationsEnabled && settings.value.appearance.heroAutoScroll && !reduceMotion && !voiceOver
+    }
     private var interval: Double { min(20, max(3, settings.value.appearance.heroInterval)) }
 
     var body: some View {
@@ -131,7 +149,7 @@ struct HeroCard: View {
             ZStack(alignment: .bottomLeading) {
                 RemoteImage(urlString: meta.background ?? meta.poster, width: 900, placeholderSeed: meta.name)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 410)
+                    .frame(height: HeroLayout.cardPage - 20)
                     .clipped()
                 LinearGradient(colors: [.clear, .black.opacity(0.55), .black.opacity(0.92)], startPoint: .top, endPoint: .bottom)
                 HeroTextBlock(meta: meta)
@@ -157,7 +175,7 @@ struct HeroFullBleedCard: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var library: LibraryModel
 
-    static let height: CGFloat = 560
+    static var height: CGFloat { HeroLayout.fullBleed }
     static func height(reachesTop: Bool) -> CGFloat { return reachesTop ? height + 60 : height }
     /// The bottom stretch where the picture fades out; the text stays above it.
     static let fadeHeight: CGFloat = 96
