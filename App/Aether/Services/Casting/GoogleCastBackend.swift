@@ -107,7 +107,7 @@ final class GoogleCastBackend: NSObject, CastBackend {
         builder.metadata = metadata
         // Subtitles served by the phone: the receiver lists them with the tracks of the video and switches them while it plays.
         if !media.textTracks.isEmpty {
-            builder.mediaTracks = media.textTracks.map { track in
+            builder.mediaTracks = media.textTracks.compactMap { track in
                 GCKMediaTrack(identifier: track.id, contentIdentifier: track.url.absoluteString, contentType: track.contentType,
                               type: .text, textSubtype: .subtitles, name: track.name, languageCode: track.language, customData: nil)
             }

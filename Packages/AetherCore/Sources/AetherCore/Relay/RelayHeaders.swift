@@ -107,7 +107,8 @@ public enum RelayHeaderPolicy {
             headers.append(RelayHeaderField("contentFeatures.dlna.org", "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000"))
         }
         // Samsung televisions read the subtitle of a DLNA video from this header (a relay address on the LAN, never a secret).
-        if let caption = captionURL, caption.hasPrefix("http://"), !caption.contains("\r"), !caption.contains("\n") {
+        // Printable ASCII only (byte by byte: "\r\n" is one Character in Swift, so a character check would miss it).
+        if let caption = captionURL, caption.hasPrefix("http://"), caption.utf8.allSatisfy({ $0 > 0x20 && $0 < 0x7F }) {
             headers.append(RelayHeaderField("CaptionInfo.sec", caption))
         }
         return RelayResponseHead(status: status, headers: headers)
