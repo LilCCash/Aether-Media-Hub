@@ -170,7 +170,8 @@ final class CastCoordinator: ObservableObject {
                 let lease = try await relay.publish(RelayPublishRequest(upstream: upstream, contentType: request.contentType,
                                                                         fileExtension: request.fileExtension, owner: .cast(device.target),
                                                                         receiverAddress: device.address, remux: audio,
-                                                                        remuxSubtitleLanguage: request.subtitleLanguage,\n                                                                        remuxSubtitleTitle: request.subtitleTitle))
+                                                                        remuxSubtitleLanguage: request.subtitleLanguage,
+                                                                        remuxSubtitleTitle: request.subtitleTitle))
                 published = lease
                 url = lease.url
             } catch {
