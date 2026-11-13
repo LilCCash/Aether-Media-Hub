@@ -28,3 +28,14 @@
 
 ## Note dell'audit automatico (informative, non bloccanti)
 Contrasto insufficiente su alcune etichette sopra l'artwork («Dettagli», sottotitoli delle righe), testo tagliato e Dynamic Type parziale nei riepiloghi di Universe («17 film · 1 serie»). Da correggere in una fase di redesign con verifica visiva.
+
+## Seconda tornata (commit 5efb6c2 → 29667e0)
+| Verifica | Esito |
+|---|---|
+| Core su Linux (1067 test) e macOS | superati |
+| App: build + unit test | superati (run 43486665572) |
+| UI test Layout, Browse, HomeCustomization, SettingsAndAccessibility, SearchFilter, **Metadata** | **46/46 superati** (run 43486413144); i 5 Metadata preesistenti ora passano |
+| `FFmpegRemuxEngineTests` (riproduzione di un file convertito) | instabile: fallito una volta nella run 43486413144 («No response for media file in 4 s»), superato nelle run 43482118639 e 43486665572 sullo stesso codice |
+| UI test TorBox | non rieseguiti: 5 fallimenti preesistenti (PRE-02), identici sul branch di base |
+| Build IPA | superata (run 43493439460) |
+| Audit accessibilità (informativo) | restano contrasto/Dynamic Type parziale sui testi dell'hero e nomi lunghi degli universi tagliati a schermo grande |
