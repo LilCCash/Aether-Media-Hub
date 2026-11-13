@@ -90,6 +90,15 @@ extension PlayerViewModel {
         return selected.isEmbedded ? 0 : 1
     }
 
+    /// Remembers the audio choice for the next cast without changing/restarting the paused local player.
+    func selectAudioForCasting(_ track: EngineTrack) {
+        preferredAudioApplied = true
+        trackMemory.rememberAudio(language: TrackPreferences.audioLanguageToRemember(for: track), metaID: meta.id)
+        if conversionPlan != nil, let index = Int(track.id) {
+            conversionAudio = .track(index: index)
+        }
+    }
+
     /// Everything needed to start a remote session for the video that plays now.
     struct CastPreparation: CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
         var request: CastRequest
