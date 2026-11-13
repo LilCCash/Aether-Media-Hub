@@ -94,6 +94,11 @@ extension PlayerViewModel {
     func selectAudioForCasting(_ track: EngineTrack) {
         preferredAudioApplied = true
         trackMemory.rememberAudio(language: TrackPreferences.audioLanguageToRemember(for: track), metaID: meta.id)
+        audioTracks = audioTracks.map { current in
+            var updated = current
+            updated.isSelected = current.id == track.id
+            return updated
+        }
         if conversionPlan != nil, let index = Int(track.id) {
             conversionAudio = .track(index: index)
         }
