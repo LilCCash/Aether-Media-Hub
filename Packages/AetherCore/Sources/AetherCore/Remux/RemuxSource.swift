@@ -108,7 +108,8 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
                                         uri: Leaf.subtitlePlaylist(track.index).key,
                                         isDefault: (defaultSubtitleLanguage.map { language in
                                             track.language?.caseInsensitiveCompare(language) == .orderedSame ||
-                                            RemuxSource.bcp47(track.language ?? "") == RemuxSource.bcp47(language)
+                                            (RemuxSource.bcp47(track.language ?? "") != nil &&
+                                             RemuxSource.bcp47(track.language ?? "") == RemuxSource.bcp47(language))
                                         } ?? false) || (defaultSubtitleTitle.map { title in
                                             track.title?.caseInsensitiveCompare(title) == .orderedSame
                                         } ?? false),
