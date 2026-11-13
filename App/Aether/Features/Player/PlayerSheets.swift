@@ -356,7 +356,7 @@ struct PlayerCastSheet: View {
                        (session.device.target == .dlna || settings.value.casting.convertMatroskaForGoogleCast),
                        model.audioTracks.count > 1 || model.subtitleOptions.contains(where: { $0.isEmbedded }) {
                         Section(header: Text("Tracce sul televisore"),
-                                footer: Text("Disponibile per MKV convertiti da Aether. I sottotitoli testuali incorporati possono essere preselezionati; PGS/VobSub e sottotitoli esterni non vengono ancora trasferiti. La modifica riavvia il flusso dal punto corrente.")) {
+                                footer: Text("Disponibile per MKV convertiti da Aether. I sottotitoli testuali incorporati possono essere preselezionati; PGS/VobSub e sottotitoli esterni non vengono ancora inviati a Google Cast o DLNA. La modifica riavvia il flusso dal punto corrente.")) {
                             if model.audioTracks.count > 1 {
                                 Picker("Audio", selection: Binding(
                                     get: { model.audioTracks.first(where: { $0.isSelected })?.id ?? "" },
