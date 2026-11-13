@@ -145,7 +145,7 @@ final class RelayService: ObservableObject, RelayPublishing {
         let identity = SessionIdentity()
         let prepared: (source: RelaySource, sessionLeaf: String?, urlLeaf: String, plan: RemuxPlan?)
         if let audio = request.remux {
-            prepared = try await prepareConverted(request, audio: audio, subtitleLanguage: request.remuxSubtitleLanguage, guardian: guardian)
+            prepared = try await prepareConverted(request, audio: audio, subtitleLanguage: request.remuxSubtitleLanguage, subtitleTitle: request.remuxSubtitleTitle, guardian: guardian)
         } else {
             prepared = try await prepareFile(request, guardian: guardian, identity: identity)
         }
@@ -228,7 +228,7 @@ final class RelayService: ObservableObject, RelayPublishing {
             let resource = try await fetcher.probe()
             guard let total = resource.length, total > 0 else { throw RelayError.upstreamNoRanges }
             guard let engine = remuxMaker(fetcher, total, audio) else { throw LocalRemuxError.unavailable }
-            let made = RemuxSource(engine: engine, defaultSubtitleLanguage: subtitleLanguage)
+            let made = RemuxSource(engine: engine, defaultSubtitleLanguage: subtitleLanguage, defaultSubtitleTitle: subtitleTitle)
             source = made
             let prepared = try await made.prepare()
             return (made, nil, RemuxSource.Leaf.masterName, prepared.plan)
