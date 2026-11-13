@@ -444,7 +444,8 @@ public final class RelayServer: @unchecked Sendable {
             }
             let responseHead = RelayHeaderPolicy.receiverHead(
                 status: status, contentType: resource.contentType, contentLength: length, contentRange: contentRange,
-                acceptsRanges: resource.acceptsRanges && resource.length != nil, wantsDLNAFeatures: head.wantsDLNAFeatures, date: date)
+                acceptsRanges: resource.acceptsRanges && resource.length != nil, wantsDLNAFeatures: head.wantsDLNAFeatures, date: date,
+                captionURL: resource.captionURL)
 
             if head.method == .head {
                 connection.respondAndClose(responseHead.serialized())

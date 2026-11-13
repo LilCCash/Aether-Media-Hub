@@ -26,6 +26,10 @@ struct RelayPublishRequest {
     /// Embedded text subtitle to mark as the preferred HLS rendition.
     var remuxSubtitleLanguage: String? = nil
     var remuxSubtitleTitle: String? = nil
+    /// Subtitle files served in the same session as the video (WebVTT for Google Cast, SubRip for DLNA).
+    var sidecars: [RelaySidecarFile] = []
+    /// The sidecar a DLNA television should show with the video (announced with `CaptionInfo.sec`).
+    var captionLeaf: String? = nil
 }
 
 /// A published session. Holds the keyless address handed to the receiver; it never prints.
@@ -34,6 +38,8 @@ struct RelayLease: Equatable, CustomStringConvertible, CustomDebugStringConverti
     let url: URL
     /// What the conversion copies, when the lease serves a converted file.
     var remuxPlan: RemuxPlan? = nil
+    /// The addresses of the sidecar files of the session, by leaf.
+    var sidecarURLs: [String: URL] = [:]
 
     static func == (lhs: RelayLease, rhs: RelayLease) -> Bool { return lhs.id == rhs.id }
 
@@ -50,6 +56,14 @@ protocol RelayPublishing: AnyObject {
     func requestsServed(_ lease: RelayLease) -> Int
     /// The session ended by itself (the link expired, the network changed, the app was suspended for too long).
     var onLeaseLost: ((RelayLease, RelayEndReason) -> Void)? { get set }
+    /// Serves only subtitle files (the video goes to the receiver directly).
+    func publishSidecars(_ files: [RelaySidecarFile], owner: RelayOwner, receiverAddress: String?) async throws -> RelayLease
+}
+
+extension RelayPublishing {
+    func publishSidecars(_ files: [RelaySidecarFile], owner: RelayOwner, receiverAddress: String?) async throws -> RelayLease {
+        throw CastError.relayUnavailable("Il ponte non può servire i sottotitoli.")
+    }
 }
 
 /// Runs the relay for the app: starts the listener when something is published, stops it a little after the last session ended, and
@@ -150,7 +164,10 @@ final class RelayService: ObservableObject, RelayPublishing {
         } else {
             prepared = try await prepareFile(request, guardian: guardian, identity: identity)
         }
-        let source = prepared.source
+        // Subtitle files ride in the same session: the wrapper serves them and hands every other name to the video source, which still
+        // refuses names it does not know, so the session no longer needs to be tied to one name.
+        let sidecarSource: SidecarRelaySource? = request.sidecars.isEmpty ? nil : SidecarRelaySource(base: prepared.source, files: request.sidecars)
+        let source: RelaySource = sidecarSource ?? prepared.source
         let leaf = prepared.urlLeaf
 
         do {
@@ -165,7 +182,7 @@ final class RelayService: ObservableObject, RelayPublishing {
         registry.ownAddress = interface.address
         let created: (id: RelaySessionID, token: String)
         do {
-            created = try registry.create(source: source, leaf: prepared.sessionLeaf, owner: request.owner,
+            created = try registry.create(source: source, leaf: sidecarSource == nil ? prepared.sessionLeaf : nil, owner: request.owner,
                                           peerRule: RelayService.peerRule(for: request.receiverAddress))
         } catch {
             source.close()
@@ -177,11 +194,62 @@ final class RelayService: ObservableObject, RelayPublishing {
             registry.revoke(created.id, reason: .loadFailed)
             throw CastError.relayUnavailable(RelayService.explain(.listenerFailed))
         }
-        let lease = RelayLease(id: created.id, url: url, remuxPlan: prepared.plan)
+        var sidecarURLs: [String: URL] = [:]
+        for file in request.sidecars {
+            if let address = server?.url(host: interface.address, token: created.token, leaf: file.leaf) { sidecarURLs[file.leaf] = address }
+        }
+        if let captionLeaf = request.captionLeaf, let caption = sidecarURLs[captionLeaf] {
+            sidecarSource?.setCaption(url: caption.absoluteString, forVideoLeaf: leaf)
+        }
+        let lease = RelayLease(id: created.id, url: url, remuxPlan: prepared.plan, sidecarURLs: sidecarURLs)
         if leases.isEmpty { leaseAddress = interface.address }
         leases[created.id] = lease
         leaseCount = leases.count
         emit(.sessionCreated(created.id, request.owner))
+        startWatching()
+        return lease
+    }
+
+    /// Subtitle files alone, for a receiver that reads the video straight from its source. Served to that receiver only.
+    func publishSidecars(_ files: [RelaySidecarFile], owner: RelayOwner, receiverAddress: String?) async throws -> RelayLease {
+        guard let first = files.first else { throw CastError.relayUnavailable("Nessun sottotitolo da inviare.") }
+        guard case .ready(let interface) = availability else {
+            if case .unavailable(let reason) = availability { throw CastError.relayUnavailable(RelayService.explain(reason)) }
+            throw CastError.relayUnavailable(RelayService.explain(.noLAN))
+        }
+        idleTask?.cancel()
+        idleTask = nil
+        do {
+            _ = try await startServer(for: interface)
+        } catch {
+            listenerFailed = true
+            scheduleIdleStopIfNeeded()
+            throw CastError.relayUnavailable(RelayService.explain(.listenerFailed))
+        }
+        registry.ownAddress = interface.address
+        let created: (id: RelaySessionID, token: String)
+        do {
+            created = try registry.create(source: SidecarRelaySource(base: nil, files: files), leaf: nil, owner: owner,
+                                          peerRule: RelayService.peerRule(for: receiverAddress))
+        } catch {
+            scheduleIdleStopIfNeeded()
+            throw CastError.relayUnavailable("Il ponte sta già servendo altre trasmissioni: fermane una e riprova.")
+        }
+        // The receiver asks for a subtitle only when it is turned on, maybe never: the session must not end for that.
+        registry.markInUse(created.id)
+        var sidecarURLs: [String: URL] = [:]
+        for file in files {
+            if let address = server?.url(host: interface.address, token: created.token, leaf: file.leaf) { sidecarURLs[file.leaf] = address }
+        }
+        guard let url = sidecarURLs[first.leaf] else {
+            registry.revoke(created.id, reason: .loadFailed)
+            throw CastError.relayUnavailable(RelayService.explain(.listenerFailed))
+        }
+        let lease = RelayLease(id: created.id, url: url, remuxPlan: nil, sidecarURLs: sidecarURLs)
+        if leases.isEmpty { leaseAddress = interface.address }
+        leases[created.id] = lease
+        leaseCount = leases.count
+        emit(.sessionCreated(created.id, owner))
         startWatching()
         return lease
     }

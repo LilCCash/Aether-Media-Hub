@@ -184,6 +184,14 @@ public final class RelaySessionRegistry: @unchecked Sendable, CustomStringConver
         return nil
     }
 
+    /// Keeps a session from ending as «never used»: for files the receiver may ask for late or not at all (subtitles that are off).
+    public func markInUse(_ id: RelaySessionID) {
+        locked {
+            guard let index = sessions.firstIndex(where: { $0.id == id }) else { return }
+            if sessions[index].firstRequest == nil { sessions[index].firstRequest = clock() }
+        }
+    }
+
     /// A request for the session was granted and is being served.
     public func noteRequest(_ id: RelaySessionID) {
         locked {

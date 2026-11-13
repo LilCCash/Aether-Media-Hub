@@ -90,6 +90,75 @@ extension PlayerViewModel {
         return selected.isEmbedded ? 0 : 1
     }
 
+    /// The subtitles to send to a receiver next to the video, already read into cues: the one on now, then the best of each language
+    /// the viewer wants (two per language), at most eight for Google Cast; only the one on for DLNA (a DLNA television shows one).
+    /// Embedded tracks are not here: they travel inside the video. A file that cannot be read is left out.
+    func castSidecars(for target: CastTarget) async -> (sidecars: [CastSidecarSubtitle], active: Int?) {
+        let external = subtitleOptions.filter { !$0.isEmbedded }
+        var chosen: [SubtitleOption] = []
+        if let selected = selectedOption, !selected.isEmbedded { chosen.append(selected) }
+        if target == .googleCast {
+            for language in subtitleWishes().ranking {
+                let matching = external.filter { option in
+                    guard let code = option.languageCode ?? option.language.map({ LanguageCodes.normalise($0) }) else { return false }
+                    return LanguageCodes.baseLanguage(code) == LanguageCodes.baseLanguage(LanguageCodes.normalise(language))
+                }
+                for option in matching.prefix(2) where !chosen.contains(where: { $0.id == option.id }) { chosen.append(option) }
+                if chosen.count >= 8 { break }
+            }
+        }
+        let picked = Array(chosen.prefix(target == .googleCast ? 8 : 1))
+        let http = env.http
+        // What is already read is taken from the cache; the rest is fetched in parallel.
+        var loaded: [(index: Int, option: SubtitleOption, cues: [SubtitleCue])] = []
+        var jobs: [(index: Int, option: SubtitleOption)] = []
+        for (index, option) in picked.enumerated() {
+            if let cached = cueCache[option.id] { loaded.append((index, option, cached.cues)) } else { jobs.append((index, option)) }
+        }
+        let fetched: [(Int, [SubtitleCue])] = await withTaskGroup(of: (Int, [SubtitleCue]?).self) { group in
+            for (index, option) in jobs {
+                let language = option.language
+                let encoding = option.encodingHint
+                switch option.kind {
+                case .embedded:
+                    continue
+                case .addon(let subtitle):
+                    guard let url = URL.lenient(subtitle.url) else { continue }
+                    group.addTask {
+                        let cues = try? await SubtitleFileLoader(http: http, timeout: 10).load(url: url, languageHint: language, encodingHint: encoding)
+                        return (index, cues)
+                    }
+                case .local(let url):
+                    group.addTask {
+                        let scoped = url.startAccessingSecurityScopedResource()
+                        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                        guard let data = try? Data(contentsOf: url) else { return (index, nil) }
+                        return (index, try? await SubtitleFileLoader.parse(data, languageHint: language, encodingHint: encoding))
+                    }
+                }
+            }
+            var results: [(Int, [SubtitleCue])] = []
+            for await (index, cues) in group {
+                if let cues = cues, !cues.isEmpty { results.append((index, cues)) }
+            }
+            return results
+        }
+        for (index, cues) in fetched { loaded.append((index, picked[index], cues)) }
+        loaded.sort { $0.index < $1.index }
+        var sidecars: [CastSidecarSubtitle] = []
+        var active: Int?
+        for (position, item) in loaded.enumerated() {
+            // Ids far from the receiver's own (it numbers the tracks of the video from 1).
+            let id = 1000 + position
+            let language = item.option.languageCode ?? item.option.language
+            let name = [item.option.title, item.option.detail].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+            let code = language.map { LanguageCodes.normalise($0) }.flatMap { $0 == "und" || $0.isEmpty ? nil : $0 }
+            sidecars.append(CastSidecarSubtitle(trackID: id, name: String(name.prefix(80)), language: code, cues: item.cues))
+            if item.option.id == selectedSubtitleID { active = id }
+        }
+        return (sidecars, active)
+    }
+
     /// Remembers the audio choice for the next cast without changing/restarting the paused local player.
     func selectAudioForCasting(_ track: EngineTrack) {
         preferredAudioApplied = true

@@ -29,6 +29,10 @@ final class FakeCastBackend: CastBackend {
     func pause() async { commands.append("pause") }
     func seek(to seconds: Double) async { commands.append("seek:\(Int(seconds))") }
     func endSession() async { endedSessions += 1 }
+    var liveTracks = false
+    var activeTrackCalls: [[Int]] = []
+    var supportsLiveTrackSwitching: Bool { return liveTracks }
+    func setActiveTracks(_ ids: [Int]) async { activeTrackCalls.append(ids) }
 }
 
 /// Scenario 17 (network errors while casting) at the coordinator level, with fake receivers.

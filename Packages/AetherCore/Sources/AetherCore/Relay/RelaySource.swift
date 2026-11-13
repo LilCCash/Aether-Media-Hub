@@ -9,11 +9,14 @@ public struct RelayResource: Equatable, Sendable {
     /// Total size in bytes, or nil when it is not known up front (the body then ends when the connection closes and Range is ignored).
     public var length: Int64?
     public var acceptsRanges: Bool
+    /// The address of a subtitle file to announce with the video (`CaptionInfo.sec`, for DLNA televisions that ask for it).
+    public var captionURL: String?
 
-    public init(contentType: String, length: Int64?, acceptsRanges: Bool) {
+    public init(contentType: String, length: Int64?, acceptsRanges: Bool, captionURL: String? = nil) {
         self.contentType = contentType
         self.length = length
         self.acceptsRanges = acceptsRanges
+        self.captionURL = captionURL
     }
 }
 

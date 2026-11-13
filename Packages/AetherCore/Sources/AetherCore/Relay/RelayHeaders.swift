@@ -94,7 +94,7 @@ public enum RelayHeaderPolicy {
     /// The head of a 200 or 206 answer. `contentRange` is nil for a 200. An unknown `contentLength` omits the header: the body then ends
     /// when the connection closes.
     public static func receiverHead(status: Int, contentType: String, contentLength: Int64?, contentRange: String?, acceptsRanges: Bool,
-                                    wantsDLNAFeatures: Bool, date: Date) -> RelayResponseHead {
+                                    wantsDLNAFeatures: Bool, date: Date, captionURL: String? = nil) -> RelayResponseHead {
         var headers: [RelayHeaderField] = [RelayHeaderField("Content-Type", contentType)]
         if let length = contentLength { headers.append(RelayHeaderField("Content-Length", String(length))) }
         if let contentRange = contentRange { headers.append(RelayHeaderField("Content-Range", contentRange)) }
@@ -105,6 +105,10 @@ public enum RelayHeaderPolicy {
         headers.append(RelayHeaderField("transferMode.dlna.org", "Streaming"))
         if wantsDLNAFeatures {
             headers.append(RelayHeaderField("contentFeatures.dlna.org", "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000"))
+        }
+        // Samsung televisions read the subtitle of a DLNA video from this header (a relay address on the LAN, never a secret).
+        if let caption = captionURL, caption.hasPrefix("http://"), !caption.contains("\r"), !caption.contains("\n") {
+            headers.append(RelayHeaderField("CaptionInfo.sec", caption))
         }
         return RelayResponseHead(status: status, headers: headers)
     }

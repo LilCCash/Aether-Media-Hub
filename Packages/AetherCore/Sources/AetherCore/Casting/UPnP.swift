@@ -235,9 +235,11 @@ public enum DIDLLite {
         }
     }
 
-    public static func metadata(title: String, url: URL, mimeType: String, artworkURL: String? = nil) -> String {
+    /// `subtitleURL` (a SubRip file) is announced the two ways televisions read it: Samsung's `sec:CaptionInfoEx` and a second `res`.
+    public static func metadata(title: String, url: URL, mimeType: String, artworkURL: String? = nil, subtitleURL: URL? = nil) -> String {
         var xml = "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" "
         xml += "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" "
+        if subtitleURL != nil { xml += "xmlns:sec=\"http://www.sec.co.kr/\" " }
         xml += "xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">"
         xml += "<item id=\"0\" parentID=\"-1\" restricted=\"1\">"
         xml += "<dc:title>\(SOAP.escape(title))</dc:title>"
@@ -246,6 +248,12 @@ public enum DIDLLite {
             xml += "<upnp:albumArtURI>\(SOAP.escape(artwork))</upnp:albumArtURI>"
         }
         xml += "<res protocolInfo=\"http-get:*:\(SOAP.escape(mimeType)):*\">\(SOAP.escape(url.absoluteString))</res>"
+        if let subtitle = subtitleURL {
+            let address = SOAP.escape(subtitle.absoluteString)
+            xml += "<res protocolInfo=\"http-get:*:text/srt:*\">\(address)</res>"
+            xml += "<sec:CaptionInfoEx sec:type=\"srt\">\(address)</sec:CaptionInfoEx>"
+            xml += "<sec:CaptionInfo sec:type=\"srt\">\(address)</sec:CaptionInfo>"
+        }
         xml += "</item></DIDL-Lite>"
         return xml
     }
@@ -358,10 +366,10 @@ public final class UPnPClient: Sendable {
         return parsed.values
     }
 
-    public func load(device: UPnPDevice, url: URL, title: String, artworkURL: String? = nil) async throws {
+    public func load(device: UPnPDevice, url: URL, title: String, artworkURL: String? = nil, subtitleURL: URL? = nil) async throws {
         guard let service = device.avTransport else { throw UPnPError.notAMediaRenderer }
         let mime = DIDLLite.mimeType(forExtension: url.pathExtension)
-        let metadata = DIDLLite.metadata(title: title, url: url, mimeType: mime, artworkURL: artworkURL)
+        let metadata = DIDLLite.metadata(title: title, url: url, mimeType: mime, artworkURL: artworkURL, subtitleURL: subtitleURL)
         try await call(service, action: "SetAVTransportURI", arguments: [
             ("InstanceID", "0"), ("CurrentURI", url.absoluteString), ("CurrentURIMetaData", metadata)
         ])

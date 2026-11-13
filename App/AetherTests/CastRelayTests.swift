@@ -18,7 +18,19 @@ final class FakeRelay: RelayPublishing {
         if let error = publishError { throw error }
         published.append(request)
         counter += 1
-        return RelayLease(id: RelaySessionID(label: "lease\(counter)"), url: URL(string: "http://192.168.1.50:50123/r/\(FakeRelay.token)/video.\(request.fileExtension)")!)
+        var urls: [String: URL] = [:]
+        for file in request.sidecars { urls[file.leaf] = URL(string: "http://192.168.1.50:50123/r/\(FakeRelay.token)/\(file.leaf)")! }
+        return RelayLease(id: RelaySessionID(label: "lease\(counter)"), url: URL(string: "http://192.168.1.50:50123/r/\(FakeRelay.token)/video.\(request.fileExtension)")!,
+                          sidecarURLs: urls)
+    }
+
+    private(set) var sidecarOnly: [[RelaySidecarFile]] = []
+    func publishSidecars(_ files: [RelaySidecarFile], owner: RelayOwner, receiverAddress: String?) async throws -> RelayLease {
+        sidecarOnly.append(files)
+        counter += 1
+        var urls: [String: URL] = [:]
+        for file in files { urls[file.leaf] = URL(string: "http://192.168.1.50:50123/r/\(FakeRelay.token)/\(file.leaf)")! }
+        return RelayLease(id: RelaySessionID(label: "subs\(counter)"), url: urls[files[0].leaf]!, sidecarURLs: urls)
     }
 
     func release(_ lease: RelayLease, reason: RelayEndReason) {
@@ -78,6 +90,76 @@ final class CastRelayCoordinatorTests: XCTestCase {
         XCTAssertEqual(published.fileExtension, "mkv")
         XCTAssertEqual(published.contentType, "video/x-matroska")
         XCTAssertTrue(relay.released.isEmpty)
+    }
+
+    private func sidecars() -> [CastSidecarSubtitle] {
+        return [
+            CastSidecarSubtitle(trackID: 1000, name: "Italiano · OpenSubtitles", language: "it", cues: [SubtitleCue(start: 1, end: 2, text: "Ciao")]),
+            CastSidecarSubtitle(trackID: 1001, name: "Inglese", language: "en", cues: [SubtitleCue(start: 1, end: 2, text: "Hello")]),
+        ]
+    }
+
+    func testGoogleCastGetsEverySubtitleAsWebVTTInTheSameRelaySession() async throws {
+        var withSubs = relayRequest
+        withSubs.sidecars = sidecars()
+        withSubs.activeSidecarID = 1001
+        withSubs.subtitleOffset = 0.5
+        try await coordinator.cast(withSubs, to: device, localPosition: 12)
+        let published = try XCTUnwrap(relay.published.first)
+        XCTAssertEqual(published.sidecars.map { $0.leaf }, ["sub-1000.vtt", "sub-1001.vtt"])
+        XCTAssertTrue(String(decoding: published.sidecars[1].data, as: UTF8.self).contains("00:00:01.500 --> 00:00:02.500\nHello"))
+        XCTAssertNil(published.captionLeaf)
+        let loaded = try XCTUnwrap(cast.loaded.first)
+        XCTAssertEqual(loaded.textTracks.map { $0.id }, [1000, 1001])
+        XCTAssertEqual(loaded.textTracks[0].url.lastPathComponent, "sub-1000.vtt")
+        XCTAssertEqual(loaded.activeTextTrackID, 1001)
+        XCTAssertNil(loaded.dlnaSubtitleURL)
+    }
+
+    func testDLNAGetsOnlyTheChosenSubtitleAsSubRip() async throws {
+        let tv = CastDevice(id: "tv-2", name: "Camera", target: .dlna, detail: nil, address: "192.168.1.61")
+        var withSubs = relayRequest
+        withSubs.sidecars = sidecars()
+        withSubs.activeSidecarID = 1000
+        try await coordinator.cast(withSubs, to: tv, localPosition: 0)
+        let published = try XCTUnwrap(relay.published.first)
+        XCTAssertEqual(published.sidecars.map { $0.leaf }, ["sub-1000.srt"])
+        XCTAssertEqual(published.captionLeaf, "sub-1000.srt")
+        let loaded = try XCTUnwrap(dlna.loaded.first)
+        XCTAssertEqual(loaded.dlnaSubtitleURL?.lastPathComponent, "sub-1000.srt")
+        XCTAssertTrue(loaded.textTracks.isEmpty)
+    }
+
+    func testADirectVideoGetsItsSubtitlesFromASubtitleOnlySession() async throws {
+        var direct = relayRequest
+        direct.source = .direct(URL(string: "https://cdn.example.com/film.mp4")!)
+        direct.sidecars = sidecars()
+        try await coordinator.cast(direct, to: device, localPosition: 0)
+        XCTAssertTrue(relay.published.isEmpty)
+        XCTAssertEqual(relay.sidecarOnly.first?.count, 2)
+        let loaded = try XCTUnwrap(cast.loaded.first)
+        XCTAssertEqual(loaded.url.host, "cdn.example.com")
+        XCTAssertEqual(loaded.textTracks.count, 2)
+        XCTAssertNil(loaded.activeTextTrackID)
+        // Stopping releases the subtitle session as well.
+        coordinator.stop()
+        XCTAssertEqual(relay.released.count, 1)
+    }
+
+    func testTracksSwitchLiveOnAReceiverThatReportsThem() async throws {
+        cast.liveTracks = true
+        try await coordinator.cast(relayRequest, to: device, localPosition: 0)
+        XCTAssertFalse(coordinator.canSwitchTracksLive)
+        let tracks = CastTrackList.make([CastTrack(id: 1, kind: .audio, name: "Italiano"), CastTrack(id: 2, kind: .audio, name: "Inglese"),
+                                         CastTrack(id: 1000, kind: .text, name: "Italiano")], active: [1])
+        cast.onStatus?(CastRemoteStatus(state: .playing, position: 30, duration: 100, tracks: tracks))
+        XCTAssertTrue(coordinator.canSwitchTracksLive)
+        coordinator.setTracks(audio: 2, text: 1000)
+        XCTAssertEqual(coordinator.session?.status.tracks?.activeIDs, [2, 1000])
+        coordinator.setTracks(audio: nil, text: nil)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(cast.activeTrackCalls, [[2, 1000], [2]])
+        XCTAssertTrue(cast.loaded.count == 1, "switching must not load the video again")
     }
 
     func testAConvertedFileIsPublishedWithItsAudioChoiceAndSentAsHLS() async throws {

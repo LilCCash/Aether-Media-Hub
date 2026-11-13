@@ -140,7 +140,8 @@ final class DLNABackend: CastBackend {
         pollTask?.cancel()
         onStatus?(CastRemoteStatus(state: .connecting, position: media.startPosition, duration: nil))
         do {
-            try await client.load(device: renderer, url: media.url, title: media.title, artworkURL: media.artworkURL?.absoluteString)
+            try await client.load(device: renderer, url: media.url, title: media.title, artworkURL: media.artworkURL?.absoluteString,
+                                  subtitleURL: media.dlnaSubtitleURL)
             try await client.play(device: renderer)
         } catch let error as UPnPError {
             throw CastError.rejected(error.message)

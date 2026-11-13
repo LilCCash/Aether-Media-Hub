@@ -350,46 +350,8 @@ struct PlayerCastSheet: View {
             List {
                 if casting.session != nil {
                     Section(header: Text("Sessione attiva")) { CastSessionControls() }
-                    if let session = casting.session,
-                       model.currentStreamInfo?.container?.lowercased() == "mkv",
-                       RemuxEngineFactory.isAvailable,
-                       (session.device.target == .dlna || settings.value.casting.convertMatroskaForGoogleCast),
-                       model.audioTracks.count > 1 || model.subtitleOptions.contains(where: { $0.isEmbedded }) {
-                        Section(header: Text("Tracce sul televisore"),
-                                footer: Text("Disponibile per MKV convertiti da Aether. I sottotitoli testuali incorporati possono essere preselezionati; PGS/VobSub e sottotitoli esterni non vengono ancora inviati a Google Cast o DLNA. La modifica riavvia il flusso dal punto corrente.")) {
-                            if model.audioTracks.count > 1 {
-                                Picker("Audio", selection: Binding(
-                                    get: { model.audioTracks.first(where: { $0.isSelected })?.id ?? "" },
-                                    set: { id in
-                                        if let track = model.audioTracks.first(where: { $0.id == id }) {
-                                            model.selectAudioForCasting(track)
-                                            onTrackChange()
-                                        }
-                                    })) {
-                                    ForEach(model.audioTracks) { track in
-                                        Text(track.title).tag(track.id)
-                                    }
-                                }
-                            }
-                            let embedded = model.subtitleOptions.filter { $0.isEmbedded }
-                            if !embedded.isEmpty {
-                                Picker("Sottotitoli", selection: Binding(
-                                    get: { embedded.contains(where: { $0.id == model.selectedSubtitleID }) ? model.selectedSubtitleID : nil },
-                                    set: { id in
-                                        if let id = id, let option = embedded.first(where: { $0.id == id }) {
-                                            model.selectSubtitle(option)
-                                        } else {
-                                            model.disableSubtitles()
-                                        }
-                                        onTrackChange()
-                                    })) {
-                                    Text("Disattivati").tag(String?.none)
-                                    ForEach(embedded) { option in
-                                        Text(option.title).tag(String?.some(option.id))
-                                    }
-                                }
-                            }
-                        }
+                    Section(header: Text("Audio e sottotitoli sul televisore")) {
+                        CastTrackControls(model: model, onRecast: onTrackChange)
                     }
                 }
                 Section(header: Text("AirPlay"), footer: Text(airPlayNote ?? "Per AirPlay il video passa dal sistema: scegli il dispositivo dal pulsante.")) {

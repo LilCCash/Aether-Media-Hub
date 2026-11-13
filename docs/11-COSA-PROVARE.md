@@ -196,3 +196,12 @@ In *Libreria › Download* controlla l'avanzamento (percentuale e barra; prova a
 2. Cosa è successo davvero, con **testo esatto** dei messaggi o uno screenshot.
 3. Modello di iPhone, versione di iOS, **installazione diretta o LiveContainer**, e per Cast/AirPlay il modello e l'anno del televisore.
 4. Il **registro** (*Avanzate › Diagnostica › Mostra il registro*), copiato **prima di chiudere l'app**.
+
+## Audio e sottotitoli durante il cast (Google Cast e DLNA)
+
+- Google Cast: avvia un film con più tracce audio o con sottotitoli degli addon/OpenSubtitles, trasmetti, poi nella schermata
+  «Riproduzione su…» (o nel foglio Cast) apri **Audio** e **Sottotitoli**: il cambio deve essere immediato, senza ricaricare il video.
+- I sottotitoli degli addon partono già attivi se lo erano sul telefono; il ritardo dei sottotitoli impostato nel player vale anche sul TV.
+- DLNA: scegli un sottotitolo dal menu; il video riparte dallo stesso punto con il sottotitolo (i TV Samsung/LG lo leggono da
+  `CaptionInfo.sec`/DIDL; altri renderer possono ignorarlo).
+- MKV convertiti dal telefono: l'audio si cambia dal menu Audio (il flusso riparte dal punto corrente).

@@ -105,10 +105,19 @@ final class GoogleCastBackend: NSObject, CastBackend {
         if let subtitle = media.subtitle { metadata.setString(subtitle, forKey: kGCKMetadataKeySubtitle) }
         if let artwork = media.artworkURL { metadata.addImage(GCKImage(url: artwork, width: 480, height: 720)) }
         builder.metadata = metadata
+        // Subtitles served by the phone: the receiver lists them with the tracks of the video and switches them while it plays.
+        if !media.textTracks.isEmpty {
+            builder.mediaTracks = media.textTracks.map { track in
+                GCKMediaTrack(identifier: track.id, contentIdentifier: track.url.absoluteString, contentType: track.contentType,
+                              type: .text, textSubtype: .subtitles, name: track.name, languageCode: track.language, customData: nil)
+            }
+            builder.textTrackStyle = GCKMediaTextTrackStyle.createDefault()
+        }
 
         let data = GCKMediaLoadRequestDataBuilder()
         data.mediaInformation = builder.build()
         data.autoplay = true
+        if let active = media.activeTextTrackID { data.activeTrackIDs = [NSNumber(value: active)] }
         if media.startPosition > 1 { data.startTime = media.startPosition }
         loadedStartedPlaying = false
         client.loadMedia(with: data.build())
@@ -187,7 +196,32 @@ final class GoogleCastBackend: NSObject, CastBackend {
             }
         default: state = .loading
         }
-        onStatus?(CastRemoteStatus(state: state, position: position, duration: duration))
+        onStatus?(CastRemoteStatus(state: state, position: position, duration: duration, tracks: GoogleCastBackend.tracks(of: status)))
+    }
+
+    /// The audio and subtitle tracks the receiver knows (those of the video and those the phone sent), and which are on.
+    private static func tracks(of status: GCKMediaStatus) -> CastTrackList? {
+        guard let reported = status.mediaInformation?.mediaTracks, !reported.isEmpty else { return nil }
+        let tracks = reported.compactMap { track -> CastTrack? in
+            let kind: CastTrack.Kind
+            switch track.type {
+            case .audio: kind = .audio
+            case .text: kind = .text
+            default: return nil
+            }
+            return CastTrack(id: track.identifier, kind: kind, name: track.name ?? "", language: track.languageCode)
+        }
+        let active = (status.activeTrackIDs ?? []).map { $0.intValue }
+        let list = CastTrackList.make(tracks, active: active)
+        return list.isEmpty ? nil : list
+    }
+
+    // MARK: Tracks
+
+    var supportsLiveTrackSwitching: Bool { return true }
+
+    func setActiveTracks(_ ids: [Int]) async {
+        client?.setActiveTrackIDs(ids.map { NSNumber(value: $0) })
     }
 
     // MARK: Transport

@@ -38,6 +38,8 @@ final class CastCoordinator: ObservableObject {
     private var stopScanTask: Task<Void, Never>?
     /// The relay session of the current remote session, if it goes through the relay.
     private var lease: RelayLease?
+    /// The relay session that serves only the subtitles, when the video goes to the receiver directly.
+    private var subtitleLease: RelayLease?
 
     /// The real backends are created lazily-cheap (no discovery until asked); tests inject fakes.
     init(settings: SettingsStore, googleCast: CastBackend? = nil, dlna: CastBackend? = nil, relay: RelayPublishing? = nil) {
@@ -157,11 +159,24 @@ final class CastCoordinator: ObservableObject {
         // A session of this receiver's protocol is replaced by the new one; its relay session goes first.
         releaseLease(reason: .replaced)
 
+        // The subtitles go as files the phone serves: WebVTT for Google Cast (all of them, switched on the TV), SubRip for DLNA (the one
+        // chosen: a DLNA television shows one subtitle and has no menu we can drive).
+        let sidecarFiles = CastCoordinator.sidecarFiles(for: request, target: device.target)
+        let captionLeaf = device.target == .dlna ? sidecarFiles.first?.leaf : nil
+
         let url: URL
         var published: RelayLease?
+        var sidecarURLs: [String: URL] = [:]
         switch request.source {
         case .direct(let direct), .directWithKey(let direct):
             url = direct
+            if !sidecarFiles.isEmpty, let relay = relay {
+                // Without the subtitles the video still plays: a failure here only leaves them out.
+                if let served = try? await relay.publishSidecars(sidecarFiles, owner: .cast(device.target), receiverAddress: device.address) {
+                    subtitleLease = served
+                    sidecarURLs = served.sidecarURLs
+                }
+            }
         case .relay(let upstream), .relayRemux(let upstream, _):
             guard let relay = relay else { throw fail(CastError.relayUnavailable(RelayService.explain(.listenerFailed))) }
             var audio: RemuxAudioChoice?
@@ -171,9 +186,11 @@ final class CastCoordinator: ObservableObject {
                                                                         fileExtension: request.fileExtension, owner: .cast(device.target),
                                                                         receiverAddress: device.address, remux: audio,
                                                                         remuxSubtitleLanguage: request.subtitleLanguage,
-                                                                        remuxSubtitleTitle: request.subtitleTitle))
+                                                                        remuxSubtitleTitle: request.subtitleTitle,
+                                                                        sidecars: sidecarFiles, captionLeaf: captionLeaf))
                 published = lease
                 url = lease.url
+                sidecarURLs = lease.sidecarURLs
             } catch {
                 throw fail(error)
             }
@@ -182,8 +199,19 @@ final class CastCoordinator: ObservableObject {
         session = Session(device: device, title: request.title,
                           status: CastRemoteStatus(state: .connecting, position: request.startPosition, duration: nil),
                           startedAt: localPosition, delivery: delivery)
+        var media = request.media(url: url)
+        if device.target == .dlna {
+            media.dlnaSubtitleURL = captionLeaf.flatMap { sidecarURLs[$0] }
+        } else {
+            media.textTracks = request.sidecars.compactMap { sidecar in
+                sidecarURLs[sidecar.leaf(srt: false)].map {
+                    CastTextTrack(id: sidecar.trackID, name: sidecar.name, language: sidecar.language, url: $0, contentType: "text/vtt")
+                }
+            }
+            media.activeTextTrackID = media.textTracks.contains { $0.id == request.activeSidecarID } ? request.activeSidecarID : nil
+        }
         do {
-            try await backend.load(request.media(url: url), on: device)
+            try await backend.load(media, on: device)
         } catch {
             // The hint about the phone's network only fits a receiver that was given the address and did not come back for the video.
             // A receiver that is gone, or a protocol that is not there, has its own message.
@@ -216,13 +244,53 @@ final class CastCoordinator: ObservableObject {
     }
 
     private func releaseLease(reason: RelayEndReason) {
+        if let subtitles = subtitleLease {
+            subtitleLease = nil
+            relay?.release(subtitles, reason: reason)
+        }
         guard let current = lease else { return }
         lease = nil
         relay?.release(current, reason: reason)
     }
 
+    /// The files of the subtitles for `target`, shifted by the viewer's delay.
+    static func sidecarFiles(for request: CastRequest, target: CastTarget) -> [RelaySidecarFile] {
+        switch target {
+        case .googleCast:
+            return request.sidecars.map { sidecar in
+                RelaySidecarFile(leaf: sidecar.leaf(srt: false), contentType: "text/vtt; charset=utf-8",
+                                 data: Data(SubtitleExport.webVTT(sidecar.cues, offset: request.subtitleOffset).utf8))
+            }
+        case .dlna:
+            guard let chosen = request.sidecars.first(where: { $0.trackID == request.activeSidecarID }) else { return [] }
+            return [RelaySidecarFile(leaf: chosen.leaf(srt: true), contentType: "text/srt; charset=utf-8",
+                                     data: Data(SubtitleExport.srt(chosen.cues, offset: request.subtitleOffset).utf8))]
+        case .airPlay:
+            return []
+        }
+    }
+
+    // MARK: Tracks
+
+    /// Whether the receiver of the session switches audio and subtitles while it plays (Google Cast with tracks it reported).
+    var canSwitchTracksLive: Bool {
+        guard let session = session, let backend = backends[session.device.target] else { return false }
+        return backend.supportsLiveTrackSwitching && !(session.status.tracks?.isEmpty ?? true)
+    }
+
+    /// Plays `audio` (nil: the one on) and shows `text` (nil: subtitles off) on the receiver, without loading the video again.
+    func setTracks(audio: Int?, text: Int?) {
+        guard var current = session, let tracks = current.status.tracks, let backend = backends[current.device.target] else { return }
+        let ids = tracks.ids(audio: audio, text: text)
+        current.status.tracks?.activeIDs = Set(ids)
+        session = current
+        Task { await backend.setActiveTracks(ids) }
+    }
+
     /// The relay ended a session by itself: the receiver has nothing to read any more.
     private func leaseLost(_ lost: RelayLease, reason: RelayEndReason) {
+        // The subtitles alone: the video goes on without them.
+        if subtitleLease == lost { subtitleLease = nil; return }
         guard lease == lost else { return }
         lease = nil
         let position = session?.status.position ?? 0

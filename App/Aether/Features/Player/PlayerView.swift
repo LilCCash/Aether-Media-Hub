@@ -1144,6 +1144,12 @@ struct PlayerView: View {
                 CastSessionControls()
                     .padding(16)
                     .aetherGlassCard(cornerRadius: Corner.sheet)
+                // Audio and subtitles on the television, right here (not only in the Cast sheet).
+                VStack(alignment: .leading, spacing: 10) {
+                    CastTrackControls(model: model, onRecast: { if let device = casting.session?.device { performCast(to: device) } }, style: .menus)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
                 Button { casting.stop() } label: { Label("Torna a guardare sul telefono", systemImage: "iphone") }
                     .buttonStyle(SecondaryActionButtonStyle())
             }
@@ -1172,7 +1178,10 @@ struct PlayerView: View {
             castNotice = CastNotice(title: title, message: message)
         case .ready(let preparation):
             let verdict = CastCompatibility.evaluate(url: preparation.evaluationURL, info: preparation.info, headers: preparation.headers,
-                                                     target: device.target, hasExternalSubtitles: model.externalSubtitleCount() > 0,
+                                                     target: device.target,
+                                                     // Google Cast and DLNA get the subtitles from the phone when the relay can run.
+                                                     hasExternalSubtitles: model.externalSubtitleCount() > 0
+                                                        && (device.target == .airPlay || !relayIsReady),
                                                      delivery: preparation.delivery, remuxed: preparation.remuxed)
             let notes = castNotes(for: preparation.delivery, remuxed: preparation.remuxed, carriesSecret: carriesSecret(preparation))
             switch verdict {
@@ -1213,6 +1222,11 @@ struct PlayerView: View {
         return notes
     }
 
+    private var relayIsReady: Bool {
+        if case .ready = relayService.availability { return true }
+        return false
+    }
+
     private func performCast(to device: CastDevice) {
         guard case .ready(var preparation) = model.castPreparation(for: device.target, sendDirectLinkToTV: settings.value.advanced.sendDirectLinkToTV,
                                                                     relay: relayService.availability) else { return }
@@ -1230,6 +1244,18 @@ struct PlayerView: View {
         castTask?.cancel()
         castTask = Task {
             defer { castInFlight = false }
+            // The subtitles of addons, OpenSubtitles and downloads go with the video, read on the phone (a few seconds at most).
+            var request = request
+            var fallback = fallback
+            if device.target != .airPlay {
+                let sent = await model.castSidecars(for: device.target)
+                request.sidecars = sent.sidecars
+                request.activeSidecarID = sent.active
+                request.subtitleOffset = model.subtitleDelay
+                fallback?.sidecars = sent.sidecars
+                fallback?.activeSidecarID = sent.active
+                fallback?.subtitleOffset = model.subtitleDelay
+            }
             do {
                 try await casting.cast(request, to: device, localPosition: position)
                 if Task.isCancelled { casting.stop(); return }

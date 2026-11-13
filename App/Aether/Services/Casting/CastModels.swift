@@ -21,11 +21,26 @@ struct CastMedia: CustomStringConvertible, CustomDebugStringConvertible, CustomR
     var contentType: String
     var isLive: Bool
     var startPosition: Double
+    /// Subtitles served by the phone next to the video (Google Cast side-loads them; switching is then instant).
+    var textTracks: [CastTextTrack] = []
+    /// The subtitle to show from the start (nil: off).
+    var activeTextTrackID: Int? = nil
+    /// For DLNA: the one SubRip file the television shows (it has no subtitle menu of its own that we can drive).
+    var dlnaSubtitleURL: URL? = nil
 
     // The address may carry the viewer's account key: it must not end up in a log line or a dump by accident.
     var description: String { return "CastMedia" }
     var debugDescription: String { return "CastMedia" }
     var customMirror: Mirror { return Mirror(self, children: [], displayStyle: .struct) }
+}
+
+/// A subtitle file the receiver downloads from the phone.
+struct CastTextTrack: Equatable {
+    var id: Int
+    var name: String
+    var language: String?
+    var url: URL
+    var contentType: String
 }
 
 /// Where the receiver gets the video from.
@@ -54,6 +69,12 @@ struct CastRequest: CustomStringConvertible, CustomDebugStringConvertible, Custo
     var subtitleTitle: String? = nil
     /// The extension of the file served by the relay (`mkv`, `mp4`…): receivers look at it.
     var fileExtension = "mp4"
+    /// Subtitles of addons, OpenSubtitles or downloads, already read on the phone, to send next to the video.
+    var sidecars: [CastSidecarSubtitle] = []
+    /// The sidecar shown from the start (nil: none of them).
+    var activeSidecarID: Int? = nil
+    /// The viewer's subtitle delay, applied to the files sent.
+    var subtitleOffset: Double = 0
 
     var delivery: CastDelivery {
         switch source {
@@ -88,6 +109,8 @@ struct CastRemoteStatus: Equatable {
     var state: CastPlayState
     var position: Double
     var duration: Double?
+    /// The audio and subtitle tracks the receiver reports (Google Cast), nil when it says nothing about them (DLNA).
+    var tracks: CastTrackList? = nil
 }
 
 enum CastAvailability: Equatable {
@@ -136,4 +159,13 @@ protocol CastBackend: AnyObject {
     func pause() async
     func seek(to seconds: Double) async
     func endSession() async
+    /// Whether the receiver can switch audio and subtitles while it plays (Google Cast), without loading the video again.
+    var supportsLiveTrackSwitching: Bool { get }
+    /// Turns on exactly these tracks (one audio, at most one subtitle).
+    func setActiveTracks(_ ids: [Int]) async
+}
+
+extension CastBackend {
+    var supportsLiveTrackSwitching: Bool { return false }
+    func setActiveTracks(_ ids: [Int]) async {}
 }
