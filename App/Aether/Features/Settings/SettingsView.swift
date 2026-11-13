@@ -13,7 +13,7 @@ struct SettingsRootView: View {
                 sections
             }
         }
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Cerca nelle impostazioni")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Cerca nelle impostazioni")
         .aetherPage()
         .navigationTitle("Impostazioni")
         .accessibilityIdentifier("settings.root")
