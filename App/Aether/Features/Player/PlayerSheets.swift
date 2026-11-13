@@ -362,7 +362,7 @@ struct PlayerCastSheet: View {
                                     get: { model.audioTracks.first(where: { $0.isSelected })?.id ?? "" },
                                     set: { id in
                                         if let track = model.audioTracks.first(where: { $0.id == id }) {
-                                            model.selectAudio(track)
+                                            model.selectAudioForCasting(track)
                                             onTrackChange()
                                         }
                                     })) {
