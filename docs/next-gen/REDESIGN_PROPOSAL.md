@@ -9,7 +9,11 @@ Principio: l'artwork resta protagonista; vetro, bagliori e badge servono la gera
 3. Carosello fermo con VoiceOver (già fermo con Riduci movimento).
 4. Pannello cast che distingue «tracce del file» da «tracce che il televisore riceve».
 
-## Proposto, da approvare (tocca scelte già fatte dal proprietario)
+## Applicato nella seconda tornata (ogni voce si spegne in Aspetto)
+Scopri nella barra della Vetrina (spento), filtri rapidi delle sorgenti, Impostazioni essenziali (spento), stile
+«Bilanciato» con limiti agli effetti, ombra di leggibilità, carosello adattivo disattivabile.
+
+## Ancora proposto
 | Proposta | Perché | Costo/rischio |
 |---|---|---|
 | Vetrina: Scopri sempre visibile (tab o pulsante fisso) | Oggi si raggiunge dalle categorie | Cambia un layout voluto |

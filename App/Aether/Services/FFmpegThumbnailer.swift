@@ -48,10 +48,10 @@ final class FFmpegThumbnailer: @unchecked Sendable {
     }
 
     func image(at seconds: Double, maxWidth: Int = 320) async -> UIImage? {
-        lock.lock()
-        generation += 1
-        let token = generation
-        lock.unlock()
+        let token: Int = lock.withLock {
+            generation += 1
+            return generation
+        }
         return await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
             queue.async { [self] in
                 if isStale(token) { continuation.resume(returning: nil); return }

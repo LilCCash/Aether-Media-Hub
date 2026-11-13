@@ -10,7 +10,8 @@ aver visto la schermata.
 | UX-02 | Hero 430/560 pt su schermi bassi spinge «Continua a guardare» sotto la piega | `HomeComponents.swift` | **Risolto**: invariato da 6,1″ in su, scala sugli schermi più bassi (min 330/420 pt) |
 | UX-03 | Carosello che scorre da solo mentre VoiceOver legge | `turnsPages` | **Risolto** |
 | UX-04 | Durante il cast, tracce audio del file che spariscono senza spiegazione | `CastTrackControls` | **Risolto**: nota che spiega che il televisore ne riceve una sola |
-| UX-05 | Classica e Vetrina hanno destinazioni diverse | `AetherApp.swift` (TabView) | Scelta di design del proprietario: non modificata, vedi REDESIGN_PROPOSAL |
+| UX-05 | Classica e Vetrina hanno destinazioni diverse | `AetherApp.swift` (TabView) | **Opzione**: «Scopri nella barra in basso» (spenta di default, la Vetrina resta com'era) |
 | UX-06 | Scheda titolo con molte pillole/badge | `DetailView` | Proposta (separare badge tecnici/editoriali) |
-| UX-07 | Selettore sorgenti denso | `StreamRows` | Proposta (riga primaria + dettagli espandibili) |
-| UX-08 | Dynamic Type 200%, Increase Contrast | test UI esistenti parziali | Da verificare su dispositivo |
+| UX-07 | Selettore sorgenti denso | `StreamRows` | **Filtri rapidi** qualità/HDR/lingua (disattivabili); riga espandibile resta proposta |
+| UX-08 | Dynamic Type, contrasto su immagini | audit automatico CI | **Corretto** sulle schede Universe e sull'hero (ombra disattivabile); resto da verificare su dispositivo |
+| UX-09 | Impostazioni intimidatorie al primo avvio | 17 pagine | **Opzione** «Impostazioni essenziali» (spenta di default) |

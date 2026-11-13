@@ -425,14 +425,14 @@ private final class AdaptiveDataReader: RelayBodyReader, @unchecked Sendable {
     init(_ data: Data) { self.data = data }
 
     func next() async throws -> Data? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !cancelled, let data = data, offset < data.count else { self.data = nil; return nil }
-        let end = min(offset + 64 * 1024, data.count)
-        let chunk = data.subdata(in: offset..<end)
-        offset = end
-        if offset >= data.count { self.data = nil }
-        return chunk
+        return lock.withLock { () -> Data? in
+            guard !cancelled, let data = data, offset < data.count else { self.data = nil; return nil }
+            let end = min(offset + 64 * 1024, data.count)
+            let chunk = data.subdata(in: offset..<end)
+            offset = end
+            if offset >= data.count { self.data = nil }
+            return chunk
+        }
     }
 
     func cancel() {

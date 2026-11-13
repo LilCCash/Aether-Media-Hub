@@ -16,3 +16,9 @@
 | Carosello + VoiceOver | Scorreva da solo | Fermo | — | nessuna | — |
 | Nota tracce cast | Nessuna spiegazione | Nota | — | nessuna | — |
 | CI screenshot | Ogni branch sovrascriveva `ci-screenshots` | Solo `aether-swift-features` pubblica; gli altri caricano un artifact | run CI | nessuna | — |
+| Filtri rapidi sorgenti | Solo filtro per addon e ricerca | + qualità/HDR/lingua, disattivabili | NextGenOptionsTests | nessuna | Lingue lette dal nome della sorgente: possono mancare |
+| Scopri nella barra Vetrina | Assente | Opzione spenta | build CI, UI test Vetrina | nessuna (default spento) | — |
+| Impostazioni essenziali | Assente | Opzione spenta | UI test Impostazioni | nessuna (default spento) | Pagine nascoste finché non si tocca «Mostra tutte» |
+| Ombra testi su immagini | Assente | Accesa, disattivabile | screenshot CI | aspetto leggermente diverso | Spegnibile |
+| Divisione file Impostazioni/Dettaglio | File unici | File per pagina | build CI | nessuna (solo spostamenti) | — |
+| MPV EDR | `main.sync` | `main.async` | build CI | nessuna | EDR applicato un istante dopo |

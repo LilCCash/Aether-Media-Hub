@@ -25,3 +25,19 @@
 ## Non verificabile da qui
 Instruments, tempi di avvio, RAM/CPU/batteria reali, prove su iPhone e su televisori veri. Le procedure sono in
 TEST_AND_PROFILING_PLAN e PERFORMANCE_BASELINE.
+
+## Seconda tornata (tutto disattivabile)
+| Area | Modifica | Interruttore (Impostazioni) | Default |
+|---|---|---|---|
+| Home | Carosello più basso solo su schermi bassi | Aspetto › Home › «Più basso sugli schermi piccoli» | acceso |
+| Vetrina | Scopri come scheda della barra | Aspetto › Home › «Scopri nella barra in basso» | spento |
+| Leggibilità | Ombra sotto i testi sopra le immagini (hero, Universe) | Aspetto › Locandine e schede › «Ombra sotto i testi sulle immagini» | acceso |
+| Sorgenti | Filtri rapidi qualità / HDR / lingua | Aspetto › Scorciatoie › «Filtri rapidi nelle sorgenti» | acceso |
+| Impostazioni | Campo di ricerca | Aspetto › Scorciatoie › «Ricerca nelle impostazioni» | acceso |
+| Impostazioni | Modalità essenziale con «Mostra tutte» | Aspetto › Scorciatoie › «Impostazioni essenziali» | spento |
+| Stili pronti | «Bilanciato»: niente bordo di luce né alone, ombre morbide | Aspetto › Stili pronti | — |
+| Accessibilità | Nome degli universi con Dynamic Type, conteggi non tagliati; «…» del player etichettato | — | — |
+| Pulizia | `SettingsView.swift` diviso per pagina; `DetailViewModel` ed `EpisodeRow` in file propri (solo spostamenti) | — | — |
+| Stabilità | MPV non aspetta più il main thread dal thread di render; 4 lock in funzioni async → `withLock` | — | — |
+| Sincronizzazione | Unione deterministica dei titoli saltati; test di idempotenza | — | — |
+| Concorrenza | App compilata con `SWIFT_STRICT_CONCURRENCY: targeted` (solo avvisi): 30 avvisi → 23 dopo le correzioni (vedi OPTIMIZATION_RESEARCH) | — | — |

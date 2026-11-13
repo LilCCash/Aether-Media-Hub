@@ -16,3 +16,7 @@ NEW-04,Selettore errato nel test UI Casting,P3,Corretto (preesistente),App/Aethe
 PRE-01,Test UI Metadata cercano un identificatore inesistente,P3,"Preesistente, non corretto",App/AetherUITests/MetadataUITests.swift,run 43453573172
 PRE-02,Test UI TorBox: player/stato nel fixture,P2,"Preesistente, da indagare",App/AetherUITests/TorBoxUITests.swift,run 43453573172
 PRE-03,Test UI Home schede larghe instabile,P3,Instabile,App/AetherUITests/HomeCustomizationUITests.swift,run 43434465261
+NEW-05,MPV main.sync dal thread di render,P2,Corretto,App/Services/Playback/MPV/MPVEngine.swift,build CI
+NEW-06,NSLock in funzioni async,P3,Corretto,App/Services (4 file),build CI
+NEW-07,Ordine non deterministico nel merge di sincronizzazione,P3,Corretto,Core/Sync/ContentSync.swift,ContentSyncTests
+NEW-08,Cancellazioni non propagate dalla sincronizzazione,P3,Limite documentato,Core/Sync/ContentSync.swift,—

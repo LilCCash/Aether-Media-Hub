@@ -412,7 +412,7 @@ struct DetailView: View {
             preferences.preferLanguage = true
         }
 
-        var targetLanguage = preferences.preferredLanguage.map(normalizeSeasonLanguage)
+        let targetLanguage = preferences.preferredLanguage.map(normalizeSeasonLanguage)
         var targetHeight: Int?
         var queued = 0
         var skipped = 0

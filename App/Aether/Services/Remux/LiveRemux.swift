@@ -702,13 +702,13 @@ final class LiveBodyReader: RelayBodyReader, @unchecked Sendable {
     }
 
     func next() async throws -> Data? {
-        lock.lock()
-        defer { lock.unlock() }
-        if cancelled || position > last { return nil }
-        let end = min(position + 256 * 1024 - 1, last)
-        let chunk = data.subdata(in: (data.startIndex + position)..<(data.startIndex + end + 1))
-        position = end + 1
-        return chunk
+        return lock.withLock { () -> Data? in
+            if cancelled || position > last { return nil }
+            let end = min(position + 256 * 1024 - 1, last)
+            let chunk = data.subdata(in: (data.startIndex + position)..<(data.startIndex + end + 1))
+            position = end + 1
+            return chunk
+        }
     }
 
     func cancel() {

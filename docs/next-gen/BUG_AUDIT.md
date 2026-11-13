@@ -65,7 +65,19 @@ L'ordine LRU poteva contenere chiavi senza voce. Ora `touch` avviene solo se la 
 - `testCastingScreenExplainsWhatIsAvailable` cercava «DLNA / UPnP» come testo statico, ma è un interruttore (dal 19/10).
   Il test ora cerca interruttori o testi che iniziano con «Google Cast»/«DLNA»; l'asserzione resta la stessa.
 
-## Fallimenti preesistenti nei test UI (non corretti, fuori dall'ambito)
+## NEW-05 — MPV: `DispatchQueue.main.sync` dal thread di render · P2 · **Corretto**
+- **File:** `Services/Playback/MPV/MPVEngine.swift` (`wantsExtendedDynamicRangeContent`). Un thread di render che aspetta il
+  main thread rischia lo stallo se il main thread aspetta il render. Ora l'aggiornamento è asincrono.
+
+## NEW-06 — Lock NSLock dentro funzioni async · P3 · **Corretto**
+- `FFmpegThumbnailer`, `AdaptiveStreamRelaySource`, `FFmpegRemuxEngine`, `LiveRemux`: `lock()/unlock()` in funzioni async
+  (vietato in Swift 6) sostituiti da `withLock`, stesso comportamento.
+
+## NEW-07 — Sincronizzazione: ordine dei titoli saltati non deterministico · P3 · **Corretto**
+- `ContentSync.merge` usava `Array(Set(...))`: il file cambiava a ogni sincronizzazione. Ora ordine stabile; test di idempotenza.
+- Limite noto, non corretto: un elemento cancellato su un dispositivo ricompare dall'altro (nessuna «lapide» di cancellazione).
+
+## Fallimenti preesistenti nei test UI
 Verificati sul branch di base `b9920db` con la stessa selezione di test (run 43453573172): stessi test, stessi messaggi.
 | ID | Test | Sintomo | Causa probabile |
 |---|---|---|---|

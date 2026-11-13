@@ -5,3 +5,4 @@ PERF-03,SwiftUI,File grandi,Suddivisione con snapshot,Rimandato,SwiftUI Instrume
 PERF-04,Compilatore,Strict concurrency minimal,Core 6->1 avvisi,Parziale,Conteggio avvisi
 PERF-05,Memoria,Cache senza budget byte,48 MiB / 256 MiB,Applicato,Allocations
 PERF-06,Rete,Permessi occupati da task annullati,Limiter annullabile,Applicato,Tempo al primo catalogo
+PERF-07,Filtri,Sorgenti difficili da scorrere,Filtri rapidi,Applicato,Tempo per scegliere una sorgente

@@ -249,9 +249,7 @@ final class FFmpegRemuxEngine: RemuxEngine, @unchecked Sendable {
     }
 
     func initSegment() async throws -> Data {
-        stateLock.lock()
-        let ready = readyInit
-        stateLock.unlock()
+        let ready = stateLock.withLock { readyInit }
         if let ready, !isClosed { return ready }
         let data: Data = try await run {
             if let data = self.initData { return data }
