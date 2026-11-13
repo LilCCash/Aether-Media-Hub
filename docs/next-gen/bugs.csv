@@ -11,3 +11,5 @@ NEW-02,touch LRU su voci assenti,P3,Corretto,Core/Net/ResponseCache.swift,Reliab
 RISK-01,Completion redirect in Task,P3,Rischio statico,Core/Net/HTTPClient.swift,—
 RISK-02,Task nelle View,P3,Da verificare,App/Features/*,—
 RISK-03,Conflitti sync iCloud,P2,Da verificare,Core/Sync/*,—
+NEW-03,Menu «…» del player senza etichetta VoiceOver,P2,Corretto (preesistente),App/Features/Player/PlayerMoreMenu.swift,SettingsAndAccessibilityUITests
+NEW-04,Selettore errato nel test UI Casting,P3,Corretto (preesistente),App/AetherUITests/SettingsAndAccessibilityUITests.swift,SettingsAndAccessibilityUITests

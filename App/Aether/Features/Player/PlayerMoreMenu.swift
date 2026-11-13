@@ -67,6 +67,7 @@ struct PlayerMoreMenu: View, Equatable {
         } label: {
             label
         }
+        .accessibilityLabel("Altre opzioni")
         .accessibilityIdentifier(identifier)
     }
 }

@@ -35,8 +35,11 @@ final class SettingsAndAccessibilityUITests: AetherUITestCase {
         openSettings()
         openSettingsRow("Casting")
         XCTAssertTrue(app.staticTexts["AirPlay"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.staticTexts["Google Cast"].exists || app.staticTexts["GOOGLE CAST"].exists)
-        XCTAssertTrue(app.staticTexts["DLNA / UPnP"].exists || app.staticTexts["DLNA / UPNP"].exists)
+        // The protocols are switches (their label is not a static text) and the sections below repeat their names.
+        let googleCast = NSPredicate(format: "label BEGINSWITH[c] 'Google Cast'")
+        XCTAssertTrue(app.switches.matching(googleCast).firstMatch.exists || app.staticTexts.matching(googleCast).firstMatch.exists)
+        let dlna = NSPredicate(format: "label BEGINSWITH[c] 'DLNA'")
+        XCTAssertTrue(app.switches.matching(dlna).firstMatch.exists || app.staticTexts.matching(dlna).firstMatch.exists)
     }
 
     func testPlayerExposesCastAndAirPlayControls() {

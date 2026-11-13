@@ -57,6 +57,14 @@ P2 correttezza/affidabilità · P3 minore. Tabella sintetica in [`bugs.csv`](bug
 ## NEW-02 — ResponseCache: `touch` su voci non in memoria · P3 · **Corretto** insieme a BUG-04
 L'ordine LRU poteva contenere chiavi senza voce. Ora `touch` avviene solo se la voce è in memoria.
 
+## NEW-03 — Pulsante «…» del player senza etichetta di accessibilità · P2 · **Corretto** (preesistente)
+- **File:** `Features/Player/PlayerMoreMenu.swift`. VoiceOver leggeva il nome dell'icona; trovato dal test UI
+  `testPlayerControlsHaveAccessibilityLabels`, che falliva già sul codice di base. Ora «Altre opzioni».
+
+## NEW-04 — Test UI del Casting con selettore sbagliato · P3 · **Corretto** (preesistente)
+- `testCastingScreenExplainsWhatIsAvailable` cercava «DLNA / UPnP» come testo statico, ma è un interruttore (dal 19/10).
+  Il test ora cerca interruttori o testi che iniziano con «Google Cast»/«DLNA»; l'asserzione resta la stessa.
+
 ## Rischi statici non confermati (da verificare su dispositivo)
 | ID | Descrizione | Perché non confermato |
 |---|---|---|

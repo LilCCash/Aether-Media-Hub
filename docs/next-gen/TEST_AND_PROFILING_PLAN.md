@@ -5,10 +5,10 @@
 |---|---|---|
 | Core unit test (1063) | Linux, locale | superati |
 | Core con TSan / ASan | Linux, locale | puliti |
-| Core su macOS | CI `AetherCore (swift test)` | vedi esito run CI del branch |
-| App build + unit test (nuovi: relay HLS, impostazioni, immagini) | CI `App (unit tests)` | vedi esito run CI del branch |
-| UI test mirati (layout, impostazioni, Home) | CI con `ui_tests` | vedi esito run CI del branch |
-| Screenshot tour | CI con `[shots]`, artifact `screenshots` | vedi esito run CI del branch |
+| Core su macOS | CI `AetherCore (swift test)` | superati (run 43426226962) |
+| App build + unit test (nuovi: relay HLS, impostazioni, immagini) | CI `App (unit tests)` | superati (run 43426226962) |
+| UI test mirati (Layout, Browse, HomeCustomization, SettingsAndAccessibility) | CI con `ui_tests` | 34/36 al primo giro; i 2 falliti erano preesistenti (NEW-03, NEW-04), corretti e rieseguiti |
+| Screenshot tour | CI con `[shots]`, artifact `screenshots` | eseguito (run 43426226962) |
 
 ## Manuali (da fare sul telefono)
 - iPhone piccolo (SE/mini) e grande, verticale/orizzontale: Home (hero più basso solo sugli schermi bassi), scheda, player.
@@ -23,3 +23,6 @@
 | MP4 con sottotitoli addon | sidecar VTT, cambio immediato | SRT, cambio con ripartenza | non inviati |
 | MKV con più audio (conversione) | cambio audio con ripartenza | cambio audio con ripartenza | conversione locale |
 | Seek ripetuti, pausa lunga, cambio sorgente | da provare | da provare | da provare |
+
+## Note dell'audit automatico (informative, non bloccanti)
+Contrasto insufficiente su alcune etichette sopra l'artwork («Dettagli», sottotitoli delle righe), testo tagliato e Dynamic Type parziale nei riepiloghi di Universe («17 film · 1 serie»). Da correggere in una fase di redesign con verifica visiva.
