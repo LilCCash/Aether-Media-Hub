@@ -49,6 +49,8 @@ struct CastRequest: CustomStringConvertible, CustomDebugStringConvertible, Custo
     var isLive: Bool
     var startPosition: Double
     var source: CastSource
+    /// Preferred embedded subtitle language for phone-side HLS remuxing.
+    var subtitleLanguage: String? = nil
     /// The extension of the file served by the relay (`mkv`, `mp4`…): receivers look at it.
     var fileExtension = "mp4"
 
