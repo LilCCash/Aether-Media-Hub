@@ -149,16 +149,17 @@ extension PlayerViewModel {
         let request = CastRequest(title: meta.name, subtitle: episodeSubtitle(), artworkURL: artwork,
                                   contentType: CastMedia.contentType(forContainer: info.container), isLive: snapshot.isLive,
                                   startPosition: max(snapshot.position, 0), source: source,
+                                  subtitleLanguage: selectedOption?.isEmbedded == true ? selectedOption?.language : nil,
                                   fileExtension: (container == "m3u8" || container == "mpd") ? container
                                     : (RelayMime.allowedExtensions.contains(container) ? container : "mp4"))
 
-        // A Matroska file for Google Cast is converted by the phone into HLS (video and audio copied): every Cast receiver reads that,
-        // many refuse the MKV. It needs the relay; the viewer's own wish to send the direct link is respected as it is.
-        // A plain-HTTP address that carries a key or headers is not relayed at all (see `CastCompatibility.evaluate`): it stays as it was.
+        // A Matroska file is converted on the phone into HLS for Cast and DLNA: audio follows the chosen language and embedded text
+        // subtitles are exposed as HLS renditions. A plain-HTTP public source carrying secrets is never relayed.
         let plainHTTPWithSecrets = url.scheme?.lowercased() == "http" && CastCompatibility.hostKind(of: url) == .publicInternet
             && (debrid != nil || !headers.isEmpty)
-        if target == .googleCast, container == "mkv", RemuxEngineFactory.isAvailable, delivery != .directWithKey, !plainHTTPWithSecrets,
-           env.settings.value.casting.convertMatroskaForGoogleCast, case .ready = relay {
+        if (target == .googleCast || target == .dlna), container == "mkv", RemuxEngineFactory.isAvailable,
+           delivery != .directWithKey, !plainHTTPWithSecrets,
+           (target == .dlna || env.settings.value.casting.convertMatroskaForGoogleCast), case .ready = relay {
             var converted = request
             converted.source = .relayRemux(RelayUpstream(url: url, headers: headers), conversionAudio ?? .automatic(languages: wantedAudioLanguages()))
             converted.contentType = "application/x-mpegURL"
