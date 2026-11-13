@@ -25,6 +25,7 @@ struct RelayPublishRequest {
     var remux: RemuxAudioChoice? = nil
     /// Embedded text subtitle to mark as the preferred HLS rendition.
     var remuxSubtitleLanguage: String? = nil
+    var remuxSubtitleTitle: String? = nil
 }
 
 /// A published session. Holds the keyless address handed to the receiver; it never prints.
@@ -220,7 +221,7 @@ final class RelayService: ObservableObject, RelayPublishing {
 
     /// A Matroska file converted into HLS on the fly. The session accepts every piece name the converted file has.
     private func prepareConverted(_ request: RelayPublishRequest, audio: RemuxAudioChoice, subtitleLanguage: String?,
-                                  guardian: UpstreamGuard) async throws -> (source: RelaySource, sessionLeaf: String?, urlLeaf: String, plan: RemuxPlan?) {
+                                  subtitleTitle: String?, guardian: UpstreamGuard) async throws -> (source: RelaySource, sessionLeaf: String?, urlLeaf: String, plan: RemuxPlan?) {
         let fetcher: RelayRangeFetcher = request.upstream.url.isFileURL
             ? FileRangeFetcher(url: request.upstream.url) : fetcherFactory(request.upstream, guardian)
         var source: RemuxSource?
