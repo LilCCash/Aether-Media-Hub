@@ -100,19 +100,24 @@ public final class RemuxSource: RelaySource, @unchecked Sendable {
     public func prepare() async throws -> RemuxPrepared {
         let info = try await engine.prepare()
         guard !info.segments.isEmpty else { throw RemuxError.noKeyframeIndex }
+        let preferredSubtitleIndex = info.plan.textSubtitles.first { track in
+            let languageMatches = defaultSubtitleLanguage.map { language in
+                track.language?.caseInsensitiveCompare(language) == .orderedSame ||
+                (RemuxSource.bcp47(track.language ?? "") != nil &&
+                 RemuxSource.bcp47(track.language ?? "") == RemuxSource.bcp47(language))
+            } ?? false
+            let titleMatches = defaultSubtitleTitle.map { title in
+                track.title?.caseInsensitiveCompare(title) == .orderedSame
+            } ?? false
+            return languageMatches || titleMatches
+        }?.index
         let renditions = info.plan.textSubtitles.map { track -> HLSSubtitleRendition in
             let language = track.language.map { LanguageCodes.displayName($0) }
             let name = [language, track.title].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
             return HLSSubtitleRendition(name: name.isEmpty ? "Sottotitoli \(track.index)" : name,
                                         language: track.language.flatMap { RemuxSource.bcp47($0) },
                                         uri: Leaf.subtitlePlaylist(track.index).key,
-                                        isDefault: (defaultSubtitleLanguage.map { language in
-                                            track.language?.caseInsensitiveCompare(language) == .orderedSame ||
-                                            (RemuxSource.bcp47(track.language ?? "") != nil &&
-                                             RemuxSource.bcp47(track.language ?? "") == RemuxSource.bcp47(language))
-                                        } ?? false) || (defaultSubtitleTitle.map { title in
-                                            track.title?.caseInsensitiveCompare(title) == .orderedSame
-                                        } ?? false),
+                                        isDefault: track.index == preferredSubtitleIndex,
                                         isForced: (track.title ?? "").lowercased().contains("forced"))
         }
         let master = HLSPlaylistBuilder.master(info.master, subtitles: renditions)
