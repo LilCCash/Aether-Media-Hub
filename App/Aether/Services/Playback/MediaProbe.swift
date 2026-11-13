@@ -23,9 +23,12 @@ enum MediaProbe {
             audio.append(await audioFacts(track))
         }
         let isPlayableButEmpty = playable == .playable && video.isEmpty && audio.isEmpty
-        return MediaFormatInfo(source: .avFoundation, container: container, duration: duration, video: video, audio: audio,
-                               subtitleTrackCount: subtitleTrackCount,
-                               platformPlayability: isPlayableButEmpty ? .unknown : playable)
+        var info = MediaFormatInfo(source: .avFoundation, container: container, duration: duration, video: video, audio: audio,
+                                   subtitleTrackCount: subtitleTrackCount,
+                                   platformPlayability: isPlayableButEmpty ? .unknown : playable)
+        // AVFoundation decodes every format it accepts in hardware (VideoToolbox), so the decoder line can say it, as MPV's does.
+        if !video.isEmpty { info.hardwareDecoder = "VideoToolbox" }
+        return info
     }
 
     private static func videoFacts(_ track: AVAssetTrack) async -> VideoTrackFacts {
@@ -43,6 +46,7 @@ enum MediaProbe {
 
         let subtype = CMFormatDescriptionGetMediaSubType(description)
         facts.codecTag = fourCC(subtype)
+        facts.codecName = codecName(forTag: facts.codecTag)
         let extensions = CMFormatDescriptionGetExtensions(description) as? [String: Any]
         facts.primaries = extensions?[kCMFormatDescriptionExtension_ColorPrimaries as String] as? String
         facts.transfer = extensions?[kCMFormatDescriptionExtension_TransferFunction as String] as? String
@@ -67,14 +71,42 @@ enum MediaProbe {
 
     private static func audioFacts(_ track: AVAssetTrack) async -> AudioTrackFacts {
         var facts = AudioTrackFacts()
-        facts.language = try? await track.load(.extendedLanguageTag)
+        facts.language = (try? await track.load(.extendedLanguageTag)) ?? (try? await track.load(.languageCode))
+        if let metadata = try? await track.load(.commonMetadata),
+           let item = AVMetadataItem.metadataItems(from: metadata, filteredByIdentifier: .commonIdentifierTitle).first,
+           let title = try? await item.load(.stringValue), !title.isEmpty {
+            facts.title = title
+        }
         if let descriptions = try? await track.load(.formatDescriptions), let description = descriptions.first {
             facts.codecTag = fourCC(CMFormatDescriptionGetMediaSubType(description))
+            facts.codecName = codecName(forTag: facts.codecTag)
             if let basic = CMAudioFormatDescriptionGetStreamBasicDescription(description)?.pointee {
                 facts.channels = Int(basic.mChannelsPerFrame)
             }
         }
         return facts
+    }
+
+    /// The codec names MPV reports (lower case, FFmpeg style), so both engines read the same in the information sheet.
+    static func codecName(forTag tag: String?) -> String? {
+        guard let tag = tag?.lowercased() else { return nil }
+        switch tag {
+        case "hvc1", "hev1", "dvh1", "dvhe": return "hevc"
+        case "avc1", "avc3", "dvav", "dva1": return "h264"
+        case "av01", "dav1": return "av1"
+        case "vp09": return "vp9"
+        case "ap4h", "apch", "apcn", "apcs", "apco", "ap4x": return "prores"
+        case "mp4v": return "mpeg4"
+        case "aac ", "mp4a": return "aac"
+        case "ac-3": return "ac3"
+        case "ec-3": return "eac3"
+        case ".mp3": return "mp3"
+        case "alac": return "alac"
+        case "flac", "fla": return "flac"
+        case "opus": return "opus"
+        case "lpcm": return "pcm"
+        default: return nil
+        }
     }
 
     static func fourCC(_ code: FourCharCode) -> String {

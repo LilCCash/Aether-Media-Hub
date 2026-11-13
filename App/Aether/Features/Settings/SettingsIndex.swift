@@ -38,7 +38,7 @@ enum SettingsIndex {
 
     /// (option, page). The page title itself is always searchable too.
     static let entries: [(String, Page)] = [
-        ("Tema chiaro e scuro", .appearance), ("Colore di accento", .appearance), ("Preset grafici", .appearance),
+        ("Tema chiaro e scuro", .appearance), ("Colore di accento", .appearance), ("Sfumature personalizzate dello sfondo", .appearance), ("Preset grafici", .appearance),
         ("Sfondo", .appearance), ("Stile delle schede", .appearance), ("Angoli arrotondati", .appearance),
         ("Carattere dei titoli", .appearance), ("Animazioni", .appearance), ("Home: layout Classica o Vetrina", .appearance),
         ("Home: sezioni, ordine e dimensioni", .appearance), ("Carosello in alto (hero)", .appearance),

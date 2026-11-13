@@ -28,6 +28,11 @@ final class MPVSoftwareVideoView: UIView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    /// «Riempi»: the picture covers the screen (cropping the edges) instead of fitting inside it.
+    func setFill(_ fill: Bool) {
+        displayLayer.videoGravity = fill ? .resizeAspectFill : .resizeAspect
+    }
 }
 
 /// Draws the frames of one libmpv instance in software and enqueues them on a display layer.

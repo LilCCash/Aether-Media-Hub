@@ -938,6 +938,10 @@ final class PlayerViewModel: ObservableObject {
         engine.setRate(rate)
     }
 
+    func applySubtitleStyle(_ style: SubtitleStyle) {
+        engine.applySubtitleStyle(style)
+    }
+
     func toggleFill() {
         isFill.toggle()
         engine.setFillScreen(isFill)

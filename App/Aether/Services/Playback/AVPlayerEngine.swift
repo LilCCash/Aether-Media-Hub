@@ -57,8 +57,11 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private var containerExtension: String?
 
     /// - Parameter bufferSeconds: forward buffer target; 0 lets AVFoundation decide.
-    init(bufferSeconds: Int = 0) {
+    private var subtitleStyle: SubtitleStyle
+
+    init(bufferSeconds: Int = 0, subtitleStyle: SubtitleStyle = SubtitleStyle()) {
         self.bufferSeconds = bufferSeconds
+        self.subtitleStyle = subtitleStyle
         super.init()
         player.allowsExternalPlayback = true
         player.usesExternalPlaybackWhileExternalScreenIsActive = true
@@ -106,6 +109,11 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
 
     // MARK: Loading
 
+    fileprivate func subtitleStyleChanged(_ style: SubtitleStyle) {
+        subtitleStyle = style
+        item?.textStyleRules = AVPlayerEngine.textStyleRules(for: style)
+    }
+
     func load(url: URL, headers: [String: String], startAt: Double?, autoplay: Bool) {
         ensurePictureInPictureController()
         teardownItem()
@@ -121,6 +129,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         containerExtension = url.pathExtension.isEmpty ? nil : url.pathExtension.lowercased()
         mediaInfo = nil
         newItem.canUseNetworkResourcesForLiveStreamingWhilePaused = false
+        newItem.textStyleRules = AVPlayerEngine.textStyleRules(for: subtitleStyle)
         item = newItem
         var fresh = EngineSnapshot(rate: desiredRate)
         fresh.isPictureInPictureActive = snapshot.isPictureInPictureActive
@@ -238,7 +247,15 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         if let track = item.tracks.first(where: { $0.assetTrack?.mediaType == .video }), track.currentVideoFrameRate > 0 {
             stats.displayedFrameRate = Double(track.currentVideoFrameRate)
         }
-        stats.decoder = "Sistema (AVFoundation)"
+        // A plain file (not HLS) has no access-log bitrate: the tracks' own estimates fill the gap, as MPV shows them.
+        if stats.videoBitrate == nil, let rate = item.tracks.first(where: { $0.assetTrack?.mediaType == .video })?.assetTrack?.estimatedDataRate,
+           rate > 0 {
+            stats.videoBitrate = Double(rate)
+        }
+        if let rate = item.tracks.first(where: { $0.isEnabled && $0.assetTrack?.mediaType == .audio })?.assetTrack?.estimatedDataRate, rate > 0 {
+            stats.audioBitrate = Double(rate)
+        }
+        stats.decoder = "Hardware (VideoToolbox · AVFoundation)"
         let now = player.currentTime().seconds
         if let range = item.loadedTimeRanges.first?.timeRangeValue, range.end.seconds.isFinite, now.isFinite {
             stats.bufferedSeconds = max(0, range.end.seconds - now)
@@ -458,3 +475,39 @@ extension AVPlayerEngine: LiveStreamHinting {
     /// A live channel starts as soon as the first data is there, instead of AVFoundation waiting to be sure it will not stall.
     func setLiveStream(_ live: Bool) { player.automaticallyWaitsToMinimizeStalling = !live }
 }
+
+// MARK: - Embedded subtitle style
+
+extension AVPlayerEngine {
+    /// The subtitles AVPlayer draws itself (tracks inside the file) follow the same style as MPV's: colour, size, bold, outline
+    /// and background. A background opacity of 0 removes the grey box AVPlayer draws by default.
+    func applySubtitleStyle(_ style: SubtitleStyle) {
+        subtitleStyleChanged(style)
+    }
+
+    static func textStyleRules(for style: SubtitleStyle) -> [AVTextStyleRule] {
+        func argb(_ hex: String, alpha: Double) -> [Double] {
+            let rgb = AVPlayerEngine.rgb(hex)
+            return [max(0, min(1, alpha)), rgb.0, rgb.1, rgb.2]
+        }
+        let opacity = max(0, min(1, style.backgroundOpacity))
+        var attributes: [String: Any] = [
+            kCMTextMarkupAttribute_ForegroundColorARGB as String: argb(style.textColor, alpha: 1),
+            kCMTextMarkupAttribute_CharacterBackgroundColorARGB as String: argb(style.backgroundColor, alpha: opacity),
+            kCMTextMarkupAttribute_BackgroundColorARGB as String: argb(style.backgroundColor, alpha: 0),
+            kCMTextMarkupAttribute_RelativeFontSize as String: max(50, min(200, style.sizePercent)),
+            kCMTextMarkupAttribute_BoldStyle as String: style.isBold,
+        ]
+        attributes[kCMTextMarkupAttribute_CharacterEdgeStyle as String] = style.outlineEnabled
+            ? kCMTextMarkupCharacterEdgeStyle_Uniform as String
+            : (opacity > 0 ? kCMTextMarkupCharacterEdgeStyle_None as String : kCMTextMarkupCharacterEdgeStyle_DropShadow as String)
+        return AVTextStyleRule(textMarkupAttributes: attributes).map { [$0] } ?? []
+    }
+
+    private static func rgb(_ hex: String) -> (Double, Double, Double) {
+        let clean = hex.trimmingCharacters(in: CharacterSet(charactersIn: "# ")).uppercased()
+        guard clean.count == 6, let value = UInt32(clean, radix: 16) else { return (1, 1, 1) }
+        return (Double((value >> 16) & 0xFF) / 255, Double((value >> 8) & 0xFF) / 255, Double(value & 0xFF) / 255)
+    }
+}
+

@@ -103,7 +103,8 @@ public struct GlassHomeSettings: Codable, Equatable, Sendable {
     public static let categoriesID = "categories"
 
     public static let defaultSections: [HomeSectionConfig] = [
-        HomeSectionConfig(id: search), HomeSectionConfig(id: categoriesID), HomeSectionConfig(id: HomeSectionConfig.hero, isVisible: false),
+        // «In evidenza» first: switched on, the featured picture opens the page at the top.
+        HomeSectionConfig(id: HomeSectionConfig.hero, isVisible: false), HomeSectionConfig(id: search), HomeSectionConfig(id: categoriesID),
         HomeSectionConfig(id: HomeSectionConfig.continueWatching), HomeSectionConfig(id: HomeSectionConfig.nextUp),
         HomeSectionConfig(id: HomeSectionConfig.forYou), HomeSectionConfig(id: HomeSectionConfig.watchlist),
         HomeSectionConfig(id: HomeSectionConfig.catalogs), HomeSectionConfig(id: HomeSectionConfig.universes),
@@ -139,7 +140,13 @@ public struct GlassHomeSettings: Codable, Equatable, Sendable {
             if let style = section.style, !HomeCardStyle.allowed(for: section.id).contains(style) { section.style = nil }
             result.append(section)
         }
-        for section in defaultSections where !seen.contains(section.id) { result.append(section) }
+        for section in defaultSections where !seen.contains(section.id) {
+            // A section missing from an older file goes where the default order puts it, not at the bottom.
+            if section.id == HomeSectionConfig.hero { result.insert(section, at: 0) } else { result.append(section) }
+        }
+        // Older versions appended «In evidenza» at the end, so switching it on showed it at the bottom of the page: from there it
+        // goes back to the top (nobody puts the featured picture under every other row on purpose).
+        if result.count > 1, result.last?.id == HomeSectionConfig.hero, let hero = result.popLast() { result.insert(hero, at: 0) }
         return result
     }
 }

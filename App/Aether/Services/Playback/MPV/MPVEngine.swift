@@ -357,7 +357,19 @@ final class MPVEngine: NSObject, PlaybackEngine {
     private var softwareUnavailable = false
     private var pictureInPictureActive = false
     private var pictureInPicturePossible = false
-    private var usesSoftwareVideo: Bool { return settings.mpvPictureInPicture && !headlessVideo && !softwareUnavailable && !hdrNeedsGPU && AVPictureInPictureController.isPictureInPictureSupported() }
+    private var usesSoftwareVideo: Bool {
+        guard !headlessVideo, !softwareUnavailable, AVPictureInPictureController.isPictureInPictureSupported() else { return false }
+        // Asked for the floating window: the software picture is used even for HDR, converted to SDR by VideoToolbox.
+        if pictureInPictureRequested { return true }
+        return settings.mpvPictureInPicture && !hdrNeedsGPU
+    }
+    /// The viewer pressed Picture in Picture while the picture was on the Metal output: the file is reopened on the software
+    /// picture at the same point and the window opens as soon as the system allows it.
+    private var pictureInPictureRequested = false
+    private var startPictureInPictureWhenPossible = false
+    private var hdrToneMappedInSoftware = false
+    /// The video track that was on before the app went to the background (restored as it was, not as "auto").
+    private var detachedVideoTrack: String?
     /// The software picture (used for the experimental Picture in Picture) cannot convert HDR or Dolby Vision: an HDR file reopens on
     /// the normal output, which converts it to the screen. Without this the picture came out dark and orange (PQ shown as if it were SDR).
     private var hdrNeedsGPU = false
@@ -388,7 +400,8 @@ final class MPVEngine: NSObject, PlaybackEngine {
 
     func load(url: URL, headers: [String: String], startAt: Double?, autoplay: Bool) {
         destroyCore()
-        if lastLoad?.url != url { hdrNeedsGPU = false }
+        if lastLoad?.url != url { hdrNeedsGPU = false; pictureInPictureRequested = false; startPictureInPictureWhenPossible = false }
+        hdrToneMappedInSoftware = false
         lastLoad = (url, headers)
         self.autoplay = autoplay
         didEnd = false
@@ -402,6 +415,7 @@ final class MPVEngine: NSObject, PlaybackEngine {
         let surface = MPVSurfaceView(frame: container.bounds)
         if software {
             let view = MPVSoftwareVideoView(frame: container.bounds)
+            view.setFill(fill)
             container.attach(view)
             softwareView = view
         } else {
@@ -559,7 +573,19 @@ final class MPVEngine: NSObject, PlaybackEngine {
         if softwareView != nil, let core = core, !hdrNeedsGPU {
             let transfer = (core.string("video-params/gamma") ?? "").lowercased()
             let matrix = (core.string("video-params/colormatrix") ?? "").lowercased()
-            if transfer.contains("pq") || transfer.contains("hlg") || matrix.contains("dolby") {
+            let isHDR = transfer.contains("pq") || transfer.contains("hlg") || matrix.contains("dolby")
+            if isHDR && pictureInPictureRequested {
+                // Picture in Picture asked for: stay on the software picture and let VideoToolbox map HDR to SDR (hardware frames, then
+                // mpv downloads them for the software renderer). If this build lacks the filter mpv drops it and the picture stays darker.
+                if !hdrToneMappedInSoftware {
+                    hdrToneMappedInSoftware = true
+                    core.setProperty("hwdec", "videotoolbox")
+                    core.setProperty("vf", "lavfi=[tonemap_videotoolbox=t=bt709:p=bt709:m=bt709:tonemap=hable]")
+                    recentLog.append("Immagine HDR (\(transfer)) nel Picture in Picture: conversione in SDR con VideoToolbox.")
+                }
+                return
+            }
+            if isHDR {
                 hdrNeedsGPU = true
                 recentLog.append("Immagine HDR (\(transfer), \(matrix)): riapro con l'uscita normale, che la converte per lo schermo (niente PiP per questo file).")
                 if let last = lastLoad {
@@ -673,9 +699,16 @@ final class MPVEngine: NSObject, PlaybackEngine {
         core?.setProperty("speed", String(format: "%.3f", rate))
     }
 
+    func applySubtitleStyle(_ style: SubtitleStyle) {
+        guard let core = core else { return }
+        for pair in MPVOptions.subtitleStyleProperties(style) { core.setProperty(pair.name, pair.value) }
+    }
+
     func setFillScreen(_ fill: Bool) {
         self.fill = fill
         core?.setProperty("panscan", MPVOptions.panscan(fill: fill))
+        // The software picture (Picture in Picture) is scaled by its display layer, not by mpv.
+        softwareView?.setFill(fill)
     }
 
     func setEmbeddedSubtitleDelay(_ seconds: Double) {
@@ -726,15 +759,33 @@ final class MPVEngine: NSObject, PlaybackEngine {
 
     // MARK: Picture in Picture / background
 
-    var supportsPictureInPicture: Bool { return pictureInPicture != nil }
+    var supportsPictureInPicture: Bool { return pictureInPicture != nil || canSwitchToSoftwarePicture }
+    /// The file can be reopened on the software picture (the one Picture in Picture needs).
+    private var canSwitchToSoftwarePicture: Bool {
+        return !headlessVideo && !softwareUnavailable && lastLoad != nil && AVPictureInPictureController.isPictureInPictureSupported()
+    }
     var pictureInPictureAvailability: PictureInPictureAvailability {
-        guard pictureInPicture != nil else { return .engineUnsupported(engine: kind.displayName) }
+        if pictureInPicture == nil {
+            // Pressing the button reopens the file on the software picture (see `startPictureInPicture`).
+            return canSwitchToSoftwarePicture ? .available : .engineUnsupported(engine: kind.displayName)
+        }
+        if startPictureInPictureWhenPossible { return .notReadyYet }
         return pictureInPicturePossible ? .available : .notReadyYet
     }
 
     func startPictureInPicture() {
-        guard let pip = pictureInPicture, pip.controller.isPictureInPicturePossible else { return }
-        pip.controller.startPictureInPicture()
+        if let pip = pictureInPicture {
+            if pip.controller.isPictureInPicturePossible { pip.controller.startPictureInPicture() } else { startPictureInPictureWhenPossible = true }
+            return
+        }
+        guard canSwitchToSoftwarePicture, let last = lastLoad else { return }
+        let position = core?.double("time-pos") ?? snapshot.position
+        let wasPlaying = !(core?.flag("pause") ?? false)
+        pictureInPictureRequested = true
+        startPictureInPictureWhenPossible = true
+        recentLog.append("Picture in Picture: riapro il file con l'uscita software dal punto \(Int(position)) s.")
+        destroyCore()
+        load(url: last.url, headers: last.headers, startAt: position > 1 ? position : nil, autoplay: wasPlaying)
     }
 
     func stopPictureInPicture() { pictureInPicture?.controller.stopPictureInPicture() }
@@ -761,8 +812,13 @@ final class MPVEngine: NSObject, PlaybackEngine {
         }
         pip.onPossibleChanged = { [weak self] possible in
             DispatchQueue.main.async { MainActor.assumeIsolated {
-                self?.pictureInPicturePossible = possible
-                self?.snapshot.isPictureInPicturePossible = possible
+                guard let self = self else { return }
+                self.pictureInPicturePossible = possible
+                self.snapshot.isPictureInPicturePossible = possible
+                if possible && self.startPictureInPictureWhenPossible {
+                    self.startPictureInPictureWhenPossible = false
+                    self.pictureInPicture?.controller.startPictureInPicture()
+                }
             } }
         }
         pictureInPicture = pip
@@ -779,7 +835,21 @@ final class MPVEngine: NSObject, PlaybackEngine {
     private func applyVideoDetached() {
         // With the software picture the window keeps drawing in the background while it is open; without it, the picture stops and only the sound goes on.
         let detach = videoDetached && !(softwareRenderer != nil && pictureInPictureActive)
-        core?.setProperty("vid", detach ? "no" : "auto")
+        guard let core = core else { return }
+        let current = core.string("vid") ?? "auto"
+        if detach {
+            guard current != "no" else { return }
+            detachedVideoTrack = current
+            core.setProperty("vid", "no")
+        } else if current == "no" || detachedVideoTrack != nil {
+            core.setProperty("vid", detachedVideoTrack ?? "auto")
+            detachedVideoTrack = nil
+            // The decoder starts again from the next keyframe, which in long-GOP files can be far ahead: an exact seek to where the
+            // sound is rebuilds the picture at once (otherwise the sound went on over a frozen image).
+            if let position = core.double("time-pos"), isLoaded {
+                core.command(["seek", String(format: "%.3f", position), "absolute+exact"], async: true)
+            }
+        }
     }
 
     // MARK: Teardown

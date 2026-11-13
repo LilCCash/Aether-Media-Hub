@@ -188,6 +188,27 @@ struct AppearanceSettingsView: View {
                     .padding(.vertical, 4)
                 }
                 ColorPicker("Altro colore", selection: hexBinding(\.customBackgroundHex, fallback: "#0A0F1F"), supportsOpacity: false)
+                if appearance.amoled {
+                    Text("Con i neri totali la pagina resta nera: questo colore tinge la luce in alto.")
+                        .font(.caption).foregroundStyle(Color.aetherSecondary)
+                }
+            }
+            if appearance.backdrop != .plain {
+                Toggle("Sfumature personalizzate", isOn: Binding(get: { appearance.customWashTopHex != nil || appearance.customWashBottomHex != nil },
+                                                                set: { enabled in
+                    settings.value.appearance.customWashTopHex = enabled ? (appearance.customWashTopHex ?? "#7C5CFF") : nil
+                    settings.value.appearance.customWashBottomHex = enabled ? (appearance.customWashBottomHex ?? "#2A4DF2") : nil
+                }))
+                .accessibilityIdentifier("settings.style.customWashes")
+                if appearance.customWashTopHex != nil || appearance.customWashBottomHex != nil {
+                    ColorPicker("Sfumatura in alto", selection: hexBinding(\.customWashTopHex, fallback: "#7C5CFF"), supportsOpacity: false)
+                    ColorPicker("Sfumatura in basso", selection: hexBinding(\.customWashBottomHex, fallback: "#2A4DF2"), supportsOpacity: false)
+                    LinearGradient(colors: [Color(hex: appearance.customWashTopHex ?? "#7C5CFF"), Color(hex: appearance.customWashBottomHex ?? "#2A4DF2")],
+                                   startPoint: .top, endPoint: .bottom)
+                        .frame(height: 28)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .accessibilityHidden(true)
+                }
             }
         }
     }
@@ -218,6 +239,8 @@ struct AppearanceSettingsView: View {
             Toggle("Voto sulle locandine", isOn: settings.binding(\.appearance.showPosterRatings))
             Toggle("Bordo di luce sulle schede", isOn: settings.binding(\.appearance.cardSheen))
             Toggle("Alone sui pulsanti principali", isOn: settings.binding(\.appearance.buttonGlow))
+            Toggle("Player in stile moderno", isOn: settings.binding(\.appearance.modernPlayer))
+                .accessibilityIdentifier("settings.appearance.modernPlayer")
             Toggle("Ombra sotto i testi sulle immagini", isOn: settings.binding(\.appearance.legibilityScrims))
                 .accessibilityIdentifier("settings.appearance.legibilityScrims")
             Toggle("Icone su tessera nelle impostazioni", isOn: settings.binding(\.appearance.settingsIconTiles))

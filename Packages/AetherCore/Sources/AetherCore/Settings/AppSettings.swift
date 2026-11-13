@@ -158,6 +158,9 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var customAccentHex: String? = nil
     /// Optional custom background colour in #RRGGBB; nil keeps the dark navy / system background.
     public var customBackgroundHex: String? = nil
+    /// The colours of the soft washes behind the pages (#RRGGBB): the top one and the bottom one. nil follows the palette / accent.
+    public var customWashTopHex: String? = nil
+    public var customWashBottomHex: String? = nil
     /// True black background (OLED), with the washes toned down.
     public var amoled: Bool = false
     public var palette: AppPalette = .aether
@@ -243,20 +246,22 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var settingsSearch: Bool = true
     /// Impostazioni shows only the pages most people need; the others stay one tap away («Mostra tutte»).
     public var essentialSettings: Bool = false
+    /// The player's controls drawn as light symbols over a soft shade (off: the glass discs and tiles of before).
+    public var modernPlayer: Bool = true
     /// Raw ids of the hidden extras found so far (`AppSecret`).
     public var unlockedSecrets: [String] = []
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case schema, theme, accent, customAccentHex, customBackgroundHex, amoled, palette, backdrop, backdropIntensity
+        case schema, theme, accent, customAccentHex, customBackgroundHex, customWashTopHex, customWashBottomHex, amoled, palette, backdrop, backdropIntensity
         case cardChrome, cornerStyle, posterSize, density, showPosterRatings, titleFont
         case heroStyle, heroAutoScroll, heroInterval, homeSections, greetingEnabled, greetingName
         case homeLayout, glassHome
         case animationsEnabled, haptics, detailAsCard, zoomTransition, dynamicCinematic, cinematicOpening, creditsExperience, reduceVisualEffects, unlockedSecrets
         case moodColors, cinematicMotion, imageFades, kenBurns, openingSound, showExplore, showCinemaCard
         case cardSheen, scrollMotion, buttonGlow, heroEdgeToEdge, entranceMotion, symbolMotion, detailParallax, settingsIconTiles
-        case adaptiveHeroHeight, legibilityScrims, streamQuickFilters, glassDiscoverTab, settingsSearch, essentialSettings
+        case adaptiveHeroHeight, legibilityScrims, streamQuickFilters, glassDiscoverTab, settingsSearch, essentialSettings, modernPlayer
     }
 
     private static func cleanHex(_ value: String?) -> String? {
@@ -286,6 +291,8 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         accent = c.value(.accent, default: .nebula)
         customAccentHex = AppearanceSettings.cleanHex(c.lenient(String.self, forKey: .customAccentHex))
         customBackgroundHex = AppearanceSettings.cleanHex(c.lenient(String.self, forKey: .customBackgroundHex))
+        customWashTopHex = AppearanceSettings.cleanHex(c.lenient(String.self, forKey: .customWashTopHex))
+        customWashBottomHex = AppearanceSettings.cleanHex(c.lenient(String.self, forKey: .customWashBottomHex))
         amoled = c.value(.amoled, default: false)
         backdrop = c.value(.backdrop, default: .spotlight)
         let intensity: Double = c.value(.backdropIntensity, default: 1)
@@ -330,6 +337,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         glassDiscoverTab = c.value(.glassDiscoverTab, default: false)
         settingsSearch = c.value(.settingsSearch, default: true)
         essentialSettings = c.value(.essentialSettings, default: false)
+        modernPlayer = c.value(.modernPlayer, default: true)
         // The secrets are read first: a palette that needs one is only honoured if it is unlocked.
         let chosen: AppPalette = c.value(.palette, default: .aether)
         palette = isAvailable(chosen) ? chosen : .aether

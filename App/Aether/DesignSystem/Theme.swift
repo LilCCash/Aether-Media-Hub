@@ -71,12 +71,17 @@ struct AetherBackdrop: View {
 
     private var primary: Color {
         if style.mood, let color = mood.shown { return color }
+        let appearance = settings.value.appearance
+        if let hex = appearance.customWashTopHex { return Color(hex: hex) }
+        // AMOLED keeps the page black: a custom background colour then tints the light at the top instead.
+        if style.amoled, let hex = appearance.customBackgroundHex { return Color(hex: hex) }
         if let washes = style.palette.washes { return Color(hex: washes.primary) }
         return settings.accentColor
     }
 
     private var secondary: Color {
         if style.mood, let color = mood.shown { return color.opacity(0.8) }
+        if let hex = settings.value.appearance.customWashBottomHex { return Color(hex: hex) }
         if let washes = style.palette.washes { return Color(hex: washes.secondary) }
         return Color(red: 0.16, green: 0.30, blue: 0.95)
     }

@@ -7,9 +7,9 @@ final class GlassHomeTests: XCTestCase {
         XCTAssertEqual(appearance.homeLayout, .classic)
         let visible = appearance.glassHome.categories.filter { $0.isVisible }.map { $0.title }
         XCTAssertEqual(visible, ["Film", "Serie TV", "Anime", "Live TV"])
-        XCTAssertEqual(appearance.glassHome.sections.first?.id, GlassHomeSettings.search)
+        XCTAssertEqual(appearance.glassHome.sections.first?.id, HomeSectionConfig.hero, "«In evidenza» opens the page when switched on")
         XCTAssertEqual(appearance.glassHome.sections.first(where: { $0.id == HomeSectionConfig.hero })?.isVisible, false)
-        XCTAssertEqual(appearance.glassHome.sections.map { $0.id }.prefix(3), [GlassHomeSettings.search, GlassHomeSettings.categoriesID, HomeSectionConfig.hero])
+        XCTAssertEqual(appearance.glassHome.sections.map { $0.id }.prefix(3), [HomeSectionConfig.hero, GlassHomeSettings.search, GlassHomeSettings.categoriesID])
         XCTAssertEqual(HomeLayout.glass.title, "Vetrina")
     }
 
@@ -47,7 +47,20 @@ final class GlassHomeTests: XCTestCase {
         XCTAssertFalse(result.contains { $0.id == "nope" })
         XCTAssertTrue(result.dropFirst(2).allSatisfy { !$0.isVisible })
         let sections = GlassHomeSettings.normalise([HomeSectionConfig(id: "catalogs"), HomeSectionConfig(id: "nope")])
-        XCTAssertEqual(sections.first?.id, "catalogs")
+        XCTAssertEqual(sections.map { $0.id }.prefix(2), [HomeSectionConfig.hero, "catalogs"], "a missing «In evidenza» goes on top")
         XCTAssertEqual(sections.count, GlassHomeSettings.defaultSections.count)
+    }
+
+    func testFeaturedSectionLeftAtTheBottomByOlderVersionsMovesToTheTop() {
+        // What older versions stored: «In evidenza» appended after every other section, then switched on by the viewer.
+        var stored = GlassHomeSettings.defaultSections.filter { $0.id != HomeSectionConfig.hero }
+        stored.append(HomeSectionConfig(id: HomeSectionConfig.hero, isVisible: true))
+        let sections = GlassHomeSettings.normalise(stored)
+        XCTAssertEqual(sections.first?.id, HomeSectionConfig.hero)
+        XCTAssertEqual(sections.first?.isVisible, true, "the choice is kept, only the place changes")
+        // A place the viewer chose in the middle is respected.
+        var middle = GlassHomeSettings.defaultSections
+        middle.swapAt(0, 3)
+        XCTAssertEqual(GlassHomeSettings.normalise(middle).map(\.id), middle.map(\.id))
     }
 }

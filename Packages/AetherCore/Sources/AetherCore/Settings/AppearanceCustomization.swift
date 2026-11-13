@@ -297,6 +297,8 @@ public enum LookPreset: String, CaseIterable, Sendable {
     public func apply(to a: inout AppearanceSettings) {
         a.customAccentHex = nil
         a.customBackgroundHex = nil
+        a.customWashTopHex = nil
+        a.customWashBottomHex = nil
         // The light edge and the button halo are part of the look: every preset sets them (only «Bilanciato» turns them off).
         a.cardSheen = true
         a.buttonGlow = true

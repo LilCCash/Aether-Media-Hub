@@ -54,10 +54,15 @@ struct PlayerView: View {
     private enum DragMode { case brightness, volume, seek }
 
     struct HUD: Equatable {
+        enum Kind: Equatable { case brightness, volume, seek, other }
         var icon: String
         var text: String
         var fraction: Double?
+        var kind: Kind = .other
     }
+
+    /// Aspetto › «Player in stile moderno».
+    private var modern: Bool { settings.value.appearance.modernPlayer }
 
     struct CastNotice: Identifiable {
         let id = UUID()
@@ -89,6 +94,7 @@ struct PlayerView: View {
             .onChange(of: sheet) { _, value in sheetChanged(value) }
             .onChange(of: panel) { _, value in panelChanged(value) }
             .onChange(of: remotePosition) { _, value in remotePositionChanged(value) }
+            .onChange(of: playbackSettings.subtitleStyle) { _, style in model.applySubtitleStyle(style) }
             .accessibilityAction(.escape) {
                 if panel != nil { closePanel() } else { close() }
             }
@@ -144,7 +150,7 @@ struct PlayerView: View {
     /// The hardware buttons changed the volume: show where it is. (A drag on the video shows its own bar.)
     private func volumeButtonPressed(_ level: Double) {
         guard dragMode != .volume else { return }
-        flash(HUD(icon: level <= 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", text: "\(Int(level * 100))%", fraction: level))
+        flash(HUD(icon: PlayerView.volumeSymbol(level), text: "\(Int(level * 100))%", fraction: level, kind: .volume))
     }
 
     private func finishedChanged(_ finished: Bool) {
@@ -602,17 +608,17 @@ struct PlayerView: View {
                 case .brightness:
                     let level = min(1, max(0, dragStart - Double(value.translation.height / size.height) * 1.3))
                     ScreenBrightness.value = level
-                    hud = HUD(icon: "sun.max.fill", text: "\(Int(level * 100))%", fraction: level)
+                    hud = HUD(icon: level < 0.35 ? "sun.min.fill" : "sun.max.fill", text: "\(Int(level * 100))%", fraction: level, kind: .brightness)
                 case .volume:
                     let level = min(1, max(0, dragStart - Double(value.translation.height / size.height) * 1.3))
                     volume.set(level)
-                    hud = HUD(icon: level == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", text: "\(Int(level * 100))%", fraction: level)
+                    hud = HUD(icon: PlayerView.volumeSymbol(level), text: "\(Int(level * 100))%", fraction: level, kind: .volume)
                 case .seek:
                     let delta = Double(value.translation.width / size.width) * 120
                     let target = min(max(0, dragStart + delta), model.snapshot.duration)
                     seekPreview = target
                     hud = HUD(icon: delta >= 0 ? "forward.fill" : "backward.fill",
-                              text: "\(Format.duration(target))  (\(delta >= 0 ? "+" : "−")\(Int(abs(target - dragStart))) s)", fraction: nil)
+                              text: "\(Format.duration(target))  (\(delta >= 0 ? "+" : "−")\(Int(abs(target - dragStart))) s)", fraction: nil, kind: .seek)
                 case nil:
                     break
                 }
@@ -640,10 +646,20 @@ struct PlayerView: View {
 
     // MARK: Controls
 
+    /// The shade behind the controls: the modern look fades smoothly from the bars into the picture.
+    private var scrimStops: [Gradient.Stop] {
+        if modern {
+            return [Gradient.Stop(color: .black.opacity(0.62), location: 0), Gradient.Stop(color: .black.opacity(0.18), location: 0.22),
+                    Gradient.Stop(color: .clear, location: 0.42), Gradient.Stop(color: .clear, location: 0.55),
+                    Gradient.Stop(color: .black.opacity(0.35), location: 0.75), Gradient.Stop(color: .black.opacity(0.85), location: 1)]
+        }
+        return [Gradient.Stop(color: .black.opacity(0.7), location: 0), Gradient.Stop(color: .clear, location: 0.33),
+                Gradient.Stop(color: .clear, location: 0.66), Gradient.Stop(color: .black.opacity(0.8), location: 1)]
+    }
+
     private var controlsOverlay: some View {
         ZStack {
-            LinearGradient(colors: [.black.opacity(0.7), .clear, .clear, .black.opacity(0.8)],
-                           startPoint: .top, endPoint: .bottom)
+            LinearGradient(stops: scrimStops, startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
             VStack(spacing: 0) {
@@ -670,10 +686,10 @@ struct PlayerView: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            GlassIconButton(systemName: "chevron.down", accessibilityLabel: "Chiudi il player") { close() }
+            chromeButton("chevron.down", "Chiudi il player") { close() }
                 .accessibilityIdentifier("player.close")
             VStack(alignment: .leading, spacing: 2) {
-                Text(model.title).font(.headline).lineLimit(1)
+                Text(model.title).font(modern ? .system(.headline, design: AetherTypography.design).weight(.bold) : .headline).lineLimit(1)
                 if let subtitle = model.episodeSubtitle(), !subtitle.isEmpty {
                     Text(subtitle).font(.caption).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
                 }
@@ -692,12 +708,12 @@ struct PlayerView: View {
                     AirPlayRoutePicker(tint: .white, activeTint: UIColor(accent),
                                        onWillPresent: { model.airPlayPickerWillPresent() })
                         .frame(width: 44, height: 44)
-                        .aetherGlass(in: Circle(), interactive: true)
-                    GlassIconButton(systemName: "tv.and.mediabox", accessibilityLabel: "Trasmetti su Google Cast o DLNA") {
+                        .modifier(PlayerChromeBackground(modern: modern))
+                    chromeButton("tv.and.mediabox", "Trasmetti su Google Cast o DLNA") {
                         sheet = .cast
                     }
                     .accessibilityIdentifier("player.cast")
-                    GlassIconButton(systemName: "pip.enter", accessibilityLabel: "Picture in Picture") { model.startPictureInPicture() }
+                    chromeButton("pip.enter", "Picture in Picture") { model.startPictureInPicture() }
                         .opacity(model.pictureInPictureAvailability.canStart ? 1 : 0.55)
                         .accessibilityIdentifier("player.pip")
                     moreMenu
@@ -712,7 +728,32 @@ struct PlayerView: View {
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
-                .aetherGlass(in: Circle(), interactive: true)), identifier: "player.more")
+                .modifier(PlayerChromeBackground(modern: modern))), identifier: "player.more")
+    }
+
+    /// A button of the top bar: a glass disc (classic) or a light symbol with a soft shadow (modern).
+    @ViewBuilder
+    private func chromeButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
+        if modern {
+            Button(action: action) {
+                Image(systemName: symbol)
+                    .font(.system(size: 19, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+                    .modifier(PlayerChromeBackground(modern: true))
+            }
+            .buttonStyle(TransportButtonStyle())
+            .accessibilityLabel(label)
+        } else {
+            GlassIconButton(systemName: symbol, accessibilityLabel: label, action: action)
+        }
+    }
+
+    static func volumeSymbol(_ level: Double) -> String {
+        if level <= 0 { return "speaker.slash.fill" }
+        if level < 0.34 { return "speaker.wave.1.fill" }
+        if level < 0.67 { return "speaker.wave.2.fill" }
+        return "speaker.wave.3.fill"
     }
 
     /// The options of the player as a drop-down menu. It is `Equatable` on purpose: the player redraws every half second, and a menu rebuilt
@@ -731,7 +772,7 @@ struct PlayerView: View {
 
     private var centerControls: some View {
         AetherGlassGroup(spacing: 24) {
-            HStack(spacing: 14) {
+            HStack(spacing: modern ? 34 : 14) {
                 if model.previousEpisode != nil {
                     TransportButton(size: 48, symbol: "backward.end.fill", symbolSize: 24, label: "Episodio precedente") {
                         Task { await model.playPrevious() }
@@ -741,14 +782,15 @@ struct PlayerView: View {
                                 label: "Indietro di \(playbackSettings.skipBackSeconds) secondi") {
                     model.skipBack(); showControls()
                 }
-                TransportButton(size: 78, glass: true, identifier: "player.playPause",
+                TransportButton(size: 78, glass: !modern, identifier: "player.playPause",
                                 label: model.snapshot.isPlaying ? "Pausa" : "Riproduci", action: {
                     model.togglePlayPause(); showControls()
                 }) {
                     if model.isOpeningSource || (model.snapshot.isBuffering && !model.snapshot.isPlaying) {
                         ProgressView().controlSize(.large).tint(.white)
                     } else {
-                        Image(systemName: model.snapshot.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 34))
+                        Image(systemName: model.snapshot.isPlaying ? "pause.fill" : "play.fill").font(.system(size: modern ? 50 : 34))
+                            .contentTransition(.symbolEffect(.replace))
                     }
                 }
                 TransportButton(size: 56, symbol: skipSymbol(seconds: playbackSettings.skipForwardSeconds, forward: true), symbolSize: 30,
@@ -762,6 +804,7 @@ struct PlayerView: View {
                     }
                 }
             }
+            .shadow(color: .black.opacity(modern ? 0.5 : 0), radius: 10, y: 2)
         }
     }
 
@@ -873,8 +916,10 @@ struct PlayerView: View {
                 .frame(minWidth: 62).frame(height: 52).padding(.horizontal, 6)
             }
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Corner.control, style: .continuous).strokeBorder(.white.opacity(0.16), lineWidth: 0.8))
+        .background(modern ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.ultraThinMaterial),
+                    in: RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Corner.control, style: .continuous).strokeBorder(.white.opacity(modern ? 0 : 0.16), lineWidth: 0.8))
+        .shadow(color: .black.opacity(modern ? 0.45 : 0), radius: 4, y: 1)
         .contentShape(RoundedRectangle(cornerRadius: Corner.control, style: .continuous))
     }
 
@@ -900,9 +945,9 @@ struct PlayerView: View {
 
     private func bottomButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
+            Image(systemName: symbol).font(.system(size: modern ? 17 : 15, weight: .semibold))
                 .frame(width: 38, height: 38)
-                .aetherGlass(in: Circle(), interactive: true)
+                .modifier(PlayerChromeBackground(modern: modern))
                 // The circle stays small; the finger gets the 44 pt Apple asks for.
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
@@ -937,7 +982,12 @@ struct PlayerView: View {
 
     @ViewBuilder
     private func overlays(size: CGSize) -> some View {
-        if let hud = hud {
+        if let hud = hud, modern {
+            PlayerLevelHUD(hud: hud, accent: accent)
+                .transition(.opacity)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        } else if let hud = hud {
             VStack(spacing: 8) {
                 Image(systemName: hud.icon).font(.system(size: 26, weight: .semibold))
                 Text(hud.text).font(.subheadline.monospacedDigit().weight(.semibold))
@@ -1335,3 +1385,72 @@ private struct TransportButtonStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }
+
+// MARK: - Modern look
+
+/// The background of a small player button: the glass disc of the classic look, or nothing but a soft shadow under the symbol.
+private struct PlayerChromeBackground: ViewModifier {
+    let modern: Bool
+
+    func body(content: Content) -> some View {
+        if modern {
+            content.shadow(color: .black.opacity(0.55), radius: 5, y: 1)
+        } else {
+            content.aetherGlass(in: Circle(), interactive: true)
+        }
+    }
+}
+
+/// Brightness and volume as a slim vertical gauge on their side of the screen (left / right, where the finger is), seeking as a
+/// clean time readout in the middle.
+private struct PlayerLevelHUD: View {
+    let hud: PlayerView.HUD
+    let accent: Color
+
+    var body: some View {
+        switch hud.kind {
+        case .brightness, .volume:
+            HStack {
+                if hud.kind == .volume { Spacer() }
+                gauge
+                if hud.kind == .brightness { Spacer() }
+            }
+            .padding(.horizontal, 28)
+        default:
+            VStack(spacing: 6) {
+                Image(systemName: hud.icon).font(.system(size: 22, weight: .semibold))
+                Text(hud.text).font(.system(.title3, design: .rounded).monospacedDigit().weight(.semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 22).padding(.vertical, 14)
+            .background(.black.opacity(0.45), in: Capsule())
+            .shadow(color: .black.opacity(0.4), radius: 12)
+        }
+    }
+
+    private var gauge: some View {
+        let fraction = max(0, min(1, hud.fraction ?? 0))
+        return VStack(spacing: 10) {
+            Text(hud.text).font(.system(.caption, design: .rounded).monospacedDigit().weight(.bold))
+            ZStack(alignment: .bottom) {
+                Capsule().fill(.white.opacity(0.18))
+                Capsule()
+                    .fill(LinearGradient(colors: [.white, .white.opacity(0.82)], startPoint: .top, endPoint: .bottom))
+                    .frame(height: max(8, 156 * fraction))
+                    .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.9), value: fraction)
+            }
+            .frame(width: 8, height: 156)
+            .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 0.5))
+            Image(systemName: hud.icon)
+                .font(.system(size: 17, weight: .semibold))
+                .contentTransition(.symbolEffect(.replace))
+                .frame(height: 22)
+        }
+        .foregroundStyle(.white)
+        .padding(.vertical, 16).padding(.horizontal, 14)
+        .background(.ultraThinMaterial.opacity(0.85), in: Capsule())
+        .environment(\.colorScheme, .dark)
+        .shadow(color: .black.opacity(0.35), radius: 14)
+    }
+}
+

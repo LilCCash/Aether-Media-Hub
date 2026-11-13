@@ -102,12 +102,15 @@ protocol PlaybackEngine: AnyObject {
     func teardown()
     /// Measured now, for the information sheet (called about once a second while it is open).
     func liveStats() -> PlaybackLiveStats?
+    func applySubtitleStyle(_ style: SubtitleStyle)
 }
 
 extension PlaybackEngine {
     var identifier: String { kind.rawValue }
     var displayName: String { kind.displayName }
     func setEmbeddedSubtitleDelay(_ seconds: Double) {}
+    /// Style of the subtitles the engine draws itself (embedded tracks). Subtitles drawn by the app ignore it.
+    func applySubtitleStyle(_ style: SubtitleStyle) {}
     func setExternalPlaybackAllowed(_ allowed: Bool) {}
     func liveStats() -> PlaybackLiveStats? { return nil }
 }

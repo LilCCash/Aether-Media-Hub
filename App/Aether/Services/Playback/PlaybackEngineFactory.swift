@@ -44,12 +44,12 @@ enum PlaybackEngineFactory {
     static func make(_ kind: PlaybackEngineKind, settings: PlaybackSettings, device: DeviceVideoCapabilities) -> PlaybackEngine {
         switch kind {
         case .avPlayer:
-            return AVPlayerEngine(bufferSeconds: settings.video.bufferSeconds)
+            return AVPlayerEngine(bufferSeconds: settings.video.bufferSeconds, subtitleStyle: settings.subtitleStyle)
         case .mpv:
             #if canImport(Libmpv)
             return MPVEngine(settings: settings, device: device, headlessVideo: headlessVideo)
             #else
-            return AVPlayerEngine(bufferSeconds: settings.video.bufferSeconds)
+            return AVPlayerEngine(bufferSeconds: settings.video.bufferSeconds, subtitleStyle: settings.subtitleStyle)
             #endif
         }
     }
