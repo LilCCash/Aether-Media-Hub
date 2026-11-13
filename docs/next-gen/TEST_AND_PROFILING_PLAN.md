@@ -7,7 +7,9 @@
 | Core con TSan / ASan | Linux, locale | puliti |
 | Core su macOS | CI `AetherCore (swift test)` | superati (run 43426226962) |
 | App build + unit test (nuovi: relay HLS, impostazioni, immagini) | CI `App (unit tests)` | superati (run 43426226962) |
-| UI test mirati (Layout, Browse, HomeCustomization, SettingsAndAccessibility) | CI con `ui_tests` | 34/36 al primo giro; i 2 falliti erano preesistenti (NEW-03, NEW-04), corretti e rieseguiti |
+| UI test Layout, Browse, HomeCustomization, SettingsAndAccessibility, SearchFilter | CI con `ui_tests` | superati (gli unici rossi iniziali erano preesistenti: NEW-03, NEW-04, corretti) |
+| UI test TorBox e Metadata | CI con `ui_tests` | 10 fallimenti **identici sul branch di base** `aether-swift-features` (run 43453573172): preesistenti, vedi BUG_AUDIT PRE-01/02 |
+| `testChoosingWideCardsInSettingsChangesTheHome` | CI | instabile: passato in run 43426243300 e sulla base, fallito una volta in 43434465261 («install preview did not appear») |
 | Screenshot tour | CI con `[shots]`, artifact `screenshots` | eseguito (run 43426226962) |
 
 ## Manuali (da fare sul telefono)

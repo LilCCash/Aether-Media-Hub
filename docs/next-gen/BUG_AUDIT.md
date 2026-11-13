@@ -65,6 +65,14 @@ L'ordine LRU poteva contenere chiavi senza voce. Ora `touch` avviene solo se la 
 - `testCastingScreenExplainsWhatIsAvailable` cercava «DLNA / UPnP» come testo statico, ma è un interruttore (dal 19/10).
   Il test ora cerca interruttori o testi che iniziano con «Google Cast»/«DLNA»; l'asserzione resta la stessa.
 
+## Fallimenti preesistenti nei test UI (non corretti, fuori dall'ambito)
+Verificati sul branch di base `b9920db` con la stessa selezione di test (run 43453573172): stessi test, stessi messaggi.
+| ID | Test | Sintomo | Causa probabile |
+|---|---|---|---|
+| PRE-01 | MetadataUITests ×5 | `service.tmdb.key missing` | Il campo non ha più quell'identificatore nell'app (nessun `service.tmdb.key` nel codice): test da allineare alla pagina Servizi attuale |
+| PRE-02 | TorBoxUITests ×5 (cached, not cached, season pack, wrong key, stop wait) | «the player did not open / picker error», stato non mostrato | Flusso debrid del fixture non più allineato all'app; da indagare con il bundle `.xcresult` |
+| PRE-03 | HomeCustomization `testChoosingWideCards…` | anteprima di installazione addon non comparsa (1 volta su 3) | Instabile (tempi del fixture) |
+
 ## Rischi statici non confermati (da verificare su dispositivo)
 | ID | Descrizione | Perché non confermato |
 |---|---|---|

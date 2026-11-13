@@ -13,3 +13,6 @@ RISK-02,Task nelle View,P3,Da verificare,App/Features/*,—
 RISK-03,Conflitti sync iCloud,P2,Da verificare,Core/Sync/*,—
 NEW-03,Menu «…» del player senza etichetta VoiceOver,P2,Corretto (preesistente),App/Features/Player/PlayerMoreMenu.swift,SettingsAndAccessibilityUITests
 NEW-04,Selettore errato nel test UI Casting,P3,Corretto (preesistente),App/AetherUITests/SettingsAndAccessibilityUITests.swift,SettingsAndAccessibilityUITests
+PRE-01,Test UI Metadata cercano un identificatore inesistente,P3,"Preesistente, non corretto",App/AetherUITests/MetadataUITests.swift,run 43453573172
+PRE-02,Test UI TorBox: player/stato nel fixture,P2,"Preesistente, da indagare",App/AetherUITests/TorBoxUITests.swift,run 43453573172
+PRE-03,Test UI Home schede larghe instabile,P3,Instabile,App/AetherUITests/HomeCustomizationUITests.swift,run 43434465261
