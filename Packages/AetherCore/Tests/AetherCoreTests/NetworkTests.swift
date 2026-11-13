@@ -214,10 +214,35 @@ final class NetworkPolicyTests: XCTestCase {
                 XCTAssertEqual(error, .blockedURL(.privateAddress(host)))
             }
         }
-        // Unresolvable hosts are not a policy violation: the request itself will fail.
-        try await policy.validate(URL(string: "https://unknown.example/manifest.json")!)
+        // A name that cannot be checked is refused while private addresses are forbidden (fail-closed)…
+        do {
+            try await policy.validate(URL(string: "https://unknown.example/manifest.json")!)
+            XCTFail("an unresolvable host must not slip past the policy")
+        } catch let error as AddonError {
+            if case .unreachable = error {} else { XCTFail("unexpected \(error)") }
+        }
+        // …and goes ahead when local access is allowed anyway.
+        let lanUnknown = NetworkPolicy(allowLocalNetwork: true, checkDNS: true, resolver: resolver)
+        try await lanUnknown.validate(URL(string: "https://unknown.example/manifest.json")!)
         let lan = NetworkPolicy(allowLocalNetwork: true, checkDNS: true, resolver: resolver)
         try await lan.validate(URL(string: "https://evil.example/manifest.json")!)
+    }
+
+    func testTransientResolverFailureIsRetriedOnce() async throws {
+        final class Flaky: HostResolving, @unchecked Sendable {
+            private let lock = NSLock()
+            private var calls = 0
+            var callCount: Int { lock.lock(); defer { lock.unlock() }; return calls }
+            func resolve(host: String) async throws -> [IPAddress] {
+                let call: Int = { lock.lock(); defer { lock.unlock() }; calls += 1; return calls }()
+                if call == 1 { throw URLError(.cannotFindHost) }
+                return [.v4(8, 8, 8, 8)]
+            }
+        }
+        let flaky = Flaky()
+        let policy = NetworkPolicy(allowLocalNetwork: false, checkDNS: true, resolver: flaky)
+        try await policy.validate(URL(string: "https://good.example/manifest.json")!)
+        XCTAssertEqual(flaky.callCount, 2)
     }
 
     func testIsLocalNetworkDetection() async {

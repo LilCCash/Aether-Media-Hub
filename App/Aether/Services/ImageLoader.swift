@@ -67,6 +67,16 @@ actor ImageLoader {
 
     // MARK: Private
 
+    /// Decoding runs off the actor (so cache lookups and downloads are not queued behind it) on at most three
+    /// images at a time, which bounds the decoded-bitmap memory peak while scrolling.
+    private static let decodeLimiter = ConcurrencyLimiter(limit: 3)
+
+    private static func decode(_ bytes: Data, maxPixel: Int) async -> UIImage? {
+        return try? await decodeLimiter.withPermit {
+            ImageLoader.downsample(bytes, maxPixel: maxPixel)
+        }
+    }
+
     /// Round up to a few sizes so slightly different request sizes share the same decoded bitmap.
     private static func bucket(_ pixels: Int) -> Int {
         for step in [160, 320, 480, 720, 1080, 1600, 2400] where pixels <= step { return step }
@@ -77,11 +87,13 @@ actor ImageLoader {
         return directory.appendingPathComponent(Hashing.sha256Hex(url.absoluteString)).appendingPathExtension("img")
     }
 
-    private func loadUncached(url: URL, bucket: Int, key: String) async -> UIImage? {
+    private func loadUncached(url: URL, bucket: Int, key: String, useDisk: Bool = true) async -> UIImage? {
         if Task.isCancelled { return nil }
         let file = fileURL(for: url)
         var data: Data?
-        if let onDisk = try? Data(contentsOf: file) {
+        var fromDisk = false
+        if useDisk, let onDisk = try? Data(contentsOf: file) {
+            fromDisk = true
             data = onDisk
             try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: file.path)
         } else {
@@ -95,9 +107,10 @@ actor ImageLoader {
                 return nil
             }
         }
-        guard let bytes = data, let image = ImageLoader.downsample(bytes, maxPixel: bucket) else {
-            // Corrupt cache entry: drop it so the next attempt refetches.
+        guard let bytes = data, let image = await ImageLoader.decode(bytes, maxPixel: bucket) else {
             try? FileManager.default.removeItem(at: file)
+            // Corrupt cache entry: download it again right away, once (the retry never reads the disk).
+            if fromDisk { return await loadUncached(url: url, bucket: bucket, key: key, useDisk: false) }
             return nil
         }
         if !FileManager.default.fileExists(atPath: file.path) {

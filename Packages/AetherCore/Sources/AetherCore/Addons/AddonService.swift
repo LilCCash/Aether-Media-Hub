@@ -78,7 +78,9 @@ public final class AddonService: Sendable {
         let timeout = requestTimeout
         let client = self.client
         do {
-            let response = try await limiter.withPermit {
+            // The queue wait is bounded too (2× the request timeout), so the whole call ends by
+            // `3 × timeout + 1` even when every permit is busy; a cancelled caller leaves the queue at once.
+            let response = try await limiter.withPermit(maxWait: timeout * 2) {
                 try await withDeadline(seconds: timeout + 1) {
                     try await client.fetch(transport: handle.transportURL, path: path, mode: mode, timeout: timeout)
                 }

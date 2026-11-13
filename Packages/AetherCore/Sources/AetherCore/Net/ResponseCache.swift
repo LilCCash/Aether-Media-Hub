@@ -65,13 +65,25 @@ public actor ResponseCache {
 
     private var memory: [String: Entry] = [:]
     private var accessOrder: [String] = []
+    private var memoryBytes = 0
     private let directory: URL?
     private let maxMemoryEntries: Int
+    private let maxMemoryBytes: Int
+    private let maxDiskBytes: Int64
+    private let maxDiskAge: TimeInterval
+    private var diskBytesEstimate: Int64?
     private let now: @Sendable () -> Date
 
-    public init(directory: URL?, maxMemoryEntries: Int = 400, now: @escaping @Sendable () -> Date = { Date() }) {
+    /// Defaults: 400 entries **and** 48 MiB in memory; 256 MiB on disk, and files untouched for 30 days are dropped
+    /// (well past every default stale window, so offline / stale serving keeps working as before).
+    public init(directory: URL?, maxMemoryEntries: Int = 400, maxMemoryBytes: Int = 48 * 1_048_576,
+                maxDiskBytes: Int64 = 256 * 1_048_576, maxDiskAge: TimeInterval = 30 * 86400,
+                now: @escaping @Sendable () -> Date = { Date() }) {
         self.directory = directory
-        self.maxMemoryEntries = maxMemoryEntries
+        self.maxMemoryEntries = max(1, maxMemoryEntries)
+        self.maxMemoryBytes = max(1, maxMemoryBytes)
+        self.maxDiskBytes = max(1, maxDiskBytes)
+        self.maxDiskAge = maxDiskAge
         self.now = now
         if let directory = directory {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -87,13 +99,20 @@ public actor ResponseCache {
     public func lookup(_ rawKey: String) -> CacheLookup? {
         let key = Hashing.sha256Hex(rawKey)
         var entry = memory[key]
-        if entry == nil, let url = fileURL(forHash: key), let data = try? Data(contentsOf: url),
-           let decoded = try? JSONDecoder().decode(Entry.self, from: data), decoded.key == key {
-            entry = decoded
-            insertMemory(decoded)
+        if entry == nil, let url = fileURL(forHash: key), let data = try? Data(contentsOf: url) {
+            if let decoded = try? JSONDecoder().decode(Entry.self, from: data), decoded.key == key {
+                entry = decoded
+                insertMemory(decoded)
+                // Disk eviction is least-recently-used by modification date.
+                try? FileManager.default.setAttributes([.modificationDate: now()], ofItemAtPath: url.path)
+            } else {
+                // Corrupt or foreign file: drop it so it stops costing a read on every lookup.
+                try? FileManager.default.removeItem(at: url)
+                diskBytesEstimate = diskBytesEstimate.map { $0 - Int64(data.count) }
+            }
         }
         guard let found = entry else { return nil }
-        touch(key)
+        if memory[key] != nil { touch(key) }
         let age = now().timeIntervalSince(found.storedAt)
         let fresh = age >= 0 && age < Double(found.maxAge)
         let staleOK = age >= 0 && age < Double(found.maxAge + found.staleError)
@@ -107,14 +126,17 @@ public actor ResponseCache {
         let entry = Entry(key: key, kind: kind, storedAt: now(), maxAge: maxAge, staleError: staleError, data: data)
         insertMemory(entry)
         if kind.persistsToDisk, let url = fileURL(forHash: key), let encoded = try? JSONEncoder().encode(entry) {
-            try? encoded.write(to: url, options: .atomic)
+            // A full disk makes the write fail: the entry simply stays memory-only.
+            if (try? encoded.write(to: url, options: .atomic)) != nil {
+                if diskBytesEstimate == nil { pruneDisk() } else { diskBytesEstimate! += Int64(encoded.count) }
+                if let estimate = diskBytesEstimate, estimate > maxDiskBytes { pruneDisk() }
+            }
         }
     }
 
     public func remove(key rawKey: String) {
         let key = Hashing.sha256Hex(rawKey)
-        memory.removeValue(forKey: key)
-        accessOrder.removeAll(where: { $0 == key })
+        dropMemory(key)
         if let url = fileURL(forHash: key) { try? FileManager.default.removeItem(at: url) }
     }
 
@@ -122,13 +144,14 @@ public actor ResponseCache {
     public func clear(kinds: Set<CacheKind>? = nil) {
         if let kinds = kinds {
             for (key, entry) in memory where kinds.contains(entry.kind) {
-                memory.removeValue(forKey: key)
-                accessOrder.removeAll(where: { $0 == key })
+                dropMemory(key)
             }
         } else {
             memory.removeAll()
             accessOrder.removeAll()
+            memoryBytes = 0
         }
+        diskBytesEstimate = nil
         guard let directory = directory,
               let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
             return
@@ -158,16 +181,59 @@ public actor ResponseCache {
     }
 
     public var memoryEntryCount: Int { return memory.count }
+    public var memoryByteCount: Int { return memoryBytes }
+
+    /// Drops disk files untouched for longer than `maxDiskAge`, then the least recently used ones until the disk
+    /// budget is met (to 90%, so pruning does not run on every write). Runs on the first write after launch and
+    /// whenever the budget is exceeded.
+    public func pruneDisk() {
+        guard let directory = directory else { return }
+        let fm = FileManager.default
+        let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey]
+        guard let files = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: keys) else {
+            diskBytesEstimate = 0
+            return
+        }
+        let cutoff = now().addingTimeInterval(-maxDiskAge)
+        var kept: [(url: URL, size: Int64, date: Date)] = []
+        for file in files where file.pathExtension == "json" {
+            let values = try? file.resourceValues(forKeys: Set(keys))
+            let size = Int64(values?.fileSize ?? 0)
+            let date = values?.contentModificationDate ?? .distantPast
+            if date < cutoff {
+                try? fm.removeItem(at: file)
+            } else {
+                kept.append((file, size, date))
+            }
+        }
+        var total = kept.reduce(Int64(0)) { $0 + $1.size }
+        if total > maxDiskBytes {
+            let target = maxDiskBytes / 10 * 9
+            for file in kept.sorted(by: { $0.date < $1.date }) where total > target {
+                try? fm.removeItem(at: file.url)
+                total -= file.size
+            }
+        }
+        diskBytesEstimate = total
+    }
 
     // MARK: Private
 
     private func insertMemory(_ entry: Entry) {
+        dropMemory(entry.key)
+        // An entry larger than the whole budget is served from disk only.
+        guard entry.data.count <= maxMemoryBytes else { return }
         memory[entry.key] = entry
+        memoryBytes += entry.data.count
         touch(entry.key)
-        while memory.count > maxMemoryEntries, let oldest = accessOrder.first {
-            accessOrder.removeFirst()
-            memory.removeValue(forKey: oldest)
+        while memory.count > maxMemoryEntries || memoryBytes > maxMemoryBytes, let oldest = accessOrder.first {
+            dropMemory(oldest)
         }
+    }
+
+    private func dropMemory(_ key: String) {
+        if let old = memory.removeValue(forKey: key) { memoryBytes -= old.data.count }
+        accessOrder.removeAll(where: { $0 == key })
     }
 
     private func touch(_ key: String) {

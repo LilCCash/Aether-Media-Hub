@@ -161,7 +161,9 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
 
     // MARK: HLS
 
-    private func rewriteHLS(_ input: String, baseURL: URL) throws -> String {
+    /// Rewrites every URI (variants, `EXT-X-MEDIA` audio/subtitle renditions, keys, maps, parts) to a session-local
+    /// name and leaves every other attribute untouched, so the receiver sees the same renditions as the source.
+    func rewriteHLS(_ input: String, baseURL: URL) throws -> String {
         let upper = input.uppercased()
         if upper.contains("EXT-X-DEFINE") || upper.contains("EXT-X-CONTENT-STEERING") || upper.contains("{$") || upper.contains("METHOD=SAMPLE-AES") {
             throw RelayError.upstreamNotMedia
@@ -323,6 +325,9 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         return local
     }
 
+    /// The upstream URL behind a local name (tests and diagnostics).
+    func upstreamURL(for leaf: String) -> URL? { resolve(leaf)?.url }
+
     private func resolve(_ leaf: String) -> Route? {
         lock.lock()
         if let route = routes[leaf] { lock.unlock(); return route }
@@ -366,10 +371,14 @@ final class AdaptiveStreamRelaySource: RelaySource, @unchecked Sendable {
         case "m3u8": return "application/vnd.apple.mpegurl"
         case "mpd": return "application/dash+xml"
         case "ts": return "video/mp2t"
-        case "m4s", "mp4", "m4v": return "video/mp4"
+        case "m4s", "mp4", "m4v", "cmfv": return "video/mp4"
+        case "m4a", "cmfa": return "audio/mp4"
         case "mp3": return "audio/mpeg"
         case "aac": return "audio/aac"
-        case "vtt": return "text/vtt"
+        case "ac3": return "audio/ac3"
+        case "ec3": return "audio/eac3"
+        case "vtt", "webvtt": return "text/vtt"
+        case "ttml", "dfxp": return "application/ttml+xml"
         case "key", "bin": return "application/octet-stream"
         default: return "application/octet-stream"
         }

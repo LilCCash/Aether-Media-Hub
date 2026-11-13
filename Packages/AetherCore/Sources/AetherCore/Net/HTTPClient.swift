@@ -266,14 +266,17 @@ public final class URLSessionHTTPClient: NSObject, HTTPClient, URLSessionDataDel
         let state = states.removeValue(forKey: task.taskIdentifier)
         let continuation = state?.continuation
         state?.continuation = nil
+        // `cancelled` / `failure` are written under the lock from other threads: read them in the same critical section.
+        let cancelled = state?.cancelled ?? false
+        let recordedFailure = state?.failure
         lock.unlock()
         guard let state = state, let continuation = continuation else { return }
 
-        if state.cancelled {
+        if cancelled {
             continuation.resume(throwing: CancellationError())
             return
         }
-        if let failure = state.failure {
+        if let failure = recordedFailure {
             continuation.resume(throwing: failure)
             return
         }

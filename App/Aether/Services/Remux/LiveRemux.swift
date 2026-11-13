@@ -80,16 +80,21 @@ final class LiveRemuxEngine: @unchecked Sendable {
         thread.qualityOfService = .userInitiated
         thread.start()
         let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            try Task.checkCancellation()
-            let state: (count: Int, failure: LiveRemuxError?, ended: Bool) = locked { (pieces.count, failure, ended) }
-            if let failure = state.failure { close(); throw failure }
-            if state.count >= 2 { return }
-            if state.ended { close(); throw LiveRemuxError.unreadable }
-            try await Task.sleep(nanoseconds: 150_000_000)
+        // Every way out other than success (cancellation included) stops the reading thread here, not only in callers.
+        do {
+            while Date() < deadline {
+                try Task.checkCancellation()
+                let state: (count: Int, failure: LiveRemuxError?, ended: Bool) = locked { (pieces.count, failure, ended) }
+                if let failure = state.failure { throw failure }
+                if state.count >= 2 { return }
+                if state.ended { throw LiveRemuxError.unreadable }
+                try await Task.sleep(nanoseconds: 150_000_000)
+            }
+            throw LiveRemuxError.timedOut
+        } catch {
+            close()
+            throw error
         }
-        close()
-        throw LiveRemuxError.timedOut
     }
 
     func close() {

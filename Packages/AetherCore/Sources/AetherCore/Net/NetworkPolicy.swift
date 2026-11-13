@@ -261,14 +261,23 @@ public struct NetworkPolicy: Sendable {
         if let literalClass = literalClass {
             resolvedClasses = [literalClass]
         } else if checkDNS, let host = url.host?.lowercased() {
-            if let addresses = try? await resolver.resolve(host: host) {
-                for address in addresses {
-                    let addressClass = address.addressClass
-                    try check(addressClass, host: host)
-                    resolvedClasses.append(addressClass)
-                }
+            var addresses = (try? await resolver.resolve(host: host)) ?? []
+            if addresses.isEmpty {
+                // One retry absorbs a transient resolver hiccup.
+                addresses = (try? await resolver.resolve(host: host)) ?? []
             }
-            // Resolution failure is not a policy violation: the request itself will fail with a network error.
+            for address in addresses {
+                let addressClass = address.addressClass
+                try check(addressClass, host: host)
+                resolvedClasses.append(addressClass)
+            }
+            // A name that cannot be checked is refused when private addresses are forbidden: otherwise a resolver that
+            // fails on purpose for the check and answers a LAN address for the connection would slip past the policy
+            // (DNS rebinding). With local access allowed there is nothing to protect, so the request goes ahead and
+            // fails, or not, on its own.
+            if addresses.isEmpty && !allowLocalNetwork {
+                throw AddonError.unreachable("impossibile risolvere \(host)")
+            }
         }
         if purpose == .addonRequest,
            requireHTTPSForPublicHosts,
