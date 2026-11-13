@@ -152,11 +152,17 @@ struct RootView: View {
 
     /// The bar of «Vetrina»: Home, Libreria, Impostazioni, and Cerca apart on the right as in the classic bar. Scopri opens from the
     /// categories of the Home, the profile from its picture, the downloads are in Libreria.
+    /// Aspetto › Home › «Scopri nella barra in basso».
+    private var glassDiscoverTab: Bool { settings.value.appearance.glassDiscoverTab }
+
     @ViewBuilder
     private var glassTabs: some View {
         if #available(iOS 18.0, *) {
             TabView(selection: $router.tab) {
                 Tab("Home", systemImage: "house.fill", value: AppTab.home) { HomeView() }
+                if glassDiscoverTab {
+                    Tab("Scopri", systemImage: "safari.fill", value: AppTab.discover) { DiscoverView() }
+                }
                 Tab("Libreria", systemImage: "books.vertical.fill", value: AppTab.library) { LibraryView() }
                 Tab("Impostazioni", systemImage: "gearshape.fill", value: AppTab.settings) { SettingsTabView() }
                 Tab("Cerca", systemImage: "magnifyingglass", value: AppTab.search, role: .search) { SearchView() }
@@ -166,6 +172,11 @@ struct RootView: View {
                 HomeView()
                     .tabItem { Label("Home", systemImage: "house.fill") }
                     .tag(AppTab.home)
+                if glassDiscoverTab {
+                    DiscoverView()
+                        .tabItem { Label("Scopri", systemImage: "safari.fill") }
+                        .tag(AppTab.discover)
+                }
                 LibraryView()
                     .tabItem { Label("Libreria", systemImage: "books.vertical.fill") }
                     .tag(AppTab.library)
@@ -227,6 +238,10 @@ struct RootView: View {
         // Symbols and labels in the accent (the bar, the buttons of the bars, links) in a shade that reads on the page.
         .tint(settings.accentColor.legible(on: colorScheme))
         .onAppear { router.usesGlassHome = settings.value.appearance.homeLayout == .glass }
+        .onChange(of: glassDiscoverTab) { _, shown in
+            // The tab is removed while it is open: back to the Home instead of an empty selection.
+            if !shown && router.usesGlassHome && router.tab == .discover { router.tab = .home }
+        }
         .onChange(of: settings.value.appearance.homeLayout) { _, layout in
             router.usesGlassHome = layout == .glass
             // The layout is changed from the settings: the viewer stays on that page, in the place the new bar keeps the
@@ -236,14 +251,14 @@ struct RootView: View {
                 router.tab = layout == .glass ? .settings : .profile
                 router.profileRoute = router.layoutReturnRoute
                 router.layoutReturnRoute = .homeLayout
-            } else if (layout == .glass && router.tab == .discover) || (layout == .classic && router.tab == .settings) {
+            } else if (layout == .glass && router.tab == .discover && !glassDiscoverTab) || (layout == .classic && router.tab == .settings) {
                 router.tab = .home
             }
         }
         .onChange(of: router.tab) { old, new in
             Haptics.select()
             // With the glass Home, Scopri and the profile are not in the bar: asked for (a link, a shortcut), they open over it.
-            if router.usesGlassHome && (new == .discover || new == .profile || new == .downloads) {
+            if router.usesGlassHome && ((new == .discover && !glassDiscoverTab) || new == .profile || new == .downloads) {
                 router.tab = new == .downloads ? .library : .home
                 if new == .discover { router.discoverSheet = true }
                 if new == .profile { router.profileSheet = true }

@@ -129,14 +129,18 @@ struct UniverseCard: View {
             RemoteImage(urlString: UniverseArt.background(universe.hero), width: 480, contentMode: .fill, placeholderSeed: universe.name, systemPlaceholder: "sparkles")
             LinearGradient(colors: [.clear, .black.opacity(0.88)], startPoint: .center, endPoint: .bottom)
             VStack(alignment: .leading, spacing: 4) {
-                Text(universe.name).font(.system(size: wide ? 20 : 17, weight: .heavy, design: AetherTypography.design)).lineLimit(2).minimumScaleFactor(0.8)
+                // Text styles (title3 = 20 pt, headline = 17 pt at the standard size) so the name follows Dynamic Type.
+                Text(universe.name).font(.system(wide ? .title3 : .headline, design: AetherTypography.design, weight: .heavy))
+                    .lineLimit(2).minimumScaleFactor(0.8)
                 Text(universe.countsLine).font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                 if progress.watched > 0 {
                     ProgressView(value: progress.fraction).tint(.white).scaleEffect(y: 0.7)
                     Text("\(progress.watched)/\(progress.total) visti").font(.caption2).foregroundStyle(.white.opacity(0.75))
                 }
             }
             .foregroundStyle(.white)
+            .legibleOnArtwork()
             .padding(12)
         }
         .frame(width: wide ? 250 : nil, height: wide ? 150 : 130)

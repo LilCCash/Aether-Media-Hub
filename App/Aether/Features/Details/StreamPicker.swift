@@ -86,6 +86,9 @@ struct StreamPickerSheet: View {
                 if model.addonNames.count > 1 {
                     Section { chips }.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 }
+                if settings.value.appearance.streamQuickFilters, hasQuickChoices {
+                    Section { quickChips }.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                }
                 if let failure = model.cacheCheckFailure, model.hasTorrentRows, model.debridProvider == .torbox {
                     Section { cacheNotice(failure) }.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 }
@@ -357,6 +360,38 @@ struct StreamPickerSheet: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 4)
         }
+    }
+
+    private var hasQuickChoices: Bool {
+        let all = model.ranked
+        return StreamQuickFilter.qualities(in: all).count > 1 || StreamQuickFilter.languages(in: all).count > 1
+            || StreamQuickFilter.hasHDR(in: all) || model.quickFilter.isActive
+    }
+
+    /// Quality, HDR and language: each chip narrows the list; tapping it again (or «Tutte») clears it.
+    private var quickChips: some View {
+        let all = model.ranked
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack {
+                FilterChip(title: "Tutte", isSelected: !model.quickFilter.isActive) { model.quickFilter = StreamQuickFilter() }
+                ForEach(StreamQuickFilter.qualities(in: all), id: \.self) { quality in
+                    FilterChip(title: quality.label, isSelected: model.quickFilter.quality == quality) {
+                        model.quickFilter.quality = model.quickFilter.quality == quality ? nil : quality
+                    }
+                }
+                if StreamQuickFilter.hasHDR(in: all) {
+                    FilterChip(title: "HDR", isSelected: model.quickFilter.hdrOnly) { model.quickFilter.hdrOnly.toggle() }
+                }
+                ForEach(StreamQuickFilter.languages(in: all), id: \.self) { language in
+                    FilterChip(title: language, isSelected: model.quickFilter.language == language) {
+                        model.quickFilter.language = model.quickFilter.language == language ? nil : language
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+        }
+        .accessibilityIdentifier("stream.quickFilters")
     }
 
     /// The cache check failed: the torrent rows carry no badge, and this says why (with a retry when trying again can help).

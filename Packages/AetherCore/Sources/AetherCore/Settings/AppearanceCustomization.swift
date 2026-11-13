@@ -270,7 +270,7 @@ public enum ContrastRatio {
 /// Ready-made looks. Applying one sets colours, background, cards, corners, typeface and the Home hero in one go;
 /// everything it sets can then be changed one by one. Name, Home order, sizes and the motion switches are not touched.
 public enum LookPreset: String, CaseIterable, Sendable {
-    case aether, cinemaBlack, neon, luxury, minimal
+    case aether, cinemaBlack, neon, luxury, minimal, balanced
 
     public var title: String {
         switch self {
@@ -279,6 +279,7 @@ public enum LookPreset: String, CaseIterable, Sendable {
         case .neon: return "Neon"
         case .luxury: return "Luxury"
         case .minimal: return "Minimal"
+        case .balanced: return "Bilanciato"
         }
     }
 
@@ -289,12 +290,16 @@ public enum LookPreset: String, CaseIterable, Sendable {
         case .neon: return "Colori accesi, onde, carattere macchina"
         case .luxury: return "Oro, contorni sottili, font con grazie"
         case .minimal: return "Tinta unita, niente effetti"
+        case .balanced: return "Viola, ombre morbide, effetti dosati"
         }
     }
 
     public func apply(to a: inout AppearanceSettings) {
         a.customAccentHex = nil
         a.customBackgroundHex = nil
+        // The light edge and the button halo are part of the look: every preset sets them (only «Bilanciato» turns them off).
+        a.cardSheen = true
+        a.buttonGlow = true
         switch self {
         case .aether:
             a.theme = .dark; a.amoled = false; a.accent = .nebula; a.palette = .aether; a.backdrop = .spotlight; a.backdropIntensity = 1
@@ -311,6 +316,12 @@ public enum LookPreset: String, CaseIterable, Sendable {
         case .minimal:
             a.theme = .system; a.amoled = false; a.accent = .sky; a.palette = .aether; a.backdrop = .plain; a.backdropIntensity = 0
             a.cardChrome = .standard; a.cornerStyle = .standard; a.titleFont = .standard; a.heroStyle = .card; a.dynamicCinematic = false
+        case .balanced:
+            // The Aether colours with the effects that compete with the artwork toned down: no light edge, no button halo,
+            // shadows instead of glow, a softer background.
+            a.theme = .dark; a.amoled = false; a.accent = .nebula; a.palette = .aether; a.backdrop = .spotlight; a.backdropIntensity = 0.6
+            a.cardChrome = .shadow; a.cornerStyle = .rounded; a.titleFont = .rounded; a.heroStyle = .fullBleed; a.dynamicCinematic = true
+            a.cardSheen = false; a.buttonGlow = false
         }
     }
 }

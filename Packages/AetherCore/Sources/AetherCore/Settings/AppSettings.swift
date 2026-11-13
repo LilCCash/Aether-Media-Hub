@@ -230,6 +230,19 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
     public var showExplore: Bool = true
     /// The «Il mio universo del cinema» card in the Profile.
     public var showCinemaCard: Bool = true
+    // Next gen (every one can be switched off in Aspetto)
+    /// The featured carousel of the Home gets shorter on short screens (iPhone SE/mini, landscape); unchanged from 6.1" up.
+    public var adaptiveHeroHeight: Bool = true
+    /// A soft dark shade under text drawn over artwork, so it stays readable on bright pictures.
+    public var legibilityScrims: Bool = true
+    /// Quick filters (quality, HDR, audio language) above the list of sources.
+    public var streamQuickFilters: Bool = true
+    /// Glass Home: «Scopri» is a tab of the bottom bar too (otherwise it is reached from the categories).
+    public var glassDiscoverTab: Bool = false
+    /// The search field at the top of Impostazioni.
+    public var settingsSearch: Bool = true
+    /// Impostazioni shows only the pages most people need; the others stay one tap away («Mostra tutte»).
+    public var essentialSettings: Bool = false
     /// Raw ids of the hidden extras found so far (`AppSecret`).
     public var unlockedSecrets: [String] = []
 
@@ -243,6 +256,7 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         case animationsEnabled, haptics, detailAsCard, zoomTransition, dynamicCinematic, cinematicOpening, creditsExperience, reduceVisualEffects, unlockedSecrets
         case moodColors, cinematicMotion, imageFades, kenBurns, openingSound, showExplore, showCinemaCard
         case cardSheen, scrollMotion, buttonGlow, heroEdgeToEdge, entranceMotion, symbolMotion, detailParallax, settingsIconTiles
+        case adaptiveHeroHeight, legibilityScrims, streamQuickFilters, glassDiscoverTab, settingsSearch, essentialSettings
     }
 
     private static func cleanHex(_ value: String?) -> String? {
@@ -310,6 +324,12 @@ public struct AppearanceSettings: Codable, Equatable, Sendable {
         openingSound = c.value(.openingSound, default: true)
         showExplore = c.value(.showExplore, default: true)
         showCinemaCard = c.value(.showCinemaCard, default: true)
+        adaptiveHeroHeight = c.value(.adaptiveHeroHeight, default: true)
+        legibilityScrims = c.value(.legibilityScrims, default: true)
+        streamQuickFilters = c.value(.streamQuickFilters, default: true)
+        glassDiscoverTab = c.value(.glassDiscoverTab, default: false)
+        settingsSearch = c.value(.settingsSearch, default: true)
+        essentialSettings = c.value(.essentialSettings, default: false)
         // The secrets are read first: a palette that needs one is only honoured if it is unlocked.
         let chosen: AppPalette = c.value(.palette, default: .aether)
         palette = isAvailable(chosen) ? chosen : .aether

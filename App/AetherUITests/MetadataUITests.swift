@@ -14,7 +14,12 @@ final class MetadataUITests: AetherUITestCase {
 
     private func type(_ text: String, into identifier: String) {
         let field = element(identifier)
-        if !field.waitForExistence(timeout: 10) { app.swipeUp() }
+        // The metadata keys sit below TorBox and Real-Debrid in a lazy form: scroll until the field is on screen.
+        var swipes = 0
+        while !(field.waitForExistence(timeout: 2) && field.isHittable) && swipes < 10 {
+            app.swipeUp()
+            swipes += 1
+        }
         XCTAssertTrue(field.waitForExistence(timeout: 10), "\(identifier) missing")
         field.tap()
         field.typeText(text)

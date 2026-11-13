@@ -37,6 +37,14 @@ struct HomeLayoutSettingsView: View {
                         footer: Text("Il saluto usa il nome qui sotto, se c'è («Ciao, Giulia!»). Il nome resta su questo dispositivo, ma finisce nel backup delle impostazioni, che non è cifrato.")) {
                     Toggle("Nome di Aether", isOn: settings.binding(\.appearance.glassHome.showLogo))
                     Toggle("Foto del profilo", isOn: settings.binding(\.appearance.glassHome.showAvatar))
+                    Toggle(isOn: settings.binding(\.appearance.glassDiscoverTab)) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Scopri nella barra in basso")
+                            Text("Scopri diventa una scheda della barra, oltre che una categoria.")
+                                .font(.caption).foregroundStyle(Color.aetherSecondary)
+                        }
+                    }
+                    .accessibilityIdentifier("settings.home.glassDiscoverTab")
                         .accessibilityIdentifier("settings.home.glass.avatar")
                     Toggle("Saluto", isOn: settings.binding(\.appearance.glassHome.showGreeting))
                     if settings.value.appearance.glassHome.showGreeting {
@@ -100,6 +108,8 @@ struct HomeLayoutSettingsView: View {
                 settings.value.appearance.heroAutoScroll = defaults.heroAutoScroll
                 settings.value.appearance.heroInterval = defaults.heroInterval
                 settings.value.appearance.heroEdgeToEdge = defaults.heroEdgeToEdge
+                settings.value.appearance.adaptiveHeroHeight = defaults.adaptiveHeroHeight
+                settings.value.appearance.glassDiscoverTab = defaults.glassDiscoverTab
             }
             Button("Annulla", role: .cancel) {}
         } message: {
@@ -150,6 +160,14 @@ struct HomeLayoutSettingsView: View {
                     }
                 }
             }
+            Toggle(isOn: settings.binding(\.appearance.adaptiveHeroHeight)) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Più basso sugli schermi piccoli")
+                    Text("Su iPhone SE, mini e in orizzontale il carosello si accorcia per lasciare vedere «Continua a guardare». Dal 6,1″ in su non cambia.")
+                        .font(.caption).foregroundStyle(Color.aetherSecondary)
+                }
+            }
+            .accessibilityIdentifier("settings.home.adaptiveHeroHeight")
             Toggle("Scorrimento automatico", isOn: settings.binding(\.appearance.heroAutoScroll))
                 .accessibilityIdentifier("settings.home.heroAutoScroll")
             if settings.value.appearance.heroAutoScroll {

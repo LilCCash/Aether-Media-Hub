@@ -218,6 +218,8 @@ struct AppearanceSettingsView: View {
             Toggle("Voto sulle locandine", isOn: settings.binding(\.appearance.showPosterRatings))
             Toggle("Bordo di luce sulle schede", isOn: settings.binding(\.appearance.cardSheen))
             Toggle("Alone sui pulsanti principali", isOn: settings.binding(\.appearance.buttonGlow))
+            Toggle("Ombra sotto i testi sulle immagini", isOn: settings.binding(\.appearance.legibilityScrims))
+                .accessibilityIdentifier("settings.appearance.legibilityScrims")
             Toggle("Icone su tessera nelle impostazioni", isOn: settings.binding(\.appearance.settingsIconTiles))
         }
     }
@@ -290,6 +292,12 @@ struct AppearanceSettingsView: View {
         Section(header: Text("Scorciatoie"), footer: Text("Nascondi quello che non usi: le funzioni restano, spariscono solo i punti d'ingresso.")) {
             Toggle("Scoperta, Calendario e Per te in Scopri", isOn: settings.binding(\.appearance.showExplore))
             Toggle("«Il mio universo» nel Profilo", isOn: settings.binding(\.appearance.showCinemaCard))
+            Toggle("Filtri rapidi nelle sorgenti", isOn: settings.binding(\.appearance.streamQuickFilters))
+                .accessibilityIdentifier("settings.appearance.streamQuickFilters")
+            Toggle("Ricerca nelle impostazioni", isOn: settings.binding(\.appearance.settingsSearch))
+                .accessibilityIdentifier("settings.appearance.settingsSearch")
+            Toggle("Impostazioni essenziali", isOn: settings.binding(\.appearance.essentialSettings))
+                .accessibilityIdentifier("settings.appearance.essentialSettings")
         }
     }
 

@@ -24,9 +24,14 @@ final class MPVMetalLayer: CAMetalLayer {
             if Thread.isMainThread {
                 super.wantsExtendedDynamicRangeContent = newValue
             } else {
-                DispatchQueue.main.sync { super.wantsExtendedDynamicRangeContent = newValue }
+                // Asynchronous: a render thread must never wait for the main thread (which may be waiting for it).
+                DispatchQueue.main.async { [weak self] in self?.applyExtendedDynamicRange(newValue) }
             }
         }
+    }
+
+    private func applyExtendedDynamicRange(_ value: Bool) {
+        super.wantsExtendedDynamicRangeContent = value
     }
 }
 

@@ -33,7 +33,9 @@ public enum ContentSync {
         for vote in local.profile.votes { votes[vote.id] = vote }
         for vote in remote.profile.votes { if let known = votes[vote.id], known.votedAt >= vote.votedAt { continue }; votes[vote.id] = vote }
         result.profile.votes = votes.values.sorted { $0.votedAt > $1.votedAt }
-        result.profile.skipped = Array(Set(local.profile.skipped + remote.profile.skipped))
+        // Order kept (local first) so the merged file does not change at every sync.
+        var seenSkipped = Set<String>()
+        result.profile.skipped = (local.profile.skipped + remote.profile.skipped).filter { seenSkipped.insert($0).inserted }
         for genre in remote.profile.genres where !result.profile.genres.contains(genre) { result.profile.genres.append(genre) }
         if result.profile.name.isEmpty { result.profile.name = remote.profile.name }
 

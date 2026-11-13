@@ -120,6 +120,8 @@ final class StreamPickerModel: ObservableObject {
     @Published var addonFilter: String?
     /// What the viewer typed in the search field: every word has to be in the source's name, quality, language, file name or addon.
     @Published var searchText = ""
+    /// Quality / HDR / language chips (Aspetto › Scorciatoie › «Filtri rapidi nelle sorgenti»).
+    @Published var quickFilter = StreamQuickFilter()
     @Published var blockedMessage: String?
     @Published var infoMessage: String?
 
@@ -195,6 +197,7 @@ final class StreamPickerModel: ObservableObject {
     func filtered(_ list: [RankedStream]) -> [RankedStream] {
         var result = list
         if let filter = addonFilter { result = result.filter { $0.stream.addonName == filter } }
+        result = quickFilter.apply(result)
         let words = StreamPickerModel.fold(searchText).split(whereSeparator: { $0.isWhitespace }).map(String.init)
         guard !words.isEmpty else { return result }
         return result.filter { item in

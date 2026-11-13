@@ -221,6 +221,19 @@ final class ContentSyncTests: XCTestCase {
         // The same merge twice changes nothing more.
         XCTAssertEqual(ContentSync.merge(local: merged, remote: tablet).diary.entries.count, 2)
     }
+
+    func testMergeIsIdempotentAndOrderOfSkippedIsStable() {
+        var phone = ContentSettings(), tablet = ContentSettings()
+        phone.profile.skipped = ["a", "b", "c"]
+        tablet.profile.skipped = ["c", "d", "a", "e"]
+        phone.diary.add(DiaryEntry(id: "x", metaID: "tt1", type: "movie", name: "A", watchedAt: Date(timeIntervalSince1970: 100)))
+        let once = ContentSync.merge(local: phone, remote: tablet)
+        XCTAssertEqual(once.profile.skipped, ["a", "b", "c", "d", "e"], "local order first, no duplicates, same every time")
+        let twice = ContentSync.merge(local: once, remote: tablet)
+        XCTAssertEqual(twice.profile.skipped, once.profile.skipped)
+        XCTAssertEqual(twice.diary.entries.map(\.id), once.diary.entries.map(\.id))
+        XCTAssertEqual(ContentSync.merge(local: phone, remote: phone).diary.entries.count, phone.diary.entries.count)
+    }
 }
 
 final class AppearanceMigrationTests: XCTestCase {

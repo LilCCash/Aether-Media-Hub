@@ -13,8 +13,9 @@ enum HeroLayout {
         let size = UIScreen.main.bounds.size
         return max(size.width, size.height) > 0 ? size.height : 852
     }
-    static var cardPage: CGFloat { scaled(430, fraction: 0.51, minimum: 330, screenHeight: screenHeight) }
-    static var fullBleed: CGFloat { scaled(560, fraction: 0.664, minimum: 420, screenHeight: screenHeight) }
+    /// `adaptive` off (Aspetto › «Carosello adattivo») keeps the fixed sizes on every screen.
+    static func cardPage(adaptive: Bool) -> CGFloat { adaptive ? scaled(430, fraction: 0.51, minimum: 330, screenHeight: screenHeight) : 430 }
+    static func fullBleed(adaptive: Bool) -> CGFloat { adaptive ? scaled(560, fraction: 0.664, minimum: 420, screenHeight: screenHeight) : 560 }
 }
 
 /// Paged carousel. Built on a paging `ScrollView` with `containerRelativeFrame` instead of `TabView(.page)`: every page is
@@ -33,7 +34,10 @@ struct HeroCarousel: View {
     @State private var position: Int? = 0
 
     private var index: Int { min(max(position ?? 0, 0), max(items.count - 1, 0)) }
-    private var pageHeight: CGFloat { style == .fullBleed ? HeroFullBleedCard.height(reachesTop: reachesTop) : HeroLayout.cardPage }
+    private var adaptive: Bool { settings.value.appearance.adaptiveHeroHeight }
+    private var pageHeight: CGFloat {
+        style == .fullBleed ? HeroFullBleedCard.height(reachesTop: reachesTop, adaptive: adaptive) : HeroLayout.cardPage(adaptive: adaptive)
+    }
     /// Never turns by itself under Reduce Motion or while VoiceOver reads the page.
     private var turnsPages: Bool {
         settings.animationsEnabled && settings.value.appearance.heroAutoScroll && !reduceMotion && !voiceOver
@@ -86,8 +90,8 @@ struct HeroCarousel: View {
     @ViewBuilder
     private func page(_ item: MetaItem) -> some View {
         switch style {
-        case .card: HeroCard(meta: item)
-        case .fullBleed: HeroFullBleedCard(meta: item, reachesTop: reachesTop)
+        case .card: HeroCard(meta: item, adaptive: adaptive)
+        case .fullBleed: HeroFullBleedCard(meta: item, reachesTop: reachesTop, adaptive: adaptive)
         }
     }
 }
@@ -108,7 +112,7 @@ private struct HeroTextBlock: View {
                 RemoteImage(urlString: logo, width: 400, contentMode: .fit, alignment: .leading)
                     .frame(width: 240, height: 72, alignment: .leading)
             } else {
-                Text(meta.name).font(.aetherTitle(30)).foregroundStyle(.white).lineLimit(2)
+                Text(meta.name).font(.aetherTitle(30)).foregroundStyle(.white).lineLimit(2).legibleOnArtwork()
             }
             HStack(spacing: 8) {
                 Text(RequestPlanner.friendlyTypeName(meta.type))
@@ -117,8 +121,9 @@ private struct HeroTextBlock: View {
             }
             .font(.system(.footnote, design: AetherTypography.design).weight(.medium))
             .foregroundStyle(.white.opacity(0.94))
+            .legibleOnArtwork()
             if let description = meta.description, !description.isEmpty {
-                Text(description).font(.footnote).foregroundStyle(.white.opacity(0.9)).lineLimit(2)
+                Text(description).font(.footnote).foregroundStyle(.white.opacity(0.9)).lineLimit(2).legibleOnArtwork()
             }
             if showsButton {
                 HStack(spacing: 10) {
@@ -142,6 +147,7 @@ private struct HeroTextBlock: View {
 /// The 1.0 look: a rounded card with the title over the picture.
 struct HeroCard: View {
     let meta: MetaItem
+    var adaptive = true
     @Environment(\.aetherStyle) private var style
 
     var body: some View {
@@ -149,7 +155,7 @@ struct HeroCard: View {
             ZStack(alignment: .bottomLeading) {
                 RemoteImage(urlString: meta.background ?? meta.poster, width: 900, placeholderSeed: meta.name)
                     .frame(maxWidth: .infinity)
-                    .frame(height: HeroLayout.cardPage - 20)
+                    .frame(height: HeroLayout.cardPage(adaptive: adaptive) - 20)
                     .clipped()
                 LinearGradient(colors: [.clear, .black.opacity(0.55), .black.opacity(0.92)], startPoint: .top, endPoint: .bottom)
                 HeroTextBlock(meta: meta)
@@ -175,11 +181,14 @@ struct HeroFullBleedCard: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var library: LibraryModel
 
-    static var height: CGFloat { HeroLayout.fullBleed }
-    static func height(reachesTop: Bool) -> CGFloat { return reachesTop ? height + 60 : height }
+    var adaptive = true
+    static func height(reachesTop: Bool, adaptive: Bool = true) -> CGFloat {
+        let base = HeroLayout.fullBleed(adaptive: adaptive)
+        return reachesTop ? base + 60 : base
+    }
     /// The bottom stretch where the picture fades out; the text stays above it.
     static let fadeHeight: CGFloat = 96
-    private var height: CGFloat { return Self.height(reachesTop: reachesTop) }
+    private var height: CGFloat { return Self.height(reachesTop: reachesTop, adaptive: adaptive) }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
