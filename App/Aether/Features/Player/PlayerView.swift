@@ -1216,9 +1216,10 @@ struct PlayerView: View {
     private func performCast(to device: CastDevice) {
         guard case .ready(var preparation) = model.castPreparation(for: device.target, sendDirectLinkToTV: settings.value.advanced.sendDirectLinkToTV,
                                                                     relay: relayService.availability) else { return }
-        preparation.request.startPosition = model.snapshot.position
-        preparation.fallback?.startPosition = model.snapshot.position
-        let position = model.snapshot.position
+        // When changing a track during remote playback, use the receiver's clock rather than the paused local player's stale time.
+        let position = casting.session?.device == device ? (casting.session?.status.position ?? model.snapshot.position) : model.snapshot.position
+        preparation.request.startPosition = position
+        preparation.fallback?.startPosition = position
         let request = preparation.request
         let fallback = preparation.fallback
         guard !castInFlight else {
