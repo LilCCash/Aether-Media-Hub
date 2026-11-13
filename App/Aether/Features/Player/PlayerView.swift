@@ -251,10 +251,11 @@ struct PlayerView: View {
         case .companion: CompanionSheet(meta: model.meta)
         case .chat: WatchChatSheet()
         case .cast:
-            PlayerCastSheet(airPlayNote: model.engine.kind == .mpv
+            PlayerCastSheet(model: model, airPlayNote: model.engine.kind == .mpv
                                 ? "Con questo file (motore MPV) AirPlay invia solo l'audio. Per il video usa Google Cast o DLNA qui sotto."
                                 : nil,
-                            onSelect: { prepareCast(to: $0) })
+                            onSelect: { prepareCast(to: $0) },
+                            onTrackChange: { if let device = casting.session?.device { performCast(to: device) } })
         }
     }
 
