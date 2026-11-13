@@ -7,9 +7,9 @@ final class SettingsAndAccessibilityUITests: AetherUITestCase {
         launch()
         openTab("Profilo")
         element("profile.settings").tap()
-        let privacy = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Account e dati'")).firstMatch
-        XCTAssertTrue(privacy.waitForExistence(timeout: 10))
-        privacy.tap()
+        // The rows are in a lazy list under the search field: scroll to the row instead of expecting it on screen.
+        XCTAssertTrue(element("settings.root").waitForExistence(timeout: 10))
+        openSettingsRow("Account e dati")
         let toggle = element("settings.allowLocal")
         XCTAssertTrue(toggle.waitForExistence(timeout: 10))
         let before = (toggle.value as? String) ?? ""
@@ -21,9 +21,8 @@ final class SettingsAndAccessibilityUITests: AetherUITestCase {
         launch(reset: false, settings: nil)
         openTab("Profilo")
         element("profile.settings").tap()
-        let privacyAgain = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Account e dati'")).firstMatch
-        XCTAssertTrue(privacyAgain.waitForExistence(timeout: 10))
-        privacyAgain.tap()
+        XCTAssertTrue(element("settings.root").waitForExistence(timeout: 10))
+        openSettingsRow("Account e dati")
         XCTAssertTrue(element("settings.allowLocal").waitForExistence(timeout: 10))
         XCTAssertEqual((element("settings.allowLocal").value as? String) ?? "", after, "the stored value should come back")
     }
