@@ -71,7 +71,10 @@ enum MediaProbe {
 
     private static func audioFacts(_ track: AVAssetTrack) async -> AudioTrackFacts {
         var facts = AudioTrackFacts()
-        facts.language = (try? await track.load(.extendedLanguageTag)) ?? (try? await track.load(.languageCode))
+        // `??` cannot await on its right side: read the two tags one after the other.
+        let extended = try? await track.load(.extendedLanguageTag)
+        let plain = try? await track.load(.languageCode)
+        facts.language = extended ?? plain
         if let metadata = try? await track.load(.commonMetadata),
            let item = AVMetadataItem.metadataItems(from: metadata, filteredByIdentifier: .commonIdentifierTitle).first,
            let title = try? await item.load(.stringValue), !title.isEmpty {
