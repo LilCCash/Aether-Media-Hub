@@ -1,0 +1,7 @@
+id,area,problema,soluzione,stato,misura
+PERF-01,Immagini,Decodifica serializzata nell'actor,"Fuori dall'actor, max 3",Applicato,Allocations/Time Profiler griglia
+PERF-02,Cache,I/O sincrono,Nessuna modifica,Non applicato,File Activity
+PERF-03,SwiftUI,File grandi,Suddivisione con snapshot,Rimandato,SwiftUI Instruments
+PERF-04,Compilatore,Strict concurrency minimal,Core 6->1 avvisi,Parziale,Conteggio avvisi
+PERF-05,Memoria,Cache senza budget byte,48 MiB / 256 MiB,Applicato,Allocations
+PERF-06,Rete,Permessi occupati da task annullati,Limiter annullabile,Applicato,Tempo al primo catalogo

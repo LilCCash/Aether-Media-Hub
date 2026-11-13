@@ -1,0 +1,22 @@
+area,funzionalità,stato,file principali,test
+Addon,Installazione/ordine/salute addon,Completa,"Core/Addons/*, Features/Addons/AddonsView.swift","ServiceTests, AddonRegistryTests"
+Addon,Cache risposte con TTL/stale,Completa (budget nuovi),Core/Net/ResponseCache.swift,"MiscTests, ReliabilityFixTests"
+Rete,"Policy URL, redirect, DNS anti-rebinding",Completa (fail-closed nuovo),"Core/Net/NetworkPolicy.swift, HTTPClient.swift",NetworkTests
+Home,"Classica / Vetrina, hero, sezioni",Completa,Features/Home/*,"LayoutUITests, HomeCustomizationUITests"
+Scopri,"Categorie, filtri, calendario, simili",Completa,Features/Discover/*,BrowseUITests
+Ricerca,"Ricerca, filtri, indice locale",Completa,"Features/Search/*, Core/Search/*","AdvancedSearchTests, SearchFilteringTests, SearchFilterUITests"
+Scheda,"Metadati, cast, trailer, premi, episodi",Completa,"Features/Details/*, Core/Metadata/*",MetadataTests
+Universe,"Mappa, ordini, avanzamento",Completa,"Features/Universe/*, Core/Universe/*","UniverseStoryMapTests, UniverseDiaryTests"
+Libreria,"Watchlist, cronologia, collezioni, diario",Completa,"Features/Library/*, Core/Library/*",LibraryTests
+Trakt,"Accesso, scrobbling, sync","Completa, non provata su dispositivo",Core/Trakt/*,TraktTests
+Sync,iCloud,Parziale,"Core/Sync/*, SyncSettingsView",—
+Player,"AVPlayer + MPV, HDR/DV, PiP, gesti","Completa, non provata qui","Features/Player/*, Services/Playback/*",PlaybackTests
+Sottotitoli,"Addon, OpenSubtitles, file, doppi, stile",Completa,"Core/Subtitles/*, PlayerViewModel+Subtitles.swift","SubtitleTests, SubtitleSelectionTests, PlayerSubtitleTests"
+Download,"File, stagioni, sottotitoli",Completa,"Services/Downloads/*, Core/Downloads/*",DownloadTests
+Remux,"MKV→HLS locale, conversione","Completa, non provata su dispositivo","Services/Remux/*, Core/Remux/*",RemuxPlanTests
+Cast,"Google Cast: sidecar VTT, cambio tracce",Dipende dal ricevitore,"Services/Casting/*, Features/Casting/*","CastRelayTests, CastCoordinatorTests"
+Cast,DLNA: SRT via DIDL/CaptionInfo,Dipende dal ricevitore,Core/Casting/UPnP.swift,CastTracksTests
+Cast,Relay HLS/DASH con rendition,Completa,Services/Relay/AdaptiveStreamRelaySource.swift,AdaptiveRelayHLSTests (nuovo)
+Live TV,"Playlist, guida XMLTV",Completa,"Features/LiveTV/*, Core/LiveTV/*",TVGuideTests
+Extra,"Widget, Siri, SharePlay","Completa, non provata qui",Features/Settings/ExtrasViews.swift,—
+Impostazioni,Ricerca nelle impostazioni,Nuova,Features/Settings/SettingsIndex.swift,SettingsIndexTests (nuovo)

@@ -303,8 +303,18 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/shots.xcresult" 2>&1 | tee "$RUNNER_TEMP/shots.log" | grep -E "Test Case|error:|TOUR-SHOT" || true
           ls -la "$RUNNER_TEMP/shots"
 
-      - name: Publish the screenshots
+      # Any other branch keeps its pictures as a run artifact, so ci-screenshots always shows the main iOS branch.
+      - name: Keep the screenshots as an artifact
         if: "!cancelled() && steps.shots.outcome == 'success'"
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: ${{ runner.temp }}/shots/*.png
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Publish the screenshots
+        if: "!cancelled() && steps.shots.outcome == 'success' && github.ref_name == 'aether-swift-features'"
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

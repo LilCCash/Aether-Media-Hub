@@ -80,7 +80,7 @@ public enum XMLTVParser {
         let parser = XMLParser(data: data)
         parser.delegate = delegate
         parser.shouldResolveExternalEntities = false
-        parser.parse()
+        _ = parser.parse()
         var programmes: [String: [TVProgramme]] = [:]
         for (id, list) in delegate.programmes {
             var seen = Set<Date>()

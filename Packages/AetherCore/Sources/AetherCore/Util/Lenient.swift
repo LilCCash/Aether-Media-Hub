@@ -153,19 +153,22 @@ extension KeyedDecodingContainer {
 
 /// Parses the date formats found in the wild in addon payloads.
 public enum AddonDate {
-    private static let withFraction: ISO8601DateFormatter = {
+    // ISO8601DateFormatter is documented thread-safe once configured; it is never mutated after this.
+    nonisolated(unsafe) private static let withFraction: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
 
-    private static let plain: ISO8601DateFormatter = {
+    // ISO8601DateFormatter is documented thread-safe once configured; it is never mutated after this.
+    nonisolated(unsafe) private static let plain: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
     }()
 
-    private static let dateOnly: ISO8601DateFormatter = {
+    // ISO8601DateFormatter is documented thread-safe once configured; it is never mutated after this.
+    nonisolated(unsafe) private static let dateOnly: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate]
         return formatter

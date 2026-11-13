@@ -1,0 +1,13 @@
+id,titolo,priorità,stato,file,test
+BUG-01,Waiter annullati restano in coda,P2,"Confermato, corretto",Core/Util/ConcurrencyLimiter.swift,ReliabilityFixTests
+BUG-02,Scadenza addon esclude la coda,P2,"Confermato, corretto",Core/Addons/AddonService.swift,ReliabilityFixTests
+BUG-03,Thread FFmpeg non chiuso all'annullamento,P1 (audit esterno),"Non confermato, irrobustito",App/Services/Remux/LiveRemux.swift,CI build
+BUG-04,Cache senza budget in byte,P2,"Confermato, corretto",Core/Net/ResponseCache.swift,"ReliabilityFixTests, MiscTests"
+BUG-05,Campi RequestState fuori dal lock,P2,"Confermato (statico), corretto",Core/Net/HTTPClient.swift,TSan 1063 test
+SECURITY-01,DNS anti-rebinding fail-open,P1 hardening,"Confermato, corretto",Core/Net/NetworkPolicy.swift,NetworkTests
+BUG-06,Cache immagine corrotta senza refetch,P3,"Confermato, corretto",App/Services/ImageLoader.swift,ImageLoaderTests
+NEW-01,MIME rendition HLS mancanti,P3,Corretto,App/Services/Relay/AdaptiveStreamRelaySource.swift,AdaptiveRelayHLSTests
+NEW-02,touch LRU su voci assenti,P3,Corretto,Core/Net/ResponseCache.swift,ReliabilityFixTests
+RISK-01,Completion redirect in Task,P3,Rischio statico,Core/Net/HTTPClient.swift,—
+RISK-02,Task nelle View,P3,Da verificare,App/Features/*,—
+RISK-03,Conflitti sync iCloud,P2,Da verificare,Core/Sync/*,—

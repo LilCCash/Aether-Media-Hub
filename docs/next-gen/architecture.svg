@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="Helvetica, Arial, sans-serif" font-size="13">
+<rect width="760" height="360" fill="#0f1020"/>
+<g fill="#1c1e3a" stroke="#7c6cff" stroke-width="1.5">
+<rect x="20" y="20" width="720" height="110" rx="12"/><rect x="20" y="150" width="720" height="140" rx="12"/>
+<rect x="20" y="305" width="720" height="40" rx="10"/></g>
+<g fill="#e8e6ff"><text x="36" y="44" font-weight="bold">App (SwiftUI, iOS)</text>
+<text x="36" y="70">Home · Scopri · Cerca · Scheda · Libreria · Universe · Live TV · Impostazioni · Profilo</text>
+<text x="36" y="94">Player: AVPlayer + MPV · Remux FFmpeg · Download · Cast: Google Cast / DLNA / AirPlay</text>
+<text x="36" y="118">Servizi: ImageLoader · RelayService · Debrid · Trakt · Backup · Widget/Siri</text>
+<text x="36" y="174" font-weight="bold">AetherCore (Swift package, testato su Linux e macOS)</text>
+<text x="36" y="200">Addons (AddonService, ConcurrencyLimiter) · Net (HTTPClient, NetworkPolicy, ResponseCache)</text>
+<text x="36" y="224">Catalog · Search · Metadata (TMDB/TVDB/Fanart) · Library · Trakt · Settings · Subtitles</text>
+<text x="36" y="248">Relay (server LAN, UpstreamGuard, sessioni) · Remux (piano, HLS) · Casting (UPnP, tracce)</text>
+<text x="36" y="272">Universe · Diary · LiveTV · Debrid (TorBox) · Util</text>
+<text x="36" y="330">Esterni: addon Stremio · TMDB · OpenSubtitles · TorBox · Trakt · Google Cast SDK · MPVKit/FFmpeg</text></g>
+</svg>

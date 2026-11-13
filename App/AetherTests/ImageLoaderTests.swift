@@ -46,6 +46,26 @@ final class ImageLoaderTests: XCTestCase {
         return UIImage(cgImage: image).pngData()!
     }
 
+    func testCorruptCachedFileIsRefetchedInTheSameCall() async throws {
+        let http = CountingHTTPClient(payload: noisePNG(width: 64, height: 96))
+        let url = URL(string: "https://img.example/broken.png")!
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent(Hashing.sha256Hex(url.absoluteString)).appendingPathExtension("img")
+        try Data("not an image".utf8).write(to: file)
+        let loader = ImageLoader(http: http, directory: directory, diskLimitMB: 50)
+        let image = await loader.image(for: url, maxPixel: 160)
+        XCTAssertNotNil(image, "the poster appears at once instead of a placeholder until the next visit")
+        XCTAssertEqual(http.requestCount, 1, "exactly one download, no retry loop")
+    }
+
+    func testUndecodableDownloadIsNotRetriedForever() async {
+        let http = CountingHTTPClient(payload: Data("<html>error</html>".utf8))
+        let loader = ImageLoader(http: http, directory: directory, diskLimitMB: 50)
+        let image = await loader.image(for: URL(string: "https://img.example/html.png")!, maxPixel: 160)
+        XCTAssertNil(image)
+        XCTAssertEqual(http.requestCount, 1)
+    }
+
     func testConcurrentRequestsForTheSameImageHitTheNetworkOnce() async {
         let http = CountingHTTPClient(payload: noisePNG(width: 64, height: 96))
         http.delay = 150_000_000

@@ -73,7 +73,8 @@ public func withDeadline<T: Sendable>(seconds: TimeInterval,
 /// `URLSession` backed client with: per-request validation (`NetworkPolicy`), streaming size cap,
 /// re-validated redirects (max 5, no https→http downgrade), no cookies, no disk cache, cancellation.
 public final class URLSessionHTTPClient: NSObject, HTTPClient, URLSessionDataDelegate, @unchecked Sendable {
-    private final class RequestState {
+    // Every field written from more than one thread is guarded by `lock` (see `send` and the delegate callbacks).
+    private final class RequestState: @unchecked Sendable {
         let maxBytes: Int
         let policy: NetworkPolicy
         let purpose: NetworkPolicy.Purpose
