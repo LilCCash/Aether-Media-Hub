@@ -172,16 +172,10 @@ jobs:
       - name: Boot the simulator during the build
         run: nohup bash -c 'start=$(date +%s); xcrun simctl boot "$0"; echo "boot took $(( $(date +%s) - start )) s"' "${{ steps.sim.outputs.udid }}" > "$RUNNER_TEMP/sim-boot.log" 2>&1 &
 
-      # Xcode 26 compilation caching: compiled units are stored by the hash of their inputs, so an unchanged file is not
-      # compiled again in the next run, and a changed one never reuses a stale result. The store is kept between runs.
-      - name: Restore the compilation cache
-        uses: actions/cache@v4
-        with:
-          path: ~/CompilationCache
-          key: xcode-cas-${{ runner.os }}-${{ github.sha }}
-          restore-keys: xcode-cas-${{ runner.os }}-
 
       # The simulator keychain needs a (ad-hoc) code signature, so signing is not disabled here.
+      # Xcode 26 compilation caching was measured here and left out: restoring the ~500 MB store took 2.5 minutes and, with
+      # 93% hits, the Swift compile took 797 s of work instead of 257 s (build 10 min instead of 4).
       - name: Build for testing
         id: build
         run: |
@@ -190,12 +184,10 @@ jobs:
             -project Aether.xcodeproj -scheme Aether \
             -clonedSourcePackagesDirPath "$HOME/SourcePackages" \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH="$HOME/CompilationCache" \
             -showBuildTimingSummary \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="-" 2>&1 | tee "$RUNNER_TEMP/build.log"
-          du -sh "$HOME/CompilationCache" 2>/dev/null || echo "no compilation cache written"
           sed -n '/Build Timing Summary/,$p' "$RUNNER_TEMP/build.log" | head -25
 
       - name: Wait for the simulator
