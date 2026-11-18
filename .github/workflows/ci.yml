@@ -1,7 +1,10 @@
 name: CI
 
 # Cost note: on a private repository GitHub bills macOS runner minutes at 10x. The UI tests take ~15 minutes, so they
-# run only on main and on manual runs ("Run workflow"); every other push builds the app and runs the unit tests (~4 min).
+# run only on main and on manual runs ("Run workflow"); every other push builds the app and runs the unit tests on one
+# macOS machine (the simulator boots during the build). The `changes` job skips what a push cannot affect: the macOS Core
+# job when the Core is untouched, the app job when only Android or tooling files changed, the video-conversion tests when
+# the conversion / relay / playback code is untouched.
 # Documentation-only changes do not start the workflow.
 # A commit message with [skip ci] starts neither this workflow nor the IPA build (handy to gather several changes before one build).
 on:
@@ -21,6 +24,51 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Which parts of the repository the push touched, so the expensive macOS jobs run only when they can find something.
+  # Anything that cannot be decided (a new branch, a manual run, main, a change to this file or to project.yml) runs everything.
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.diff.outputs.full }}
+      core: ${{ steps.diff.outputs.core }}
+      app: ${{ steps.diff.outputs.app }}
+      remux: ${{ steps.diff.outputs.remux }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compare with the previous state
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -u
+          full=false
+          if [ "$EVENT" = "workflow_dispatch" ] || [ "$REF" = "refs/heads/main" ]; then
+            full=true
+          elif [ "$EVENT" = "pull_request" ]; then
+            files=$(git diff --name-only "$BASE" HEAD) || full=true
+          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            full=true
+          else
+            files=$(git diff --name-only "$BEFORE" HEAD) || full=true
+          fi
+          files=${files:-}
+          if [ "$full" = false ] && echo "$files" | grep -qE '^(\.github/workflows/ci\.yml|project\.yml)$'; then full=true; fi
+          has() { echo "$files" | grep -qE "$1" && echo true || echo false; }
+          core=$(has '^Packages/AetherCore/')
+          app=$(has '^(App/|Packages/AetherCore/Sources/|Packages/AetherCore/Package|Tools/|Config/|Scripts/)')
+          remux=$(has '^(App/Aether/Services/(Remux|Relay|Playback)/|App/AetherTests/(FFmpeg|LocalRemux|Conversion)|Packages/AetherCore/Sources/AetherCore/(Remux|Relay)/)')
+          if [ "$full" = true ]; then core=true; app=true; remux=true; fi
+          echo "Changed files:"; echo "$files" | head -40
+          echo "full=$full core=$core app=$app remux=$remux"
+          { echo "full=$full"; echo "core=$core"; echo "app=$app"; echo "remux=$remux"; } >> "$GITHUB_OUTPUT"
+
   # Fast feedback (about 2 minutes, cheap Linux runner): the Core is pure Swift. Tests that need Apple frameworks skip themselves there
   # and run in the macOS jobs below. Same script as `Scripts/test-core.sh`.
   core-linux:
@@ -42,7 +90,9 @@ jobs:
   core:
     name: AetherCore (swift test)
     runs-on: macos-latest
-    if: "!contains(github.event.head_commit.message, '[ui]')"
+    needs: changes
+    # The Linux job above runs the same tests on every push; this one adds the Apple-only ones when the Core changed.
+    if: "!contains(github.event.head_commit.message, '[ui]') && needs.changes.outputs.core == 'true'"
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -66,105 +116,13 @@ jobs:
           grep -E "Executed [0-9]+ tests?" "$RUNNER_TEMP/core-test.log" | tail -2 || true
           grep -E "error:|failed \(" "$RUNNER_TEMP/core-test.log" | sort -u | head -20 || true
 
-  # The app's unit tests run on a machine of their own, at the same time as the build and screenshots of the `app` job: the
-  # run lasts as long as the slower of the two instead of their sum. Skipped for [ui] commits.
-  app-unit:
-    name: App (unit tests)
-    runs-on: macos-latest
-    if: "!contains(github.event.head_commit.message, '[ui]')"
-    timeout-minutes: 90
-    env:
-      HOMEBREW_NO_AUTO_UPDATE: '1'
-      HOMEBREW_NO_INSTALL_CLEANUP: '1'
-      HOMEBREW_NO_ANALYTICS: '1'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Toolchain info
-        run: xcodebuild -version
-
-      # The Swift packages (MPVKit and GoogleCast are large binaries) are kept between runs instead of being downloaded again.
-      - name: Cache Swift packages
-        uses: actions/cache@v4
-        with:
-          path: ~/SourcePackages
-          key: spm-${{ runner.os }}-${{ hashFiles('project.yml', 'Packages/AetherCore/Package.swift') }}
-          restore-keys: spm-${{ runner.os }}-
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Generate the Xcode project
-        run: xcodegen generate
-
-      - name: Pick an iPhone simulator
-        id: sim
-        run: |
-          NAME=$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
-          devices = json.load(sys.stdin)["devices"]
-          names = sorted({d["name"] for runtime, items in devices.items() if "iOS" in runtime for d in items if d["name"].startswith("iPhone") and d.get("isAvailable", True)})
-          pick = next((n for n in reversed(names) if "Pro Max" in n), None) or next((n for n in reversed(names) if "Pro" in n), None) or names[-1]
-          print(pick)')
-          echo "Using simulator: $NAME"
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
-
-      # The simulator keychain needs a (ad-hoc) code signature, so signing is not disabled here.
-      - name: Build for testing
-        id: build
-        run: |
-          set -o pipefail
-          xcodebuild build-for-testing \
-            -project Aether.xcodeproj -scheme Aether \
-            -clonedSourcePackagesDirPath "$HOME/SourcePackages" \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
-            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            CODE_SIGN_IDENTITY="-" 2>&1 | tee "$RUNNER_TEMP/build.log"
-
-      # A commit marked [ui] (look-only changes: colours, spacing, icons) builds the app and takes the screenshots, without the
-      # unit tests (about 7 minutes, mostly video conversion, which such changes do not touch). Every block still ends with a
-      # full run.
-      - name: Unit tests
-        id: unit
-        if: steps.build.outcome == 'success'
-        run: |
-          set -o pipefail
-          xcodebuild test-without-building \
-            -project Aether.xcodeproj -scheme Aether \
-            -clonedSourcePackagesDirPath "$HOME/SourcePackages" -disableAutomaticPackageResolution \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
-            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            -only-testing:AetherTests \
-            -retry-tests-on-failure -test-iterations 3 \
-            -resultBundlePath "$RUNNER_TEMP/unit.xcresult" 2>&1 | tee "$RUNNER_TEMP/unit.log"
-
-      # Real files for the playback matrix. The pictures are synthetic test patterns: only the container, the codec and the
-      # colour signalling (HDR10 / HLG metadata, hvc1 vs hev1 tags) are real, which is what the probe and the planner read.
-      # Dolby Vision cannot be produced here (no encoder), so it is not part of the matrix.
-      - name: Upload result bundle
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: xcresult-unit
-          path: |
-            ${{ runner.temp }}/unit.xcresult
-            ${{ runner.temp }}/*.log
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Results summary
-        if: always()
-        run: |
-          echo "=== compiler errors ==="
-          grep -E "error:" "$RUNNER_TEMP/build.log" | grep -v "^note" | sort -u | head -40 || true
-          echo "=== unit tests ==="
-          grep -E "Executed [0-9]+ tests?" "$RUNNER_TEMP/unit.log" | tail -2 || true
-          grep -E "error: -\[|Test Case .* failed" "$RUNNER_TEMP/unit.log" | sort -u | head -40 || true
-
+  # One macOS machine builds the app once and runs, in order: the unit tests, then (when asked) the UI tests or the
+  # screenshot tour. The simulator boots while the app compiles, so the tests start as soon as the build ends.
   app:
-    name: App (build, screenshots, UI tests)
+    name: App (build, unit tests, screenshots, UI tests)
     runs-on: macos-latest
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     permissions:
       contents: write
     timeout-minutes: 150
@@ -201,8 +159,18 @@ jobs:
           names = sorted({d["name"] for runtime, items in devices.items() if "iOS" in runtime for d in items if d["name"].startswith("iPhone") and d.get("isAvailable", True)})
           pick = next((n for n in reversed(names) if "Pro Max" in n), None) or next((n for n in reversed(names) if "Pro" in n), None) or names[-1]
           print(pick)')
-          echo "Using simulator: $NAME"
+          UDID=$(xcrun simctl list devices available -j | NAME="$NAME" python3 -c '
+          import json, os, sys
+          devices = json.load(sys.stdin)["devices"]
+          runtimes = sorted((r for r in devices if "iOS" in r), reverse=True)
+          print(next(d["udid"] for r in runtimes for d in devices[r] if d["name"] == os.environ["NAME"] and d.get("isAvailable", True)))')
+          echo "Using simulator: $NAME ($UDID)"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      # Booting a simulator takes a few minutes: it happens in the background while the app compiles.
+      - name: Boot the simulator during the build
+        run: nohup xcrun simctl boot "${{ steps.sim.outputs.udid }}" > "$RUNNER_TEMP/sim-boot.log" 2>&1 &
 
       # The simulator keychain needs a (ad-hoc) code signature, so signing is not disabled here.
       - name: Build for testing
@@ -213,13 +181,42 @@ jobs:
             -project Aether.xcodeproj -scheme Aether \
             -clonedSourcePackagesDirPath "$HOME/SourcePackages" \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="-" 2>&1 | tee "$RUNNER_TEMP/build.log"
 
+      - name: Wait for the simulator
+        if: steps.build.outcome == 'success'
+        run: |
+          xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b || { cat "$RUNNER_TEMP/sim-boot.log"; exit 1; }
+
+      # The video-conversion tests (real FFmpeg conversions played by AVPlayer, about 1.5 minutes) run when the conversion,
+      # relay or playback code changed, on main and on manual runs; the other unit tests run on every push. A commit marked
+      # [ui] (look-only changes) skips the unit tests; a manual run that asks for UI tests skips them too (the push ran them).
+      - name: Unit tests
+        id: unit
+        if: steps.build.outcome == 'success' && !contains(github.event.head_commit.message, '[ui]') && !(github.event_name == 'workflow_dispatch' && inputs.ui_tests != '')
+        env:
+          REMUX: ${{ needs.changes.outputs.remux }}
+        run: |
+          set -o pipefail
+          SKIP=()
+          if [ "$REMUX" != "true" ]; then
+            SKIP+=(-skip-testing:AetherTests/FFmpegRemuxEngineTests)
+            echo "Conversion code unchanged: FFmpegRemuxEngineTests skipped."
+          fi
+          xcodebuild test-without-building \
+            -project Aether.xcodeproj -scheme Aether \
+            -clonedSourcePackagesDirPath "$HOME/SourcePackages" -disableAutomaticPackageResolution \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -only-testing:AetherTests "${SKIP[@]}" \
+            -retry-tests-on-failure -test-iterations 3 \
+            -resultBundlePath "$RUNNER_TEMP/unit.xcresult" 2>&1 | tee "$RUNNER_TEMP/unit.log"
+
       - name: Generate the media matrix
         id: media
-        if: steps.build.outcome == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.ui_tests != ''))
+        if: "!cancelled() && steps.build.outcome == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.ui_tests != ''))"
         run: |
           set -euo pipefail
           brew install ffmpeg > "$RUNNER_TEMP/brew-ffmpeg.log" 2>&1 || { tail -20 "$RUNNER_TEMP/brew-ffmpeg.log"; exit 1; }
@@ -263,7 +260,7 @@ jobs:
 
       - name: UI tests
         id: ui
-        if: steps.fixture.outcome == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.ui_tests != ''))
+        if: "!cancelled() && steps.fixture.outcome == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.ui_tests != ''))"
         env:
           UI_TESTS: ${{ inputs.ui_tests }}
         timeout-minutes: 90
@@ -277,7 +274,7 @@ jobs:
           xcodebuild test-without-building \
             -project Aether.xcodeproj -scheme Aether \
             -clonedSourcePackagesDirPath "$HOME/SourcePackages" -disableAutomaticPackageResolution \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             "${ONLY[@]}" \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 300 \
@@ -297,7 +294,7 @@ jobs:
           xcodebuild test-without-building \
             -project Aether.xcodeproj -scheme Aether \
             -clonedSourcePackagesDirPath "$HOME/SourcePackages" -disableAutomaticPackageResolution \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -only-testing:AetherUITests/ScreenshotTourUITests \
             -resultBundlePath "$RUNNER_TEMP/shots.xcresult" 2>&1 | tee "$RUNNER_TEMP/shots.log" | grep -E "Test Case|error:|TOUR-SHOT" || true
